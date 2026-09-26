@@ -47,7 +47,12 @@ from core.runtime.model_runtime_assignment import (
 )
 from core.runtime.resource_observation import ResourceObserver, get_resource_observer
 from core.runtime.shutdown_coordinator import is_shutdown_requested
-from core.runtime.state_ownership import state_root
+from core.runtime.state_ownership import (
+    RuntimeProfile,
+    live_state_root,
+    runtime_profile,
+    state_root,
+)
 from core.runtime.wall_clock import wall_time
 
 logger = logging.getLogger("Aura.ModelLaneControl")
@@ -1451,10 +1456,18 @@ class ModelLaneController:
         configured_state_path = str(
             os.environ.get("AURA_MODEL_LANE_STATE_PATH", "") or ""
         ).strip()
+        # A model reservation governs physical host memory, even when its
+        # research artifacts use an isolated AURA_STATE_ROOT. Non-live profiles
+        # still need private ledgers unless they explicitly share one.
+        default_root = (
+            live_state_root()
+            if runtime_profile() is RuntimeProfile.LIVE
+            else state_root()
+        )
         self.state_path = Path(
             state_path
             or configured_state_path
-            or (state_root() / "run" / "model_lane_control.json")
+            or (default_root / "run" / "model_lane_control.json")
         )
         self.lock_path = self.state_path.with_suffix(self.state_path.suffix + ".lock")
         self._receipt_store = receipt_store
