@@ -17,7 +17,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from core.subject.synergy import _components, _copula_normal, synergy
+from core.subject.synergy import _components, _copula_normal, kraskov_synergy_value, synergy
 
 pytestmark = pytest.mark.unit
 
@@ -37,7 +37,7 @@ def _ksg_synergy(kind: str) -> float:
         _copula_normal(_components(block))
         for block in (recording.domain("W")[:-1], recording.domain("A")[:-1], following[1:] - following[:-1])
     )
-    return study._ksg_synergy(a, b, y, np.random.default_rng(SEED))[0]
+    return kraskov_synergy_value(a, b, y, np.random.default_rng(SEED))[0]
 
 
 def test_the_v3_line_does_not_register_a_pure_product():
@@ -61,3 +61,28 @@ def test_the_qualifying_rule_is_the_designs():
     assert study.qualifies({"product": 4, "mixed": 4, "separable": 1, "none": 1}, 5)
     assert not study.qualifies({"product": 5, "mixed": 5, "separable": 5, "none": 1}, 5)
     assert not study.qualifies({"product": 0, "mixed": 2, "separable": 0, "none": 0}, 5)
+
+
+def test_the_kraskov_line_passes_a_product_and_not_a_separable_sum():
+    """The line the study qualified, as the battery reports it, on one seed with few draws."""
+    from core.subject.synergy import kraskov_synergy
+
+    product = kraskov_synergy(study.build("product", SEED), "W", "A", "D", seed=SEED, draws=20, clocks_out=False)
+    separable = kraskov_synergy(study.build("separable", SEED), "W", "A", "D", seed=SEED, draws=20, clocks_out=False)
+    assert product.passes, product
+    assert product.synergy > product.additive_bar
+    assert not separable.passes, separable
+    assert product.as_dict()["estimator"] == "kraskov_k3_max_norm"
+
+
+def test_the_additive_account_holds_a_sum_and_not_a_product():
+    from core.subject.synergy import additive_account
+
+    rng = np.random.default_rng(SEED)
+    a, b = rng.normal(size=(2400, 2)), rng.normal(size=(2400, 2))
+    total = (a[:, :1] + b[:, :1] ** 2) + 0.1 * rng.normal(size=(2400, 1))
+    product = a[:, :1] * b[:, :1] + 0.1 * rng.normal(size=(2400, 1))
+    explained = 1.0 - np.var(total - additive_account(a, b, total)) / np.var(total)
+    missed = 1.0 - np.var(product - additive_account(a, b, product)) / np.var(product)
+    assert explained > 0.9
+    assert missed < 0.05

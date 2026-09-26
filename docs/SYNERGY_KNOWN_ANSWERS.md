@@ -113,3 +113,21 @@ corrected one: product and mixed at four of five, separable and none at no more
 than one. An estimator that qualifies again is written up as an amendment to the
 synergy line, beside v3 and not in place of it, with both tables as its controls,
 before anything of hers is read with it. One that does not is dropped.
+
+### What it read
+
+| estimator | product | mixed | additive (a threshold of sums) | separable | none | qualifies |
+|---|---|---|---|---|---|---|
+| v3 | 0 | 0 | 0 | 0 | 0 | no |
+| ksg | 5 | 5 | 5 | 0 | 0 | yes |
+| ksg+gain | 0 | 0 | 0 | 0 | 0 | no |
+| ksg-over-sum | 5 | 5 | 5 | 0 | 0 | yes |
+
+Both Kraskov estimators qualify again. Over the ten seeds the line reported
+beside v3 (ksg-over-sum) passed product and mixed at ten of ten, the separable
+sum at none of ten, and uncoupled sources at one of ten. It is the stricter of
+the two, since a triple has to clear the shifted null and what the additive part
+of its target alone would show, and it is the one adopted, as
+`core.subject.synergy.kraskov_synergy` (docs/ISC_V5_PREREGISTRATION.md, addendum
+of 26 September, evening). The study's tool reads it through the battery's own
+code, which reproduces the replication's logged rows to the digit.

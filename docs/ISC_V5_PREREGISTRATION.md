@@ -384,3 +384,39 @@ and were started again at 20:33 with the same arguments. Their tree is at
 there to 8447bc297, where the other eight ran, and the toy systems take four
 columns a domain whatever the state schema holds. The eight finished are:
 recurrent 511, 511 and 511; star 511, 511 and 508; independent 0 and 0.
+
+## Addendum, 26 September 2026, evening: a synergy line that can see a product, beside v3
+
+Written after the known-answers replication and before any recording of hers was
+read with the line it adds (docs/SYNERGY_KNOWN_ANSWERS.md).
+
+The v3 synergy line cannot register a pure product: on toy systems of her
+campaign's length it passed none of ten seeds, and a threshold of sums at none
+of ten. A failing triple of hers therefore does not show that no product
+coupling is there. W,A -> D on the seed-7 validation at c5f0ea5fe had an
+established interaction gain (lower bound 0.027) under an MMI synergy below its
+null.
+
+A second line is reported beside v3 for the four declared triples,
+`core.subject.synergy.kraskov_synergy`, recorded by the campaign as
+`synergy_kraskov` and for runs that finished before it by
+`tools/subject_core_rescore_kraskov.py`. It does not replace v3, and it enters
+no version's count: the v1, v3 and v5 totals are unchanged by it.
+
+- **Estimate.** MMI synergy of the two sources about the target's change,
+  Syn(A_t, B_t ; Y_{t+1} - Y_t), through the Kraskov, Stoegbauer and Grassberger
+  estimator 1 (max norm, k = 3) on the same three copula-normal components per
+  domain that v3 reads, with the counters out.
+- **First null.** Both sources slid together by one circular shift, 1,000 draws,
+  the 0.99 quantile.
+- **Second null.** Surrogate targets holding only the additive part of the
+  target: its best additive fit on the two sources (degree 1, 2 or 3 per
+  source, chosen by five-fold held-out loss) plus its residual permuted over
+  rows; 1,000 draws, the 0.99 quantile.
+- **Pass.** The synergy clears both.
+
+On the study's systems, at 200 draws, it passed product and mixed at ten of ten
+seeds, a separable sum at none of ten and uncoupled sources at one of ten. The
+first reading of a recording of hers with it is the two seed-7 validations of 26
+September, diagnostic; no decisive seed is read with it before the decisive
+addendum names it.

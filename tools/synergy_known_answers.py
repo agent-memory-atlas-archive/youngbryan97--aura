@@ -37,22 +37,17 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from scipy.spatial import cKDTree
-from scipy.special import digamma
 
 REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from core.subject.recording import Recording, slices_from_columns  # noqa: E402
-from core.subject.synergy import _components, _copula_normal, synergy  # noqa: E402
+from core.subject.synergy import kraskov_synergy, synergy  # noqa: E402
 
 ROWS = 2400
 SEEDS = (3, 7, 11, 19, 23)
 KINDS = ("product", "mixed", "additive", "separable", "none")
-#: Neighbours for the Kraskov estimator, the middle of the 2 to 4 its authors
-#: recommend.
-K = 3
 #: Null draws for the Kraskov line. A Kraskov MI costs a few hundred times a
 #: Gaussian one; 200 draws still put two past the 0.99 quantile. The v3 line
 #: keeps its own 1,000.
@@ -112,93 +107,13 @@ def build(kind: str, seed: int) -> Recording:
     )
 
 
-def ksg_mi(x: np.ndarray, y: np.ndarray, rng: np.random.Generator) -> float:
-    """Kraskov estimator 1, max norm, in nats."""
-    x = x + 1e-10 * rng.normal(size=x.shape)
-    y = y + 1e-10 * rng.normal(size=y.shape)
-    joint = np.hstack([x, y])
-    eps = cKDTree(joint).query(joint, k=K + 1, p=np.inf)[0][:, -1]
-    nx = cKDTree(x).query_ball_point(x, eps - 1e-15, p=np.inf, return_length=True) - 1
-    ny = cKDTree(y).query_ball_point(y, eps - 1e-15, p=np.inf, return_length=True) - 1
-    n = x.shape[0]
-    return float(digamma(K) + digamma(n) - np.mean(digamma(nx + 1) + digamma(ny + 1)))
-
-
-def _ksg_synergy(a: np.ndarray, b: np.ndarray, y: np.ndarray, rng: np.random.Generator) -> tuple[float, float]:
-    joint = ksg_mi(np.hstack([a, b]), y, rng)
-    return joint - max(ksg_mi(a, y, rng), ksg_mi(b, y, rng)), joint
-
-
-#: Degrees the additive model may take for each source; the one with the
-#: lowest held-out loss is used.
-ADDITIVE_DEGREES = (1, 2, 3)
-#: Folds the additive model's degree is chosen over.
-ADDITIVE_FOLDS = 5
-
-
-def _additive_basis(a: np.ndarray, b: np.ndarray, degree: int) -> np.ndarray:
-    """Powers of each source's columns up to `degree`, and no product between sources."""
-    columns = [np.ones((a.shape[0], 1))]
-    for source in (a, b):
-        for power in range(1, degree + 1):
-            columns.append(source**power)
-    return np.hstack(columns)
-
-
-def additive_fit(a: np.ndarray, b: np.ndarray, y: np.ndarray) -> np.ndarray:
-    """The best additive account of y from a and b, its degree chosen by held-out loss."""
-    rows = y.shape[0]
-    fold = np.arange(rows) * ADDITIVE_FOLDS // rows
-    best, best_loss = ADDITIVE_DEGREES[0], np.inf
-    for degree in ADDITIVE_DEGREES:
-        basis = _additive_basis(a, b, degree)
-        loss = 0.0
-        for k in range(ADDITIVE_FOLDS):
-            train, test = fold != k, fold == k
-            coef = np.linalg.lstsq(basis[train], y[train], rcond=None)[0]
-            loss += float(np.sum((y[test] - basis[test] @ coef) ** 2))
-        if loss < best_loss:
-            best, best_loss = degree, loss
-    basis = _additive_basis(a, b, best)
-    return basis @ np.linalg.lstsq(basis, y, rcond=None)[0]
-
-
-def additive_null(a: np.ndarray, b: np.ndarray, y: np.ndarray, rng: np.random.Generator) -> float:
-    """The 0.99 quantile of the synergy a target with only the additive part of y would show.
-
-    Each surrogate is the additive fit plus its own residual permuted over rows,
-    which keeps every additive dependence on the sources and the noise level,
-    and removes anything the sources do together.
-    """
-    fitted = additive_fit(a, b, y)
-    residual = y - fitted
-    draws = []
-    for _ in range(KSG_DRAWS):
-        surrogate = fitted + residual[rng.permutation(residual.shape[0])]
-        draws.append(_ksg_synergy(a, b, surrogate, rng)[0])
-    return float(np.quantile(draws, 0.99))
-
-
 def read(kind: str, seed: int) -> dict[str, object]:
-    """One row of the table: the three estimators on one toy."""
+    """One row of the table: the four estimators on one toy, the Kraskov line as the battery reports it."""
     recording = build(kind, seed)
     v3 = synergy(recording, "W", "A", "D", seed=seed, of="change")
-    following = recording.domain("D")
-    a, b, y = (
-        _copula_normal(_components(block))
-        for block in (recording.domain("W")[:-1], recording.domain("A")[:-1], following[1:] - following[:-1])
-    )
-    rng = np.random.default_rng(seed)
-    value, joint = _ksg_synergy(a, b, y, rng)
-    rows = a.shape[0]
-    nulls = []
-    for _ in range(KSG_DRAWS):
-        shift = int(rng.integers(rows // 8, rows - rows // 8))
-        nulls.append(_ksg_synergy(np.roll(a, shift, 0), np.roll(b, shift, 0), y, rng)[0])
-    bar = float(np.quantile(nulls, 0.99))
-    ksg = value > bar
-    fraction = value / joint if joint > 1e-9 else 0.0
-    sum_bar = additive_null(a, b, y, rng)
+    line = kraskov_synergy(recording, "W", "A", "D", seed=seed, draws=KSG_DRAWS, clocks_out=False)
+    ksg = line.synergy > line.shift_bar
+    fraction = line.synergy / line.joint if line.joint > 1e-9 else 0.0
     return {
         "kind": kind,
         "seed": seed,
@@ -206,14 +121,14 @@ def read(kind: str, seed: int) -> dict[str, object]:
         "v3_synergy": float(v3.synergy),
         "v3_bar": float(v3.raw_null_q99),
         "ksg": bool(ksg),
-        "ksg_synergy": value,
-        "ksg_bar": bar,
+        "ksg_synergy": line.synergy,
+        "ksg_bar": line.shift_bar,
         "ksg_fraction": fraction,
         "gain": float(v3.interaction_gain),
         "gain_lower_bound": float(v3.interaction_lower_bound),
         "ksg+gain": bool(ksg and fraction >= 0.10 and v3.interaction_gain > 0.0 and v3.interaction_lower_bound > 0.0),
-        "sum_bar": sum_bar,
-        "ksg-over-sum": bool(ksg and value > sum_bar),
+        "sum_bar": line.additive_bar,
+        "ksg-over-sum": bool(line.passes),
     }
 
 

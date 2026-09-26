@@ -632,6 +632,11 @@ async def main() -> int:
             item.as_dict()
             for item in synergy_suite(turns, seed=args.seed, of="change", clocks_out=True)
         ]
+        # The line that can see a product, reported beside the one above and
+        # counted in no version's total (docs/SYNERGY_KNOWN_ANSWERS.md).
+        from core.subject.synergy import kraskov_suite
+
+        evidence["synergy_kraskov"] = [item.as_dict() for item in kraskov_suite(turns, seed=args.seed)]
         matrix, names = periphery_read
         turn_rows = recording.turn_rows()
         from core.subject.closure import coverage as periphery_coverage
