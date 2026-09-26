@@ -373,13 +373,12 @@ class _BuildsAPlanWithoutTheModel:
         is the case search cannot serve at all: a page whose next screen
         depends on what you do to the current one.
         """
-        text = str(goal or "")
-        match = cls._EXPLICIT_URL_RE.search(text)
-        if not match:
-            return ""
-        if not cls._PAGE_INTERACTION_VERB_RE.search(text):
-            return ""
-        return match.group(0).rstrip(".,;:!?")
+        # One reading of this, the one the conversation routes by. Two copies
+        # had already drifted: a site named without its link was a page to act
+        # on in neither, and only one of them kept retrieval out.
+        from core.conversation.page_interaction import page_interaction_target
+
+        return page_interaction_target(goal)
 
     @staticmethod
     def _extract_search_query(goal: str) -> str:

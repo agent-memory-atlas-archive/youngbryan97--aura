@@ -64,6 +64,35 @@ class TestActingOnAPageIsRecognised:
     def test_a_verb_without_a_page_routes_nowhere_new(self):
         assert AutonomousTaskEngine._page_interaction_target("take the test") == ""
 
+    @pytest.mark.parametrize(
+        "goal,expected",
+        [
+            (
+                "Take the Open Extended Jungian Type Scales personality test on "
+                "openpsychometrics.org. Before you start, tell me what type you think it will give you.",
+                "https://openpsychometrics.org",
+            ),
+            ("book a table for two at www.opentable.co.uk tonight", "https://www.opentable.co.uk"),
+            ("go to example.com and sign up", "https://example.com"),
+        ],
+    )
+    def test_a_site_named_as_a_place_is_where_she_starts(self, goal, expected):
+        """LIVE 2026-09-26: the site and the test were named and no address,
+        and the request was answered in conversation instead of being done."""
+        assert AutonomousTaskEngine._page_interaction_target(goal) == expected
+
+    @pytest.mark.parametrize(
+        "goal",
+        [
+            "run setup.py and fix it",
+            "take the test in quiz.js",
+            "summarize the article on nytimes.com",
+            "I read about Node.js and want to take a course on it",
+        ],
+    )
+    def test_a_file_or_a_reading_is_not_a_site_to_act_on(self, goal):
+        assert AutonomousTaskEngine._page_interaction_target(goal) == ""
+
 
 def test_the_plan_opens_the_page_in_pursue_mode():
     """The plan has to carry the goal, not a query distilled from it.

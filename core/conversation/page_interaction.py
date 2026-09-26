@@ -31,6 +31,24 @@ __all__ = ["page_interaction_target", "asks_to_act_on_a_page"]
 #: present, because that is the page to open.
 _EXPLICIT_URL_RE = re.compile(r"https?://[^\s<>\"')\]]+", re.IGNORECASE)
 
+#: A site named as a place, without a link: "on openpsychometrics.org", "at
+#: www.example.co.uk", "go to example.com". Named that way it is where the
+#: request is to be done, and she can find the rest from its front page. The
+#: preposition is what makes it a place: "setup.py" alone is a file, and
+#: "run setup.py" names nothing to open.
+_NAMED_SITE_RE = re.compile(
+    r"\b(?:on|at|from|via|visit|to|open)\s+((?:www\.)?(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+    r"([a-z]{2,24}))\b(?![./-]\w)",
+    re.IGNORECASE,
+)
+
+#: Endings that name a file far more often than a country: a place given as
+#: one of these is left alone.
+_FILE_ENDINGS = frozenset(
+    "py js ts md txt json csv pdf png jpg jpeg gif html htm yaml yml toml sh rb "
+    "rs go java kt swift cpp log zip doc docx xls xlsx ppt pptx".split()
+)
+
 #: Verbs that change something on the far side of a page rather than read it.
 #:
 #: Deliberately about the ACT, not about any site or task. "Take a personality
@@ -62,18 +80,31 @@ def page_interaction_target(text: Any) -> str:
 
     Both halves are required. A URL with no action verb is a page to read; an
     action verb with no URL names no page to open and belongs to whatever other
-    routing the turn would have had.
+    routing the turn would have had. A site named as a place counts as its
+    front page.
     """
 
     body = str(text or "")
     match = _EXPLICIT_URL_RE.search(body)
-    if not match:
-        return ""
+    if match:
+        page = match.group(0).rstrip(".,;:!?")
+    else:
+        # A site named without its link. Where on it the thing is, she finds
+        # from its front page: "take the X test on a-site.org" named the site
+        # and the test and no address, and was answered in conversation
+        # instead of being done (live, 26 Sep).
+        page = ""
+        for named in _NAMED_SITE_RE.finditer(body):
+            if named.group(2).lower() not in _FILE_ENDINGS:
+                page = "https://" + named.group(1).rstrip(".").lower()
+                break
+        if not page:
+            return ""
     if _RETRIEVAL_RE.search(body):
         return ""
     if not _INTERACTION_VERB_RE.search(body):
         return ""
-    return match.group(0).rstrip(".,;:!?")
+    return page
 
 
 def asks_to_act_on_a_page(text: Any) -> bool:

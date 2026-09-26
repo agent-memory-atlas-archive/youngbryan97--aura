@@ -1853,42 +1853,6 @@ The plan is a JSON array of steps:
 
 
 
-    #: A page named outright. The planner needs to know not just that a URL is
-    #: present but WHERE it starts, because that is the page to open.
-    _EXPLICIT_URL_RE = re.compile(r"https?://[^\s<>\"')\]]+", re.IGNORECASE)
-
-    #: Verbs that change something on the far side of a page rather than read
-    #: it. This is the distinction BrowserAuthority already draws — a read
-    #: needs no lease, a click "changes state on the far side and needs a
-    #: lease" — applied one layer up, at the point where a plan is chosen.
-    #:
-    #: LIVE DEFECT, 2026-08-18. "go take it for real:
-    #: https://www.16personalities.com/free-personality-test — work through the
-    #: whole thing, answer every question as yourself" was planned as
-    #: `web_search`, which fetched the page, synthesised nothing usable, and
-    #: ended the turn in "I couldn't get to an answer I'd stand behind."
-    #:
-    #: The interaction capability existed by then; nothing could route to it.
-    #: A capability that cannot be reached is indistinguishable from one that
-    #: was never built, and the planner offered only two readings of a URL:
-    #: search for it, or search with it.
-    _PAGE_INTERACTION_VERB_RE = re.compile(
-        r"\b(?:take|complete|finish|fill(?:\s+(?:in|out))?|answer|submit|apply|"
-        r"sign\s*(?:up|in)|log\s*in|register|book|order|buy|checkout|vote|rate|"
-        r"review|post|comment|subscribe|unsubscribe|click|select|choose|toggle|"
-        r"enable|disable|configure|set\s+up|walk\s+through|work\s+through|"
-        r"go\s+through|play|solve|do)\b",
-        re.IGNORECASE,
-    )
-
-
-
-
-
-
-
-
-
     def _summary_hedges_completion(self, summary: str) -> bool:
         lowered = str(summary or "").lower()
         return any(marker in lowered for marker in self.COMPLETION_HEDGE_MARKERS)
