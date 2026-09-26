@@ -1183,6 +1183,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Real prefix grouping probe](evidence/G_NATIVE_PREFIX_GROUPING_2026-09-26.md)
   rejects batch-two/four single-row training drift at the unchanged threshold.
   Single-row capture is exact; the relative fit retains that execution shape.
+  [Completed role-relative fit](evidence/G_NATIVE_RELATIVE_FIT_2026-09-26.md)
+  scores 46/50 against incumbent 41/50 on exposed held wording, with six gains
+  and one regression. Independent CPU verification reproduces every comparison.
+  The candidate is not promoted; target-blind construction and fresh transfer
+  remain unproved.
   [Native decoder pilot](evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md)
   uses the resident model's original semantic pathway with source-only LoRA.
   The complete held-wording pilot reaches 14/18 versus 7/18 unfitted and
