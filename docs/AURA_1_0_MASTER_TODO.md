@@ -1889,6 +1889,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   independently verifies 6/6 exact fitted decodes and 3/3 source-responsive
   pairs across scalar, lookup, and count. Fixed sentence forms and missing
   matched controls keep G04/G06 open.
+  [Matched depth control](evidence/G06_NATIVE_DEPTH_CONTROL_2026-09-26.md)
+  independently verifies 2/6 unfitted against 6/6 fitted score-prefix
+  replay at three steps. The fitted projection is not a second model run;
+  output-wire adaptation and fixed sentence forms remain confounds.
   [Public composition diagnostic](evidence/G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md)
   independently verifies 48 complete decodes: treatment 8/8, controls 0/8.
   A separate semantic audit preserves that result but identifies missing public
