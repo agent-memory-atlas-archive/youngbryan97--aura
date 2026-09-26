@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -53,6 +54,52 @@ def verify_grammar_row(row, *, example, identity, plan_sha256):
     return equivalent, answer_correct
 
 
+def replay_greedy_decisions(row, *, example, plan):
+    from core.learning.semantic_native_grammar import (
+        NativeGrammarIncompleteError,
+        decode_native_grammar,
+    )
+
+    trace = row["decision_trace"]
+    if not isinstance(trace, list):
+        raise ValueError("native grammar decision trace is missing")
+    consumed = 0
+
+    def recorded_scores(choices):
+        nonlocal consumed
+        if consumed >= len(trace):
+            raise ValueError("native grammar decision trace ended before the graph")
+        entry = trace[consumed]
+        consumed += 1
+        values = [choice.value for choice in choices]
+        scores = entry["scores"]
+        if (entry["choices"] != values or not isinstance(scores, list)
+                or len(scores) != len(values)
+                or any(type(score) not in (int, float) or not math.isfinite(score)
+                       for score in scores)
+                or entry["chosen"] != values[max(range(len(scores)), key=scores.__getitem__)]):
+            raise ValueError("native grammar decision choices or winning score differ")
+        return tuple(scores)
+
+    types = tuple("integer_sequence" if isinstance(value, tuple) else "integer"
+                  for value in example.inputs)
+    try:
+        generated = decode_native_grammar(types, recorded_scores,
+                                          max_steps=plan["max_steps"],
+                                          register_encoding=plan["register_encoding"])
+    except NativeGrammarIncompleteError as failure:
+        program, replayed_trace, forced = failure.program, failure.trace, False
+        status = "disconnected_at_depth_bound"
+    else:
+        program, replayed_trace = generated.program, generated.trace
+        forced, status = generated.bound_forced_completion, "completed"
+    if (consumed != len(trace) or json.loads(json.dumps(replayed_trace)) != trace
+            or status != row["decode_status"]
+            or program.to_dict() != row["program"]
+            or forced is not row["bound_forced_completion"]):
+        raise ValueError("native grammar decision replay differs from saved graph")
+
+
 def verify_grammar(directory, training_directory):
     from core.learning.semantic_program_corpus_natural import (
         build_semantic_program_natural_request_corpus,
@@ -73,7 +120,8 @@ def verify_grammar(directory, training_directory):
             or any(plan[key] is not False or report[key] is not False
                    for key in ("serving_authority", "qualification_evidence"))
             or plan["candidate_inventory"] != "none"
-            or report["candidate_inventory"] != "none"):
+            or report["candidate_inventory"] != "none"
+            or plan["search_mode"] != "greedy"):
         raise ValueError("native grammar plan, checkpoint, or authority differs")
     examples = build_semantic_program_natural_request_corpus(examples_per_schema_domain=3)
     examples = tuple(examples[index] for sample in range(24)
@@ -93,9 +141,9 @@ def verify_grammar(directory, training_directory):
             raise ValueError("native grammar row receipt differs from report")
         outcomes.append(verify_grammar_row(row, example=example, identity=identity,
                                            plan_sha256=plan["plan_sha256"]))
-        if (plan["search_mode"] == "greedy" and row["search"] is not None) or (
-                plan["search_mode"] != "greedy" and row["search"] is None):
+        if row["search"] is not None:
             raise ValueError("native grammar row search mode differs")
+        replay_greedy_decisions(row, example=example, plan=plan)
         rows.append(row)
     totals = {"population": len(outcomes),
               "program_equivalent": sum(equivalent for equivalent, _ in outcomes),

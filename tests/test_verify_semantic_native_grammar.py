@@ -1,11 +1,12 @@
 """A durable grammar receipt is not an authority over its own answer."""
 
+import json
 from types import SimpleNamespace
 
 import pytest
 
 from core.learning.procedure_induction import Instruction, Program
-from tools.verify_semantic_native_grammar import verify_grammar_row
+from tools.verify_semantic_native_grammar import replay_greedy_decisions, verify_grammar_row
 
 
 def test_grammar_row_reexecutes_and_rejects_forged_success():
@@ -40,3 +41,23 @@ def test_grammar_row_keeps_incomplete_programs_out_of_success_counts():
     with pytest.raises(ValueError, match="independent execution"):
         verify_grammar_row({**row, "answer_correct": True}, example=example,
                            identity="source", plan_sha256="plan")
+
+
+def test_grammar_decision_replay_rejects_forged_winner():
+    from core.learning.semantic_native_grammar import decode_native_grammar
+    from core.learning.semantic_native_relative_program import REGISTER_ENCODING
+
+    example = SimpleNamespace(inputs=(8, 3))
+    generated = decode_native_grammar(("integer", "integer"),
+                                      lambda choices: tuple(1.0 if choice.value in ("add", "input:0", "finish")
+                                                            else 0.0 for choice in choices),
+                                      register_encoding=REGISTER_ENCODING)
+    row = {"decision_trace": json.loads(json.dumps(generated.trace)),
+           "program": generated.program.to_dict(),
+           "decode_status": "completed", "bound_forced_completion": False}
+    plan = {"max_steps": 8, "register_encoding": REGISTER_ENCODING}
+    replay_greedy_decisions(row, example=example, plan=plan)
+    forged = {**row, "decision_trace": [dict(step) for step in row["decision_trace"]]}
+    forged["decision_trace"][0]["chosen"] = "sub"
+    with pytest.raises(ValueError, match="winning score"):
+        replay_greedy_decisions(forged, example=example, plan=plan)
