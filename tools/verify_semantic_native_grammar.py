@@ -82,7 +82,7 @@ def replay_greedy_decisions(row, *, example, plan):
         return tuple(scores)
 
     types = tuple("integer_sequence" if isinstance(value, tuple) else "integer"
-                  for value in example.inputs)
+                  for value in verified_public_inputs(example))
     try:
         generated = decode_native_grammar(types, recorded_scores,
                                           max_steps=plan["max_steps"],
@@ -152,7 +152,7 @@ def verify_source_separation(training, source_report_path, bundles, target_examp
 
 def verified_weight_mode(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    if (version not in {"v1", "v2"}
+    if (version not in {"v1", "v2", "v3"}
             or plan["schema"] != f"aura.semantic_native_grammar_plan.{version}"
             or report.get("schema") != f"aura.semantic_native_grammar.{version}"):
         raise ValueError("native grammar schema versions differ")
@@ -167,10 +167,76 @@ def verified_weight_mode(plan, report):
 
 
 def verified_input_grounding(plan, report):
-    if (plan.get("input_grounding") != "declared_public_inputs"
+    version = plan.get("schema", "").rsplit(".", 1)[-1]
+    expected = ("semantic_public_character_inputs.v1" if version == "v3"
+                else "declared_public_inputs")
+    if (plan.get("input_grounding") != expected
             or report.get("input_grounding") != plan["input_grounding"]):
         raise ValueError("native grammar input grounding differs")
     return plan["input_grounding"]
+
+
+def verified_dataset(plan, report):
+    version = plan.get("schema", "").rsplit(".", 1)[-1]
+    if version in {"v1", "v2"}:
+        if any(name in document for document in (plan, report)
+               for name in ("dataset", "seed")):
+            raise ValueError("historical native grammar dataset differed")
+        return "natural_request", 3141592
+    dataset, seed = plan.get("dataset"), plan.get("seed")
+    if (dataset not in {"natural_request", "operation_intervention"}
+            or type(seed) is not int or seed < 0
+            or report.get("dataset") != dataset or report.get("seed") != seed):
+        raise ValueError("native grammar dataset or seed differs")
+    return dataset, seed
+
+
+def verified_examples(plan, *, dataset, seed):
+    from core.learning.semantic_program_corpus_natural import (
+        build_semantic_program_natural_request_corpus,
+    )
+
+    count = len(plan["sources"])
+    if dataset == "natural_request":
+        corpus = build_semantic_program_natural_request_corpus(
+            seed=seed, examples_per_schema_domain=3,
+        )
+        ordered = tuple(corpus[index] for sample in range(24)
+                        for index in (sample, sample + 24, sample + 48))
+    else:
+        from tools.semantic_native_operation_interventions import build_native_operation_interventions
+
+        pairs = build_native_operation_interventions(seed=seed)
+        groups = {}
+        for pair in pairs:
+            groups.setdefault(pair.original.topology_id, []).append(pair)
+        ordered = tuple(example for cohort in zip(*groups.values(), strict=True)
+                        for pair in cohort for example in (pair.original, pair.changed))
+        if count % 2:
+            raise ValueError("native grammar intervention split a source pair")
+    if not 1 <= count <= len(ordered):
+        raise ValueError("native grammar population exceeds the source inventory")
+    return ordered[:count]
+
+
+def verified_pair_totals(rows, *, dataset):
+    if dataset != "operation_intervention":
+        return {"pair_count": 0, "pair_exact": 0, "source_responsive": 0}
+    if len(rows) % 2:
+        raise ValueError("native grammar intervention rows split a source pair")
+    exact = responsive = 0
+    for index in range(0, len(rows), 2):
+        left, right = rows[index], rows[index + 1]
+        exact += (left["program_equivalent"] and left["answer_correct"]
+                  and right["program_equivalent"] and right["answer_correct"])
+        if left["decode_status"] == right["decode_status"] == "completed":
+            left_steps = left["program"]["instructions"]
+            right_steps = right["program"]["instructions"]
+            responsive += (left_steps[:-1] == right_steps[:-1]
+                           and left_steps[-1][1] == right_steps[-1][1]
+                           and left_steps[-1][0] != right_steps[-1][0])
+    return {"pair_count": len(rows) // 2, "pair_exact": exact,
+            "source_responsive": responsive}
 
 
 def verified_public_inputs(example):
@@ -183,9 +249,6 @@ def verified_public_inputs(example):
 
 
 def verify_grammar(directory, training_directory):
-    from core.learning.semantic_program_corpus_natural import (
-        build_semantic_program_natural_request_corpus,
-    )
     from tools.evaluate_semantic_native_checkpoint import selected_checkpoint, verified_document
 
     training, selected = selected_checkpoint(training_directory)
@@ -193,6 +256,7 @@ def verify_grammar(directory, training_directory):
     report = verified_document(directory / "report.json")
     weight_mode = verified_weight_mode(plan, report)
     input_grounding = verified_input_grounding(plan, report)
+    dataset, seed = verified_dataset(plan, report)
     if (plan["training_plan_sha256"] != training["plan_sha256"]
             or plan["checkpoint_receipt_sha256"] != selected["receipt_sha256"]
             or plan["model_descriptor_sha256"] != training["model_descriptor_sha256"]
@@ -205,9 +269,7 @@ def verify_grammar(directory, training_directory):
             or report["candidate_inventory"] != "none"
             or plan["search_mode"] != "greedy"):
         raise ValueError("native grammar plan, checkpoint, or authority differs")
-    examples = build_semantic_program_natural_request_corpus(examples_per_schema_domain=3)
-    examples = tuple(examples[index] for sample in range(24)
-                     for index in (sample, sample + 24, sample + 48))[:len(plan["sources"])]
+    examples = verified_examples(plan, dataset=dataset, seed=seed)
     sources = [hashlib.sha256(example.source_text.encode()).hexdigest() for example in examples]
     forbidden = set(training["fit_ids"]) | set(training["calibration_ids"]) | set(training["held_ids"])
     if (not sources or sources != plan["sources"] or len(set(sources)) != len(sources)
@@ -220,6 +282,12 @@ def verify_grammar(directory, training_directory):
     for example, identity in zip(examples, sources, strict=True):
         verified_public_inputs(example)
         row = verified_document(directory / "rows" / f"{identity}.json")
+        if plan["schema"].endswith(".v3"):
+            from core.learning.semantic_public_inputs import semantic_public_character_inputs
+
+            receipt = semantic_public_character_inputs(example.source_text).receipt()
+            if row.get("public_input_receipt_sha256") != receipt["receipt_sha256"]:
+                raise ValueError("native grammar public input receipt differs")
         if row["receipt_sha256"] != report["row_receipts"][identity]:
             raise ValueError("native grammar row receipt differs from report")
         outcomes.append(verify_grammar_row(row, example=example, identity=identity,
@@ -233,6 +301,8 @@ def verify_grammar(directory, training_directory):
               "answer_correct": sum(correct for _, correct in outcomes),
               "bound_forced_completion": sum(row["bound_forced_completion"] for row in rows),
               "depth_bound_reached": sum(row["depth_bound_reached"] for row in rows)}
+    if plan["schema"].endswith(".v3"):
+        totals.update(verified_pair_totals(rows, dataset=dataset))
     if any(report[key] != value for key, value in totals.items()):
         raise ValueError("native grammar reported totals differ from execution")
     drift = sorted(name for name, sha in plan["implementation"].items()
@@ -241,6 +311,7 @@ def verify_grammar(directory, training_directory):
     return {"plan_sha256": plan["plan_sha256"], "report_receipt_sha256": report["receipt_sha256"],
             "weight_mode": weight_mode,
             "input_grounding": input_grounding,
+            "dataset": dataset, "seed": seed,
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
             "totals": totals, "current_implementation_drift": drift,
@@ -266,13 +337,9 @@ def main():
     configure_refit_environment(args.output)
     result = verify_grammar(args.directory, args.training_directory)
     if args.source_report is not None:
-        from core.learning.semantic_program_corpus_natural import (
-            build_semantic_program_natural_request_corpus,
-        )
         training, _ = selected_checkpoint(args.training_directory)
-        examples = build_semantic_program_natural_request_corpus(examples_per_schema_domain=3)
-        examples = tuple(examples[index] for sample in range(24)
-                         for index in (sample, sample + 24, sample + 48))[:result["totals"]["population"]]
+        plan = verified_document(args.directory / "plan.json", "plan_sha256")
+        examples = verified_examples(plan, dataset=result["dataset"], seed=result["seed"])
         result["source_separation"] = verify_source_separation(
             training, args.source_report, args.bundle, examples)
     body = {"schema": "aura.semantic_native_grammar_verification.v1", **result}

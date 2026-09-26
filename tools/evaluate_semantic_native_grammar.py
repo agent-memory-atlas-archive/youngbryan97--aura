@@ -25,6 +25,64 @@ def select_search_proposal(search, scorer):
     return (max(range(len(scores)), key=scores.__getitem__) if scores else None), scores
 
 
+def grammar_examples(*, dataset, seed, count):
+    from core.learning.semantic_program_corpus_natural import (
+        build_semantic_program_natural_request_corpus,
+    )
+
+    if dataset == "natural_request":
+        examples = build_semantic_program_natural_request_corpus(
+            seed=seed, examples_per_schema_domain=3,
+        )
+        ordered = tuple(examples[index] for sample in range(24) for index in
+                        (sample, sample + 24, sample + 48))
+    elif dataset == "operation_intervention":
+        from tools.semantic_native_operation_interventions import build_native_operation_interventions
+
+        pairs = build_native_operation_interventions(seed=seed)
+        groups = {}
+        for pair in pairs:
+            groups.setdefault(pair.original.topology_id, []).append(pair)
+        ordered = tuple(example for cohort in zip(*groups.values(), strict=True)
+                        for pair in cohort for example in (pair.original, pair.changed))
+        if count % 2:
+            raise ValueError("operation interventions require complete source pairs")
+    else:
+        raise ValueError("unknown native grammar dataset")
+    if not 1 <= count <= len(ordered):
+        raise ValueError("native grammar population exceeds the frozen source inventory")
+    return ordered[:count]
+
+
+def source_input_types(source_text):
+    from core.learning.semantic_public_inputs import semantic_public_character_inputs
+
+    public = semantic_public_character_inputs(source_text)
+    types = tuple("integer_sequence" if isinstance(value, tuple) else "integer"
+                  for value in public.values)
+    if not types:
+        raise ValueError("native grammar source has no supported public values")
+    return public, types
+
+
+def grammar_pair_totals(rows, *, dataset):
+    if dataset != "operation_intervention":
+        return {"pair_count": 0, "pair_exact": 0, "source_responsive": 0}
+    if len(rows) % 2:
+        raise ValueError("operation intervention outcomes split a source pair")
+    pair_exact = source_responsive = 0
+    for original, changed in zip(rows[::2], rows[1::2], strict=True):
+        pair_exact += all(row["program_equivalent"] and row["answer_correct"]
+                          for row in (original, changed))
+        if original["decode_status"] != "completed" or changed["decode_status"] != "completed":
+            continue
+        left, right = original["program"]["instructions"], changed["program"]["instructions"]
+        source_responsive += (left[:-1] == right[:-1] and left[-1][1] == right[-1][1]
+                              and left[-1][0] != right[-1][0])
+    return {"pair_count": len(rows) // 2, "pair_exact": pair_exact,
+            "source_responsive": source_responsive}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--training-directory", type=Path, required=True)
@@ -37,21 +95,25 @@ def main():
     parser.add_argument("--search-score-mode", choices=("normalized_choices", "native_nonpositive"),
                         default="native_nonpositive")
     parser.add_argument("--weight-mode", choices=("fitted", "base"), default="fitted")
+    parser.add_argument("--dataset", choices=("natural_request", "operation_intervention"),
+                        default="natural_request")
+    parser.add_argument("--seed", type=int)
     parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args()
     if not 1 <= args.max_steps <= 128 or not 1 <= args.canary <= 72 or not 0 < args.max_seconds <= 14400:
         parser.error("finite depth, population, and runtime bounds required")
     if not 0 <= args.search_completions <= 128 or not 1 <= args.search_nodes <= 100000:
         parser.error("finite search node and completion bounds required")
+    if args.dataset == "operation_intervention" and args.seed is None:
+        parser.error("operation interventions require an explicit frozen seed")
+    seed = 3141592 if args.seed is None else args.seed
+    if seed < 0:
+        parser.error("native grammar seed must be nonnegative")
     from tools.evaluate_semantic_native_checkpoint import digest, selected_checkpoint
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
     from tools.refit_semantic_argument_proposals import configure_refit_environment
     configure_refit_environment(args.directory / "report.json")
     from core.brain.llm.model_registry import get_active_cortex_spec
-    from core.learning.semantic_program_corpus_natural import (
-        build_semantic_program_natural_request_corpus,
-    )
-
     training, selected = selected_checkpoint(args.training_directory)
     from core.learning.semantic_native_codec import register_encoding_from_plan
     register_encoding = register_encoding_from_plan(training)
@@ -61,10 +123,7 @@ def main():
             or spec.pointer_sha256 != training["pointer_sha256"]
             or spec.model_path.resolve() != Path(training["model_path"]).resolve()):
         raise ValueError("native grammar model identity differs from training")
-    examples = build_semantic_program_natural_request_corpus(examples_per_schema_domain=3)
-    # Interleave schema cells so the canary does not inspect only scalar chains.
-    examples = tuple(examples[index] for sample in range(24) for index in
-                     (sample, sample + 24, sample + 48))[:args.canary]
+    examples = grammar_examples(dataset=args.dataset, seed=seed, count=args.canary)
     sources = [hashlib.sha256(example.source_text.encode()).hexdigest() for example in examples]
     forbidden = set(training["fit_ids"]) | set(training["calibration_ids"]) | set(training["held_ids"])
     if forbidden & set(sources) or len(set(sources)) != len(sources):
@@ -79,12 +138,16 @@ def main():
              "core/learning/frozen_decoder_prefix.py",
              "core/learning/semantic_program_floor.py",
              "core/learning/semantic_program_corpus_natural.py",
+             "core/learning/semantic_public_inputs.py",
              "tools/train_semantic_native_program.py")
+    if args.dataset == "operation_intervention":
+        paths += ("tools/semantic_native_operation_interventions.py",)
     implementation = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in paths}
-    body = {"schema": "aura.semantic_native_grammar_plan.v2",
+    body = {"schema": "aura.semantic_native_grammar_plan.v3",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
             "weight_mode": args.weight_mode,
+            "dataset": args.dataset, "seed": seed,
             "model_descriptor_sha256": spec.descriptor_sha256,
             "pointer_sha256": spec.pointer_sha256, "implementation": implementation,
             "sources": sources, "max_steps": args.max_steps, "max_seconds": args.max_seconds,
@@ -92,7 +155,7 @@ def main():
             "search_mode": "best_first_then_complete_graph_score" if args.search_completions else "greedy",
             "search_nodes": args.search_nodes, "search_completions": args.search_completions,
             "search_score_mode": args.search_score_mode,
-            "candidate_inventory": "none", "input_grounding": "declared_public_inputs",
+            "candidate_inventory": "none", "input_grounding": "semantic_public_character_inputs.v1",
             "target_available_to_scorer": False, "held_labels_used_for_fit_or_selection": False,
             "serving_authority": False, "qualification_evidence": False}
     plan = {**body, "plan_sha256": digest(body)}
@@ -136,6 +199,7 @@ def main():
             model.load_weights(str(args.training_directory /
                                    f"checkpoint-{selected['step']}.safetensors"), strict=False)
         for example, identity in zip(examples, sources, strict=True):
+            public_inputs, types = source_input_types(example.source_text)
             scored = 0
             def score(choices, *, source=example.source_text, source_identity=identity):
                 nonlocal scored
@@ -154,8 +218,6 @@ def main():
                                   "scored_prefixes": scored, "choices": len(choices)}), flush=True)
                 return tuple(scores)
 
-            types = tuple("integer_sequence" if isinstance(value, tuple) else "integer"
-                          for value in example.inputs)
             search_evidence = None
             try:
                 if args.search_completions:
@@ -206,13 +268,14 @@ def main():
             answer_correct = False
             if status == "completed":
                 try:
-                    answer_correct = program.run(example.inputs) == example.program.run(example.inputs)
+                    answer_correct = program.run(public_inputs.values) == example.program.run(example.inputs)
                 except (ValueError, TypeError, RuntimeError, ArithmeticError, IndexError):
                     answer_correct = False
             else:
                 answer_correct = False
             row_body = {"plan_sha256": plan["plan_sha256"], "source_sha256": identity,
                         "construction": example.construction_id,
+                        "public_input_receipt_sha256": public_inputs.receipt()["receipt_sha256"],
                         "program": None if program is None else program.to_dict(), "decode_status": status,
                         "program_equivalent": equivalent, "answer_correct": answer_correct,
                         "bound_forced_completion": forced,
@@ -232,14 +295,16 @@ def main():
                        for name, sha in implementation.items())
                 or selected_checkpoint(args.training_directory) != (training, selected)):
             raise ValueError("native grammar implementation, model, or checkpoint drifted")
-        result = {"schema": "aura.semantic_native_grammar.v2", "plan_sha256": plan["plan_sha256"],
-                  "weight_mode": args.weight_mode,
+        pair_totals = grammar_pair_totals(rows, dataset=args.dataset)
+        result = {"schema": "aura.semantic_native_grammar.v3", "plan_sha256": plan["plan_sha256"],
+                  "weight_mode": args.weight_mode, "dataset": args.dataset, "seed": seed,
                   "population": len(rows), "program_equivalent": sum(row["program_equivalent"] for row in rows),
                   "answer_correct": sum(row["answer_correct"] for row in rows),
+                  **pair_totals,
                   "bound_forced_completion": sum(row["bound_forced_completion"] for row in rows),
                   "depth_bound_reached": sum(row["depth_bound_reached"] for row in rows),
                   "row_receipts": {row["source_sha256"]: row["receipt_sha256"] for row in rows},
-                  "candidate_inventory": "none", "input_grounding": "declared_public_inputs",
+                  "candidate_inventory": "none", "input_grounding": "semantic_public_character_inputs.v1",
                   "target_available_to_scorer": False, "serving_authority": False,
                   "qualification_evidence": False, "elapsed_seconds": time.monotonic() - started}
         _save_if_absent(args.directory / "report.json", {**result, "receipt_sha256": digest(result)})

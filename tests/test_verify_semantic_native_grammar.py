@@ -12,7 +12,10 @@ from tools.verify_semantic_native_grammar import (
     source_separation_summary,
     verify_grammar_row,
     verify_source_separation,
+    verified_dataset,
+    verified_examples,
     verified_input_grounding,
+    verified_pair_totals,
     verified_public_inputs,
     verified_weight_mode,
 )
@@ -56,7 +59,7 @@ def test_grammar_decision_replay_rejects_forged_winner():
     from core.learning.semantic_native_grammar import decode_native_grammar
     from core.learning.semantic_native_relative_program import REGISTER_ENCODING
 
-    example = SimpleNamespace(inputs=(8, 3))
+    example = SimpleNamespace(source_text="Use 8 and 3.", inputs=(8, 3))
     generated = decode_native_grammar(("integer", "integer"),
                                       lambda choices: tuple(1.0 if choice.value in ("add", "input:0", "finish")
                                                             else 0.0 for choice in choices),
@@ -143,6 +146,9 @@ def test_weight_mode_verification_keeps_base_and_fitted_arms_distinct():
         verified_weight_mode(plan, {**report, "weight_mode": "fitted"})
     with pytest.raises(ValueError, match="schema versions differ"):
         verified_weight_mode(plan, old_report)
+    next_plan = {"schema": "aura.semantic_native_grammar_plan.v3", "weight_mode": "fitted"}
+    next_report = {"schema": "aura.semantic_native_grammar.v3", "weight_mode": "fitted"}
+    assert verified_weight_mode(next_plan, next_report) == "fitted"
 
 
 def test_public_values_recovered_from_source_not_assumed_from_annotation():
@@ -161,3 +167,44 @@ def test_grounding_claim_cannot_change_without_a_protocol_version():
         verified_input_grounding(plan, {"input_grounding": "semantic_public_character_inputs.v1"})
     with pytest.raises(ValueError, match="input grounding differs"):
         verified_input_grounding({"input_grounding": "semantic_public_character_inputs.v1"}, report)
+    new_plan = {"schema": "aura.semantic_native_grammar_plan.v3",
+                "input_grounding": "semantic_public_character_inputs.v1"}
+    new_report = {"input_grounding": "semantic_public_character_inputs.v1"}
+    assert verified_input_grounding(new_plan, new_report) == new_report["input_grounding"]
+    with pytest.raises(ValueError, match="input grounding differs"):
+        verified_input_grounding(new_plan, report)
+
+
+def test_intervention_dataset_reconstruction_is_independent_of_evaluator_order():
+    plan = {"schema": "aura.semantic_native_grammar_plan.v3", "dataset": "operation_intervention",
+            "seed": 2718283, "sources": ["source"] * 6}
+    report = {"dataset": "operation_intervention", "seed": 2718283}
+    assert verified_dataset(plan, report) == ("operation_intervention", 2718283)
+    examples = verified_examples(plan, dataset="operation_intervention", seed=2718283)
+    assert len(examples) == 6
+    assert {example.topology_id for example in examples} == {
+        "scalar_linear_three", "lookup_linear_three", "count_linear_three",
+    }
+    assert all(examples[index].source_text != examples[index + 1].source_text
+               for index in range(0, 6, 2))
+    with pytest.raises(ValueError, match="seed differs"):
+        verified_dataset(plan, {**report, "seed": 2718285})
+    with pytest.raises(ValueError, match="split a source pair"):
+        verified_examples({**plan, "sources": ["source"] * 5},
+                          dataset="operation_intervention", seed=2718283)
+    old_plan = {"schema": "aura.semantic_native_grammar_plan.v2"}
+    assert verified_dataset(old_plan, {}) == ("natural_request", 3141592)
+
+
+def test_independent_intervention_pair_metrics_reject_wrong_registers():
+    before = {"program_equivalent": True, "answer_correct": True,
+              "decode_status": "completed", "program": {"instructions": [
+                  ["add", [0, 1]], ["sub", [4, 2]]]}}
+    after = {**before, "program": {"instructions": [
+        ["add", [0, 1]], ["add", [4, 2]]]}}
+    assert verified_pair_totals((before, after), dataset="operation_intervention") == {
+        "pair_count": 1, "pair_exact": 1, "source_responsive": 1,
+    }
+    wrong = {**after, "program": {"instructions": [
+        ["add", [0, 1]], ["add", [4, 3]]]}}
+    assert verified_pair_totals((before, wrong), dataset="operation_intervention")["source_responsive"] == 0
