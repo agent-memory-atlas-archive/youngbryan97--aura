@@ -50,6 +50,7 @@ from typing import Any
 
 import numpy as np
 
+from core.affect.what_it_was_worth import CHANNELS as _WORTH_CHANNEL_NAMES
 from core.state.percepts import read_percept
 from core.subject.sketch import SKETCH_FIELDS, sketch
 
@@ -166,6 +167,17 @@ class Organs:
     #: The executive closure engine, whose predictive self-model holds the
     #: weights her self-prediction has learned.
     executive: Any = None
+    #: What each turn was worth to her against what she had come to expect, and
+    #: what each channel has come to pay. See core/affect/what_it_was_worth.py.
+    worth: Any = None
+    #: What each source that won her attention has earned from the turns it
+    #: won. See core/affect/what_winning_earned.py.
+    credit: Any = None
+    #: Her signed valence prediction errors and where the latest sits among
+    #: them. The initiative arbiter keeps a copy of its jump, and the closure
+    #: test found that copy predicting the core from outside it (0.002 on the
+    #: 25 September run). See core/soma/good_news.py.
+    good_news: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -213,6 +225,17 @@ class Organs:
         # below says in the same words.
         except Exception:  # noqa: BLE001
             agency = None
+        worth = credit = good_news = None
+        try:
+            from core.affect.what_it_was_worth import get_worth_ledger
+            from core.affect.what_winning_earned import get_credit_ledger
+            from core.soma.good_news import get_good_news_ledger
+
+            worth, credit = get_worth_ledger(), get_credit_ledger()
+            good_news = get_good_news_ledger()
+        # not a failure: absent ledgers are absent organs, as the agency ledger above.
+        except ImportError:
+            worth = credit = good_news = None
         return cls(
             workspace=runtime("global_workspace"),
             substrate=runtime("conscious_substrate"),
@@ -229,6 +252,9 @@ class Organs:
             mycelium=either("mycelium"),
             phi_core=either("phi_core"),
             executive=either("executive_closure"),
+            worth=worth,
+            credit=credit,
+            good_news=good_news,
         )
 
 
@@ -335,6 +361,13 @@ _DRIVES: tuple[str, ...] = _budget_names()
 
 #: Cognitive modes, one-hot into C.
 _MODES: tuple[str, ...] = ("reactive", "deliberate", "dreaming", "dormant")
+
+#: The channels a turn's payoff is read on, in the ledger's own order.
+_WORTH_CHANNELS: tuple[str, ...] = _WORTH_CHANNEL_NAMES
+
+#: The sources of the unified field's input, in the order of its batched
+#: matrix. A test holds this to `UnifiedField._INPUT_SOURCES`.
+_FIELD_SOURCES: tuple[str, ...] = ("mesh", "chemistry", "binding", "interoception", "substrate")
 
 #: How many buckets a body of content is spread across. Four is enough for two
 #: recollections that share most of their words to land near each other and two
@@ -538,6 +571,20 @@ _SCHEMAS: dict[str, Schema] = {
             # from outside the core, where it was the largest single leak of the
             # 25 September run. A feeling nothing in the affect domain held.
             ("dread", "organ:homeostasis.prospective_dread"),
+            # What the last turn was worth against what she had come to expect,
+            # how large that was against her recent turns, and each channel's
+            # error and expectation. The expectation is what a payoff is priced
+            # against, a persistent variable deciding the next turn's worth.
+            # See core/affect/what_it_was_worth.py.
+            ("worth", "organ:worth.read"),
+            ("worth_size", "organ:worth.read"),
+            *((f"worth_error_{name}", "organ:worth.read") for name in _WORTH_CHANNELS),
+            *((f"worth_expected_{name}", "organ:worth._expected") for name in _WORTH_CHANNELS),
+            # How far what arrived beat or missed what she predicted of her own
+            # feeling, and how that ranks among her misses. It lightens every
+            # initiative's urgency while it is fresh. See core/soma/good_news.py.
+            ("good_news_error", "organ:good_news.read"),
+            ("good_news_jump", "organ:good_news.read"),
         ),
     ),
     "G": _sch(
@@ -591,6 +638,13 @@ _SCHEMAS: dict[str, Schema] = {
             ("modifier_focus", "cognition.modifiers.focus_mod"),
             ("modifier_vitality", "cognition.modifiers.overall_vitality"),
             ("modifier_urgency", "cognition.modifiers.urgency_flag"),
+            # What winning her attention has earned the source that holds it,
+            # and the best and worst any source has earned. It weighs every bid,
+            # so it decides what wins. See core/affect/what_winning_earned.py.
+            ("winner_earned", "organ:credit.earned"),
+            ("earned_best", "organ:credit.read"),
+            ("earned_worst", "organ:credit.read"),
+            ("earned_sources", "organ:credit.read"),
         ),
     ),
     "C": _sch(
@@ -646,6 +700,11 @@ _SCHEMAS: dict[str, Schema] = {
             # And the field's own weights, which plasticity rewrites while she
             # runs. Read through the same sketch, for the same reason.
             *((f"field_weight_{part}", "organ:field.W_field") for part in SKETCH_FIELDS),
+            # How much of the field's input each organ holds. The field's
+            # lessons move it, an organ gaining a share only from the others,
+            # so it is what her organs have gained or lost by connecting. See
+            # core/affect/what_it_was_worth.py.
+            *((f"field_share_{name}", "organ:field.input_shares") for name in _FIELD_SOURCES),
             # And the two connectivities plasticity rewrites beside it. The
             # closure test read the substrate's own matrix and the mesh's stack
             # of per-column weights from outside the core, and each predicted
@@ -1446,6 +1505,19 @@ def _read_A(state: Any, organs: Organs) -> np.ndarray:
         source="organ:homeostasis.prospective_dread",
     ) or {}
     head.append(_f(homeostasis.get("prospective_dread")))
+    reading = _call(organs.worth, "read", None, source="organ:worth.read")
+    error = getattr(reading, "error", {}) or {}
+    head.append(_f(getattr(reading, "worth", 0.0)))
+    head.append(_f(getattr(reading, "size", 0.0)))
+    head.extend(_f(error.get(name)) for name in _WORTH_CHANNELS)
+    expected = getattr(organs.worth, "_expected", None)
+    if organs.worth is not None and not isinstance(expected, Mapping):
+        _miss("organ:worth._expected", "no such reading")
+    expected = expected if isinstance(expected, Mapping) else {}
+    head.extend(_f(expected.get(name)) for name in _WORTH_CHANNELS)
+    news = _call(organs.good_news, "read", None, source="organ:good_news.read")
+    head.append(_f(getattr(news, "error", 0.0)))
+    head.append(_f(getattr(news, "jump", 0.0)))
     return np.array(head, dtype=np.float64)
 
 
@@ -1479,9 +1551,30 @@ def _read_G(state: Any, organs: Organs) -> np.ndarray:
             _f(modifiers.get("focus_mod"), 1.0),
             _f(modifiers.get("overall_vitality"), 1.0),
             1.0 if modifiers.get("urgency_flag") else 0.0,
+            *_earned(organs.credit, workspace.get("last_winner")),
         ],
         dtype=np.float64,
     )
+
+
+def _earned(credit: Any, winner: Any) -> list[float]:
+    """What the winner has earned, the best and worst earned, and how many sources have."""
+    held = _call(credit, "read", {}, source="organ:credit.read") or {}
+    sources = held.get("sources", {}) if isinstance(held, Mapping) else {}
+    values = [_f(entry.get("earned")) for entry in sources.values() if isinstance(entry, Mapping)]
+    mine = 0.0
+    if credit is not None and winner:
+        try:
+            mine = float(credit.earned(str(winner)))
+        # not a failure: a winner the ledger cannot price has earned nothing yet.
+        except (AttributeError, TypeError, ValueError):
+            mine = 0.0
+    return [
+        mine,
+        max(values) if values else 0.0,
+        min(values) if values else 0.0,
+        _sat(float(len(values)), 16.0),
+    ]
 
 
 def _latent(state: Any, width: int) -> list[float]:
@@ -1539,6 +1632,8 @@ def _read_C(state: Any, organs: Organs) -> np.ndarray:
     head.extend(_sketched(organs.mesh, "column_activations", source="organ:mesh.column_activations"))
     head.extend(_sketched(organs.field, "F", source="organ:field.F"))
     head.extend(_sketched(organs.field, "W_field", source="organ:field.W_field"))
+    shares = _call(organs.field, "input_shares", {}, source="organ:field.input_shares") or {}
+    head.extend(_f(shares.get(name)) for name in _FIELD_SOURCES)
     head.extend(_sketched(organs.substrate, "W", source="organ:substrate.W"))
     head.extend(_sketched(organs.mesh, "_W_batch", source="organ:mesh._W_batch"))
     head.extend(

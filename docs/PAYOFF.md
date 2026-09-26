@@ -91,6 +91,14 @@ The workspace works the same way. A source that keeps winning turns that go well
 bids stronger, and one that keeps winning turns that go badly loses her
 attention to the others.
 
+A source is judged against turns that started the same way. Without that,
+whatever wins her attention when things are going badly would be blamed for
+them, and an alarm that is right more often would be heard less. So the credit
+is the turn's dose less what turns starting from the same valence have usually
+brought: a straight line fitted over her last 256 turns, the state-value
+baseline of an actor-critic (Sutton and Barto 2018, 13.4). Distress that wins on
+a bad day is compared with other bad days.
+
 ## Two defects found on the way
 
 - The substrate's per-step reward was `-tanh(prediction_error)`, read from a
@@ -110,6 +118,12 @@ attention to the others.
 - `get_worth_ledger().read()` and `get_credit_ledger().read()`.
 - `UnifiedField.get_status()["last_teaching"]`: the dose, how many steps the
   trace covered, and the input shares after the lesson.
+- In the subject-core recording (`core/subject/state.py`): `A.worth`,
+  `A.worth_size`, `A.worth_error_<channel>` and `A.worth_expected_<channel>`;
+  `A.good_news_error` and `A.good_news_jump`; `G.winner_earned`,
+  `G.earned_best`, `G.earned_worst` and `G.earned_sources`; and
+  `C.field_share_<organ>` for mesh, chemistry, binding, interoception and
+  substrate. Each ledger is a column of the one domain whose organ keeps it.
 
 ## Taking it out
 
