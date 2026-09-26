@@ -132,3 +132,82 @@ def test_options_named_only_by_their_group_are_told_apart_by_value():
         ]
     }
     assert SovereignBrowserSkill._asks_about_the_one_answering(page)
+
+
+def _a_scale_page(questions: int, *, answered: int = 0) -> dict:
+    """A page of scale items between two phrases, as the observation carries it."""
+    pairs = [("plans ahead", "improvises"), ("quiet", "talkative"), ("sceptical", "trusting")]
+    elements = []
+    for q in range(questions):
+        left, right = pairs[q % len(pairs)]
+        for v in range(1, 6):
+            elements.append({
+                "role": "radio", "name": f"A{q}", "group": f"A{q}", "value": str(v),
+                "selector": f"#a{q}v{v}", "checked": q < answered and v == 3,
+                "asks": f"{left} [1] [2] [3] [4] [5] {right}",
+            })
+    elements.append({"role": "submit", "name": "Next", "selector": "#next"})
+    return {"url": "https://example.test/scale", "title": "scale", "text": "", "elements": elements}
+
+
+def test_an_answer_is_said_as_its_question_its_choice_and_its_reason():
+    unlabelled = [
+        {"role": "radio", "name": "A1", "group": "A1", "value": str(v),
+         "asks": "plans ahead [1] [2] [3] [4] [5] improvises"}
+        for v in range(1, 6)
+    ]
+    assert (
+        SovereignBrowserSkill._an_answer_in_words(unlabelled, 1, "I like to know where I am going.")
+        == "plans ahead … improvises — 2 of 5. I like to know where I am going."
+    )
+    labelled = [
+        {"role": "radio", "name": label, "group": "C1", "value": value,
+         "asks": "How do you usually decide? [a] By reasons [b] By feel"}
+        for label, value in (("By reasons", "a"), ("By feel", "b"))
+    ]
+    assert (
+        SovereignBrowserSkill._an_answer_in_words(labelled, 1, "")
+        == "How do you usually decide? — By feel"
+    )
+
+
+def test_each_answer_about_her_is_said_out_loud_as_it_lands(monkeypatch):
+    """One line a question, where a person can hear it, not only in the trace."""
+    from core.agency.narrator import Narrator
+
+    said: list[str] = []
+    monkeypatch.setattr(Narrator, "say_everywhere", staticmethod(said.append))
+
+    skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+
+    async def decide(goal, observation, history, understanding=None):
+        group = observation["elements"][0]["group"]
+        return {"actions": [{"index": 1, "type": "click"}], "why": f"my reason for {group}"}
+
+    async def understand(goal, observation, prior, mind, recalled=""):
+        return {"here": "a scale", "done_when": "all answered"}
+
+    async def mind():
+        return ""
+
+    async def interact(browser, url, actions, *, action_context=None):
+        return {"ok": True}
+
+    skill._decide_next_actions = decide
+    skill._understand_page = understand
+    skill._assembled_mind = mind
+    skill._handle_interact = interact
+
+    class Browser:
+        def __init__(self):
+            self.pages = [_a_scale_page(2), _a_scale_page(2, answered=2)]
+            self.seen = 0
+
+        async def observe(self, **_kwargs):
+            page = self.pages[min(self.seen, len(self.pages) - 1)]
+            self.seen += 1
+            return page
+
+    asyncio.run(skill._handle_pursue(Browser(), None, "take the test", 2))
+    assert "plans ahead … improvises — 2 of 5. my reason for A0" in said
+    assert "quiet … talkative — 2 of 5. my reason for A1" in said

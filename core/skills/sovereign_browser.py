@@ -208,6 +208,19 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
         except Exception as exc:  # narration must never break the pursuit
             record_degradation("sovereign_browser", exc, action="pursuit narration skipped")
 
+    @staticmethod
+    def _say_out_loud(line: str) -> None:
+        """One line where a person watching her can hear it, as her play is said."""
+        said = " ".join(str(line or "").split())[:400]
+        if not said:
+            return
+        try:
+            from core.agency.narrator import Narrator
+
+            Narrator.say_everywhere(said)
+        except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation("sovereign_browser", exc, severity="info", action="answered without saying so")
+
     async def _safe_close(self, browser: PhantomBrowser | None) -> None:
         """Guaranteed browser teardown — never raises."""
         if browser is None:
@@ -1284,6 +1297,10 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                 # handed over at the end is a transcript of something the owner
                 # could not watch, and had no way to stop.
                 self._narrate(steps[-1])
+                # And what she answered about herself, out loud, one question
+                # at a time: where a person can hear it, not only in the trace.
+                for line in decision.get("answered") or []:
+                    self._say_out_loud(str(line))
                 # A batch that half-landed is progress, not failure.
                 #
                 # `interact` verifies all-or-nothing, which is right for a scripted

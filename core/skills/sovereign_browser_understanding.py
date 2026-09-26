@@ -572,6 +572,32 @@ class _UnderstandsThePage:
         return len(shared[0]) > 2 and all(options == shared[0] for options in shared[1:])
 
     @staticmethod
+    def _an_answer_in_words(options: list[Mapping[str, Any]], index: int, why: str) -> str:
+        """One answer as it is said: the question, the choice, the reason.
+
+        The question is read from how the page lays it out, with the run of
+        options between its words shown as an ellipsis. The choice is the
+        option's own label where it has one; where every option carries the
+        group's name instead, it is the option's place on the scale.
+        """
+        chosen = options[index]
+        group = str(chosen.get("group") or "")
+        asks = str(chosen.get("asks") or "")
+        name = str(chosen.get("name") or "").strip()
+        names = {str(option.get("name") or "").strip() for option in options}
+        labelled = bool(name) and name != group and len(names) == len(options)
+        if labelled:
+            # Each option's own words sit beside it in the layout; they are
+            # the options, not the question.
+            for label in sorted(names, key=len, reverse=True):
+                asks = asks.replace(label, " ")
+        question = " ".join(re.sub(r"(?:\s*\[[^\]]*\])+", " \u2026 ", asks).split()).strip(" \u2026")
+        picked = name if labelled else f"{index + 1} of {len(options)}"
+        said = f"{question} \u2014 {picked}" if question else picked
+        why = " ".join(why.split())
+        return f"{said}. {why}" if why else said
+
+    @staticmethod
     def _unanswered_questions(
         observation: Mapping[str, Any]
     ) -> list[tuple[str, list[Mapping[str, Any]]]]:
@@ -644,6 +670,7 @@ class _UnderstandsThePage:
                     "name": str(options[index].get("name") or ""),
                     "why": str(decision.get("why") or ""),
                     "expect": str(decision.get("expect") or ""),
+                    "said": self._an_answer_in_words(options, index, str(decision.get("why") or "")),
                 }
             return None
 
@@ -666,6 +693,10 @@ class _UnderstandsThePage:
             "resolved_actions": [
                 {"selector": answer["selector"], "name": answer["name"]} for answer in answers
             ],
+            # Each answer as she would say it: the question, what she chose,
+            # and why. One line a question, because the reasons are hers
+            # question by question, and joined they were one blur.
+            "answered": [answer["said"] for answer in answers if answer.get("said")],
             "why": "; ".join(dict.fromkeys(a["why"] for a in answers if a["why"]))[:400],
             "expect": next((a["expect"] for a in answers if a["expect"]), ""),
         }
