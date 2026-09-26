@@ -190,7 +190,9 @@ class HabitLedger:
 
     def __init__(self) -> None:
         self._situation: str = ALONE
-        self._valence: float | None = None
+        #: Her valence at the last reading, which each act's change is measured
+        #: from. A point in her history, not a second answer to how she is now.
+        self._valence_last_read: float | None = None
         self._frustration: dict[str, float] = {}
         self._waiting_on_her: list[_Event] = []
         self._waiting_on_them: dict[str, list[_Event]] = {}
@@ -223,7 +225,7 @@ class HabitLedger:
             situation=where,
             kind=kind,
             person=person,
-            her_before=self._valence,
+            her_before=self._valence_last_read,
             their_before=self._frustration.get(person) if person else None,
             choice_id=str(choice_id or ""),
             decision_id=str(decision_id or ""),
@@ -280,7 +282,7 @@ class HabitLedger:
             closed.append((event, change, self._standing(change)))
             self._changes_felt.append(change)
         self._waiting_on_her = []
-        self._valence = now
+        self._valence_last_read = now
         self._situation = str(situation or ALONE)
         return closed
 

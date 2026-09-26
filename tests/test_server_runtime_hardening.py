@@ -1670,27 +1670,31 @@ def test_shared_memory_transport_cross_process_attach_exits_without_leak_warning
         """
         import asyncio
         import multiprocessing as mp
-        import time
 
         from core.bus.shared_mem_bus import SharedMemoryTransport
 
         SEGMENT = "st_rt_cross_process"
 
-        def child():
+        # Events, not sleeps: under load a child forked 0.15 s ago may not
+        # have written yet, and one told to hold for 0.5 s may close first.
+        def child(written, read):
             async def main():
                 owner = SharedMemoryTransport(SEGMENT, size=4096)
                 await owner.create()
                 owner.write_serialized('{"state_id":"cross","version":1}')
-                time.sleep(0.5)
+                written.set()
+                read.wait(10)
                 owner.close()
 
             asyncio.run(main())
 
         if __name__ == "__main__":
             ctx = mp.get_context("fork")
-            proc = ctx.Process(target=child)
+            written, read = ctx.Event(), ctx.Event()
+            proc = ctx.Process(target=child, args=(written, read))
             proc.start()
-            time.sleep(0.15)
+            if not written.wait(10):
+                raise SystemExit("the child never wrote the segment")
 
             async def parent():
                 reader = SharedMemoryTransport(SEGMENT, size=4096)
@@ -1699,7 +1703,10 @@ def test_shared_memory_transport_cross_process_attach_exits_without_leak_warning
                 assert payload["version"] == 1
                 reader.close()
 
-            asyncio.run(parent())
+            try:
+                asyncio.run(parent())
+            finally:
+                read.set()
             proc.join(5)
             if proc.exitcode != 0:
                 raise SystemExit(proc.exitcode or 1)

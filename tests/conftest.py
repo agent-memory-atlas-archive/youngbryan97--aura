@@ -545,7 +545,34 @@ class HermeticResourceSandbox:
             return False
         return any(marker in command for marker in cls._RUNTIME_OWNED_CHILD_MARKERS)
 
+    @contextlib.contextmanager
+    def _psutil_as_shipped(self):
+        """psutil with its own names back in place, for as long as it is observed.
+
+        Pinning the constructors is not enough: psutil's own methods look
+        `Process` up in their module (`__eq__`, `is_running`), so a test that
+        replaced `psutil.Process` with a double reached them anyway, and three
+        tests failed at teardown on a TypeError from inside psutil. Whatever
+        the test put there is restored afterwards.
+        """
+        import psutil
+
+        names = ("Process", "Error", "wait_procs")
+        held = {name: getattr(psutil, name) for name in names}
+        psutil.Process = self._native_process
+        psutil.Error = self._native_error
+        psutil.wait_procs = self._native_wait_procs
+        try:
+            yield
+        finally:
+            for name, value in held.items():
+                setattr(psutil, name, value)
+
     def snapshot(self) -> _ResourceLeakSnapshot:
+        with self._psutil_as_shipped():
+            return self._snapshot()
+
+    def _snapshot(self) -> _ResourceLeakSnapshot:
         try:
             process = self._native_process(os.getpid())
             children = frozenset(
@@ -634,6 +661,10 @@ class HermeticResourceSandbox:
                 self._leased_sockets.remove(listener)
 
     def close_and_assert_clean(self) -> None:
+        with self._psutil_as_shipped():
+            self._close_and_assert_clean()
+
+    def _close_and_assert_clean(self) -> None:
         leaked_leases = [sock for sock in self._leased_sockets if sock.fileno() >= 0]
         for listener in tuple(self._leased_sockets):
             with contextlib.suppress(OSError):
