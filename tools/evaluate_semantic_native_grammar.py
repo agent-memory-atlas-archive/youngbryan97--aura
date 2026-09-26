@@ -19,6 +19,7 @@ INTERVENTION_DATASETS = frozenset({
     "operation_intervention", "definition_intervention", "equation_intervention",
     "role_intervention", "dependency_intervention",
 })
+RETAINED_DATASETS = frozenset({"retained_validation", "retained_test"})
 
 
 def select_search_proposal(search, scorer):
@@ -123,18 +124,26 @@ def main():
     parser.add_argument("--search-score-mode", choices=("normalized_choices", "native_nonpositive"),
                         default="native_nonpositive")
     parser.add_argument("--weight-mode", choices=("fitted", "base"), default="fitted")
-    parser.add_argument("--dataset", choices=("natural_request", *sorted(INTERVENTION_DATASETS)),
+    parser.add_argument("--dataset", choices=("natural_request", *sorted(INTERVENTION_DATASETS | RETAINED_DATASETS)),
                         default="natural_request")
+    parser.add_argument("--source-report", type=Path)
+    parser.add_argument("--bundle", action="append")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args()
-    if not 1 <= args.max_steps <= 128 or not 1 <= args.canary <= 72 or not 0 < args.max_seconds <= 14400:
+    population_bound = 500 if args.dataset in RETAINED_DATASETS else 72
+    if not 1 <= args.max_steps <= 128 or not 1 <= args.canary <= population_bound or not 0 < args.max_seconds <= 14400:
         parser.error("finite depth, population, and runtime bounds required")
     if not 0 <= args.search_completions <= 128 or not 1 <= args.search_nodes <= 100000:
         parser.error("finite search node and completion bounds required")
     if args.dataset in INTERVENTION_DATASETS and args.seed is None:
         parser.error("operation interventions require an explicit frozen seed")
-    seed = 3141592 if args.seed is None else args.seed
+    if args.dataset in RETAINED_DATASETS:
+        if args.source_report is None or not args.bundle or args.seed is not None:
+            parser.error("retained development sources need their report and bundles, without a new seed")
+    elif args.source_report is not None or args.bundle is not None:
+        parser.error("source report and bundles belong to retained development evaluation")
+    seed = 0 if args.dataset in RETAINED_DATASETS else (3141592 if args.seed is None else args.seed)
     if seed < 0:
         parser.error("native grammar seed must be nonnegative")
     from tools.evaluate_semantic_native_checkpoint import digest, selected_checkpoint
@@ -151,7 +160,16 @@ def main():
             or spec.pointer_sha256 != training["pointer_sha256"]
             or spec.model_path.resolve() != Path(training["model_path"]).resolve()):
         raise ValueError("native grammar model identity differs from training")
-    examples = grammar_examples(dataset=args.dataset, seed=seed, count=args.canary)
+    source_basis = None
+    if args.dataset in RETAINED_DATASETS:
+        from tools.semantic_native_retained_sources import load_retained_native_sources
+
+        examples, source_basis = load_retained_native_sources(args.source_report, args.bundle,
+            split=args.dataset.removeprefix("retained_"), count=args.canary)
+        if source_basis["source_report_sha256"] != training["source_report_sha256"]:
+            raise ValueError("retained native evaluation differs from the trained source basis")
+    else:
+        examples = grammar_examples(dataset=args.dataset, seed=seed, count=args.canary)
     sources = [hashlib.sha256(example.source_text.encode()).hexdigest() for example in examples]
     forbidden = set(training["fit_ids"]) | set(training["calibration_ids"]) | set(training["held_ids"])
     if forbidden & set(sources) or len(set(sources)) != len(sources):
@@ -175,10 +193,15 @@ def main():
     if args.dataset in {"role_intervention", "dependency_intervention"}:
         paths += ("tools/semantic_native_graph_interventions.py",
                   "tools/semantic_native_paraphrase_interventions.py")
+    if args.dataset in RETAINED_DATASETS:
+        paths += ("tools/semantic_native_retained_sources.py",
+                  "core/learning/semantic_program_feature_materialization.py")
     implementation = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in paths}
     schema_version = "v4" if args.dataset in {"definition_intervention", "equation_intervention"} else "v3"
     if args.dataset in {"role_intervention", "dependency_intervention"}:
         schema_version = "v5"
+    if args.dataset in RETAINED_DATASETS:
+        schema_version = "v6"
     body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
@@ -194,6 +217,8 @@ def main():
             "candidate_inventory": "none", "input_grounding": "semantic_public_character_inputs.v1",
             "target_available_to_scorer": False, "held_labels_used_for_fit_or_selection": False,
             "serving_authority": False, "qualification_evidence": False}
+    if source_basis is not None:
+        body["source_cohort_basis"] = source_basis
     plan = {**body, "plan_sha256": digest(body)}
     _save_if_absent(args.directory / "plan.json", plan)
     if args.plan_only:
@@ -344,6 +369,8 @@ def main():
                   "candidate_inventory": "none", "input_grounding": "semantic_public_character_inputs.v1",
                   "target_available_to_scorer": False, "serving_authority": False,
                   "qualification_evidence": False, "elapsed_seconds": time.monotonic() - started}
+        if source_basis is not None:
+            result["source_cohort_basis"] = source_basis
         _save_if_absent(args.directory / "report.json", {**result, "receipt_sha256": digest(result)})
         print(json.dumps({key: value for key, value in result.items() if key != "row_receipts"}), flush=True)
 

@@ -229,3 +229,39 @@ def test_independent_intervention_pair_metrics_reject_wrong_registers():
     wrong = {**after, "program": {"instructions": [
         ["add", [0, 1]], ["add", [4, 3]]]}}
     assert verified_pair_totals((before, wrong), dataset="operation_intervention")["source_responsive"] == 0
+
+
+def test_retained_development_protocol_cannot_be_relabelled_fresh():
+    basis = {"split": "test", "exposure": "previously_exposed_development"}
+    plan = {"schema": "aura.semantic_native_grammar_plan.v6", "dataset": "retained_test",
+            "seed": 0, "source_cohort_basis": basis}
+    report = {"dataset": "retained_test", "seed": 0, "source_cohort_basis": basis}
+    assert verified_dataset(plan, report) == ("retained_test", 0)
+    with pytest.raises(ValueError, match="source basis differs"):
+        verified_dataset(plan, {**report, "source_cohort_basis": {**basis, "exposure": "fresh"}})
+    with pytest.raises(ValueError, match="source basis differs"):
+        verified_dataset({**plan, "seed": 1}, {**report, "seed": 1})
+    with pytest.raises(ValueError, match="historical"):
+        verified_dataset({**plan, "schema": "aura.semantic_native_grammar_plan.v5"}, report)
+    with pytest.raises(ValueError, match="dataset or seed"):
+        verified_dataset({**plan, "dataset": "natural_request"}, {**report, "dataset": "natural_request"})
+
+
+def test_retained_examples_rebuild_the_pinned_basis_before_grading(monkeypatch):
+    basis = {"split": "test", "source_report_path": "report.json",
+             "source_manifest_paths": {"a": "bundle"}, "available_population": 500,
+             "exposure": "previously_exposed_development"}
+    plan = {"sources": ["a", "b"], "source_cohort_basis": basis}
+    calls = []
+    def load(path, bundles, *, split, count):
+        calls.append((path, bundles, split, count))
+        return ("first", "second"), dict(basis)
+    monkeypatch.setattr("tools.semantic_native_retained_sources.load_retained_native_sources", load)
+    assert verified_examples(plan, dataset="retained_test", seed=0) == ("first", "second")
+    assert calls == [("report.json", ["a=bundle"], "test", 2)]
+    with pytest.raises(ValueError, match="split differs"):
+        verified_examples(plan, dataset="retained_validation", seed=0)
+    monkeypatch.setattr("tools.semantic_native_retained_sources.load_retained_native_sources",
+        lambda *args, **kwargs: ((), {**basis, "available_population": 2}))
+    with pytest.raises(ValueError, match="reconstruction differs"):
+        verified_examples(plan, dataset="retained_test", seed=0)

@@ -1176,6 +1176,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Native retained-source connection](evidence/G03_NATIVE_RETAINED_SOURCE_CONNECTION_2026-09-26.md)
+  reconstructs both exposed 500-case splits and relabels grading coordinates to
+  public literal order without giving targets to the scorer. Forty-four focused
+  checks pass; model measurements, non-regression, and admission remain pending.
   [Explicit native codec and global search](evidence/G_NATIVE_CODEC_AND_SEARCH_2026-09-26.md)
   are wired and component-tested. The complete-epoch control remains rejected
   at 37/47 against incumbent 43/47. Relative-register model measurement is
