@@ -603,6 +603,17 @@ class Looker:
         of a game was read as a 128, and her rule, which had it right, was
         scored as wrong.
         """
+        nearest = self.nearest_alone(look)
+        if nearest is None or nearest[0] > self.how_far_one_thing_varies():
+            return None
+        return nearest[1]
+
+    def nearest_alone(self, look: Any) -> tuple[float, str] | None:
+        """The one thing she has read that this look is near, and how near. None when two are.
+
+        A guess where the look is farther than one thing has been seen to
+        vary, and used only when reading the place gave nothing.
+        """
         best: tuple[float, _Seen] | None = None
         others: set[str] = set()
         for one in self.seen:
@@ -612,9 +623,9 @@ class Looker:
             others.add(one.says)
             if best is None or apart < best[0]:
                 best = (apart, one)
-        if best is None or len(others) > 1 or best[0] > self.how_far_one_thing_varies():
+        if best is None or len(others) > 1:
             return None
-        return best[1].says
+        return best[0], best[1].says
 
     def _lesson(self, now: bool, kind: str, *what: Any) -> None:
         """Learn this at once, or hold it until the picture is known to be still."""
@@ -782,6 +793,7 @@ class Looker:
                 self._lesson(learn, "blank from", grid, dict(looks), dict(says))
             unread: list[tuple[int, int]] = []
             remembered: dict[tuple[int, int], str] = {}
+            guessed: dict[tuple[int, int], str] = {}
             for spot, look in looks.items():
                 if spot in says or look is None:
                     continue
@@ -792,6 +804,9 @@ class Looker:
                     remembered[spot] = known
                 else:
                     unread.append(spot)
+                    nearest = self.nearest_alone(look)
+                    if nearest is not None:
+                        guessed[spot] = nearest[1]
             if unread:
                 # Every place she has something for goes into the strip beside
                 # the ones she has not read. Recognition reads a line and not
@@ -810,6 +825,14 @@ class Looker:
                         says[spot] = text
                         if learning:
                             self._lesson(learn, "seen", looks.get(spot), text)
+                    elif spot in guessed:
+                        # Reading gave nothing, and the look is near one thing
+                        # she knows and no other: that, and not learned from.
+                        # Once a look was taken for a thing only within its
+                        # measured spread, places that would not read went
+                        # from once in 102 moves to 160 times in 1649 (live,
+                        # 26 Sep), each one a move she could not learn from.
+                        says[spot] = guessed[spot]
             else:
                 says.update(remembered)
             # A place read beside the others that still says nothing, and has

@@ -45,3 +45,60 @@ def test_how_far_one_thing_varies_is_learned_from_every_thing():
     assert looker.how_far_one_thing_varies() == 2.5
     # A 2 seen as far from itself as a 32 has been is still a 2.
     assert looker.recognised(_a_look(2.0)) == "2"
+
+
+def _a_board_with_an_eight(colour):
+    from tests.test_the_places_are_seen_not_inferred import _a_board
+
+    board = _a_board({(0, 0): colour, (2, 1): (218, 228, 238)})
+    x, y = 47 + 48, 117 + 48
+    board[y - 14 : y + 14, x - 9 : x + 9] = (250, 250, 250)
+    return board
+
+
+def test_a_place_reading_gives_nothing_for_is_the_one_thing_it_looks_near(monkeypatch):
+    """The strip reads first; the nearest look answers only when it cannot.
+
+    Holding recognition to the measured spread sent more places to the strip,
+    and a strip reading one lone digit often returns nothing. Places that would
+    not read went from once in 102 moves to 160 times in 1649 (live, 26 Sep).
+    """
+    from core.perception import what_the_pixels_show as pixels
+    from core.perception.what_the_pixels_show import grids_in, panels_in
+    from tests.test_the_places_are_seen_not_inferred import _words_at
+
+    looker = Looker()
+    first = _a_board_with_an_eight((121, 177, 242))
+    grid = grids_in(panels_in(first))[0]
+    looker.read(first, words=_words_at(grid, {(0, 0): "8", (2, 1): "2"}))
+    learned = len(looker.seen)
+
+    # The same tile a little differently drawn, and nothing reads.
+    monkeypatch.setattr(pixels, "recognize_text", lambda image: [])
+    monkeypatch.setattr(Looker, "_read_as_a_strip", lambda self, image, grid_, spots: {})
+    drifted = _a_board_with_an_eight((125, 180, 242))
+    look = looker._look_of(drifted, grid.place(0, 0))
+    assert looker.recognised(look) is None, "farther than one thing has been seen to vary"
+    reading = looker.read(drifted)
+    says = reading["grids"][0]["says"]
+    assert says[0] == "8"
+    assert [0, 0] not in reading["grids"][0]["unsure"]
+    assert len(looker.seen) == learned, "a guess is not learned from"
+
+
+def test_what_the_strip_reads_outranks_the_nearest_look(monkeypatch):
+    """A 256 near a learned 128 is read as what the strip says, not as the 128."""
+    from core.perception import what_the_pixels_show as pixels
+    from core.perception.what_the_pixels_show import grids_in, panels_in
+    from tests.test_the_places_are_seen_not_inferred import _words_at
+
+    looker = Looker()
+    first = _a_board_with_an_eight((121, 177, 242))
+    grid = grids_in(panels_in(first))[0]
+    looker.read(first, words=_words_at(grid, {(0, 0): "128", (2, 1): "2"}))
+    monkeypatch.setattr(pixels, "recognize_text", lambda image: [])
+    monkeypatch.setattr(
+        Looker, "_read_as_a_strip", lambda self, image, grid_, spots: {spot: "256" for spot in spots if spot == (0, 0)}
+    )
+    reading = looker.read(_a_board_with_an_eight((125, 180, 242)))
+    assert reading["grids"][0]["says"][0] == "256"
