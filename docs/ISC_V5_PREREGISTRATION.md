@@ -420,3 +420,90 @@ seeds, a separable sum at none of ten and uncoupled sources at one of ten. The
 first reading of a recording of hers with it is the two seed-7 validations of 26
 September, diagnostic; no decisive seed is read with it before the decisive
 addendum names it.
+
+## Addendum, 26 September 2026, night: a payoff she learns by, and a horizon one turn cannot reach
+
+No v5 number from any decisive seed had been read when this was written. The
+seed-7 singleton look at 4e1923da1 had been read, and is reported here because it
+is what this change answers.
+
+### What the look read
+
+Ten singleton cuts at the one-turn horizon, 128 anchors each. One was decided:
+P|rest, excess rate 0.035 against a sham rate of 0.064, lower bound 0.010. The
+other nine had excess rates between -0.006 and 0.014 against sham rates between
+0.058 and 0.078, and none of their bounds cleared zero. Holding one domain for a
+turn barely changes where the rest of her ends it. Dose matching put C, S and W
+at the 50x cap, so no dose inside the cap moved any of the three by one of its
+own standard deviations.
+
+### What was missing in the organism
+
+Nothing she did was ever better or worse than she expected in a way that reached
+her connections. Her chemistry had a reward input, `on_reward`, with no caller.
+The unified field learned by co-activity alone, and the weights by which each
+organ drives it were fixed at birth. The liquid substrate's reward-modulated
+STDP read `prediction_error` from a free-energy state that has no such field, so
+its reward was zero on every step of every run: no weight moved, and the zero
+deltas drove every synapse's uncertainty below the lock threshold, so the engine
+had identity-locked all of them (256 of 256 by step 600 when replayed on 16
+neurons).
+
+### What changed
+
+At the end of each turn, `core/affect/what_it_was_worth.py` reads what the turn
+paid on eight channels of her own (satisfaction, accomplishment, warmth, and the
+four quadrants of valence by arousal, and wonder), each in units of its own
+recent spread, against what that channel has come to pay. The signed error is
+the turn's worth, and its rank among her recent turns is its size.
+
+- Her chemistry gets a dopamine burst when the turn was better than expected and
+  a dip when it was worse (`on_disappointment`, new), dosed by the size.
+- The unified field keeps a trace over the turn of what each connection did, and
+  the worth decides whether it strengthens or weakens, at the field's existing
+  Hebbian rate. That includes the input weights from mesh, chemistry, binding,
+  interoception and substrate. Each unit's input strength is then held where it
+  was born, so an organ gains a share of the field only by taking it from the
+  others.
+- The substrate's STDP traces are delivered the turn's worth once per turn. The
+  dead per-step delivery is gone; the weight regulation it carried still runs
+  every step.
+- The sources that won the workspace during the turn are credited with its
+  worth, and their next bids are weighed by what they have earned.
+
+The changes are 40af588cd (the payoff and what it teaches), 9736a69e5 (a
+source is judged against turns that started the same way, so an alarm is not
+blamed for the trouble it reports) and 5a4868f24 (the core reads it).
+`AURA_DISABLE_PAYOFF=1` takes the whole layer out of a process.
+
+This changes the organism. It is aimed at the flat cut rates above and at the
+two failing triples, and it was built without reading any decisive number.
+
+### What the core now reads
+
+The recording changes with the organism. C reads the unified field's state
+beside its weights (the largest leak into the core on the 25 September run after
+the process-size clock), the phi core's history of her affective states moves
+from A to C so that no organ feeds two domains (289fd8a0b), and the payoff's
+readings are columns of the domains whose organs keep them: the worth and
+good-news ledgers in A, what winning has earned in G, and each organ's share of
+the field's input in C.
+
+### A horizon one turn cannot reach
+
+The horizon clause above fixes one turn per arm and says two turns, 66 frames,
+are scored on the same anchors and reported beside it. A one-turn arm ends at
+frame 33, so the 66-frame horizon is never reached: the look reports it as
+"measured nothing". It decides nothing, so no verdict changes. The next decisive
+sweep either runs two turns per arm, with decisions still read at 33 frames, or
+drops the 66-frame report. Which one is named in the addendum that launches it.
+
+### The design for the next seed-7 look
+
+Two looks at the same commit, seed 7, the v5 design, the ten singleton cuts, 24
+rounds, 128 anchors, looks 8 to 128, 1,000 draws, one-turn arms, grain skipped:
+one as built, and one with `AURA_DISABLE_PAYOFF=1`, which reads no turn, sends
+nothing to her chemistry and teaches no organ. What is read is each cut's excess
+rate and bound in the two, side by side, beside the 4e1923da1 look above. Seed 7
+is the diagnostic seed; nothing here is read on 23 or any decisive seed, and no
+threshold is moved on the strength of it.
