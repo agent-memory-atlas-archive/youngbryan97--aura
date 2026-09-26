@@ -12,6 +12,9 @@ from tools.verify_semantic_native_grammar import (
     source_separation_summary,
     verify_grammar_row,
     verify_source_separation,
+    verified_input_grounding,
+    verified_public_inputs,
+    verified_weight_mode,
 )
 
 
@@ -125,3 +128,36 @@ def test_source_separation_binds_report_and_rebuilt_manifest(tmp_path, monkeypat
     report_path.write_text(json.dumps({**report, "fit_complete": False}))
     with pytest.raises(ValueError, match="source report differs"):
         verify_source_separation(training, report_path, arguments, [target])
+
+
+def test_weight_mode_verification_keeps_base_and_fitted_arms_distinct():
+    old_plan = {"schema": "aura.semantic_native_grammar_plan.v1"}
+    old_report = {"schema": "aura.semantic_native_grammar.v1"}
+    assert verified_weight_mode(old_plan, old_report) == "fitted"
+    with pytest.raises(ValueError, match="historical"):
+        verified_weight_mode({**old_plan, "weight_mode": "base"}, old_report)
+    plan = {"schema": "aura.semantic_native_grammar_plan.v2", "weight_mode": "base"}
+    report = {"schema": "aura.semantic_native_grammar.v2", "weight_mode": "base"}
+    assert verified_weight_mode(plan, report) == "base"
+    with pytest.raises(ValueError, match="weight mode differs"):
+        verified_weight_mode(plan, {**report, "weight_mode": "fitted"})
+    with pytest.raises(ValueError, match="schema versions differ"):
+        verified_weight_mode(plan, old_report)
+
+
+def test_public_values_recovered_from_source_not_assumed_from_annotation():
+    example = SimpleNamespace(source_text="Use [7, -2] and 3.", inputs=((7, -2), 3))
+    assert verified_public_inputs(example) == ((7, -2), 3)
+    with pytest.raises(ValueError, match="differ from annotations"):
+        verified_public_inputs(SimpleNamespace(source_text=example.source_text,
+                                               inputs=((7, -2), 4)))
+
+
+def test_grounding_claim_cannot_change_without_a_protocol_version():
+    plan = {"input_grounding": "declared_public_inputs"}
+    report = {"input_grounding": "declared_public_inputs"}
+    assert verified_input_grounding(plan, report) == "declared_public_inputs"
+    with pytest.raises(ValueError, match="input grounding differs"):
+        verified_input_grounding(plan, {"input_grounding": "semantic_public_character_inputs.v1"})
+    with pytest.raises(ValueError, match="input grounding differs"):
+        verified_input_grounding({"input_grounding": "semantic_public_character_inputs.v1"}, report)

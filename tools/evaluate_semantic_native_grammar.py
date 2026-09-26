@@ -36,6 +36,7 @@ def main():
     parser.add_argument("--search-nodes", type=int, default=256)
     parser.add_argument("--search-score-mode", choices=("normalized_choices", "native_nonpositive"),
                         default="native_nonpositive")
+    parser.add_argument("--weight-mode", choices=("fitted", "base"), default="fitted")
     parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args()
     if not 1 <= args.max_steps <= 128 or not 1 <= args.canary <= 72 or not 0 < args.max_seconds <= 14400:
@@ -80,9 +81,10 @@ def main():
              "core/learning/semantic_program_corpus_natural.py",
              "tools/train_semantic_native_program.py")
     implementation = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in paths}
-    body = {"schema": "aura.semantic_native_grammar_plan.v1",
+    body = {"schema": "aura.semantic_native_grammar_plan.v2",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
+            "weight_mode": args.weight_mode,
             "model_descriptor_sha256": spec.descriptor_sha256,
             "pointer_sha256": spec.pointer_sha256, "implementation": implementation,
             "sources": sources, "max_steps": args.max_steps, "max_seconds": args.max_seconds,
@@ -127,11 +129,12 @@ def main():
         model.eval()
         split = len(model.layers) - training["suffix_layers"]
         prefix, suffix = FrozenDecoderPrefix(model, split_at=split), NativeDecoderSuffix(model, split_at=split)
-        mx.random.seed(training["seed"])
-        linear_to_lora_layers(model, training["suffix_layers"], {
-            "rank": training["rank"], "scale": 16., "dropout": 0., "keys": training["adapter_keys"]})
-        model.load_weights(str(args.training_directory /
-                               f"checkpoint-{selected['step']}.safetensors"), strict=False)
+        if args.weight_mode == "fitted":
+            mx.random.seed(training["seed"])
+            linear_to_lora_layers(model, training["suffix_layers"], {
+                "rank": training["rank"], "scale": 16., "dropout": 0., "keys": training["adapter_keys"]})
+            model.load_weights(str(args.training_directory /
+                                   f"checkpoint-{selected['step']}.safetensors"), strict=False)
         for example, identity in zip(examples, sources, strict=True):
             scored = 0
             def score(choices, *, source=example.source_text, source_identity=identity):
@@ -229,7 +232,8 @@ def main():
                        for name, sha in implementation.items())
                 or selected_checkpoint(args.training_directory) != (training, selected)):
             raise ValueError("native grammar implementation, model, or checkpoint drifted")
-        result = {"schema": "aura.semantic_native_grammar.v1", "plan_sha256": plan["plan_sha256"],
+        result = {"schema": "aura.semantic_native_grammar.v2", "plan_sha256": plan["plan_sha256"],
+                  "weight_mode": args.weight_mode,
                   "population": len(rows), "program_equivalent": sum(row["program_equivalent"] for row in rows),
                   "answer_correct": sum(row["answer_correct"] for row in rows),
                   "bound_forced_completion": sum(row["bound_forced_completion"] for row in rows),
