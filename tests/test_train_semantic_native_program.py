@@ -291,3 +291,34 @@ def test_supervision_reuses_witnessed_floor_contrasts_and_never_reads_a_held_tar
     item.split = "validation"
     with pytest.raises(ValueError, match="validation or test"):
         native_supervision_sets({identity: item}, {identity: source}, Tokenizer(), (identity,))
+
+
+def test_source_control_erases_fit_only_and_keeps_all_target_and_calibration_tokens():
+    import hashlib
+
+    from core.learning.procedure_induction import Instruction, Program
+    from tests.test_semantic_native_program import Tokenizer
+
+    target = Program(2, (Instruction("sub", (0, 1)),))
+    texts = {hashlib.sha256(text.encode()).hexdigest(): text
+             for text in ("Subtract 2 from 5.", "Take 3 away from 7.")}
+    fit, calibration = tuple(texts)
+    items = {key: SimpleNamespace(split="train", public_inputs=(5, 2), ir=SimpleNamespace(
+        source_text_sha256=key, to_program=lambda: target)) for key in texts}
+    original, groups = native_supervision_sets(items, texts, Tokenizer(), tuple(texts), contrast_limit=4)
+    receipts = {}
+    controlled, controlled_groups = native_supervision_sets(items, texts, Tokenizer(), tuple(texts),
+        contrast_limit=4, source_erasure_ids=(fit,), source_control_receipts=receipts)
+    assert controlled_groups == groups
+    assert set(receipts) == set(groups[fit])
+    for key, sequence in controlled.items():
+        prior = original[key]
+        if key[0] == calibration:
+            assert sequence == prior
+        else:
+            assert sequence.tokens != prior.tokens
+            assert len(sequence.tokens) == len(prior.tokens)
+            assert sequence.tokens[prior.continuation_start:] == prior.tokens[prior.continuation_start:]
+            assert sequence.semantic_positions == prior.semantic_positions
+    with pytest.raises(ValueError, match="identities differ"):
+        native_supervision_sets(items, texts, Tokenizer(), tuple(texts), source_erasure_ids=("held",))

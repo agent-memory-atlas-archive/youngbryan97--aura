@@ -191,7 +191,8 @@ def selected_projection_error(full_logits, selected_logits, sequence, positions)
 
 
 def native_supervision_sets(items, texts, tokenizer, identities, *, peers=(),
-                            contrast_limit=None, max_tokens=1024, register_encoding="absolute_v1"):
+                            contrast_limit=None, max_tokens=1024, register_encoding="absolute_v1",
+                            source_erasure_ids=(), source_control_receipts=None):
     """Reuse the floor's witnessed contrasts only for declared source supervision."""
     from core.learning.semantic_candidate_contrasts import source_program_contrasts
     from core.learning.semantic_native_codec import (
@@ -200,9 +201,11 @@ def native_supervision_sets(items, texts, tokenizer, identities, *, peers=(),
     )
 
     validate_register_encoding(register_encoding)
+    erased_ids = set(source_erasure_ids)
 
     if (not identities or len(set(identities)) != len(identities)
-            or not set(identities) <= set(items) or not set(identities) <= set(texts)):
+            or not set(identities) <= set(items) or not set(identities) <= set(texts)
+            or len(erased_ids) != len(source_erasure_ids) or not erased_ids <= set(identities)):
         raise ValueError("native supervision source identities differ")
     sequences, groups = {}, {}
     for identity in sorted(identities):
@@ -218,6 +221,12 @@ def native_supervision_sets(items, texts, tokenizer, identities, *, peers=(),
         for key, program in zip(groups[identity], programs, strict=True):
             sequences[key] = native_sequence_for_encoding(texts[identity], program, tokenizer,
                 max_tokens=max_tokens, register_encoding=register_encoding)
+            if identity in erased_ids:
+                from core.learning.semantic_native_source_control import erase_native_source_tokens
+
+                sequences[key], receipt = erase_native_source_tokens(sequences[key], texts[identity], tokenizer)
+                if source_control_receipts is not None:
+                    source_control_receipts[key] = receipt
     return sequences, groups
 
 
@@ -243,6 +252,8 @@ def main():
     parser.add_argument("--objective", choices=("token", "contrastive", "relational", "relational_metric"), default="token")
     parser.add_argument("--contrast-limit", type=int, default=4)
     parser.add_argument("--register-encoding", choices=REGISTER_ENCODINGS, default="absolute_v1")
+    parser.add_argument("--source-evidence", choices=("source_text", "source_token_erasure"),
+                        default="source_text")
     parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args()
     if (any(type(value) is not int or value < 1 for value in (
@@ -265,6 +276,7 @@ def main():
         cross_construction_relation_triplets,
     )
     from core.learning.semantic_native_codec import NATIVE_CODEC_IMPLEMENTATION_PATHS
+    from core.learning.semantic_native_source_control import SOURCE_ERASURE_CONTRACT
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
     )
@@ -314,6 +326,7 @@ def main():
     implementation_paths = [ROOT / name for name in (
         "tools/train_semantic_native_program.py", "core/learning/frozen_decoder_prefix.py",
         "core/learning/semantic_native_program.py", "core/brain/llm/decoder_topology.py",
+        "core/learning/semantic_native_source_control.py",
         "core/learning/semantic_program_feature_materialization.py",
         "core/learning/semantic_candidate_contrasts.py",
         "core/learning/semantic_counterfactual_corpus.py",
@@ -365,6 +378,12 @@ def main():
             "scoring": "summed_native_" + args.loss_scope + "_log_probability",
             "implementation": implementation, "held_labels_used_for_fit_or_selection": False,
             "serving_authority": False, "qualification_evidence": False}
+    if args.source_evidence == "source_token_erasure":
+        if set(captured_fit_ids) & set(calibration_ids):
+            raise ValueError("native source erasure cannot consume calibration source evidence")
+        plan.update(schema="aura.semantic_native_fit_plan.v2",
+                    input="native_chat_template_fit_source_erased_calibration_and_held_source_unchanged",
+                    source_evidence_control=dict(SOURCE_ERASURE_CONTRACT))
     plan = {**plan, "plan_sha256": _digest(plan)}
     _save_if_absent(args.directory / "plan.json", plan)
     if args.plan_only:
@@ -424,16 +443,27 @@ def main():
         texts = {identity: source_text_from_tokens(item, tokenizer) for identity, item in items.items()}
         public_by_id = {identity: item.public_inputs for identity, item in items.items()}
         supervised_ids = tuple(sorted(set(captured_fit_ids) | set(calibration_ids)))
+        source_control_receipts = {}
         sequences, groups = native_supervision_sets(
             items, texts, tokenizer, supervised_ids,
             peers=tuple(peer_programs[key] for key in sorted(peer_programs)),
             contrast_limit=args.contrast_limit if args.objective != "token" else None,
-            max_tokens=args.max_sequence_tokens, register_encoding=args.register_encoding)
+            max_tokens=args.max_sequence_tokens, register_encoding=args.register_encoding,
+            source_erasure_ids=(captured_fit_ids if args.source_evidence == "source_token_erasure" else ()),
+            source_control_receipts=source_control_receipts)
         supervision = {"plan_sha256": plan["plan_sha256"],
             "rows": [{"source": key[0], "program_sha256": key[1],
                       "tokens": sequence.tokens, "continuation_start": sequence.continuation_start,
-                      "semantic_positions": sequence.semantic_positions}
+                      "semantic_positions": sequence.semantic_positions,
+                      **({"source_control_receipt": source_control_receipts.get(key)}
+                         if args.source_evidence == "source_token_erasure" else {})}
                      for key, sequence in sorted(sequences.items())]}
+        if args.source_evidence == "source_token_erasure":
+            supervision["source_evidence_control"] = {
+                **SOURCE_ERASURE_CONTRACT,
+                "erased_fit_ids": sorted(captured_fit_ids),
+                "unchanged_calibration_ids": sorted(calibration_ids),
+            }
         supervision = {**supervision, "receipt_sha256": _digest(supervision)}
         _save_if_absent(args.directory / "supervision.json", supervision)
         weights = construction_weights(fit)
@@ -613,7 +643,8 @@ def main():
                 or any(path.read_bytes() != raw[name] for name, path in (
                     ("parent", args.parent), ("source", args.source_report), ("folds", args.folds)))):
             raise ValueError("native fit identity changed during measurement")
-        body = {"schema": "aura.semantic_native_fit.v1", "plan_sha256": plan["plan_sha256"],
+        body = {"schema": ("aura.semantic_native_fit.v2" if args.source_evidence == "source_token_erasure"
+                           else "aura.semantic_native_fit.v1"), "plan_sha256": plan["plan_sha256"],
                 "selected_step": best[1], "baseline_calibration_loss": baseline,
                 "supervision_receipt_sha256": supervision["receipt_sha256"],
                 "prefix_sequence_population": len(sequences),

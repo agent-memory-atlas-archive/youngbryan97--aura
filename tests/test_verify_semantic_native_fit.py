@@ -5,7 +5,11 @@ from types import SimpleNamespace
 
 import pytest
 
-from tools.verify_semantic_native_fit import regrade_bank, verify_native_totals
+from tools.verify_semantic_native_fit import (
+    regrade_bank,
+    verify_native_totals,
+    verify_source_control_supervision,
+)
 
 
 def test_totals_keep_unknowns_separate_from_correct_and_regressed():
@@ -46,3 +50,73 @@ def test_semantic_regrading_reexecutes_programs_instead_of_accepting_cached_labe
     forged["diagnosis"]["comparisons"][1]["status"] = "equivalent"
     with pytest.raises(ValueError, match="independent execution"):
         regrade_bank(forged, item)
+
+
+def source_control_fixture():
+    import hashlib
+    import json
+
+    from core.learning.procedure_induction import Instruction, Program
+    from core.learning.semantic_native_source_control import SOURCE_ERASURE_CONTRACT
+    from tools.train_semantic_native_program import native_supervision_sets
+    from tests.test_semantic_native_program import Tokenizer
+
+    tokenizer = Tokenizer()
+    target = Program(2, (Instruction("sub", (0, 1)),))
+    texts = {hashlib.sha256(text.encode()).hexdigest(): text
+             for text in ("Subtract 2 from 5.", "Take 3 away from 7.")}
+    fit, calibration = tuple(texts)
+    items = {key: SimpleNamespace(split="train", public_inputs=(5, 2), ir=SimpleNamespace(
+        source_text_sha256=key, source_token_ids=tuple(tokenizer.encode(text)),
+        to_program=lambda: target)) for key, text in texts.items()}
+    receipts = {}
+    sequences, _ = native_supervision_sets(items, texts, tokenizer, tuple(texts),
+        source_erasure_ids=(fit,), source_control_receipts=receipts, contrast_limit=4, peers=(target,))
+    plan = {"schema": "aura.semantic_native_fit_plan.v2", "source_evidence_control": SOURCE_ERASURE_CONTRACT,
+        "fit_ids": [fit], "captured_fit_ids": [fit], "calibration_ids": [calibration],
+        "supervision_peer_program_sha256s": [target.sha()], "objective": "contrastive", "contrast_limit": 4,
+        "max_sequence_tokens": 1024, "register_encoding": "absolute_v1"}
+    supervision = {"source_evidence_control": {**SOURCE_ERASURE_CONTRACT,
+        "erased_fit_ids": [fit], "unchanged_calibration_ids": [calibration]},
+        "rows": [{"source": key[0], "program_sha256": key[1], "tokens": row.tokens,
+                  "continuation_start": row.continuation_start, "semantic_positions": row.semantic_positions,
+                  "source_control_receipt": receipts.get(key)} for key, row in sorted(sequences.items())]}
+    return plan, json.loads(json.dumps(supervision)), items, tokenizer
+
+
+def test_independent_source_control_reconstructs_all_tokens_and_scope():
+    plan, supervision, items, tokenizer = source_control_fixture()
+    verified = verify_source_control_supervision(plan, supervision, items, tokenizer)
+    assert verified["source_control_verified"] is True
+    assert verified["erased_fit_population"] == verified["intact_calibration_population"] == 1
+    assert verified["supervision_sequences_verified"] == len(supervision["rows"])
+
+
+@pytest.mark.parametrize("defect", ["source_token", "target_token", "receipt", "calibration", "scope", "duplicate", "tokenizer"])
+def test_independent_source_control_rejects_erasure_or_scope_forgery(defect):
+    plan, supervision, items, tokenizer = source_control_fixture()
+    fit_row = next(row for row in supervision["rows"] if row["source"] in plan["captured_fit_ids"])
+    cal_row = next(row for row in supervision["rows"] if row["source"] in plan["calibration_ids"])
+    if defect == "source_token":
+        fit_row["tokens"][fit_row["source_control_receipt"]["erased_source_positions"][0]] = ord("S")
+    elif defect == "target_token":
+        fit_row["tokens"][-1] += 1
+    elif defect == "receipt":
+        fit_row["source_control_receipt"] = None
+    elif defect == "calibration":
+        cal_row["source_control_receipt"] = fit_row["source_control_receipt"]
+    elif defect == "scope":
+        supervision["source_evidence_control"]["erased_fit_ids"] += plan["calibration_ids"]
+    elif defect == "duplicate":
+        supervision["rows"].append(supervision["rows"][0])
+    else:
+        tokenizer = None
+    with pytest.raises(ValueError, match="source control"):
+        verify_source_control_supervision(plan, supervision, items, tokenizer)
+
+
+def test_historical_fits_are_not_reinterpreted_as_source_erasure_controls():
+    plan = {"schema": "aura.semantic_native_fit_plan.v1"}
+    assert verify_source_control_supervision(plan, {"rows": []}, {}, None)["mode"] == "source_text"
+    with pytest.raises(ValueError, match="silently erase"):
+        verify_source_control_supervision(plan, {"source_evidence_control": {}, "rows": []}, {}, None)

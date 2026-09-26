@@ -69,15 +69,74 @@ def regrade_bank(bank, item):
     return labels, dict(counts)
 
 
-def verify_fit(directory, bank_directory, items):
+def verify_source_control_supervision(plan, supervision, items, tokenizer):
+    """Rebuild fit erasure and intact calibration from the bound source corpus."""
+    from core.learning.semantic_candidate_contrasts import source_program_contrasts
+    from core.learning.semantic_native_codec import native_sequence_for_encoding, register_encoding_from_plan
+    from core.learning.semantic_native_program import source_text_from_tokens
+    from core.learning.semantic_native_source_control import (
+        SOURCE_ERASURE_CONTRACT,
+        erase_native_source_tokens,
+        source_control_mode_from_plan,
+    )
+    from tools.evaluate_semantic_native_checkpoint import digest
+
+    mode = source_control_mode_from_plan(plan)
+    if mode == "source_text":
+        if ("source_evidence_control" in supervision
+                or any("source_control_receipt" in row for row in supervision["rows"])):
+            raise ValueError("legacy native supervision cannot silently erase source evidence")
+        return {"mode": mode, "source_control_verified": False}
+    fit_ids, cal_ids = set(plan["captured_fit_ids"]), set(plan["calibration_ids"])
+    if (tokenizer is None or fit_ids & cal_ids or not fit_ids <= set(plan["fit_ids"])
+            or not (fit_ids | cal_ids) <= set(items)
+            or supervision.get("source_evidence_control") != {
+                **SOURCE_ERASURE_CONTRACT, "erased_fit_ids": sorted(fit_ids),
+                "unchanged_calibration_ids": sorted(cal_ids)}):
+        raise ValueError("native source control scope or independent tokenizer differs")
+    peer_by_sha = {items[key].ir.to_program().sha(): items[key].ir.to_program()
+                   for key in plan["fit_ids"]}
+    peer_shas = plan["supervision_peer_program_sha256s"]
+    if (len(set(peer_shas)) != len(peer_shas) or not set(peer_shas) <= set(peer_by_sha)):
+        raise ValueError("native source control peer programs differ from the fit corpus")
+    peers = tuple(peer_by_sha[key] for key in peer_shas)
+    expected = []
+    for identity in sorted(fit_ids | cal_ids):
+        item = items[identity]
+        if item.split != "train" or item.ir.source_text_sha256 != identity:
+            raise ValueError("native source control consumes an invalid source partition")
+        source, target = source_text_from_tokens(item, tokenizer), item.ir.to_program()
+        programs = (target,) if plan["objective"] == "token" else source_program_contrasts(
+            target, item.public_inputs, peers, source_sha256=identity, limit=plan["contrast_limit"])
+        for program in sorted(programs, key=lambda value: value.sha()):
+            sequence = native_sequence_for_encoding(source, program, tokenizer,
+                max_tokens=plan["max_sequence_tokens"], register_encoding=register_encoding_from_plan(plan))
+            receipt = None
+            if identity in fit_ids:
+                sequence, receipt = erase_native_source_tokens(sequence, source, tokenizer)
+            expected.append({"source": identity, "program_sha256": program.sha(),
+                "tokens": sequence.tokens, "continuation_start": sequence.continuation_start,
+                "semantic_positions": sequence.semantic_positions, "source_control_receipt": receipt})
+    if digest(supervision["rows"]) != digest(expected):
+        raise ValueError("native source control tokens or receipts differ from source reconstruction")
+    return {"mode": mode, "source_control_verified": True,
+            "erased_fit_population": len(fit_ids), "intact_calibration_population": len(cal_ids),
+            "supervision_sequences_verified": len(expected),
+            "retained_nuisances": SOURCE_ERASURE_CONTRACT["retained_nuisances"]}
+
+
+def verify_fit(directory, bank_directory, items, *, tokenizer=None):
     from tools.evaluate_semantic_candidate_ranker import _read_bank
     from tools.evaluate_semantic_native_checkpoint import selected_checkpoint, verified_document, verify_replay_row
     from tools.train_nested_semantic_ranker import _verified_pair
+    from core.learning.semantic_native_source_control import source_control_mode_from_plan
 
     plan, selected = selected_checkpoint(directory)
     report = verified_document(directory / "report.json")
     bank_plan, bank_report = _verified_pair(bank_directory)
-    if (report.get("schema") != "aura.semantic_native_fit.v1"
+    mode = source_control_mode_from_plan(plan)
+    expected_schema = "aura.semantic_native_fit.v2" if mode == "source_token_erasure" else "aura.semantic_native_fit.v1"
+    if (report.get("schema") != expected_schema
             or any(report.get(key) is not False for key in ("serving_authority", "qualification_evidence", "held_labels_used_for_fit_or_selection"))
             or plan["bank_plan_sha256"] != bank_plan["plan_sha256"]
             or plan["bank_receipt_sha256"] != bank_report["receipt_sha256"]
@@ -97,6 +156,7 @@ def verify_fit(directory, bank_directory, items):
             or {row["source"] for row in supervision["rows"]} != set(plan["captured_fit_ids"]) | set(plan["calibration_ids"])
             or report["gradient_source_population"] != len(set(plan["scheduled_fit_ids"]))):
         raise ValueError("native fit supervision coverage differs")
+    source_control = verify_source_control_supervision(plan, supervision, items, tokenizer)
     rows, statuses = [], Counter()
     for identity in plan["held_ids"]:
         row = verified_document(directory / "rows" / f"{identity}.json")
@@ -120,6 +180,7 @@ def verify_fit(directory, bank_directory, items):
     return {"training_plan_sha256": plan["plan_sha256"], "training_receipt_sha256": report["receipt_sha256"],
             "selected_checkpoint_receipt_sha256": selected["receipt_sha256"], "selected_step": selected["step"],
             "totals": totals, "semantic_status_counts": dict(statuses),
+            "training_source_evidence": source_control,
             "current_implementation_drift": differences, "artifacts_verified": True,
             "general_transfer_proven": False, "broad_gain_proven": False, "serving_authority": False}
 
@@ -146,7 +207,13 @@ def main():
     source = json.loads(raw_source)
     examples = load_source_examples(parent, source, source_bundle_arguments(source, bundles=args.bundle))
     items = {item.ir.source_text_sha256: item for item in examples}
-    result = verify_fit(args.directory, args.bank, items)
+    from core.learning.semantic_native_source_control import source_control_mode_from_plan
+    plan = verified_document(args.directory / "plan.json", "plan_sha256")
+    tokenizer = None
+    if source_control_mode_from_plan(plan) == "source_token_erasure":
+        from mlx_lm.utils import load_tokenizer
+        tokenizer = load_tokenizer(Path(plan["model_path"]))
+    result = verify_fit(args.directory, args.bank, items, tokenizer=tokenizer)
     body = {"schema": "aura.semantic_native_fit_verification.v1", **result}
     _save_if_absent(args.output, {**body, "receipt_sha256": digest(body)})
     verified_document(args.output)

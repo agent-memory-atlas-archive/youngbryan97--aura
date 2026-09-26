@@ -32,8 +32,10 @@ def selected_checkpoint(directory):
     """Select only from a complete declared training schedule's calibration receipts."""
     plan = verified_document(directory / "plan.json", "plan_sha256")
     from core.learning.semantic_native_codec import register_encoding_from_plan
+    from core.learning.semantic_native_source_control import source_control_mode_from_plan
     register_encoding_from_plan(plan)
-    if (plan.get("schema") != "aura.semantic_native_fit_plan.v1"
+    source_control_mode_from_plan(plan)
+    if (plan.get("schema") not in {"aura.semantic_native_fit_plan.v1", "aura.semantic_native_fit_plan.v2"}
             or plan.get("held_labels_used_for_fit_or_selection") is not False
             or plan.get("serving_authority") is not False
             or plan.get("qualification_evidence") is not False):

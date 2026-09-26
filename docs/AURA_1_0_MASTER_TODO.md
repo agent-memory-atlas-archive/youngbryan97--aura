@@ -1901,6 +1901,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   independently verifies 2/6 unfitted against 6/6 fitted score-prefix
   replay at three steps. The fitted projection is not a second model run;
   output-wire adaptation and fixed sentence forms remain confounds.
+  [Fit-only source-erasure control](evidence/G06_NATIVE_SOURCE_ERASURE_PLAN_2026-09-26.md)
+  preserves the native training schedule and output supervision while removing
+  fitting-source content tokens. CPU reconstruction verifies every changed token
+  and intact calibration sequence. The model measurement remains separate.
   [Public composition diagnostic](evidence/G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md)
   independently verifies 48 complete decodes: treatment 8/8, controls 0/8.
   A separate semantic audit preserves that result but identifies missing public
