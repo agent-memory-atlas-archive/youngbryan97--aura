@@ -1837,6 +1837,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   fail two distinct three-request canaries. Typed generation exposes wrong
   intermediate-register binding despite successful whole-graph discrimination.
   This boundary remains open; no serving or fusion change is qualified.
+  [Role-relative target-blind grammar](evidence/G04_NATIVE_RELATIVE_GRAMMAR_FULL_2026-09-26.md)
+  independently verifies 72/72 exact three-step programs and answers over 24
+  constructions, with no overlap against 1,764 bound source examples. These
+  exposed, fixed-template, declared-input development cases do not close G04;
+  matched unfitted and fresh public-grounding comparisons remain required.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
   OPEN, observed live 2026-09-21, and recorded here because it is a
   reasoning error rather than a plumbing one. Asked how far a bird flies

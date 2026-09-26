@@ -100,6 +100,56 @@ def replay_greedy_decisions(row, *, example, plan):
         raise ValueError("native grammar decision replay differs from saved graph")
 
 
+def source_separation_summary(source_examples, target_examples):
+    source_texts = {hashlib.sha256(item.source_text.encode()).hexdigest()
+                    for item in source_examples}
+    target_texts = {hashlib.sha256(item.source_text.encode()).hexdigest()
+                    for item in target_examples}
+    source_constructions = {item.construction_id for item in source_examples}
+    target_constructions = {item.construction_id for item in target_examples}
+    source_topologies = {item.topology_id for item in source_examples}
+    target_topologies = {item.topology_id for item in target_examples}
+    if not source_texts or not target_texts or source_texts & target_texts:
+        raise ValueError("native grammar source text overlaps the training cohort")
+    if source_constructions & target_constructions:
+        raise ValueError("native grammar construction overlaps the training cohort")
+    return {"source_examples": len(source_examples),
+            "source_constructions": len(source_constructions),
+            "target_constructions": len(target_constructions),
+            "shared_topologies": sorted(source_topologies & target_topologies),
+            "source_text_overlap": 0, "construction_overlap": 0}
+
+
+def verify_source_separation(training, source_report_path, bundles, target_examples):
+    from core.learning.semantic_program_campaign import _sha
+    from core.learning.semantic_program_feature_materialization import (
+        rebuild_semantic_feature_selection,
+    )
+    from tools.refit_semantic_argument_proposals import source_bundle_arguments
+
+    raw = source_report_path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != training["source_report_sha256"]:
+        raise ValueError("native grammar source report differs from fitted checkpoint")
+    report = json.loads(raw)
+    if (report.get("report_sha256") != _sha({key: value for key, value in report.items()
+                                             if key != "report_sha256"})
+            or report.get("fit_complete") is not True):
+        raise ValueError("native grammar source report identity differs")
+    paths = source_bundle_arguments(report, bundles=bundles)
+    expected = report["representation_compatibility"]["source_feature_manifest_sha256s"]
+    source_examples = []
+    for value in paths:
+        name, _, path = value.partition("=")
+        manifest = json.loads((Path(path) / "manifest.json").read_text())
+        if manifest.get("manifest_sha256") != expected[name]:
+            raise ValueError(f"native grammar source manifest differs: {name}")
+        _, examples = rebuild_semantic_feature_selection(manifest)
+        source_examples.extend(examples)
+    return {"source_report_sha256": training["source_report_sha256"],
+            "source_manifests": expected,
+            **source_separation_summary(source_examples, target_examples)}
+
+
 def verify_grammar(directory, training_directory):
     from core.learning.semantic_program_corpus_natural import (
         build_semantic_program_natural_request_corpus,
@@ -168,13 +218,27 @@ def main():
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--training-directory", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--source-report", type=Path)
+    parser.add_argument("--bundle", action="append")
     args = parser.parse_args()
-    from tools.evaluate_semantic_native_checkpoint import digest, verified_document
+    if (args.source_report is None) != (args.bundle is None):
+        parser.error("source report and every source bundle must be supplied together")
+    from tools.evaluate_semantic_native_checkpoint import digest, selected_checkpoint, verified_document
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
     from tools.refit_semantic_argument_proposals import configure_refit_environment
 
     configure_refit_environment(args.output)
     result = verify_grammar(args.directory, args.training_directory)
+    if args.source_report is not None:
+        from core.learning.semantic_program_corpus_natural import (
+            build_semantic_program_natural_request_corpus,
+        )
+        training, _ = selected_checkpoint(args.training_directory)
+        examples = build_semantic_program_natural_request_corpus(examples_per_schema_domain=3)
+        examples = tuple(examples[index] for sample in range(24)
+                         for index in (sample, sample + 24, sample + 48))[:result["totals"]["population"]]
+        result["source_separation"] = verify_source_separation(
+            training, args.source_report, args.bundle, examples)
     body = {"schema": "aura.semantic_native_grammar_verification.v1", **result}
     _save_if_absent(args.output, {**body, "receipt_sha256": digest(body)})
     verified_document(args.output)
