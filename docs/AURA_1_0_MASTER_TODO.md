@@ -1885,6 +1885,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Source intervention plan](evidence/G06_NATIVE_SOURCE_INTERVENTION_PLAN_2026-09-26.md)
   freezes 24 fresh operation pairs before model evaluation; it is a plan, not
   a result.
+  [Source-operation canary](evidence/G06_NATIVE_SOURCE_INTERVENTION_CANARY_2026-09-26.md)
+  independently verifies 6/6 exact fitted decodes and 3/3 source-responsive
+  pairs across scalar, lookup, and count. Fixed sentence forms and missing
+  matched controls keep G04/G06 open.
   [Public composition diagnostic](evidence/G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md)
   independently verifies 48 complete decodes: treatment 8/8, controls 0/8.
   A separate semantic audit preserves that result but identifies missing public
