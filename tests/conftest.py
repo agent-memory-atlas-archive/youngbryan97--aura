@@ -15,6 +15,7 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -1943,9 +1944,22 @@ def _reset_shutdown_request_between_tests():
         pass
     yield
     try:
-        from core.runtime.shutdown_coordinator import clear_shutdown_request
+        from core.runtime.shutdown_coordinator import (
+            clear_shutdown_request,
+            get_shutdown_coordinator,
+            reset_shutdown_coordinator,
+        )
 
         clear_shutdown_request()
+        # A coordinator that has finished a teardown refuses every handler
+        # registered after it, for the life of the process. Clearing the
+        # request left that singleton in place, and fifteen conversation-lane
+        # tests failed in a group run behind whichever test had run a teardown
+        # to the end. One that has not run keeps the handlers modules
+        # registered at import.
+        status = get_shutdown_coordinator().get_status()
+        if not status.get("running") and status.get("report") is not None:
+            reset_shutdown_coordinator()
     except (ImportError, RuntimeError, AttributeError):
         pass
 

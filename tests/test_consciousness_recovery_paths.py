@@ -1277,9 +1277,11 @@ def test_parallel_branch_event_publish_failure_is_visible(monkeypatch):
     )
     import core.event_bus as event_bus
 
-    monkeypatch.setattr(event_bus, "get_event_bus", _FailingCallable("event bus unavailable"))
-
-    BranchManager()._publish_event("branch.test", {"branch_id": "br_test"})
+    # Scoped to the one call: the conftest's own teardown asks for the event bus,
+    # and a failing double still in place then fails the teardown.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(event_bus, "get_event_bus", _FailingCallable("event bus unavailable"))
+        BranchManager()._publish_event("branch.test", {"branch_id": "br_test"})
 
     assert recorded == [("parallel_branches", "RuntimeError")]
 
