@@ -308,6 +308,20 @@ class UnifiedField(_PredictsTheNextField):
         ]
         self._total_input_dim = sum(self._input_dims)  # 148
 
+        # Three-factor plasticity. What each connection did over a turn is
+        # summed here, and the turn's worth decides whether it strengthens or
+        # weakens. See teach() and core/affect/what_it_was_worth.py.
+        self._last_input = np.zeros(self._total_input_dim, dtype=np.float32)
+        self._eligible_field = np.zeros((self.cfg.dim, self.cfg.dim), dtype=np.float32)
+        self._eligible_input = np.zeros((self.cfg.dim, self._total_input_dim), dtype=np.float32)
+        self._eligible_steps = 0
+        #: Each field unit's total input strength at birth. Taught input
+        #: weights are scaled back to it, so a source gains a share of a unit's
+        #: input only by taking it from the other sources.
+        self._input_row_norms = np.linalg.norm(self._W_input_batched, axis=1).astype(np.float32)
+        self._taught_turns = 0
+        self._last_teaching: dict[str, object] = {}
+
         # Input buffers (consumed each tick)
         self._mesh_input: np.ndarray | None = None
         self._chem_input: np.ndarray | None = None
@@ -621,6 +635,8 @@ class UnifiedField(_PredictsTheNextField):
                     clip_abs=1.0,
                 )
             offset += dim
+
+        self._last_input = input_vec
 
         # Single batched matmul: (256, 148) @ (148,) → (256,)
         total_input = self._W_input_batched @ input_vec
@@ -1085,6 +1101,18 @@ class UnifiedField(_PredictsTheNextField):
         dw = self.cfg.hebbian_rate * np.outer(self.F, self.F)
         self.W_field += dw.astype(np.float32)
 
+        # What each connection did this step, for the turn's worth to judge:
+        # a recurrent weight by the unit it feeds after the unit it reads, an
+        # input weight by the unit it drives times the input it carried.
+        pre = self._prev_F if self._prev_F is not None else self.F
+        self._eligible_field += np.outer(self.F, pre).astype(np.float32)
+        self._eligible_input += np.outer(self.F, self._last_input).astype(np.float32)
+        self._eligible_steps += 1
+
+        self._settle_field_weights_locked()
+
+    def _settle_field_weights_locked(self) -> None:
+        """Bound the recurrent weights after they change, and resync the sparse copy."""
         # NaN/Inf guard
         self.W_field = np.nan_to_num(self.W_field, nan=0.0, posinf=3.0, neginf=-3.0)
 
@@ -1116,6 +1144,68 @@ class UnifiedField(_PredictsTheNextField):
 
         # Sync sparse representation for tick matmul
         self._W_field_sparse = self._to_sparse(self.W_field)
+
+    # ── Taught by what a turn was worth ──────────────────────────────────
+
+    #: The sources of the field's input, in the order of the batched matrix.
+    _INPUT_SOURCES = ("mesh", "chemistry", "binding", "interoception", "substrate")
+
+    def teach(self, modulator: float) -> dict[str, object]:
+        """Strengthen what was active before a good turn and weaken what was active before a bad one.
+
+        `modulator` is the turn's worth as her chemistry got it: its sign, and
+        its size against her recent turns, in [-1, 1]. Each connection moves
+        by the modulator times what it did over the turn, at `hebbian_rate`,
+        the rate her unconditioned learning already runs at, so a turn's payoff
+        can move a connection as far as a turn of co-activity does. The
+        connection keeps the trace for the whole turn and is judged when the
+        turn ends: a three-factor rule (Fremaux and Gerstner 2016).
+
+        Each unit's input weights are then scaled back to the strength it was
+        born with, as synaptic scaling keeps a neuron's total drive (Turrigiano
+        2008). A source that was active before payoffs takes a larger share of
+        the units it drives from the sources that were not, and one active
+        before detriments gives its share up. The traces start again either
+        way, a neutral turn included. Returns each source's share of the
+        field's input after the lesson.
+        """
+        with self._lock:
+            modulator, valid = _finite_float(modulator, 0.0)
+            modulator, _ = _clamp_float(modulator, lower=-1.0, upper=1.0)
+            steps = self._eligible_steps
+            if valid and steps and modulator != 0.0:
+                rate = self.cfg.hebbian_rate * modulator
+                self.W_field += (rate * self._eligible_field).astype(np.float32)
+                self._settle_field_weights_locked()
+                taught = self._W_input_batched + (rate * self._eligible_input).astype(np.float32)
+                taught = np.nan_to_num(taught, nan=0.0, posinf=0.0, neginf=0.0)
+                norms = np.linalg.norm(taught, axis=1)
+                scale = np.where(norms > 0.0, self._input_row_norms / np.maximum(norms, 1e-12), 1.0)
+                taught = (taught * scale[:, None]).astype(np.float32)
+                blocks = np.split(taught, np.cumsum(self._input_dims)[:-1], axis=1)
+                self.W_mesh, self.W_chem, self.W_bind, self.W_intero, self.W_substrate = blocks
+                self._sync_input_weight_matrix()
+                self._taught_turns += 1
+            self._eligible_field[:] = 0.0
+            self._eligible_input[:] = 0.0
+            self._eligible_steps = 0
+            self._last_teaching = {
+                "modulator": round(float(modulator), 6),
+                "steps": steps,
+                "taught": bool(valid and steps and modulator != 0.0),
+                "turns_taught": self._taught_turns,
+                "shares": self.input_shares(),
+            }
+            return dict(self._last_teaching)
+
+    def input_shares(self) -> dict[str, float]:
+        """Each source's share of the field's input strength, summed over its units."""
+        blocks = (self.W_mesh, self.W_chem, self.W_bind, self.W_intero, self.W_substrate)
+        strengths = [float(np.sum(np.square(block))) for block in blocks]
+        total = sum(strengths)
+        if total <= 0.0:
+            return {name: 0.0 for name in self._INPUT_SOURCES}
+        return {name: round(value / total, 6) for name, value in zip(self._INPUT_SOURCES, strengths, strict=True)}
 
     # ── Input API ────────────────────────────────────────────────────────
 
@@ -1405,4 +1495,5 @@ class UnifiedField(_PredictsTheNextField):
             "effective_update_hz": round(float(self._last_effective_hz), 4),
             "compute_budget_reason": self._last_compute_budget_reason,
             "compute_budget_memory_percent": self._last_compute_budget_memory_percent,
+            "last_teaching": dict(self._last_teaching),
         }

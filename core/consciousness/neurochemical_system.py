@@ -813,6 +813,20 @@ class NeurochemicalSystem:
         self.chemicals["endorphin"].surge(magnitude * 0.3)
         self.chemicals["serotonin"].surge(magnitude * 0.1)
 
+    def on_disappointment(self, magnitude: float = 0.3):
+        """Worse than she expected: a dopamine dip, the reward error's other sign.
+
+        A reward prediction error is signed. Dopamine neurons fire above their
+        baseline for better than expected and pause below it for worse
+        (Schultz, Dayan and Montague 1997), and `on_reward` had only the first
+        half. The dip mirrors `on_reward`'s dopamine term and is capped per call
+        as `on_threat` caps its depletions. The pause has less room than the
+        burst: a neuron firing a few spikes a second can only fall to zero
+        (Bayer and Glimcher 2005). Fed by core/affect/what_it_was_worth.py.
+        """
+        magnitude = self._event_amount(magnitude, event="disappointment", default=0.3)
+        self.chemicals["dopamine"].deplete(min(0.08, magnitude * 0.6))
+
     def on_prediction_error(self, error: float):
         """Prediction was wrong — norepinephrine + dopamine (learning signal)."""
         error = self._event_amount(error, event="prediction_error", default=0.0)

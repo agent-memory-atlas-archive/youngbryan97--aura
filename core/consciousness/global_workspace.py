@@ -561,9 +561,10 @@ def _bids(
     """Each candidate's bid as the sort reads it, by the candidate's id.
 
     Its priority at the moment of deciding, drawn toward or away by what she
-    has come to feel about its source (core/affect/feelings_about.py), less
-    the fatigue of whoever bid, plus what she is holding back pressing to get
-    out, as far as her body runs hot with it (core/soma/held_in.py).
+    has come to feel about its source (core/affect/feelings_about.py) and
+    weighed by what winning has earned it (core/affect/what_winning_earned.py),
+    less the fatigue of whoever bid, plus what she is holding back pressing to
+    get out, as far as her body runs hot with it (core/soma/held_in.py).
     """
     try:
         from core.affect.containment import get_containment_ledger
@@ -593,8 +594,23 @@ def _bids(
         def drawn(source: str) -> float:
             return 1.0
 
+    try:
+        from core.affect.what_winning_earned import get_credit_ledger
+
+        credit = get_credit_ledger()
+
+        def earned(source: str) -> float:
+            return 1.0 + credit.earned(source)
+    except (ImportError, AttributeError) as exc:
+        logger.debug("what winning has earned a source cannot reach this competition: %s", exc)
+
+        def earned(source: str) -> float:
+            return 1.0
+
     return {
-        id(candidate): candidate.priority_at(decided_at) * drawn(candidate.source)
+        id(candidate): candidate.priority_at(decided_at)
+        * drawn(candidate.source)
+        * earned(candidate.source)
         - fatigue.get(candidate.bidder, 0.0)
         + pressing(candidate.source)
         for candidate in candidates
@@ -1720,6 +1736,10 @@ class GlobalWorkspace:
     # ------------------------------------------------------------------
     # Snapshot
     # ------------------------------------------------------------------
+
+    def wins_by_source(self) -> dict[str, int]:
+        """How many broadcasts each source has won since boot."""
+        return dict(self._wins_by_source)
 
     def get_snapshot(self) -> dict[str, Any]:
         last = self.last_winner

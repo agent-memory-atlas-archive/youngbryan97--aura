@@ -173,7 +173,22 @@ class STDPLearningEngine:
         # Reward signal: negative prediction error (lower error = less
         # negative reward). Surprise changes step size below; this signed
         # reward decides whether eligible traces are reinforced or depressed.
-        reward = -np.tanh(prediction_error)
+        return self._deliver(-np.tanh(prediction_error), surprise)
+
+    def deliver_worth(self, modulator: float, surprise: float = 0.0) -> np.ndarray:
+        """What the eligible synapses earn from a turn's worth: better strengthens, worse weakens.
+
+        `modulator` is the turn's worth as her chemistry got it, signed, in
+        [-1, 1] (core/affect/what_it_was_worth.py). It is the reward
+        `deliver_reward` takes, from the thing that decides whether a turn went
+        well rather than from how well it was predicted; surprise still sets
+        the step size, and the identity locks still hold.
+        """
+        modulator = float(modulator) if np.isfinite(modulator) else 0.0
+        return self._deliver(float(np.clip(modulator, -1.0, 1.0)), surprise)
+
+    def _deliver(self, reward: float, surprise: float) -> np.ndarray:
+        """Turn a signed reward into a weight change over the eligible synapses."""
         self._last_reward = float(reward)
         self._last_surprise = float(surprise)
 
@@ -265,7 +280,18 @@ class STDPLearningEngine:
         Returns:
             Updated connectivity matrix.
         """
-        updated_weights = weights + dw
+        return self.regulate(weights + dw)
+
+    def regulate(self, weights: np.ndarray) -> np.ndarray:
+        """Hold a connectivity matrix inside the bounds its dynamics stay rich in.
+
+        The clip, spectral cap, homeostatic scaling and symmetry breaking of
+        `apply_to_connectivity`, without a change of its own. The liquid
+        substrate runs it every plasticity step: it got it there for years as a
+        side effect of a reward delivery that never moved a weight, and its
+        Hebbian growth leans on it.
+        """
+        updated_weights = np.array(weights, copy=True)
 
         # Clip weights
         updated_weights = np.clip(updated_weights, -WEIGHT_CLIP, WEIGHT_CLIP)
