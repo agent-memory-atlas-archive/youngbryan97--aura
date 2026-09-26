@@ -1188,6 +1188,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   and one regression. Independent CPU verification reproduces every comparison.
   The candidate is not promoted; target-blind construction and fresh transfer
   remain unproved.
+  [Shared model-lane correction](evidence/G_MODEL_LANE_COORDINATION_2026-09-26.md)
+  makes live-profile research use the resident physical-memory ledger despite
+  isolated evidence state. The active decode predates this repair; explicit
+  contained lane overrides still need ownership audit.
   [Native decoder pilot](evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md)
   uses the resident model's original semantic pathway with source-only LoRA.
   The complete held-wording pilot reaches 14/18 versus 7/18 unfitted and
