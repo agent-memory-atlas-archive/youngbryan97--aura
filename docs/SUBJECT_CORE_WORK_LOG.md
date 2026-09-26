@@ -38,9 +38,14 @@ interaction gain (lower bound 0.027) and an MMI synergy under its null.
 ### The synergy line cannot see a pure product
 
 docs/SYNERGY_KNOWN_ANSWERS.md. On toy systems the v3 line passed a pure product
-at none of five seeds. A Kraskov estimator passed all five and passed a plain sum
-at all five too. None of three estimators qualified. A failing triple does not
-show that no product coupling is there, and W,A -> D above is the case.
+at none of five seeds. A Kraskov estimator passed all five. A failing triple does
+not show that no product coupling is there, and W,A -> D above is the case.
+
+Corrected at 16:00: this entry said the Kraskov estimator also passed a plain sum.
+The "additive" system's switch takes the largest of four sums, which is an
+interaction, and on a separable sum the estimator scored below zero at all five
+seeds. Under that control the Kraskov estimator qualifies; it is not adopted on
+those seeds, and a replication on five fresh ones was fixed before it ran.
 
 ## 24 September
 

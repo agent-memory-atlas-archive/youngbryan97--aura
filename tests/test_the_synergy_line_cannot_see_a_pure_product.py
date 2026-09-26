@@ -1,12 +1,12 @@
-"""The synergy line cannot see a pure product, and what can see it cannot tell it from a sum.
+"""The synergy line cannot see a pure product; a Kraskov estimate can, and rejects a sum.
 
 docs/SYNERGY_KNOWN_ANSWERS.md. A zero-mean product of two independent sources
 has no rank correlation with either of them, and the v3 line reads synergy
 through a Gaussian copula, which keeps only rank correlations. A Kraskov
-estimator does see the product, and scores a plain sum as synergy too, which is
-what MMI synergy does with a sum. These pin both on one seed of the study's toy,
-so a change to the line that lets it see a product flips a test instead of
-passing unnoticed.
+estimator does see the product, scores a threshold of sums as synergy, which it
+is, and scores a separable sum below zero. These pin all of that on one seed of
+the study's toy, so a change to the line that lets it see a product flips a test
+instead of passing unnoticed.
 """
 
 from __future__ import annotations
@@ -51,11 +51,13 @@ def test_a_kraskov_estimate_sees_the_product_and_nothing_where_there_is_nothing(
     assert _ksg_synergy("none") < 0.0
 
 
-def test_a_kraskov_estimate_also_scores_a_sum_as_synergy():
+def test_a_threshold_of_sums_is_synergy_and_a_separable_sum_is_not():
+    """Which of four sums is largest depends on W and A together; a sum does not."""
     assert _ksg_synergy("additive") > 0.03
+    assert _ksg_synergy("separable") < 0.0
 
 
 def test_the_qualifying_rule_is_the_designs():
-    assert study.qualifies({"product": 4, "mixed": 4, "additive": 1, "none": 1}, 5)
-    assert not study.qualifies({"product": 5, "mixed": 5, "additive": 5, "none": 1}, 5)
-    assert not study.qualifies({"product": 0, "mixed": 2, "additive": 0, "none": 0}, 5)
+    assert study.qualifies({"product": 4, "mixed": 4, "separable": 1, "none": 1}, 5)
+    assert not study.qualifies({"product": 5, "mixed": 5, "separable": 5, "none": 1}, 5)
+    assert not study.qualifies({"product": 0, "mixed": 2, "separable": 0, "none": 0}, 5)

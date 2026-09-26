@@ -8,7 +8,8 @@ continuous columns, driven by
 
     product   W_i * A_j
     mixed     (W_i - A_j) + W_i * A_j
-    additive  (W_i + A_j) / 2
+    additive  (W_i + A_j) / 2, the switch taking the largest of those sums
+    separable (W_i + A_j) / 2, the switch taking the largest W_i alone
     none      nothing either source does
 
 and each is read three ways, W,A -> D on the change:
@@ -19,9 +20,13 @@ and each is read three ways, W,A -> D on the change:
               copula-normal components, against the same shifted null
     ksg+gain  ksg, a Kraskov fraction of at least 0.10, and the v3 line's
               held-out interaction gain positive with a positive lower bound
+    ksg-over-sum
+              ksg, and the Kraskov synergy above what surrogates holding only
+              the additive part of the target show: the best additive fit plus
+              its residual permuted over rows
 
 An estimator qualifies when it passes product and mixed at four of five seeds
-and passes additive and none at no more than one.
+and passes separable and none at no more than one.
     usage: synergy_known_answers.py [--seeds 3,7,11,19,23]
 """
 
@@ -44,7 +49,7 @@ from core.subject.synergy import _components, _copula_normal, synergy  # noqa: E
 
 ROWS = 2400
 SEEDS = (3, 7, 11, 19, 23)
-KINDS = ("product", "mixed", "additive", "none")
+KINDS = ("product", "mixed", "additive", "separable", "none")
 #: Neighbours for the Kraskov estimator, the middle of the 2 to 4 its authors
 #: recommend.
 K = 3
@@ -68,9 +73,21 @@ def _drive(kind: str, w: np.ndarray, a: np.ndarray, rng: np.random.Generator) ->
         return np.array([w[i] * a[j] for i, j in PAIRS])
     if kind == "mixed":
         return np.array([(w[i] - a[j]) + w[i] * a[j] for i, j in PAIRS])
-    if kind == "additive":
+    if kind in {"additive", "separable"}:
         return np.array([(w[i] + a[j]) / 2 for i, j in PAIRS])
     return rng.normal(size=len(PAIRS))
+
+
+def _switching(kind: str, push: np.ndarray, w: np.ndarray) -> np.ndarray:
+    """What the switch picks the largest of.
+
+    In `additive` it is the sums themselves, and which of four sums is largest
+    is not a sum: the switch carries an interaction. `separable` hands the
+    switch W alone, so nothing D does depends on W and A together.
+    """
+    if kind == "separable":
+        return np.array([w[i] for i, _ in PAIRS])
+    return push
 
 
 def build(kind: str, seed: int) -> Recording:
@@ -80,7 +97,8 @@ def build(kind: str, seed: int) -> Recording:
     d = np.zeros((ROWS, 8))
     for t in range(1, ROWS):
         push = _drive(kind, w[t - 1], a[t - 1], rng)
-        d[t, int(np.argmax(push + 0.5 * rng.normal(size=len(PAIRS))))] = 1.0
+        switch = _switching(kind, push, w[t - 1])
+        d[t, int(np.argmax(switch + 0.5 * rng.normal(size=len(PAIRS))))] = 1.0
         d[t, 4:] = 0.7 * d[t - 1, 4:] + 0.5 * push + 0.3 * rng.normal(size=len(PAIRS))
     columns = tuple(
         [f"W.w{i}" for i in range(3)] + [f"A.a{i}" for i in range(3)]
@@ -111,6 +129,56 @@ def _ksg_synergy(a: np.ndarray, b: np.ndarray, y: np.ndarray, rng: np.random.Gen
     return joint - max(ksg_mi(a, y, rng), ksg_mi(b, y, rng)), joint
 
 
+#: Degrees the additive model may take for each source; the one with the
+#: lowest held-out loss is used.
+ADDITIVE_DEGREES = (1, 2, 3)
+#: Folds the additive model's degree is chosen over.
+ADDITIVE_FOLDS = 5
+
+
+def _additive_basis(a: np.ndarray, b: np.ndarray, degree: int) -> np.ndarray:
+    """Powers of each source's columns up to `degree`, and no product between sources."""
+    columns = [np.ones((a.shape[0], 1))]
+    for source in (a, b):
+        for power in range(1, degree + 1):
+            columns.append(source**power)
+    return np.hstack(columns)
+
+
+def additive_fit(a: np.ndarray, b: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """The best additive account of y from a and b, its degree chosen by held-out loss."""
+    rows = y.shape[0]
+    fold = np.arange(rows) * ADDITIVE_FOLDS // rows
+    best, best_loss = ADDITIVE_DEGREES[0], np.inf
+    for degree in ADDITIVE_DEGREES:
+        basis = _additive_basis(a, b, degree)
+        loss = 0.0
+        for k in range(ADDITIVE_FOLDS):
+            train, test = fold != k, fold == k
+            coef = np.linalg.lstsq(basis[train], y[train], rcond=None)[0]
+            loss += float(np.sum((y[test] - basis[test] @ coef) ** 2))
+        if loss < best_loss:
+            best, best_loss = degree, loss
+    basis = _additive_basis(a, b, best)
+    return basis @ np.linalg.lstsq(basis, y, rcond=None)[0]
+
+
+def additive_null(a: np.ndarray, b: np.ndarray, y: np.ndarray, rng: np.random.Generator) -> float:
+    """The 0.99 quantile of the synergy a target with only the additive part of y would show.
+
+    Each surrogate is the additive fit plus its own residual permuted over rows,
+    which keeps every additive dependence on the sources and the noise level,
+    and removes anything the sources do together.
+    """
+    fitted = additive_fit(a, b, y)
+    residual = y - fitted
+    draws = []
+    for _ in range(KSG_DRAWS):
+        surrogate = fitted + residual[rng.permutation(residual.shape[0])]
+        draws.append(_ksg_synergy(a, b, surrogate, rng)[0])
+    return float(np.quantile(draws, 0.99))
+
+
 def read(kind: str, seed: int) -> dict[str, object]:
     """One row of the table: the three estimators on one toy."""
     recording = build(kind, seed)
@@ -130,6 +198,7 @@ def read(kind: str, seed: int) -> dict[str, object]:
     bar = float(np.quantile(nulls, 0.99))
     ksg = value > bar
     fraction = value / joint if joint > 1e-9 else 0.0
+    sum_bar = additive_null(a, b, y, rng)
     return {
         "kind": kind,
         "seed": seed,
@@ -143,22 +212,36 @@ def read(kind: str, seed: int) -> dict[str, object]:
         "gain": float(v3.interaction_gain),
         "gain_lower_bound": float(v3.interaction_lower_bound),
         "ksg+gain": bool(ksg and fraction >= 0.10 and v3.interaction_gain > 0.0 and v3.interaction_lower_bound > 0.0),
+        "sum_bar": sum_bar,
+        "ksg-over-sum": bool(ksg and value > sum_bar),
     }
 
 
 def qualifies(counts: dict[str, int], seeds: int) -> bool:
-    """Product and mixed at four of five; additive and none at no more than one."""
+    """Product and mixed at four of five; the separable sum and none at no more than one.
+
+    The rule was written with `additive` as the sum that must fail. Its switch
+    takes the largest of four sums, which is an interaction, so it is reported
+    and no longer counted either way; `separable` is the sum that must fail.
+    """
     need = seeds - 1
-    return counts["product"] >= need and counts["mixed"] >= need and counts["additive"] <= 1 and counts["none"] <= 1
+    return (
+        counts["product"] >= need
+        and counts["mixed"] >= need
+        and counts.get("separable", 0) <= 1
+        and counts["none"] <= 1
+    )
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seeds", default=",".join(str(s) for s in SEEDS))
+    parser.add_argument("--kinds", default=",".join(KINDS))
     args = parser.parse_args()
     seeds = tuple(int(s) for s in args.seeds.split(","))
-    counts = {name: dict.fromkeys(KINDS, 0) for name in ("v3", "ksg", "ksg+gain")}
-    for kind in KINDS:
+    kinds = tuple(args.kinds.split(","))
+    counts = {name: dict.fromkeys(KINDS, 0) for name in ("v3", "ksg", "ksg+gain", "ksg-over-sum")}
+    for kind in kinds:
         for seed in seeds:
             row = read(kind, seed)
             for name in counts:
@@ -167,7 +250,8 @@ def main() -> int:
                 f"{kind:9s} seed {seed:2d}: v3 {row['v3']!s:5s} syn {row['v3_synergy']:+.4f} "
                 f"bar {row['v3_bar']:+.4f} | ksg {row['ksg']!s:5s} syn {row['ksg_synergy']:+.4f} "
                 f"bar {row['ksg_bar']:+.4f} | gain {row['gain']:+.4f} lb {row['gain_lower_bound']:+.4f} "
-                f"| ksg+gain {row['ksg+gain']!s}",
+                f"| ksg+gain {row['ksg+gain']!s} | sum bar {row['sum_bar']:+.4f} "
+                f"ksg-over-sum {row['ksg-over-sum']!s}",
                 flush=True,
             )
     for name, row in counts.items():
