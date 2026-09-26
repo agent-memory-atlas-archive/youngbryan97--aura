@@ -396,7 +396,9 @@ def structure_term(report: Mapping[str, Any] | None) -> StructureTerm:
         )
     status = "NOT_MEASURED" if blockers else _CONTENT_VERDICTS.get(verdict, "NOT_MEASURED")
     if status == "NOT_MEASURED" and not blockers:
-        blockers = (f"the content run reported {verdict}",)
+        moves = report.get("moves_together") or {}
+        why = str(moves.get("why") or "") if isinstance(moves, Mapping) and not moves.get("measured") else ""
+        blockers = (why or f"the content run reported {verdict}",)
     return StructureTerm(
         status=status,
         classes=names,

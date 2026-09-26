@@ -203,7 +203,6 @@ def agreement(
             "over it is tie-breaking rather than structure",
         )
 
-    left_square = square_from_pairs({k: v for k, v in zip(keys, left)}, size)
     right_square = square_from_pairs({k: v for k, v in zip(keys, right)}, size)
     observed = _spearman(left, right)
 
@@ -293,6 +292,14 @@ class MovesTogether:
     floor_rho: float
     measured: bool
     why: str
+    #: How far repeating the measurement, displacing nothing, moved each
+    #: geometry. The displacement has to move the internal one further, or
+    #: there is no movement of the manifold for the behaviour to follow.
+    sham_internal_shift: float = 0.0
+    sham_behavioural_shift: float = 0.0
+    #: One-sided paired signed-rank p that the displacement moved the internal
+    #: geometry's pairs further than the sham did.
+    moved_p_value: float = 1.0
 
     def holds(self, *, bar: float) -> bool:
         return (
@@ -346,6 +353,8 @@ def moves_together(
     observed = _spearman(d_internal, d_behaviour)
 
     floor = 0.0
+    sham_internal_shift = sham_behavioural_shift = 0.0
+    moved_p = 1.0
     if sham_internal_after is not None and sham_behavioural_after is not None:
         sham_keys = [
             k for k in keys
@@ -359,6 +368,26 @@ def moves_together(
                 [sham_behavioural_after[k] - behavioural_before[k] for k in sham_keys]
             )
             floor = _spearman(sham_internal, sham_behaviour)
+            sham_internal_shift = float(np.mean(np.abs(sham_internal)))
+            sham_behavioural_shift = float(np.mean(np.abs(sham_behaviour)))
+            # The same pairs, displaced and not. If the displacement moved the
+            # internal geometry no further than a second look does, its
+            # "movement" is sampling noise, and no correlation with the
+            # behaviour's can say whether the two follow each other.
+            displaced = np.asarray(
+                [abs(internal_after[k] - internal_before[k]) for k in sham_keys]
+            )
+            moved_p = _moved_further(displaced, np.abs(sham_internal))
+            if moved_p >= 0.01:
+                return MovesTogether(
+                    0.0, 1.0, round(internal_shift, 6), round(behavioural_shift, 6),
+                    round(floor, 6), False,
+                    "the displacement moved the internal geometry no further than "
+                    f"repeating the measurement did (p={moved_p:.3g}), so there is no "
+                    "movement of the manifold for the behaviour to follow",
+                    round(sham_internal_shift, 6), round(sham_behavioural_shift, 6),
+                    round(moved_p, 6),
+                )
 
     square = square_from_pairs({k: v for k, v in zip(keys, d_behaviour)}, size)
     rng = np.random.default_rng(seed)
@@ -374,7 +403,18 @@ def moves_together(
         round(internal_shift, 6), round(behavioural_shift, 6), round(floor, 6), True,
         "the displacement moved both geometries and the movements were compared "
         "against a sham floor",
+        round(sham_internal_shift, 6), round(sham_behavioural_shift, 6), round(moved_p, 6),
     )
+
+
+def _moved_further(displaced: np.ndarray, sham: np.ndarray) -> float:
+    """One-sided paired signed-rank p that `displaced` exceeds `sham`, pair by pair."""
+    from scipy.stats import wilcoxon
+
+    differences = np.asarray(displaced, dtype=np.float64) - np.asarray(sham, dtype=np.float64)
+    if not np.any(differences):
+        return 1.0
+    return float(wilcoxon(differences, alternative="greater").pvalue)
 
 
 #: What the run is allowed to say it identified, and what it is not. Carried in
