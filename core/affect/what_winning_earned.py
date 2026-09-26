@@ -15,12 +15,22 @@ it (core/affect/feelings_about.py), and is scaled the way that ledger scales its
 pull, by how established it is, seen / (seen + 1). A source that keeps winning
 turns that go well bids stronger. One that keeps winning turns that go badly
 bids weaker and loses her attention to the others.
+
+A source is judged against what turns that started the same way usually bring,
+the state-value baseline of an actor-critic (Sutton and Barto 2018, 13.4).
+Without it, whatever wins her attention when things are going badly is blamed
+for them: an alarm that is right more often is heard less. The baseline is a
+straight line of the turn's dose on the valence she arrived with, fitted over
+her last 256 turns, and a source earns what its turns brought beyond it.
 """
 
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Mapping
 from typing import Any
+
+import numpy as np
 
 from core.self.what_came_before import keep_across_stages
 
@@ -40,8 +50,29 @@ class CreditLedger:
         self._weight: dict[str, float] = {}
         self._seen: dict[str, int] = {}
         self.turns = 0
+        #: (valence she arrived with, the turn's dose) for her recent measured turns.
+        self._outcomes: deque[tuple[float, float]] = deque(maxlen=_WINDOW)
 
-    def note(self, wins: Mapping[str, int], amount: float, *, measured: bool = True) -> dict[str, float]:
+    def baseline(self, arrived_with: float) -> float:
+        """What a turn that started at this valence has usually brought, from her own recent turns."""
+        if not self._outcomes:
+            return 0.0
+        rows = np.asarray(self._outcomes, dtype=np.float64)
+        start, brought = rows[:, 0], rows[:, 1]
+        spread = float(np.var(start))
+        if len(rows) < 3 or spread <= 1e-12:
+            return float(np.mean(brought))
+        slope = float(np.mean((start - start.mean()) * (brought - brought.mean()))) / spread
+        return float(brought.mean() + slope * (arrived_with - start.mean()))
+
+    def note(
+        self,
+        wins: Mapping[str, int],
+        amount: float,
+        *,
+        measured: bool = True,
+        arrived_with: float = 0.0,
+    ) -> dict[str, float]:
         """Credit this turn's winners with its worth, by their share of the turn's wins.
 
         `wins` is the workspace's running count of wins by source. `amount` is
@@ -74,13 +105,23 @@ class CreditLedger:
         if amount != amount:
             amount = 0.0
         amount = max(-1.0, min(1.0, amount))
+        try:
+            arrived_with = float(arrived_with)
+        # not a failure: a start that is not a number is judged against every turn.
+        except (TypeError, ValueError):
+            arrived_with = 0.0
+        if arrived_with != arrived_with:
+            arrived_with = 0.0
+        # Judged against the baseline before this turn joins it.
+        advantage = max(-1.0, min(1.0, amount - self.baseline(arrived_with)))
+        self._outcomes.append((arrived_with, amount))
         shares = {name: count / total for name, count in gained.items()}
         for name, share in shares.items():
             self._seen[name] = self._seen.get(name, 0) + 1
             self._weight[name] = self._weight.get(name, 0.0) + share
             before = self._earned.get(name, 0.0)
             rate = share / min(self._weight[name], float(_WINDOW))
-            self._earned[name] = before + (amount - before) * rate
+            self._earned[name] = before + (advantage - before) * rate
         self.turns += 1
         return shares
 

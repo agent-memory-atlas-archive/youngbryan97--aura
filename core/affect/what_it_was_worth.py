@@ -116,6 +116,10 @@ class Worth:
     turns: int = 0
     measured: bool = False
     why: str = "no turn has been read yet"
+    #: Her valence at the end of the turn before, the state this one started
+    #: from. What winning earns a source is judged against turns that started
+    #: the same way (core/affect/what_winning_earned.py).
+    arrived_with: float = 0.0
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -127,6 +131,7 @@ class Worth:
             "turns": self.turns,
             "measured": self.measured,
             "why": self.why,
+            "arrived_with": round(self.arrived_with, 6),
         }
 
 
@@ -155,6 +160,8 @@ class WorthLedger:
         self._outcomes_seen: deque[str] = deque(maxlen=_WINDOW)
         self._last = Worth()
         self.turns = 0
+        #: Her valence at the end of the last turn read.
+        self.last_valence = 0.0
 
     def note(self, changes: dict[str, float]) -> Worth:
         """Read one turn's raw changes, one per channel, and return what it was worth."""
@@ -298,6 +305,7 @@ def _surprises() -> float:
 def read_turn(state: Any, ledger: WorthLedger | None = None) -> Worth:
     """Read what the turn that just ended was worth to her, and remember it."""
     ledger = ledger or _LEDGER
+    arrived_with = ledger.last_valence
     levels = _levels(state)
     levels["wonder_count"] = _surprises()
     changes = ledger.levels_changed(levels)
@@ -310,13 +318,16 @@ def read_turn(state: Any, ledger: WorthLedger | None = None) -> Worth:
     if not math.isfinite(valence):
         valence = 0.0
     changes["wonder"] = (1.0 if valence >= 0.0 else -1.0) if surprised else 0.0
+    ledger.last_valence = valence
     changes["accomplishment"] = _goal_outcomes(state, ledger._outcomes_seen)
     forces = getattr(getattr(state, "motivation", None), "forces", {}) or {}
     try:
         changes["warmth"] = float(forces.get("warmth_return", 0.0) or 0.0)
     except (TypeError, ValueError):
         changes["warmth"] = 0.0
-    return ledger.note(changes)
+    reading = ledger.note(changes)
+    reading.arrived_with = arrived_with
+    return reading
 
 
 def dose(reading: Worth) -> float:
@@ -384,7 +395,9 @@ def teach_connections(reading: Worth) -> dict[str, Any]:
     if callable(wins):
         from core.affect.what_winning_earned import get_credit_ledger
 
-        lessons["global_workspace"] = get_credit_ledger().note(wins(), amount, measured=reading.measured)
+        lessons["global_workspace"] = get_credit_ledger().note(
+            wins(), amount, measured=reading.measured, arrived_with=reading.arrived_with
+        )
     return lessons
 
 
