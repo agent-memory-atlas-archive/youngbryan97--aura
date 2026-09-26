@@ -407,31 +407,47 @@ def note_initiative(initiative: Any, ledger: HabitLedger | None = None) -> None:
 
 
 def appraise(closed: list[tuple[Any, float, float]]) -> int:
-    """Close the receipts her acts opened, with what followed them.
+    """Close the receipts her acts opened, with what the turn they were taken in was worth.
 
-    The choice engine is given the standing as her satisfaction, and the
-    preference learner as its reward. Returns how many receipts were closed.
+    Her values and her decision weights learn from one signal: the turn's
+    worth against what she had come to expect (core/affect/what_it_was_worth.py).
+    They learned from the standing of her valence change before, a second
+    teacher beside the one her connections learn from, and a raw change keeps
+    teaching a routine that always feels fine. A receipt closes here when the
+    feeling the act was waiting on arrives, at the next turn's affect reading,
+    and by then the last worth read is the turn the act was taken in. While her
+    worth is not yet measured nothing is appraised and the receipts stay open.
+    Returns how many receipts were closed.
     """
+    from core.affect.what_it_was_worth import dose, get_worth_ledger
+
+    reading = get_worth_ledger().read()
+    if not reading.measured:
+        return 0
+    amount = dose(reading)
     done = 0
-    choices = [(event, change, standing) for event, change, standing in closed if event.choice_id]
-    decisions = [(event, standing) for event, _change, standing in closed if event.decision_id]
+    choices = [(event, change) for event, change, _standing in closed if event.choice_id]
+    decisions = [event for event, _change, _standing in closed if event.decision_id]
     if choices:
         from core.agency.subjective_choice import get_subjective_choice_engine
 
         engine = get_subjective_choice_engine()
-        for event, change, standing in choices:
+        for event, change in choices:
             if engine.appraise_outcome(
                 event.choice_id,
-                outcome=f"what followed {event.act}: her valence moved {change:+.4f}",
-                satisfaction=standing,
+                outcome=(
+                    f"what followed {event.act}: her valence moved {change:+.4f}, "
+                    f"and the turn was worth {reading.worth:+.3f} against what she expected"
+                ),
+                satisfaction=amount,
             ) is not None:
                 done += 1
     if decisions:
         from core.agency.decision_preference_learner import get_decision_preference_learner
 
         learner = get_decision_preference_learner()
-        for event, standing in decisions:
-            learner.resolve_choice(event.decision_id, standing)
+        for event in decisions:
+            learner.resolve_choice(event.decision_id, amount)
             done += 1
     return done
 

@@ -36,6 +36,16 @@ def _fresh():
         module.reset_for_test()
 
 
+@pytest.fixture(autouse=True)
+def _fresh_worth():
+    """The worth ledger is global; no test leaves a measured one behind for the next."""
+    from core.affect import what_it_was_worth
+
+    what_it_was_worth.reset_for_test()
+    yield
+    what_it_was_worth.reset_for_test()
+
+
 def _live(ledger: HabitLedger, act: str, kind: str, after: float, *, valence: float = 0.0) -> float:
     """One act, and the affect reading that follows it."""
     ledger.note(act, kind=kind)
@@ -166,16 +176,59 @@ def test_an_outcome_closes_the_receipts_her_choice_opened(tmp_path, monkeypatch)
         decision_id=decision_id,
     )
     closed = ledger.felt(0.5, situation="alone")
+    _a_turn_worth(0.8)
     assert habits_module.appraise(closed) == 2
     appraised = engine.recall_choice(receipt.choice_id)
     assert appraised is not None and appraised.satisfaction is not None and appraised.satisfaction > 0.0
     assert learner.stats()["resolved_count"] == 1
 
 
+def _a_turn_worth(last: float) -> None:
+    """Give the worth ledger a measured last turn, better (last > 0) or worse than expected."""
+    from core.affect import what_it_was_worth
+
+    what_it_was_worth.reset_for_test()
+    ledger = what_it_was_worth.get_worth_ledger()
+    for value in (0.1, -0.1, 0.1, -0.1, 0.1, -0.1):
+        ledger.note({"warmth": value})
+    ledger.note({"warmth": last})
+
+
+def _one_choice(tmp_path, monkeypatch):
+    import core.agency.subjective_choice as subjective
+    from core.agency.subjective_choice import ChoiceOption, SubjectiveChoiceEngine
+
+    engine = SubjectiveChoiceEngine(state_path=tmp_path / "choice.json")
+    monkeypatch.setattr(subjective, "get_subjective_choice_engine", lambda: engine)
+    receipt = engine.choose([ChoiceOption(id="a", label="read the paper")], context="test", record=True)
+    ledger = habits_module.get_habit_ledger()
+    for change in (0.0, -0.1, 0.1):
+        _live(ledger, "tidy", "weighed", change)
+    ledger.note("read", kind="automatic", choice_id=receipt.choice_id)
+    return engine, receipt, ledger.felt(0.9, situation="alone")
+
+
+def test_a_choice_is_appraised_with_what_its_turn_was_worth(tmp_path, monkeypatch) -> None:
+    """Her valence rose after it, and the turn still went worse than she expected."""
+    engine, receipt, closed = _one_choice(tmp_path, monkeypatch)
+    _a_turn_worth(-0.8)
+    assert habits_module.appraise(closed) == 1
+    assert engine.recall_choice(receipt.choice_id).satisfaction < 0.0
+
+
+def test_nothing_is_appraised_before_her_worth_is_measured(tmp_path, monkeypatch) -> None:
+    from core.affect import what_it_was_worth
+
+    engine, receipt, closed = _one_choice(tmp_path, monkeypatch)
+    what_it_was_worth.reset_for_test()
+    assert habits_module.appraise(closed) == 0
+    assert engine.recall_choice(receipt.choice_id).satisfaction is None
+
+
 def test_the_arbiter_takes_a_bad_habit_on_drive_for_less(monkeypatch) -> None:
+    import core.agency.subjective_choice as subjective
     from core.agency.initiative_arbiter import InitiativeArbiter
     from core.state.aura_state import AuraState
-    import core.agency.subjective_choice as subjective
 
     offered: dict[str, float] = {}
 
