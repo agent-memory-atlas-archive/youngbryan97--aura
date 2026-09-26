@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 
+from core.learning.procedure_induction import Program
 from core.learning.semantic_program_corpus import (
     SemanticInstructionAnnotation,
     SemanticProgramExample,
@@ -75,12 +76,14 @@ def _render_operation(builder: _AnnotatedText, *, style: str, op: str,
         argument(0)
 
 
-def render_native_paraphrase(original: SemanticProgramExample, *, style: str) -> SemanticProgramExample:
+def render_native_paraphrase(original: SemanticProgramExample, *, style: str,
+                             program: Program | None = None) -> SemanticProgramExample:
     """Change source expression only; retain the executable program and values."""
     if style not in _STYLES:
         raise ValueError("native paraphrase style is unsupported")
-    program = original.program
-    if (program.n_inputs > len(_INPUT_NAMES) or len(program.instructions) > len(_RESULT_NAMES)
+    program = original.program if program is None else program
+    if (program.n_inputs != len(original.inputs) or program.n_inputs > len(_INPUT_NAMES)
+            or len(program.instructions) > len(_RESULT_NAMES)
             or any(item.op not in _OPERATIONS or len(item.args) != 2
                    for item in program.instructions)):
         raise ValueError("native paraphrase program exceeds its renderer")
@@ -133,7 +136,7 @@ def render_native_paraphrase(original: SemanticProgramExample, *, style: str) ->
         inputs=original.inputs,
         input_spans=tuple(builder.span(f"input:{index}") for index in range(program.n_inputs)),
         instructions=tuple(annotations),
-        report_value=original.report_value,
+        report_value=program.n_inputs + program.depth - 1,
         contrast_id=hashlib.sha256(f"{style}|{original.contrast_id}".encode()).hexdigest()[:24],
         register_definition_spans=tuple(builder.span(f"definition:{index}")
                                         for index in range(program.n_inputs + program.depth)),

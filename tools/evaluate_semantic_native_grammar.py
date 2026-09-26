@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 
 INTERVENTION_DATASETS = frozenset({
     "operation_intervention", "definition_intervention", "equation_intervention",
+    "role_intervention", "dependency_intervention",
 })
 
 
@@ -45,6 +46,10 @@ def grammar_examples(*, dataset, seed, count):
             from tools.semantic_native_operation_interventions import build_native_operation_interventions
 
             pairs = build_native_operation_interventions(seed=seed)
+        elif dataset in {"role_intervention", "dependency_intervention"}:
+            from tools.semantic_native_graph_interventions import build_native_graph_interventions
+
+            pairs = build_native_graph_interventions(seed=seed, kind=dataset.removesuffix("_intervention"))
         else:
             from tools.semantic_native_paraphrase_interventions import build_native_paraphrase_interventions
 
@@ -87,8 +92,21 @@ def grammar_pair_totals(rows, *, dataset):
         if original["decode_status"] != "completed" or changed["decode_status"] != "completed":
             continue
         left, right = original["program"]["instructions"], changed["program"]["instructions"]
-        source_responsive += (left[:-1] == right[:-1] and left[-1][1] == right[-1][1]
-                              and left[-1][0] != right[-1][0])
+        if dataset in {"role_intervention", "dependency_intervention"}:
+            if len(left) != len(right) or any(a[0] != b[0] for a, b in zip(left, right, strict=True)):
+                continue
+            differences = [(a[1], b[1]) for a, b in zip(left, right, strict=True) if a[1] != b[1]]
+            if len(differences) != 1:
+                continue
+            before, after = differences[0]
+            if dataset == "role_intervention":
+                source_responsive += len(before) == 2 and before == after[::-1]
+            else:
+                source_responsive += (len(before) == len(after)
+                    and sum(a != b for a, b in zip(before, after, strict=True)) == 1)
+        else:
+            source_responsive += (left[:-1] == right[:-1] and left[-1][1] == right[-1][1]
+                                  and left[-1][0] != right[-1][0])
     return {"pair_count": len(rows) // 2, "pair_exact": pair_exact,
             "source_responsive": source_responsive}
 
@@ -154,8 +172,13 @@ def main():
         paths += ("tools/semantic_native_operation_interventions.py",)
     if args.dataset in {"definition_intervention", "equation_intervention"}:
         paths += ("tools/semantic_native_paraphrase_interventions.py",)
+    if args.dataset in {"role_intervention", "dependency_intervention"}:
+        paths += ("tools/semantic_native_graph_interventions.py",
+                  "tools/semantic_native_paraphrase_interventions.py")
     implementation = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in paths}
     schema_version = "v4" if args.dataset in {"definition_intervention", "equation_intervention"} else "v3"
+    if args.dataset in {"role_intervention", "dependency_intervention"}:
+        schema_version = "v5"
     body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],

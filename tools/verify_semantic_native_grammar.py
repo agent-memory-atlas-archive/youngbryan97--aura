@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
 
 _INTERVENTION_DATASETS = frozenset({
     "operation_intervention", "definition_intervention", "equation_intervention",
+    "role_intervention", "dependency_intervention",
 })
 
 
@@ -156,7 +157,7 @@ def verify_source_separation(training, source_report_path, bundles, target_examp
 
 def verified_weight_mode(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    if (version not in {"v1", "v2", "v3", "v4"}
+    if (version not in {"v1", "v2", "v3", "v4", "v5"}
             or plan["schema"] != f"aura.semantic_native_grammar_plan.{version}"
             or report.get("schema") != f"aura.semantic_native_grammar.{version}"):
         raise ValueError("native grammar schema versions differ")
@@ -172,7 +173,7 @@ def verified_weight_mode(plan, report):
 
 def verified_input_grounding(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    expected = ("semantic_public_character_inputs.v1" if version in {"v3", "v4"}
+    expected = ("semantic_public_character_inputs.v1" if version in {"v3", "v4", "v5"}
                 else "declared_public_inputs")
     if (plan.get("input_grounding") != expected
             or report.get("input_grounding") != plan["input_grounding"]):
@@ -190,6 +191,8 @@ def verified_dataset(plan, report):
     dataset, seed = plan.get("dataset"), plan.get("seed")
     allowed = ({"definition_intervention", "equation_intervention"} if version == "v4"
                else {"natural_request", "operation_intervention"})
+    if version == "v5":
+        allowed = {"role_intervention", "dependency_intervention"}
     if (dataset not in allowed
             or type(seed) is not int or seed < 0
             or report.get("dataset") != dataset or report.get("seed") != seed):
@@ -213,6 +216,10 @@ def verified_examples(plan, *, dataset, seed):
         from tools.semantic_native_operation_interventions import build_native_operation_interventions
         if dataset == "operation_intervention":
             pairs = build_native_operation_interventions(seed=seed)
+        elif dataset in {"role_intervention", "dependency_intervention"}:
+            from tools.semantic_native_graph_interventions import build_native_graph_interventions
+
+            pairs = build_native_graph_interventions(seed=seed, kind=dataset.removesuffix("_intervention"))
         else:
             from tools.semantic_native_paraphrase_interventions import build_native_paraphrase_interventions
 
@@ -243,9 +250,24 @@ def verified_pair_totals(rows, *, dataset):
         if left["decode_status"] == right["decode_status"] == "completed":
             left_steps = left["program"]["instructions"]
             right_steps = right["program"]["instructions"]
-            responsive += (left_steps[:-1] == right_steps[:-1]
-                           and left_steps[-1][1] == right_steps[-1][1]
-                           and left_steps[-1][0] != right_steps[-1][0])
+            if dataset in {"role_intervention", "dependency_intervention"}:
+                if (len(left_steps) != len(right_steps)
+                        or [step[0] for step in left_steps] != [step[0] for step in right_steps]):
+                    continue
+                changed_indices = [i for i in range(len(left_steps))
+                                   if left_steps[i][1] != right_steps[i][1]]
+                if len(changed_indices) != 1:
+                    continue
+                before, after = left_steps[changed_indices[0]][1], right_steps[changed_indices[0]][1]
+                if dataset == "role_intervention":
+                    responsive += len(before) == 2 and after == before[::-1]
+                else:
+                    responsive += (len(before) == len(after)
+                                   and sum(before[i] != after[i] for i in range(len(before))) == 1)
+            else:
+                responsive += (left_steps[:-1] == right_steps[:-1]
+                               and left_steps[-1][1] == right_steps[-1][1]
+                               and left_steps[-1][0] != right_steps[-1][0])
     return {"pair_count": len(rows) // 2, "pair_exact": exact,
             "source_responsive": responsive}
 
@@ -293,7 +315,7 @@ def verify_grammar(directory, training_directory):
     for example, identity in zip(examples, sources, strict=True):
         verified_public_inputs(example)
         row = verified_document(directory / "rows" / f"{identity}.json")
-        if plan["schema"].endswith((".v3", ".v4")):
+        if plan["schema"].endswith((".v3", ".v4", ".v5")):
             from core.learning.semantic_public_inputs import semantic_public_character_inputs
 
             receipt = semantic_public_character_inputs(example.source_text).receipt()
@@ -312,7 +334,7 @@ def verify_grammar(directory, training_directory):
               "answer_correct": sum(correct for _, correct in outcomes),
               "bound_forced_completion": sum(row["bound_forced_completion"] for row in rows),
               "depth_bound_reached": sum(row["depth_bound_reached"] for row in rows)}
-    if plan["schema"].endswith((".v3", ".v4")):
+    if plan["schema"].endswith((".v3", ".v4", ".v5")):
         totals.update(verified_pair_totals(rows, dataset=dataset))
     if any(report[key] != value for key, value in totals.items()):
         raise ValueError("native grammar reported totals differ from execution")
