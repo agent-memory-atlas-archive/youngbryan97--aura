@@ -50,7 +50,6 @@ from typing import Any
 
 import numpy as np
 
-from core.affect.what_it_was_worth import CHANNELS as _WORTH_CHANNEL_NAMES
 from core.state.percepts import read_percept
 from core.subject.sketch import SKETCH_FIELDS, sketch
 
@@ -362,8 +361,20 @@ _DRIVES: tuple[str, ...] = _budget_names()
 #: Cognitive modes, one-hot into C.
 _MODES: tuple[str, ...] = ("reactive", "deliberate", "dreaming", "dormant")
 
-#: The channels a turn's payoff is read on, in the ledger's own order.
-_WORTH_CHANNELS: tuple[str, ...] = _WORTH_CHANNEL_NAMES
+#: The channels a turn's payoff is read on, in the ledger's own order. Written
+#: out rather than imported: importing the ledger at load pulls in modules that
+#: fix their data paths before a run isolates its state root, and the run then
+#: refuses. A test holds this to `core.affect.what_it_was_worth.CHANNELS`.
+_WORTH_CHANNELS: tuple[str, ...] = (
+    "satisfaction",
+    "accomplishment",
+    "warmth",
+    "excitement",
+    "peace",
+    "ease",
+    "spirit",
+    "wonder",
+)
 
 #: The sources of the unified field's input, in the order of its batched
 #: matrix. A test holds this to `UnifiedField._INPUT_SOURCES`.

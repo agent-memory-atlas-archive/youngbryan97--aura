@@ -98,3 +98,21 @@ def test_the_live_organs_carry_the_three_ledgers():
     assert organs.worth is not None
     assert organs.credit is not None
     assert organs.good_news is not None
+
+
+def test_reading_the_schema_does_not_fix_a_data_path_before_the_run_isolates():
+    """The worth ledger's channels are written out in the schema rather than imported.
+
+    Importing the ledger at load pulled in core.self_model and core.utils.paths,
+    which fix their data paths at import, and every subject run then refused
+    because a module held a path into the shared state root.
+    """
+    import subprocess
+    import sys
+
+    probe = (
+        "import sys, core.subject.state; "
+        "print(int('core.utils.paths' in sys.modules), int('core.self_model' in sys.modules))"
+    )
+    out = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True, check=True)
+    assert out.stdout.strip().splitlines()[-1] == "0 0"
