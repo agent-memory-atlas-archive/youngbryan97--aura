@@ -150,6 +150,38 @@ def verify_source_separation(training, source_report_path, bundles, target_examp
             **source_separation_summary(source_examples, target_examples)}
 
 
+def verified_weight_mode(plan, report):
+    version = plan.get("schema", "").rsplit(".", 1)[-1]
+    if (version not in {"v1", "v2"}
+            or plan["schema"] != f"aura.semantic_native_grammar_plan.{version}"
+            or report.get("schema") != f"aura.semantic_native_grammar.{version}"):
+        raise ValueError("native grammar schema versions differ")
+    if version == "v1":
+        if "weight_mode" in plan or "weight_mode" in report:
+            raise ValueError("historical native grammar weight mode was fitted")
+        return "fitted"
+    if (plan.get("weight_mode") not in {"fitted", "base"}
+            or report.get("weight_mode") != plan["weight_mode"]):
+        raise ValueError("native grammar weight mode differs")
+    return plan["weight_mode"]
+
+
+def verified_input_grounding(plan, report):
+    if (plan.get("input_grounding") != "declared_public_inputs"
+            or report.get("input_grounding") != plan["input_grounding"]):
+        raise ValueError("native grammar input grounding differs")
+    return plan["input_grounding"]
+
+
+def verified_public_inputs(example):
+    from core.learning.semantic_public_inputs import semantic_public_character_inputs
+
+    recovered = semantic_public_character_inputs(example.source_text)
+    if recovered.values != example.inputs:
+        raise ValueError("native grammar public source values differ from annotations")
+    return recovered.values
+
+
 def verify_grammar(directory, training_directory):
     from core.learning.semantic_program_corpus_natural import (
         build_semantic_program_natural_request_corpus,
@@ -159,9 +191,9 @@ def verify_grammar(directory, training_directory):
     training, selected = selected_checkpoint(training_directory)
     plan = verified_document(directory / "plan.json", "plan_sha256")
     report = verified_document(directory / "report.json")
-    if (plan["schema"] != "aura.semantic_native_grammar_plan.v1"
-            or report["schema"] != "aura.semantic_native_grammar.v1"
-            or plan["training_plan_sha256"] != training["plan_sha256"]
+    weight_mode = verified_weight_mode(plan, report)
+    input_grounding = verified_input_grounding(plan, report)
+    if (plan["training_plan_sha256"] != training["plan_sha256"]
             or plan["checkpoint_receipt_sha256"] != selected["receipt_sha256"]
             or plan["model_descriptor_sha256"] != training["model_descriptor_sha256"]
             or plan["pointer_sha256"] != training["pointer_sha256"]
@@ -186,6 +218,7 @@ def verify_grammar(directory, training_directory):
         raise ValueError("native grammar population or source separation differs")
     outcomes, rows = [], []
     for example, identity in zip(examples, sources, strict=True):
+        verified_public_inputs(example)
         row = verified_document(directory / "rows" / f"{identity}.json")
         if row["receipt_sha256"] != report["row_receipts"][identity]:
             raise ValueError("native grammar row receipt differs from report")
@@ -206,9 +239,12 @@ def verify_grammar(directory, training_directory):
                    if not (ROOT / name).is_file()
                    or hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != sha)
     return {"plan_sha256": plan["plan_sha256"], "report_receipt_sha256": report["receipt_sha256"],
+            "weight_mode": weight_mode,
+            "input_grounding": input_grounding,
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
             "totals": totals, "current_implementation_drift": drift,
+            "independent_public_value_recovery": True,
             "artifacts_verified": True, "general_transfer_proven": False,
             "broad_gain_proven": False, "serving_authority": False}
 

@@ -1878,6 +1878,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the repaired 27B path. This is component evidence, not RLC gain or desktop proof.
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
+  [Native base control](evidence/G06_NATIVE_BASE_CONTROL_2026-09-26.md)
+  independently replays 12/12 unfitted grammar decodes: four exact scalar
+  answers, zero lookup/count answers, versus 12/12 fitted on the same exposed
+  requests. Output-wire adaptation remains a confound, so G06 stays open.
+  [Source intervention plan](evidence/G06_NATIVE_SOURCE_INTERVENTION_PLAN_2026-09-26.md)
+  freezes 24 fresh operation pairs before model evaluation; it is a plan, not
+  a result.
   [Public composition diagnostic](evidence/G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md)
   independently verifies 48 complete decodes: treatment 8/8, controls 0/8.
   A separate semantic audit preserves that result but identifies missing public
