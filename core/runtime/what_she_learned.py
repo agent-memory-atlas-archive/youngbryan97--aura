@@ -103,6 +103,14 @@ def _fitted(what: dict[str, Any], most: int) -> tuple[dict[str, Any], list[str]]
         dropped = len(longest) // 2
         del longest[:dropped]
         let_go.append(f"{'.'.join(path) or 'the record'} lost its oldest {dropped}")
+    # A part no list in it can be shortened enough, let go whole and by name,
+    # so the rest is kept. Refusing the record for one part lost everything
+    # else a two-hour run had learned: live, 26 Sep, "too big to keep
+    # (1364611)" at the end of the run that reached 2048.
+    while len(json.dumps(fitted)) > most and fitted:
+        biggest = max(fitted, key=lambda part: len(json.dumps(fitted[part])))
+        size = len(json.dumps(fitted.pop(biggest)))
+        let_go.append(f"{biggest} ({size}) could not be made smaller and was not kept")
     return fitted, let_go
 
 

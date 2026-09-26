@@ -192,6 +192,15 @@ async def _decide_the_next_move_seen(
             await _bring_the_thing_back_to_the_front(target_app)
     return lattice, seen
 
+def the_pixels_show_a_grid(observation: Any) -> bool:
+    """Whether her eyes found the places themselves in this reading, as a grid of panels."""
+    grids = observation.get("grids") if isinstance(observation, dict) else None
+    return any(
+        isinstance(one, dict) and int(one.get("rows") or 0) >= 2 and int(one.get("columns") or 0) >= 2
+        for one in grids or ()
+    )
+
+
 def _decide_the_next_move_part_4(
     knows: Any,
     lattice: Any,
@@ -200,6 +209,7 @@ def _decide_the_next_move_part_4(
     *,
     skilled: Any = None,
     world: Any = None,
+    pixels_show_the_grid: bool = False,
 ) -> tuple[Any, Any]:
     from .screen_pursuit_decision import (
         _placed_in,
@@ -243,7 +253,13 @@ def _decide_the_next_move_part_4(
             # first grid, the shape of every reading so far, once wiped eleven
             # moves of a rule right on all of them (the real app, 26 Sep).
             read_through = tuple(getattr(knows.rules, "read_through", ()) or ())
-            if responds["lattice"].built_from(
+            # Not where the pixels show the grid. Each reading lays its
+            # places into the grid her eyes found, which outranks one worked
+            # out from where things moved; rebuilt from motion, stray places
+            # outside the board gave it another row, and each rebuild wiped
+            # her rule mid-game. Five times in one live run (26 Sep), and one
+            # cost a game holding a 512.
+            if not pixels_show_the_grid and responds["lattice"].built_from(
                 itself,
                 moving.acts,
                 # A grid worked out from what moves cannot be believed

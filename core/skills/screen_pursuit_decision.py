@@ -17,6 +17,7 @@ from .screen_pursuit_decision_reading import (  # noqa: F401  (re-exported: they
     _decide_the_next_move_part_4,
     _decide_the_next_move_seen,
     _decide_the_next_move_what_she_looking,
+    the_pixels_show_a_grid,
 )
 import asyncio
 from typing import TYPE_CHECKING
@@ -513,7 +514,8 @@ async def decide_the_next_move(
     band, looking_at_the_thing = await _decide_the_next_move_what_she_looking(anchor, drawn, narrate, observation, responds, target_app)
     lattice, seen = await _decide_the_next_move_seen(band, coming, in_the_way, observation, responds, target_app)
     answering, lattice = _decide_the_next_move_part_4(
-        knows, lattice, move_keys, responds, skilled=skilled, world=world
+        knows, lattice, move_keys, responds, skilled=skilled, world=world,
+        pixels_show_the_grid=the_pixels_show_a_grid(observation),
     )
     # The same reading, with a place for each thing in it. What she reads
     # is the string; what her claims are checked against is this.

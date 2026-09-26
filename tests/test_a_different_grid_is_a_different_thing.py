@@ -187,3 +187,65 @@ def test_the_first_grid_built_is_not_a_different_one_when_she_read_through_it() 
         )
     assert (responds["lattice"].rows, responds["lattice"].columns) == (4, 4)
     assert rules.seen == counted, "a grid the same shape as her counts' did not wipe them"
+
+
+def _watched_a_board_with_a_stray_above(pixels_show_the_grid: bool):
+    """A rule learned through a four by four, then motion that includes a place above the board."""
+    from types import SimpleNamespace
+
+    from core.perception.the_lattice_she_holds import TheLatticeSheHolds
+    from core.perception.what_moves_within_itself import MovesWithinItself
+    from core.perception.where_it_responds import Responsive
+    from core.skills.screen_pursuit_decision_reading import _decide_the_next_move_part_4
+
+    rules = HowItMoves()
+    for _ in range(12):
+        before = _board([[2, 2, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [4, 4, 0, 0]])
+        after = _board([[4, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0], [8, 0, 0, 0]])
+        rules.watched(before, "left", after)
+    counted = rules.seen
+
+    moving = MovesWithinItself()
+    places = [(20 + 15 * column, 30 + 12 * row) for row in range(4) for column in range(4)]
+    # Two places on one line above the board, where the score and the best
+    # score sit side by side and both answer to her.
+    places += [(35, 12), (65, 12)]
+    state = Responsive()
+    state.tried = {"left", "right", "up", "down"}
+    responds = {"lattice": TheLatticeSheHolds(), "moving": moving, "state": state}
+    for turn in range(12):
+        shown = {where: str(2 ** (1 + (index + turn) % 5)) for index, where in enumerate(places)}
+        moved = {where: shown[places[(index + 1) % len(places)]] for index, where in enumerate(places)}
+        moving.saw(shown, moved)
+        _decide_the_next_move_part_4(
+            SimpleNamespace(rules=rules),
+            responds["lattice"],
+            ("left", "right", "up", "down"),
+            responds,
+            pixels_show_the_grid=pixels_show_the_grid,
+        )
+    return rules.seen == counted, (responds["lattice"].rows, responds["lattice"].columns)
+
+
+def test_where_the_pixels_show_the_grid_motion_does_not_reshape_it() -> None:
+    """Live, 26 Sep: five wipes in one run, one of them a game holding a 512.
+
+    Each reading laid its places into the four by four her eyes found, while a
+    grid rebuilt from where things had moved took in a place above the board
+    and came out five by four. That counted as a different grid every time.
+    """
+    kept, _shape = _watched_a_board_with_a_stray_above(pixels_show_the_grid=True)
+    assert kept, "her counts were read through the grid the pixels show, and they stand"
+    # Where only words are read, motion is all she has: it builds the grid,
+    # and a grid of another shape is a different reading.
+    kept, shape = _watched_a_board_with_a_stray_above(pixels_show_the_grid=False)
+    assert shape == (5, 4) and not kept
+
+
+def test_a_reading_with_panels_in_rows_and_columns_shows_the_grid() -> None:
+    from core.skills.screen_pursuit_decision_reading import the_pixels_show_a_grid
+
+    assert the_pixels_show_a_grid({"grids": [{"rows": 4, "columns": 4}]})
+    assert not the_pixels_show_a_grid({"grids": []})
+    assert not the_pixels_show_a_grid({"layout": [{"text": "2"}]})
+    assert not the_pixels_show_a_grid({"grids": [{"rows": 1, "columns": 5}]})
