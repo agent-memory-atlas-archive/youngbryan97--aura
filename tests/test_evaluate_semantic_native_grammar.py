@@ -60,6 +60,20 @@ def test_intervention_population_is_pair_complete_and_source_distinct():
         grammar_examples(dataset="operation_intervention", seed=2718283, count=50)
 
 
+@pytest.mark.parametrize("dataset", ["definition_intervention", "equation_intervention"])
+def test_paraphrase_populations_retain_three_topologies_and_pair_order(dataset):
+    examples = grammar_examples(dataset=dataset, seed=2718283, count=6)
+    assert len(examples) == 6
+    assert {example.topology_id for example in examples} == {
+        "scalar_linear_three", "lookup_linear_three", "count_linear_three",
+    }
+    assert all(examples[index].construction_id == examples[index + 1].construction_id
+               and examples[index].source_text != examples[index + 1].source_text
+               for index in range(0, 6, 2))
+    with pytest.raises(ValueError, match="complete source pairs"):
+        grammar_examples(dataset=dataset, seed=2718283, count=5)
+
+
 def test_intervention_pair_totals_require_both_answers_and_a_source_response():
     before = {"program_equivalent": True, "answer_correct": True,
               "decode_status": "completed", "program": {"instructions": [

@@ -15,6 +15,10 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+INTERVENTION_DATASETS = frozenset({
+    "operation_intervention", "definition_intervention", "equation_intervention",
+})
+
 
 def select_search_proposal(search, scorer):
     """Rank every admitted graph without receiving its target or correctness."""
@@ -36,10 +40,16 @@ def grammar_examples(*, dataset, seed, count):
         )
         ordered = tuple(examples[index] for sample in range(24) for index in
                         (sample, sample + 24, sample + 48))
-    elif dataset == "operation_intervention":
-        from tools.semantic_native_operation_interventions import build_native_operation_interventions
+    elif dataset in INTERVENTION_DATASETS:
+        if dataset == "operation_intervention":
+            from tools.semantic_native_operation_interventions import build_native_operation_interventions
 
-        pairs = build_native_operation_interventions(seed=seed)
+            pairs = build_native_operation_interventions(seed=seed)
+        else:
+            from tools.semantic_native_paraphrase_interventions import build_native_paraphrase_interventions
+
+            pairs = build_native_paraphrase_interventions(
+                seed=seed, style=dataset.removesuffix("_intervention"))
         groups = {}
         for pair in pairs:
             groups.setdefault(pair.original.topology_id, []).append(pair)
@@ -66,7 +76,7 @@ def source_input_types(source_text):
 
 
 def grammar_pair_totals(rows, *, dataset):
-    if dataset != "operation_intervention":
+    if dataset not in INTERVENTION_DATASETS:
         return {"pair_count": 0, "pair_exact": 0, "source_responsive": 0}
     if len(rows) % 2:
         raise ValueError("operation intervention outcomes split a source pair")
@@ -95,7 +105,7 @@ def main():
     parser.add_argument("--search-score-mode", choices=("normalized_choices", "native_nonpositive"),
                         default="native_nonpositive")
     parser.add_argument("--weight-mode", choices=("fitted", "base"), default="fitted")
-    parser.add_argument("--dataset", choices=("natural_request", "operation_intervention"),
+    parser.add_argument("--dataset", choices=("natural_request", *sorted(INTERVENTION_DATASETS)),
                         default="natural_request")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--plan-only", action="store_true")
@@ -104,7 +114,7 @@ def main():
         parser.error("finite depth, population, and runtime bounds required")
     if not 0 <= args.search_completions <= 128 or not 1 <= args.search_nodes <= 100000:
         parser.error("finite search node and completion bounds required")
-    if args.dataset == "operation_intervention" and args.seed is None:
+    if args.dataset in INTERVENTION_DATASETS and args.seed is None:
         parser.error("operation interventions require an explicit frozen seed")
     seed = 3141592 if args.seed is None else args.seed
     if seed < 0:
@@ -140,10 +150,13 @@ def main():
              "core/learning/semantic_program_corpus_natural.py",
              "core/learning/semantic_public_inputs.py",
              "tools/train_semantic_native_program.py")
-    if args.dataset == "operation_intervention":
+    if args.dataset in INTERVENTION_DATASETS:
         paths += ("tools/semantic_native_operation_interventions.py",)
+    if args.dataset in {"definition_intervention", "equation_intervention"}:
+        paths += ("tools/semantic_native_paraphrase_interventions.py",)
     implementation = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in paths}
-    body = {"schema": "aura.semantic_native_grammar_plan.v3",
+    schema_version = "v4" if args.dataset in {"definition_intervention", "equation_intervention"} else "v3"
+    body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
             "weight_mode": args.weight_mode,
@@ -296,7 +309,8 @@ def main():
                 or selected_checkpoint(args.training_directory) != (training, selected)):
             raise ValueError("native grammar implementation, model, or checkpoint drifted")
         pair_totals = grammar_pair_totals(rows, dataset=args.dataset)
-        result = {"schema": "aura.semantic_native_grammar.v3", "plan_sha256": plan["plan_sha256"],
+        result = {"schema": f"aura.semantic_native_grammar.{schema_version}",
+                  "plan_sha256": plan["plan_sha256"],
                   "weight_mode": args.weight_mode, "dataset": args.dataset, "seed": seed,
                   "population": len(rows), "program_equivalent": sum(row["program_equivalent"] for row in rows),
                   "answer_correct": sum(row["answer_correct"] for row in rows),

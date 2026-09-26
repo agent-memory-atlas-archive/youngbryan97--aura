@@ -14,6 +14,10 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+_INTERVENTION_DATASETS = frozenset({
+    "operation_intervention", "definition_intervention", "equation_intervention",
+})
+
 
 def verify_grammar_row(row, *, example, identity, plan_sha256):
     from core.learning.procedure_induction import Instruction, Program
@@ -152,7 +156,7 @@ def verify_source_separation(training, source_report_path, bundles, target_examp
 
 def verified_weight_mode(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    if (version not in {"v1", "v2", "v3"}
+    if (version not in {"v1", "v2", "v3", "v4"}
             or plan["schema"] != f"aura.semantic_native_grammar_plan.{version}"
             or report.get("schema") != f"aura.semantic_native_grammar.{version}"):
         raise ValueError("native grammar schema versions differ")
@@ -168,7 +172,7 @@ def verified_weight_mode(plan, report):
 
 def verified_input_grounding(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    expected = ("semantic_public_character_inputs.v1" if version == "v3"
+    expected = ("semantic_public_character_inputs.v1" if version in {"v3", "v4"}
                 else "declared_public_inputs")
     if (plan.get("input_grounding") != expected
             or report.get("input_grounding") != plan["input_grounding"]):
@@ -184,7 +188,9 @@ def verified_dataset(plan, report):
             raise ValueError("historical native grammar dataset differed")
         return "natural_request", 3141592
     dataset, seed = plan.get("dataset"), plan.get("seed")
-    if (dataset not in {"natural_request", "operation_intervention"}
+    allowed = ({"definition_intervention", "equation_intervention"} if version == "v4"
+               else {"natural_request", "operation_intervention"})
+    if (dataset not in allowed
             or type(seed) is not int or seed < 0
             or report.get("dataset") != dataset or report.get("seed") != seed):
         raise ValueError("native grammar dataset or seed differs")
@@ -205,8 +211,13 @@ def verified_examples(plan, *, dataset, seed):
                         for index in (sample, sample + 24, sample + 48))
     else:
         from tools.semantic_native_operation_interventions import build_native_operation_interventions
+        if dataset == "operation_intervention":
+            pairs = build_native_operation_interventions(seed=seed)
+        else:
+            from tools.semantic_native_paraphrase_interventions import build_native_paraphrase_interventions
 
-        pairs = build_native_operation_interventions(seed=seed)
+            pairs = build_native_paraphrase_interventions(
+                seed=seed, style=dataset.removesuffix("_intervention"))
         groups = {}
         for pair in pairs:
             groups.setdefault(pair.original.topology_id, []).append(pair)
@@ -220,7 +231,7 @@ def verified_examples(plan, *, dataset, seed):
 
 
 def verified_pair_totals(rows, *, dataset):
-    if dataset != "operation_intervention":
+    if dataset not in _INTERVENTION_DATASETS:
         return {"pair_count": 0, "pair_exact": 0, "source_responsive": 0}
     if len(rows) % 2:
         raise ValueError("native grammar intervention rows split a source pair")
@@ -282,7 +293,7 @@ def verify_grammar(directory, training_directory):
     for example, identity in zip(examples, sources, strict=True):
         verified_public_inputs(example)
         row = verified_document(directory / "rows" / f"{identity}.json")
-        if plan["schema"].endswith(".v3"):
+        if plan["schema"].endswith((".v3", ".v4")):
             from core.learning.semantic_public_inputs import semantic_public_character_inputs
 
             receipt = semantic_public_character_inputs(example.source_text).receipt()
@@ -301,7 +312,7 @@ def verify_grammar(directory, training_directory):
               "answer_correct": sum(correct for _, correct in outcomes),
               "bound_forced_completion": sum(row["bound_forced_completion"] for row in rows),
               "depth_bound_reached": sum(row["depth_bound_reached"] for row in rows)}
-    if plan["schema"].endswith(".v3"):
+    if plan["schema"].endswith((".v3", ".v4")):
         totals.update(verified_pair_totals(rows, dataset=dataset))
     if any(report[key] != value for key, value in totals.items()):
         raise ValueError("native grammar reported totals differ from execution")

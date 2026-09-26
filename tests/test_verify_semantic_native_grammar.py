@@ -149,6 +149,9 @@ def test_weight_mode_verification_keeps_base_and_fitted_arms_distinct():
     next_plan = {"schema": "aura.semantic_native_grammar_plan.v3", "weight_mode": "fitted"}
     next_report = {"schema": "aura.semantic_native_grammar.v3", "weight_mode": "fitted"}
     assert verified_weight_mode(next_plan, next_report) == "fitted"
+    next_plan["schema"] = "aura.semantic_native_grammar_plan.v4"
+    next_report["schema"] = "aura.semantic_native_grammar.v4"
+    assert verified_weight_mode(next_plan, next_report) == "fitted"
 
 
 def test_public_values_recovered_from_source_not_assumed_from_annotation():
@@ -170,6 +173,8 @@ def test_grounding_claim_cannot_change_without_a_protocol_version():
     new_plan = {"schema": "aura.semantic_native_grammar_plan.v3",
                 "input_grounding": "semantic_public_character_inputs.v1"}
     new_report = {"input_grounding": "semantic_public_character_inputs.v1"}
+    assert verified_input_grounding(new_plan, new_report) == new_report["input_grounding"]
+    new_plan["schema"] = "aura.semantic_native_grammar_plan.v4"
     assert verified_input_grounding(new_plan, new_report) == new_report["input_grounding"]
     with pytest.raises(ValueError, match="input grounding differs"):
         verified_input_grounding(new_plan, report)
@@ -194,6 +199,22 @@ def test_intervention_dataset_reconstruction_is_independent_of_evaluator_order()
                           dataset="operation_intervention", seed=2718283)
     old_plan = {"schema": "aura.semantic_native_grammar_plan.v2"}
     assert verified_dataset(old_plan, {}) == ("natural_request", 3141592)
+
+
+@pytest.mark.parametrize("dataset", ["definition_intervention", "equation_intervention"])
+def test_v4_paraphrase_dataset_rebuilds_without_admitting_v3_labels(dataset):
+    plan = {"schema": "aura.semantic_native_grammar_plan.v4", "dataset": dataset,
+            "seed": 2718283, "sources": ["source"] * 6}
+    report = {"dataset": dataset, "seed": 2718283}
+    assert verified_dataset(plan, report) == (dataset, 2718283)
+    examples = verified_examples(plan, dataset=dataset, seed=2718283)
+    assert len(examples) == 6
+    assert {item.topology_id for item in examples} == {
+        "scalar_linear_three", "lookup_linear_three", "count_linear_three",
+    }
+    assert all(verified_public_inputs(item) == item.inputs for item in examples)
+    with pytest.raises(ValueError, match="dataset or seed"):
+        verified_dataset({**plan, "schema": "aura.semantic_native_grammar_plan.v3"}, report)
 
 
 def test_independent_intervention_pair_metrics_reject_wrong_registers():

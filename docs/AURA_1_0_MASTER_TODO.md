@@ -1842,6 +1842,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   constructions, with no overlap against 1,764 bound source examples. These
   exposed, fixed-template, declared-input development cases do not close G04;
   matched unfitted and fresh public-grounding comparisons remain required.
+  [Source-form canary plan](evidence/G04_NATIVE_FORM_CANARY_PLAN_2026-09-26.md)
+  freezes definition and equation forms, with public-source grounding and
+  independent population reconstruction. These reuse development programs;
+  the preflight checks and plans are not transfer results.
+  [Source-form canary result](evidence/G04_NATIVE_FORM_CANARY_RESULT_2026-09-26.md)
+  independently verifies 6/6 definition and 6/6 equation decodes, each with
+  3/3 source-responsive pairs. New expressions of existing development tasks
+  do not replace matched controls, fresh task identities, or broader transfer.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
   OPEN, observed live 2026-09-21, and recorded here because it is a
   reasoning error rather than a plumbing one. Asked how far a bird flies
