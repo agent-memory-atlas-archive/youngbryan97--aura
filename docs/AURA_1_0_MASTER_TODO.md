@@ -1180,6 +1180,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   reconstructs both exposed 500-case splits and relabels grading coordinates to
   public literal order without giving targets to the scorer. Forty-four focused
   checks pass; model measurements, non-regression, and admission remain pending.
+  [Frozen prefix branch reuse](evidence/G_NATIVE_PREFIX_BRANCH_REUSE_PLAN_2026-09-26.md)
+  passes thirty-one focused MLX checks without skipping source or suffix computation.
+  Its resident equivalence probe is planned; evaluator defaults are unchanged.
   [Explicit native codec and global search](evidence/G_NATIVE_CODEC_AND_SEARCH_2026-09-26.md)
   are wired and component-tested. The complete-epoch control remains rejected
   at 37/47 against incumbent 43/47. Relative-register model measurement is

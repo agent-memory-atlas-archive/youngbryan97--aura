@@ -11,7 +11,7 @@ from core.learning.semantic_native_program import NativeProgramSequence
 from tools.train_semantic_native_program import native_loss
 
 
-def _model(*, tied=False, hybrid=False, width=16):
+def _model(*, tied=False, hybrid=False, width=16, hybrid_layers=4):
     from mlx_lm.models.qwen2 import Model as DenseModel
     from mlx_lm.models.qwen2 import ModelArgs as DenseArgs
     from mlx_lm.models.qwen3_5 import TextModel, TextModelArgs
@@ -19,7 +19,7 @@ def _model(*, tied=False, hybrid=False, width=16):
     mx.random.seed(7)
     if hybrid:
         args = TextModelArgs(model_type="qwen3_5_text", hidden_size=width,
-                             intermediate_size=2 * width, num_hidden_layers=4,
+                             intermediate_size=2 * width, num_hidden_layers=hybrid_layers,
                              num_attention_heads=2, num_key_value_heads=1, head_dim=width // 2,
                              vocab_size=32, full_attention_interval=4,
                              linear_num_key_heads=2, linear_num_value_heads=2,
@@ -183,3 +183,61 @@ def test_vocabulary_projection_only_receives_requested_rows_after_all_causal_lay
     for invalid in ((), (True,), (-1,), (5,), (1, 1)):
         with pytest.raises(ValueError, match="logit positions"):
             suffix(hidden, logit_positions=invalid)
+
+
+@pytest.mark.parametrize("hybrid,tied", [(False, False), (False, True), (True, False), (True, True)])
+@pytest.mark.parametrize("quantized", [False, True])
+def test_frozen_prefix_branches_preserve_causal_states_and_native_logits(hybrid, tied, quantized):
+    from core.learning.frozen_prefix_branches import FrozenPrefixBranches
+
+    model = _model(hybrid=hybrid, tied=tied, width=32, hybrid_layers=8)
+    if quantized:
+        nn.quantize(model, group_size=32, bits=4)
+        model.freeze()
+        model.eval()
+    split = len(model.layers) - 1
+    prefix, suffix = FrozenDecoderPrefix(model, split_at=split), NativeDecoderSuffix(model, split_at=split)
+    branches = FrozenPrefixBranches(model, split_at=split, anchor_tokens=(1, 4, 2), max_tokens=16)
+    first = (1, 4, 2, 9, 5)
+    for tokens in (first, (1, 4, 2, 8, 7, 1), first, (1, 4, 2)):
+        full = prefix.capture(mx.array([tokens], dtype=mx.int32))
+        branched = branches.capture(tokens)
+        assert mx.allclose(full, branched, atol=1e-5).item()
+        assert mx.allclose(suffix(full), suffix(branched), atol=1e-5).item()
+    if hybrid:
+        assert branches.receipt()["cache_types"] == ["ArraysCache"] * 3 + ["KVCache"] + ["ArraysCache"] * 3
+    else:
+        assert branches.receipt()["cache_types"] == ["KVCache"] * split
+    receipt = branches.receipt()
+    assert receipt["branches"] == 4 and receipt["reused_tokens"] == 12
+    assert receipt["branch_tokens"] == 7
+    assert receipt["executed_tokens"] == 10 and receipt["uncached_tokens"] == 19
+    assert receipt["suffix_computation_unchanged"] is True
+
+
+def test_frozen_prefix_branches_refuse_token_drift_and_prefix_training():
+    from core.learning.frozen_prefix_branches import FrozenPrefixBranches
+
+    model = _model(hybrid=True)
+    branches = FrozenPrefixBranches(model, split_at=3, anchor_tokens=(1, 2), max_tokens=8)
+    for tokens in ((), (1,), (1, 3), (True, 2), (1, -1), [1, 2], (1, 2) * 5):
+        with pytest.raises(ValueError, match="token|anchor"):
+            branches.capture(tokens)
+    model.layers[0].train()
+    with pytest.raises(ValueError, match="evaluation"):
+        branches.capture((1, 2, 3))
+    model.eval()
+    model.layers[0].unfreeze()
+    with pytest.raises(ValueError, match="frozen"):
+        branches.capture((1, 2, 3))
+
+
+def test_anchor_only_result_cannot_mutate_the_retained_hidden_state():
+    from core.learning.frozen_prefix_branches import FrozenPrefixBranches
+
+    model = _model(hybrid=True)
+    branches = FrozenPrefixBranches(model, split_at=3, anchor_tokens=(1, 2), max_tokens=8)
+    original = mx.array(branches.capture((1, 2)))
+    changed = branches.capture((1, 2))
+    changed[0, 0, 0] = 100.
+    assert mx.array_equal(branches.capture((1, 2)), original).item()
