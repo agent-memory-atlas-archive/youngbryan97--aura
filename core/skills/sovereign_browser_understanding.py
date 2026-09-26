@@ -403,9 +403,10 @@ class _UnderstandsThePage:
         try:
             think = getattr(router, "think", None)
             if callable(think) and mind:
-                _ok, raw, _meta = await think(
-                    prompt, system_prompt=mind, max_tokens=420, temperature=0.2
-                )
+                raw = self._the_text_of(await think(
+                    prompt, system_prompt=mind, max_tokens=420, temperature=0.2,
+                    _non_chat_inference=True,
+                ))
             else:
                 generate = getattr(router, "generate", None)
                 if not callable(generate):
@@ -570,6 +571,30 @@ class _UnderstandsThePage:
         # page of identical yes/no confirmations does not qualify as an
         # instrument measuring anything.
         return len(shared[0]) > 2 and all(options == shared[0] for options in shared[1:])
+
+    #: The lane her own model answers on. See `_who_answered`.
+    _HER_OWN_LANE = "Cortex"
+
+    @staticmethod
+    def _the_text_of(reply: Any) -> str:
+        """What a model call said.
+
+        The router returns its text, and every other caller reads it that way.
+        This loop unpacked three values from it, so every decision that went to
+        her own reasoning raised, was recorded as a degradation and came back
+        as a failed decision: a question about her was never answered by her.
+        The old three-part shape is still read, for anything that returns it.
+        """
+        if isinstance(reply, tuple) and len(reply) == 3:
+            return str(reply[1] or "")
+        return str(reply or "")
+
+    @staticmethod
+    def _who_answered(reply: Any) -> str:
+        """The lane that produced this reply, where the reply says; "" where it does not."""
+        from core.brain.generation_provenance import generation_metadata_of
+
+        return str(generation_metadata_of(reply).get("endpoint") or "")
 
     @staticmethod
     def _an_answer_in_words(options: list[Mapping[str, Any]], index: int, why: str) -> str:
@@ -859,15 +884,24 @@ class _UnderstandsThePage:
                 # Everything else — the Next button, a cookie banner, a login
                 # form — is mechanics, and stays fast.
                 if self._asks_about_the_one_answering(observation):
-                    _ok, raw, _meta = await think(
-                        prompt, system_prompt=mind, max_tokens=900, temperature=0.2
+                    # Asked of her own model, and taken only from it. A
+                    # stand-in lane answering "you regularly make new friends"
+                    # would be a different mind's answer submitted as hers.
+                    reply = await think(
+                        prompt, system_prompt=mind, prefer_tier="primary",
+                        max_tokens=900, temperature=0.2, _non_chat_inference=True,
                     )
+                    answered_by = self._who_answered(reply)
+                    if answered_by and answered_by != self._HER_OWN_LANE:
+                        return {"error": f"not_her_own_reasoning:{answered_by}"}
+                    raw = self._the_text_of(reply)
                 else:
                     raw = await self._decide_on_the_fast_lane(router, prompt, mind)
                     if not self._decision_is_usable(raw, observation):
-                        _ok, raw, _meta = await think(
-                            prompt, system_prompt=mind, max_tokens=900, temperature=0.2
-                        )
+                        raw = self._the_text_of(await think(
+                            prompt, system_prompt=mind, max_tokens=900, temperature=0.2,
+                            _non_chat_inference=True,
+                        ))
             else:
                 generate = getattr(router, "generate", None)
                 if not callable(generate):
