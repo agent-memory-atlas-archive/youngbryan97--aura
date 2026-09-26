@@ -115,7 +115,18 @@ class _UnderstandsThePage:
         # Answered questions are gone from this list rather than annotated in
         # it — see `_controls_worth_offering`. What remains is what is left to
         # do, so a screen half-finished reads as a shorter screen.
+        shown_asking: set[str] = set()
         for index, element in enumerate(elements):
+            group = str(element.get("group") or "")
+            if group and group not in shown_asking and (element.get("asks") or element.get("heading")):
+                # The question itself, once, above its options: the words
+                # around them as the page lays them out, and the heading of
+                # its table. Unlabelled options mean nothing without it.
+                shown_asking.add(group)
+                if element.get("heading"):
+                    lines.append(f"question {group} sits under: {element['heading']}")
+                if element.get("asks"):
+                    lines.append(f"question {group} reads: {element['asks']}")
             state = []
             if element.get("group"):
                 # Options in one group answer ONE question. Rendering it is
@@ -528,14 +539,30 @@ class _UnderstandsThePage:
         every scale instrument has in common.
         """
 
-        groups: dict[str, set[str]] = {}
+        options: dict[str, list[tuple[str, str]]] = {}
         for element in observation.get("elements") or []:
             if not isinstance(element, Mapping):
                 continue
             group = str(element.get("group") or "")
-            name = str(element.get("name") or "").strip().lower()
-            if group and name:
-                groups.setdefault(group, set()).add(name)
+            if group:
+                options.setdefault(group, []).append((
+                    str(element.get("name") or "").strip().lower(),
+                    str(element.get("value") or "").strip().lower(),
+                ))
+        # Each option by what tells it from the others in its group: its
+        # name, or where every option carries the same name or none, its
+        # value. Five unlabelled radios take the group's own name for theirs,
+        # so every question looked like one option of its own and a page of
+        # sixty items on one scale was not taken for a scale instrument.
+        groups: dict[str, set[str]] = {}
+        for group, offered in options.items():
+            names = {name for name, _value in offered}
+            told_apart = names if len(names) == len(offered) and "" not in names else {
+                value for _name, value in offered
+            }
+            told_apart.discard("")
+            if told_apart:
+                groups[group] = told_apart
         if len(groups) < 2:
             return False
         shared = list(groups.values())

@@ -1118,6 +1118,7 @@ class PhantomBrowser(_ActsOnThePage):
             + ' [contenteditable="true"], [onclick], [tabindex]:not([tabindex="-1"])';
         const seen = new Set();
         const out = [];
+        const nodes = [];
         for (const el of document.querySelectorAll(selector)) {
             if (out.length >= maxElements) break;
             if (!isVisible(el)) continue;
@@ -1145,6 +1146,65 @@ class PhantomBrowser(_ActsOnThePage):
             const pressed = el.getAttribute('aria-checked') || el.getAttribute('aria-selected');
             if (pressed) entry.selected = pressed;
             out.push(entry);
+            nodes.push(el);
+        }
+        // What each question asks, laid out as the page lays it out.
+        //
+        // An option's own name often says nothing: a row "makes lists ( ) ( )
+        // ( ) ( ) ( ) relies on memory" has five unlabelled radios whose
+        // meaning is where they sit between two phrases, and a grid of
+        // statements has its scale in a heading row above them. So each group
+        // carries the words of the smallest part of the page that holds all of
+        // its options, in order, with each option shown in its place by its
+        // value, and the nearest row above it in its table that has words and
+        // no controls.
+        const byGroup = new Map();
+        out.forEach((entry, i) => {
+            if (!entry.group) return;
+            if (!byGroup.has(entry.group)) byGroup.set(entry.group, []);
+            byGroup.get(entry.group).push(i);
+        });
+        for (const [, indices] of byGroup) {
+            const members = indices.map((i) => nodes[i]);
+            if (members.length < 2) continue;
+            let box = members[0].parentElement;
+            while (box && !members.every((m) => box.contains(m))) box = box.parentElement;
+            if (!box || box === document.body || box === document.documentElement) continue;
+            const parts = [];
+            const walk = (node) => {
+                if (node.nodeType === 3) {
+                    const words = node.textContent.replace(/\s+/g, ' ').trim();
+                    if (words) parts.push(words);
+                    return;
+                }
+                if (node.nodeType !== 1) return;
+                if (members.includes(node)) {
+                    parts.push('[' + (node.value || '') + ']');
+                    return;
+                }
+                const tag = node.tagName;
+                if (tag === 'INPUT' || tag === 'SCRIPT' || tag === 'STYLE' || tag === 'SELECT') return;
+                const style = window.getComputedStyle(node);
+                if (style.display === 'none' || style.visibility === 'hidden') return;
+                for (const child of node.childNodes) walk(child);
+            };
+            walk(box);
+            const asks = parts.join(' ').slice(0, 240);
+            let heading = '';
+            const row = box.tagName === 'TR' ? box : box.closest('tr');
+            const table = row ? row.closest('table') : null;
+            if (table) {
+                const rows = Array.from(table.rows);
+                for (let j = rows.indexOf(row) - 1; j >= 0; j--) {
+                    if (rows[j].querySelector('input, select, textarea, button')) continue;
+                    const words = (rows[j].innerText || '').replace(/\s+/g, ' ').trim();
+                    if (words) { heading = words.slice(0, 160); break; }
+                }
+            }
+            for (const i of indices) {
+                if (asks) out[i].asks = asks;
+                if (heading) out[i].heading = heading;
+            }
         }
         // The prose half of the observation. Elements say what can be DONE;
         // this says what is being ASKED. A questionnaire is unanswerable from
