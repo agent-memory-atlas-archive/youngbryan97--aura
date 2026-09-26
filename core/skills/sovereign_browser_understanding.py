@@ -404,8 +404,8 @@ class _UnderstandsThePage:
             think = getattr(router, "think", None)
             if callable(think) and mind:
                 raw = self._the_text_of(await think(
-                    prompt, system_prompt=mind, max_tokens=420, temperature=0.2,
-                    _non_chat_inference=True,
+                    prompt, system_prompt=mind, schema=self._UNDERSTANDING_SCHEMA,
+                    max_tokens=420, temperature=0.2, _non_chat_inference=True,
                 ))
             else:
                 generate = getattr(router, "generate", None)
@@ -574,6 +574,46 @@ class _UnderstandsThePage:
 
     #: The lane her own model answers on. See `_who_answered`.
     _HER_OWN_LANE = "Cortex"
+
+    #: The shape a decision about a page comes back in, held by the decoder.
+    #:
+    #: A decision is a structured choice, and asked of her own model with her
+    #: whole mind in front of it, she talked about the task instead of choosing:
+    #: live on 26 Sep, round two of a personality test came back "The user
+    #: wants me to take the Open Extended Jungian Type Scales personality test.
+    #: Before I start..." and no action at all, and the pursuit ended. Her
+    #: reasoning belongs in "why", which is what is said out loud.
+    _DECISION_SCHEMA: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            "actions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "index": {"type": "integer"},
+                        "type": {"type": "string", "enum": ["click", "type", "scroll"]},
+                        "value": {"type": "string"},
+                    },
+                    "required": ["index", "type"],
+                },
+            },
+            "why": {"type": "string"},
+            "expect": {"type": "string"},
+            "done": {"type": "boolean"},
+        },
+        "required": ["actions", "why", "done"],
+    }
+
+    #: And the shape of what she makes of a page before acting on it.
+    _UNDERSTANDING_SCHEMA: dict[str, Any] = {
+        "type": "object",
+        "properties": {
+            key: {"type": "string"}
+            for key in ("here", "to_progress", "relevant", "present_but_not_needed", "done_when")
+        },
+        "required": ["here", "to_progress", "done_when"],
+    }
 
     @staticmethod
     def _the_text_of(reply: Any) -> str:
@@ -888,7 +928,7 @@ class _UnderstandsThePage:
                     # stand-in lane answering "you regularly make new friends"
                     # would be a different mind's answer submitted as hers.
                     reply = await think(
-                        prompt, system_prompt=mind, prefer_tier="primary",
+                        prompt, system_prompt=mind, prefer_tier="primary", schema=self._DECISION_SCHEMA,
                         max_tokens=900, temperature=0.2, _non_chat_inference=True,
                     )
                     answered_by = self._who_answered(reply)
@@ -899,8 +939,8 @@ class _UnderstandsThePage:
                     raw = await self._decide_on_the_fast_lane(router, prompt, mind)
                     if not self._decision_is_usable(raw, observation):
                         raw = self._the_text_of(await think(
-                            prompt, system_prompt=mind, max_tokens=900, temperature=0.2,
-                            _non_chat_inference=True,
+                            prompt, system_prompt=mind, schema=self._DECISION_SCHEMA,
+                            max_tokens=900, temperature=0.2, _non_chat_inference=True,
                         ))
             else:
                 generate = getattr(router, "generate", None)

@@ -76,3 +76,27 @@ def test_an_answer_from_a_stand_in_is_not_taken_as_hers(monkeypatch):
 def test_the_old_three_part_reply_is_still_read():
     assert SovereignBrowserSkill._the_text_of((True, DECISION, {})) == DECISION
     assert SovereignBrowserSkill._the_text_of(None) == ""
+
+
+def test_a_decision_is_held_to_its_shape_by_the_decoder(monkeypatch):
+    """Live, 26 Sep: asked with her whole mind in front of her, her own model
+    talked about the task ("The user wants me to take...") and chose nothing."""
+    _decision, asked = _deciding_with(monkeypatch, attributed_text(DECISION, {"endpoint": "Cortex"}))
+    schema = asked[0].get("schema")
+    assert schema is SovereignBrowserSkill._DECISION_SCHEMA
+    assert set(schema["required"]) >= {"actions", "why"}
+
+
+def test_what_she_makes_of_a_page_is_held_to_its_shape(monkeypatch):
+    asked: list[dict] = []
+
+    class Router:
+        async def think(self, prompt, **kwargs):
+            asked.append(kwargs)
+            return '{"here": "a test", "to_progress": "answer", "done_when": "a result shows"}'
+
+    monkeypatch.setattr(understanding, "optional_service", lambda name, default=None: Router())
+    skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+    made = asyncio.run(skill._understand_page("take the test", A_SCALE, None, "her mind"))
+    assert asked and asked[0].get("schema") is SovereignBrowserSkill._UNDERSTANDING_SCHEMA
+    assert made.get("here") == "a test"
