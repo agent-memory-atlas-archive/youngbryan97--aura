@@ -766,6 +766,17 @@ class _UnderstandsThePage:
             self_state = self_knowledge_line()
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.self_state", exc, severity="debug")
+        # And what she is like, where the page asks it: what her own record of
+        # choices says, not what a language model believes an AI is like.
+        if self._asks_about_the_one_answering(observation):
+            try:
+                from core.agency.what_she_is_like import what_she_is_like_line
+
+                measured = what_she_is_like_line()
+                if measured:
+                    self_state = f"{self_state}\n{measured}" if self_state else measured
+            except _BROWSER_DECISION_ERRORS as exc:
+                record_degradation("sovereign_browser.what_she_is_like", exc, severity="debug")
 
         # Every position already taken in this pursuit. Consistency is not a
         # style preference here: a self-report that contradicts itself across

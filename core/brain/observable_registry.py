@@ -185,6 +185,20 @@ async def _read_stated_preferences(prompt: str) -> str:
     return await asyncio.to_thread(stated_preference_block, prompt)
 
 
+# ── what she is like, from what she has chosen ───────────────────────────────
+
+def _matches_what_she_is_like(prompt: str) -> bool:
+    from core.agency.what_she_is_like import asks_what_she_is_like
+
+    return asks_what_she_is_like(prompt)
+
+
+async def _read_what_she_is_like(prompt: str) -> str:
+    from core.agency.what_she_is_like import what_she_is_like_block
+
+    return await asyncio.to_thread(what_she_is_like_block, prompt)
+
+
 # ── what has actually been failing ───────────────────────────────────────────
 
 def _matches_operational_state(prompt: str) -> bool:
@@ -1129,6 +1143,29 @@ _DEFAULT_OBSERVABLES: tuple[Observable, ...] = (
             "what did I just copy?",
             "what is 2 + 2",
             "what files are in core/runtime?",
+        ),
+    ),
+    Observable(
+        "what_she_is_like",
+        "## WHAT YOUR OWN RECORD OF CHOICES SAYS ABOUT WHAT YOU ARE LIKE",
+        _matches_what_she_is_like,
+        _read_what_she_is_like,
+        examples=(
+            # Asked to take a personality test, she said she had no stable
+            # self-model to take it with (live, 26 Sep).
+            "Take the Open Extended Jungian Type Scales personality test on openpsychometrics.org. "
+            "Before you start, tell me what type you think it will give you and why.",
+            "what's your personality like?",
+            "are you an introvert or an extrovert?",
+            "what are you like as a person?",
+            "what is your MBTI type?",
+        ),
+        counter_examples=(
+            "what's the weather like?",
+            "what type of file is this?",
+            "describe the personality of Sherlock Holmes",
+            "what is the Myers-Briggs test?",
+            "what do you like to study?",
         ),
     ),
     Observable(
