@@ -57,6 +57,17 @@ def matched_source_control(full_plan: dict, erased_plan: dict,
     }
 
 
+def matched_verification_identity(full: dict, erased: dict) -> None:
+    """Reject a paired claim when either arm was verified under changed code."""
+    if (full.get("current_implementation_drift") != []
+            or erased.get("current_implementation_drift") != []
+            or full.get("training_plan_sha256") != erased.get("training_plan_sha256")
+            or full.get("checkpoint_receipt_sha256") != erased.get("checkpoint_receipt_sha256")
+            or full.get("source_evidence") != "source_text"
+            or erased.get("source_evidence") != "source_token_erasure"):
+        raise ValueError("source-control verification identity or implementation differs")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--full-directory", required=True, type=Path)
@@ -73,6 +84,7 @@ def main() -> None:
     configure_refit_environment(args.output)
     verified = [verify_grammar(directory, args.training_directory)
                 for directory in (args.full_directory, args.erased_directory)]
+    matched_verification_identity(*verified)
     plans = [verified_document(directory / "plan.json", "plan_sha256")
              for directory in (args.full_directory, args.erased_directory)]
     reports = [verified_document(directory / "report.json")

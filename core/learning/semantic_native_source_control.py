@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections.abc import Mapping
 from dataclasses import replace
 from typing import Any
@@ -125,3 +126,28 @@ def apply_native_source_evidence(sequence: NativeProgramSequence, source: str,
     if mode == "source_token_erasure":
         return erase_native_source_tokens(sequence, source, tokenizer)
     raise ValueError("unknown native source-evidence mode")
+
+
+def native_score_input_receipt(sequence: NativeProgramSequence,
+                               control: dict[str, Any] | None) -> dict[str, Any]:
+    """Bind one scored choice to its exact tokens and source intervention."""
+    if not isinstance(sequence, NativeProgramSequence):
+        raise ValueError("native score input needs a native sequence")
+    if control is not None and (not isinstance(control, dict)
+                                or control.get("source_content_tokens_available") is not False
+                                or type(control.get("erased_source_tokens")) is not int
+                                or control["erased_source_tokens"] < 1):
+        raise ValueError("native score input erasure receipt is invalid")
+
+    def sha(value: Any) -> str:
+        return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"))
+                              .encode()).hexdigest()
+
+    return {
+        "schema": "aura.native_score_input.v1",
+        "sequence_sha256": sha({"tokens": sequence.tokens,
+                                "continuation_start": sequence.continuation_start,
+                                "semantic_positions": sequence.semantic_positions}),
+        "source_control_sha256": None if control is None else sha(control),
+        "erased_source_tokens": 0 if control is None else control["erased_source_tokens"],
+    }

@@ -69,7 +69,7 @@ def verified_source_evidence(plan, report, rows):
     return mode
 
 
-def replay_greedy_decisions(row, *, example, plan):
+def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_tokens=None):
     from core.learning.semantic_native_grammar import (
         NativeGrammarIncompleteError,
         decode_native_grammar,
@@ -78,6 +78,12 @@ def replay_greedy_decisions(row, *, example, plan):
     trace = row["decision_trace"]
     if not isinstance(trace, list):
         raise ValueError("native grammar decision trace is missing")
+    verify_inputs = "source_evidence" in plan
+    input_receipts = row.get("score_input_receipts")
+    if verify_inputs and (tokenizer is None or max_sequence_tokens is None
+                          or not isinstance(input_receipts, list)
+                          or len(input_receipts) != len(trace)):
+        raise ValueError("native grammar scored-input receipts are missing")
     consumed = 0
 
     def recorded_scores(choices):
@@ -85,6 +91,24 @@ def replay_greedy_decisions(row, *, example, plan):
         if consumed >= len(trace):
             raise ValueError("native grammar decision trace ended before the graph")
         entry = trace[consumed]
+        if verify_inputs:
+            from core.learning.semantic_native_program import native_text_decision_sequence
+            from core.learning.semantic_native_source_control import (
+                apply_native_source_evidence,
+                native_score_input_receipt,
+            )
+
+            expected_inputs = []
+            for choice in choices:
+                sequence = native_text_decision_sequence(
+                    example.source_text, choice.text, (choice.span,), tokenizer,
+                    max_tokens=max_sequence_tokens)
+                sequence, control = apply_native_source_evidence(
+                    sequence, example.source_text, tokenizer,
+                    mode=plan["source_evidence"])
+                expected_inputs.append(native_score_input_receipt(sequence, control))
+            if input_receipts[consumed] != expected_inputs:
+                raise ValueError("native grammar scored-input tokens or source control differ")
         consumed += 1
         values = [choice.value for choice in choices]
         scores = entry["scores"]
@@ -377,6 +401,11 @@ def verify_grammar(directory, training_directory):
             or {path.stem for path in (directory / "rows").glob("*.json")} != set(sources)):
         raise ValueError("native grammar population or source separation differs")
     outcomes, rows = [], []
+    tokenizer = None
+    if "source_evidence" in plan:
+        from mlx_lm.utils import load_tokenizer
+
+        tokenizer = load_tokenizer(Path(training["model_path"]))
     for example, identity in zip(examples, sources, strict=True):
         verified_public_inputs(example)
         row = verified_document(directory / "rows" / f"{identity}.json")
@@ -392,7 +421,8 @@ def verify_grammar(directory, training_directory):
                                            plan_sha256=plan["plan_sha256"]))
         if row["search"] is not None:
             raise ValueError("native grammar row search mode differs")
-        replay_greedy_decisions(row, example=example, plan=plan)
+        replay_greedy_decisions(row, example=example, plan=plan, tokenizer=tokenizer,
+                                max_sequence_tokens=training["max_sequence_tokens"])
         rows.append(row)
     totals = {"population": len(outcomes),
               "program_equivalent": sum(equivalent for equivalent, _ in outcomes),

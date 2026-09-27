@@ -2,7 +2,10 @@
 
 import pytest
 
-from tools.compare_semantic_native_source_control import matched_source_control
+from tools.compare_semantic_native_source_control import (
+    matched_source_control,
+    matched_verification_identity,
+)
 
 
 def _arms():
@@ -50,3 +53,15 @@ def test_adjudicator_rejects_model_budget_population_and_mode_drift():
     with pytest.raises(ValueError, match="row coverage"):
         matched_source_control(full, erased, full_report, erased_report,
                                full_rows, erased_rows[::-1])
+
+
+def test_paired_verification_rejects_implementation_and_checkpoint_drift():
+    full = {"current_implementation_drift": [], "training_plan_sha256": "training",
+            "checkpoint_receipt_sha256": "checkpoint", "source_evidence": "source_text"}
+    erased = {**full, "source_evidence": "source_token_erasure"}
+    matched_verification_identity(full, erased)
+    for changed in ({**erased, "current_implementation_drift": ["source_control.py"]},
+                    {**erased, "checkpoint_receipt_sha256": "other"},
+                    {**erased, "source_evidence": "source_text"}):
+        with pytest.raises(ValueError, match="verification identity"):
+            matched_verification_identity(full, changed)

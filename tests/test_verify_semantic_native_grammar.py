@@ -75,6 +75,53 @@ def test_grammar_decision_replay_rejects_forged_winner():
         replay_greedy_decisions(forged, example=example, plan=plan)
 
 
+@pytest.mark.parametrize("mode", ["source_text", "source_token_erasure"])
+def test_grammar_replay_binds_each_score_to_the_scored_input(mode):
+    from core.learning.semantic_native_grammar import decode_native_grammar
+    from core.learning.semantic_native_program import native_text_decision_sequence
+    from core.learning.semantic_native_relative_program import REGISTER_ENCODING
+    from core.learning.semantic_native_source_control import (
+        apply_native_source_evidence,
+        native_score_input_receipt,
+    )
+    from tests.test_semantic_native_program import Tokenizer
+
+    example = SimpleNamespace(source_text="Add 8 and 3.", inputs=(8, 3))
+    tokenizer = Tokenizer()
+    input_receipts = []
+
+    def score(choices):
+        receipts = []
+        for choice in choices:
+            sequence = native_text_decision_sequence(
+                example.source_text, choice.text, (choice.span,), tokenizer,
+                max_tokens=1024)
+            sequence, control = apply_native_source_evidence(
+                sequence, example.source_text, tokenizer, mode=mode)
+            receipts.append(native_score_input_receipt(sequence, control))
+        input_receipts.append(receipts)
+        return tuple(1.0 if choice.value in ("add", "input:0", "finish") else 0.0
+                     for choice in choices)
+
+    generated = decode_native_grammar(("integer", "integer"), score,
+                                      register_encoding=REGISTER_ENCODING)
+    row = {"decision_trace": json.loads(json.dumps(generated.trace)),
+           "score_input_receipts": json.loads(json.dumps(input_receipts)),
+           "program": generated.program.to_dict(), "decode_status": "completed",
+           "bound_forced_completion": False}
+    plan = {"max_steps": 8, "register_encoding": REGISTER_ENCODING,
+            "source_evidence": mode}
+    replay_greedy_decisions(row, example=example, plan=plan, tokenizer=tokenizer,
+                            max_sequence_tokens=1024)
+    forged = json.loads(json.dumps(row))
+    forged["score_input_receipts"][0][0]["sequence_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="scored-input tokens"):
+        replay_greedy_decisions(forged, example=example, plan=plan,
+                                tokenizer=tokenizer, max_sequence_tokens=1024)
+    with pytest.raises(ValueError, match="receipts are missing"):
+        replay_greedy_decisions(row, example=example, plan=plan)
+
+
 def test_source_separation_requires_text_and_construction_disjointness():
     source = [SimpleNamespace(source_text="old request", construction_id="two-step",
                               topology_id="shared relation")]
