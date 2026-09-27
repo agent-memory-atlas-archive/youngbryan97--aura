@@ -235,8 +235,8 @@ def native_grammar_supervision_sets(items, texts, tokenizer, identities, *, max_
     """Bind each source's exact inference competition to unchanged native tokens."""
     from core.learning.semantic_native_decision_supervision import native_teacher_decisions
     from core.learning.semantic_native_program import native_text_decision_sequence
-    from core.learning.semantic_public_inputs import semantic_public_character_inputs
     from core.learning.semantic_native_source_control import erase_native_source_tokens
+    from core.learning.semantic_public_inputs import semantic_public_character_inputs
 
     erased = set(source_erasure_ids)
     if (not identities or len(set(identities)) != len(identities)
@@ -296,7 +296,10 @@ def native_grammar_source_loss(suffix, states, sequences, decisions):
 def build_native_supervision(items, texts, tokenizer, identities, plan, peer_programs):
     """Materialize the plan's supervision before allocating the frozen decoder."""
     from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
-    from core.learning.semantic_native_source_control import SOURCE_ERASURE_CONTRACT, source_control_mode_from_plan
+    from core.learning.semantic_native_source_control import (
+        SOURCE_ERASURE_CONTRACT,
+        source_control_mode_from_plan,
+    )
     from tools.probe_semantic_proposer_crossfit import _digest
 
     control = source_control_mode_from_plan(plan) == "source_token_erasure"
@@ -339,6 +342,10 @@ def main():
     parser.add_argument("--rank", type=int, default=8)
     parser.add_argument("--layers", type=int, default=1)
     parser.add_argument("--prefix-batch-size", type=int, default=1)
+    parser.add_argument("--precision", choices=("native", "float32"), default="native")
+    parser.add_argument("--prefix-strategy", choices=("full", "trie"), default="full")
+    parser.add_argument("--prefix-storage", choices=("memory", "source_shards"), default="memory")
+    parser.add_argument("--prefix-resident-mib", type=int, default=512)
     parser.add_argument("--held-per-construction", type=int, default=1)
     parser.add_argument("--calibration-per-construction", type=int, default=1)
     parser.add_argument("--calibration-source-limit", type=int,
@@ -359,6 +366,17 @@ def main():
     parser.add_argument("--supervision-only", action="store_true",
                         help="tokenize and audit the declared objective without loading model weights")
     args = parser.parse_args()
+    from tools.semantic_native_execution import (
+        EXECUTION_PATHS,
+        execution_contract,
+        execution_from_plan,
+    )
+    execution = execution_contract(precision=args.precision, prefix_strategy=args.prefix_strategy)
+    if args.prefix_strategy == "trie" and args.prefix_batch_size != 1:
+        parser.error("source trie capture does not batch independent requests")
+    if (args.prefix_storage == "source_shards" and args.prefix_strategy != "trie"
+            or not 1 <= args.prefix_resident_mib <= 4096):
+        parser.error("source shards require trie capture and a resident bound inside [1, 4096] MiB")
     if (any(type(value) is not int or value < 1 for value in (
             args.steps, args.save_every, args.rank, args.layers, args.max_sequence_tokens))
             or args.steps % args.save_every or not 0 < args.max_seconds <= 14400
@@ -383,8 +401,8 @@ def main():
         cross_construction_relation_triplets,
     )
     from core.learning.semantic_native_codec import NATIVE_CODEC_IMPLEMENTATION_PATHS
-    from core.learning.semantic_native_source_control import SOURCE_ERASURE_CONTRACT
     from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
+    from core.learning.semantic_native_source_control import SOURCE_ERASURE_CONTRACT
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
     )
@@ -451,6 +469,14 @@ def main():
         "tools/train_semantic_atom_ranker.py", *NATIVE_CODEC_IMPLEMENTATION_PATHS)]
     implementation = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                       for path in implementation_paths}
+    if execution is not None:
+        implementation_paths.extend(ROOT / name for name in EXECUTION_PATHS)
+        implementation.update({name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+                               for name in EXECUTION_PATHS})
+    if args.prefix_storage == "source_shards":
+        storage_path = ROOT / "core/learning/frozen_state_store.py"
+        implementation_paths.append(storage_path)
+        implementation[str(storage_path.relative_to(ROOT))] = hashlib.sha256(storage_path.read_bytes()).hexdigest()
     plan = {"schema": "aura.semantic_native_fit_plan.v1", "steps": args.steps,
             "save_every": args.save_every, "rank": args.rank, "suffix_layers": args.layers,
             "prefix_batch_size": args.prefix_batch_size,
@@ -499,6 +525,11 @@ def main():
         plan.update(schema="aura.semantic_native_fit_plan.v2",
                     input="native_chat_template_fit_source_erased_calibration_and_held_source_unchanged",
                     source_evidence_control=dict(SOURCE_ERASURE_CONTRACT))
+    if args.prefix_storage == "source_shards":
+        plan["prefix_storage_contract"] = {
+            "schema": "aura.frozen_state_storage_contract.v1", "mode": "source_shards",
+            "max_resident_bytes": args.prefix_resident_mib * 1024 * 1024,
+            "lossy_compression": False, "all_alternatives_retained": True}
     if args.objective == "grammar_choices":
         plan.update(schema="aura.semantic_native_fit_plan.v3",
                     grammar_choice_contract=dict(GRAMMAR_CHOICE_CONTRACT),
@@ -510,6 +541,11 @@ def main():
                         "eligible_held_subset": complete_held_subset,
                         "selection_basis": "sorted_source_sha256_without_outcomes"})
     plan = {**plan, "plan_sha256": _digest(plan)}
+    if execution is not None:
+        plan.pop("plan_sha256")
+        plan["execution_contract"] = execution
+        plan["prefix_equivalence_policy"] = "all_first_source_choices_then_first_choice_per_source"
+        plan["plan_sha256"] = _digest(plan)
     _save_if_absent(args.directory / "plan.json", plan)
     if args.plan_only:
         print(json.dumps({"stage": "plan_only", "plan_sha256": plan["plan_sha256"],
@@ -522,6 +558,7 @@ def main():
 
     started = time.monotonic()
     from mlx_lm.utils import load_tokenizer
+
     from core.learning.semantic_native_program import source_text_from_tokens
     tokenizer = load_tokenizer(Path(spec.model_path))
     items = {item.ir.source_text_sha256: item for item in examples if item.split == "train"}
@@ -567,6 +604,7 @@ def main():
 
     with (standalone_model_lane(owner_id=f"semantic-native:{args.directory.name}",
             model_path=str(spec.model_path), purpose="training", preemptible=False,
+            require_exclusive=True, allow_owner_eviction=False,
             metadata={"tool": "train_semantic_native_program", "production_effect": False}),
           mlx_memory_envelope(fraction=.80) as envelope):
         print(json.dumps({"stage": "load", "descriptor": spec.descriptor_sha256,
@@ -583,6 +621,8 @@ def main():
         mx.random.seed(plan["seed"])
         linear_to_lora_layers(model, args.layers, {
             "rank": args.rank, "scale": 16., "dropout": 0., "keys": plan["adapter_keys"]})
+        from tools.semantic_native_execution import apply_execution, source_sequence_groups
+        precision_receipt = apply_execution(model, plan)
         trainable = tree_flatten(suffix.trainable_parameters())
         if not trainable or any("lora_" not in name for name, _value in trainable):
             raise ValueError("native suffix adaptation escaped its declared LoRA sites")
@@ -598,9 +638,86 @@ def main():
         del examples, fit, calibration, items, parent
         gc.collect()
         captured = {}
+        if args.prefix_storage == "source_shards":
+            from core.learning.frozen_state_store import FrozenStateStore
+            captured = FrozenStateStore(args.directory / "prefix-states",
+                plan_sha256=plan["plan_sha256"],
+                max_resident_bytes=plan["prefix_storage_contract"]["max_resident_bytes"])
         verified_batch_sizes = set()
-        for batch in exact_length_batches(sequences, batch_size=args.prefix_batch_size):
+        capture_receipts = []
+        batches = (source_sequence_groups(sequences) if args.prefix_strategy == "trie" else
+                   exact_length_batches(sequences, batch_size=args.prefix_batch_size))
+        for batch in batches:
             check_bound()
+            if args.prefix_strategy == "trie":
+                from core.learning.frozen_prefix_branches import (
+                    FrozenPrefixBranches,
+                    native_source_anchor,
+                )
+                from tools.probe_semantic_native_prefix_branches import target_logprobs
+
+                rows = tuple(sequences[key] for key in batch)
+                branches = FrozenPrefixBranches(model, split_at=split,
+                    anchor_tokens=native_source_anchor(rows), max_tokens=args.max_sequence_tokens)
+                states = branches.capture_many(tuple(tuple(row.tokens[:-1]) for row in rows))
+                errors = []
+                reference_scores, branch_scores = [], []
+                for key, row, state in zip(batch, rows, states, strict=True):
+                    check_bound()
+                    if args.prefix_storage == "memory":
+                        captured[key] = state
+                    if capture_receipts and key != batch[0]:
+                        continue
+                    positions = tuple(index - 1 for index in native_prediction_positions(row, scope=args.loss_scope))
+                    expected = prefix.capture(mx.array([row.tokens[:-1]], dtype=mx.int32))
+                    if not capture_receipts and key == batch[0]:
+                        full_logits = model(mx.array([row.tokens[:-1]], dtype=mx.int32))
+                        suffix_logits = suffix(expected)
+                        difference = float(mx.max(mx.abs(full_logits - suffix_logits)).item())
+                        if not math.isfinite(difference) or difference > .01:
+                            raise ValueError("native trie suffix differs from the complete model")
+                        _save_if_absent(args.directory / "prefix-equivalence.json", {
+                            "plan_sha256": plan["plan_sha256"], "accepted": True,
+                            "max_absolute_logit_difference": difference,
+                            "execution_contract": execution, "batch_size": 1,
+                            "split_at": split, "trainable_sites": [name for name, _value in trainable]})
+                        del full_logits, suffix_logits
+                    targets = mx.array([row.tokens[index + 1] for index in positions], dtype=mx.int32)
+                    left = target_logprobs(suffix(expected, logit_positions=positions), targets)
+                    right = target_logprobs(suffix(state, logit_positions=positions), targets)
+                    error = float(mx.max(mx.abs(left - right)).item())
+                    if not math.isfinite(error) or error > execution["precision_contract"]["target_logprob_tolerance"]:
+                        raise ValueError("native training trie target probabilities differ")
+                    errors.append(error)
+                    reference_scores.append(float(mx.sum(left).item()))
+                    branch_scores.append(float(mx.sum(right).item()))
+                if not capture_receipts:
+                    from tools.probe_semantic_native_prefix_branches import ranked_score_equivalence
+                    partitions = (groups[batch[0][0]] if args.objective == "grammar_choices" else
+                                  ((batch, 0),))
+                    offsets = {key: index for index, key in enumerate(batch)}
+                    for keys, _gold in partitions:
+                        indices = [offsets[key] for key in keys]
+                        comparison = ranked_score_equivalence(
+                            [reference_scores[index] for index in indices],
+                            [branch_scores[index] for index in indices],
+                            tolerance=execution["precision_contract"]["target_logprob_tolerance"])
+                        if not comparison["accepted"]:
+                            raise ValueError("native training trie changed a choice ranking")
+                capture_receipts.append({"source": batch[0][0], **branches.receipt(),
+                    "checked_choices": len(errors), "max_target_error": max(errors),
+                    "complete_rankings_checked": len(capture_receipts) == 0})
+                if args.prefix_storage == "source_shards":
+                    captured.write_source(batch[0][0], dict(zip(batch, states, strict=True)),
+                        sequence_digests={key: _digest(list(sequences[key].tokens)) for key in batch})
+                _save_if_absent(args.directory / "prefix-receipts" / f"{batch[0][0]}.json",
+                    {"plan_sha256": plan["plan_sha256"], **capture_receipts[-1]})
+                del branches, states, expected, left, right
+                print(json.dumps({"stage": "prefix", "captured": len(captured),
+                    "population": len(sequences), "source_groups": len(capture_receipts),
+                    "elapsed_seconds": time.monotonic() - started,
+                    "active_memory_bytes": mx.get_active_memory()}), flush=True)
+                continue
             tokens = mx.array([sequences[identity].tokens[:-1] for identity in batch], dtype=mx.int32)
             hidden = prefix.capture(tokens)
             if len(batch) not in verified_batch_sizes:
@@ -707,6 +824,7 @@ def main():
         model.load_weights(str(best[2]), strict=False)
         selected_weights = tree_map(lambda value: mx.array(value), suffix.trainable_parameters())
         mx.eval(selected_weights)
+        storage_receipt = captured.receipt() if args.prefix_storage == "source_shards" else None
         del captured, optimizer, gradients
         gc.collect()
         rows = []
@@ -764,6 +882,7 @@ def main():
             print(json.dumps({"stage": "held", "observed": len(rows), "population": len(held_ids)}),
                   flush=True)
         current_spec = get_active_cortex_spec(force_refresh=True)
+        execution_from_plan(plan, check_installed=True)
         if (current_spec is None or current_spec.descriptor_sha256 != spec.descriptor_sha256
                 or current_spec.pointer_sha256 != spec.pointer_sha256
                 or any(hashlib.sha256(path.read_bytes()).hexdigest() != implementation[
@@ -797,6 +916,11 @@ def main():
                 "preparation_seconds": preparation_seconds,
                 "serving_authority": False, "qualification_evidence": False,
                 "held_labels_used_for_fit_or_selection": False}
+        if execution is not None:
+            body.update(execution_contract=execution, precision_receipt=precision_receipt,
+                        prefix_capture_receipts=capture_receipts)
+        if storage_receipt is not None:
+            body.update(prefix_storage_receipt=storage_receipt)
         _save_if_absent(args.directory / "report.json", {**body, "receipt_sha256": _digest(body)})
         print(json.dumps({"stage": "complete", "native_correct": body["native_correct"],
                           "population": len(rows), "regressions": body["regressions"]}), flush=True)

@@ -4,11 +4,11 @@
 from __future__ import annotations
 
 import argparse
-from collections import Counter
 import hashlib
 import json
 import math
 import sys
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -90,7 +90,11 @@ def compare_source_erasure_outcomes(reference_plan, control_plan, reference_repo
 
 def regrade_bank(bank, item):
     from core.learning.procedure_induction import Instruction, Program
-    from core.learning.semantic_graph_counterexamples import ProgramObservationCache, compare_program_meanings, counterfactual_inputs
+    from core.learning.semantic_graph_counterexamples import (
+        ProgramObservationCache,
+        compare_program_meanings,
+        counterfactual_inputs,
+    )
     from core.learning.semantic_joint_graph_learning import align_source_input_registers
     from core.learning.semantic_program_ir import TokenSpan
 
@@ -124,7 +128,10 @@ def regrade_bank(bank, item):
 def verify_source_control_supervision(plan, supervision, items, tokenizer):
     """Rebuild fit erasure and intact calibration from the bound source corpus."""
     from core.learning.semantic_candidate_contrasts import source_program_contrasts
-    from core.learning.semantic_native_codec import native_sequence_for_encoding, register_encoding_from_plan
+    from core.learning.semantic_native_codec import (
+        native_sequence_for_encoding,
+        register_encoding_from_plan,
+    )
     from core.learning.semantic_native_program import source_text_from_tokens
     from core.learning.semantic_native_source_control import (
         SOURCE_ERASURE_CONTRACT,
@@ -205,14 +212,82 @@ def verify_source_control_supervision(plan, supervision, items, tokenizer):
             "retained_nuisances": SOURCE_ERASURE_CONTRACT["retained_nuisances"]}
 
 
+def verify_state_storage(directory, plan, report, supervision):
+    """Check durable shard coverage and bytes without claiming a model rerun."""
+    from core.runtime.file_read_gateway import open_stable_readonly_binary
+    from tools.evaluate_semantic_native_checkpoint import digest, verified_document
+
+    contract = plan.get("prefix_storage_contract")
+    receipt = report.get("prefix_storage_receipt")
+    if contract is None:
+        if receipt is not None:
+            raise ValueError("undeclared frozen state storage")
+        return None
+    bound = contract.get("max_resident_bytes")
+    if (contract != {"schema": "aura.frozen_state_storage_contract.v1", "mode": "source_shards",
+                    "max_resident_bytes": bound, "lossy_compression": False,
+                    "all_alternatives_retained": True}
+            or type(bound) is not int or not 0 < bound <= 4096 * 1024 * 1024
+            or not isinstance(receipt, dict)
+            or receipt.get("schema") != "aura.frozen_state_store.v1"
+            or receipt.get("plan_sha256") != plan["plan_sha256"]
+            or receipt.get("max_resident_bytes") != bound
+            or receipt.get("lossy_compression") is not False
+            or type(receipt.get("peak_resident_bytes")) is not int
+            or not 0 <= receipt["peak_resident_bytes"] <= bound):
+        raise ValueError("frozen state storage contract differs")
+    expected = {(row["source"], row["decision_index"], row["choice_index"]): digest(row["tokens"])
+                for row in supervision["rows"]}
+    observed, sources, total_bytes = {}, set(), 0
+    for shard in receipt["shards"]:
+        source = shard["source"]
+        name = hashlib.sha256(source.encode()).hexdigest()
+        if (source in sources or shard["plan_sha256"] != plan["plan_sha256"]
+                or shard["schema"] != "aura.frozen_state_shard.v1"
+                or type(shard["array_bytes"]) is not int or not 0 < shard["array_bytes"] <= bound
+                or type(shard["file_bytes"]) is not int
+                or not shard["array_bytes"] <= shard["file_bytes"] <= shard["array_bytes"] + 1024 * 1024):
+            raise ValueError("frozen state source shard differs")
+        sources.add(source)
+        if verified_document(directory / "prefix-states" / f"{name}.json") != shard:
+            raise ValueError("frozen state manifest differs from report")
+        with open_stable_readonly_binary(directory / "prefix-states" / f"{name}.safetensors",
+                                        max_bytes=shard["file_bytes"]) as (handle, identity):
+            content = hashlib.sha256()
+            while chunk := handle.read(1024 * 1024):
+                content.update(chunk)
+            if identity.size != shard["file_bytes"] or content.hexdigest() != shard["weights_sha256"]:
+                raise ValueError("frozen state durable bytes differ")
+        for index, row in enumerate(shard["arrays"]):
+            key = tuple(row["key"])
+            if key in observed or key[0] != source or row["tensor"] != str(index):
+                raise ValueError("frozen state alternative repeats or changes source")
+            observed[key] = row["sequence_sha256"]
+        total_bytes += shard["file_bytes"]
+    if (observed != expected or receipt["sequences"] != len(expected)
+            or receipt["sources"] != len(sources)):
+        raise ValueError("frozen state sequence coverage differs")
+    return {"sources": len(sources), "sequences": len(expected), "file_bytes": total_bytes,
+            "durable_bytes_and_sequence_coverage_verified": True,
+            "hidden_states_independently_recomputed": False}
+
+
 def verify_fit(directory, bank_directory, items, *, tokenizer=None):
-    from tools.evaluate_semantic_candidate_ranker import _read_bank
-    from tools.evaluate_semantic_native_checkpoint import selected_checkpoint, verified_document, verify_replay_row
-    from tools.train_nested_semantic_ranker import _verified_pair
     from core.learning.semantic_native_source_control import source_control_mode_from_plan
+    from tools.evaluate_semantic_candidate_ranker import _read_bank
+    from tools.evaluate_semantic_native_checkpoint import (
+        selected_checkpoint,
+        verified_document,
+        verify_replay_row,
+    )
+    from tools.train_nested_semantic_ranker import _verified_pair
 
     plan, selected = selected_checkpoint(directory)
     report = verified_document(directory / "report.json")
+    from tools.semantic_native_execution import execution_from_plan
+    execution = execution_from_plan(plan)
+    if execution is not None and report.get("execution_contract") != execution:
+        raise ValueError("native fit report arithmetic differs from its plan")
     bank_plan, bank_report = _verified_pair(bank_directory)
     mode = source_control_mode_from_plan(plan)
     expected_schema = ("aura.semantic_native_fit.v3" if plan["schema"] == "aura.semantic_native_fit_plan.v3"
@@ -239,6 +314,7 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
             or report["gradient_source_population"] != len(set(plan["scheduled_fit_ids"]))):
         raise ValueError("native fit supervision coverage differs")
     source_control = verify_source_control_supervision(plan, supervision, items, tokenizer)
+    storage = verify_state_storage(directory, plan, report, supervision)
     rows, statuses = [], Counter()
     for identity in plan["held_ids"]:
         row = verified_document(directory / "rows" / f"{identity}.json")
@@ -263,6 +339,7 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
             "selected_checkpoint_receipt_sha256": selected["receipt_sha256"], "selected_step": selected["step"],
             "totals": totals, "semantic_status_counts": dict(statuses),
             "training_source_evidence": source_control,
+            "frozen_state_storage": storage,
             "current_implementation_drift": differences, "artifacts_verified": True,
             "general_transfer_proven": False, "broad_gain_proven": False, "serving_authority": False}
 
@@ -275,11 +352,17 @@ def main():
     parser.add_argument("--reference-directory", type=Path,
                         help="independently regrade an intact-source fit for paired erasure comparison")
     args = parser.parse_args()
+    from core.learning.semantic_program_compositional_transducer import (
+        compositional_semantic_program_transducer_from_dict,
+    )
     from tools.evaluate_semantic_native_checkpoint import digest, verified_document
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
-    from tools.refit_semantic_argument_proposals import configure_refit_environment, load_source_examples, source_bundle_arguments
+    from tools.refit_semantic_argument_proposals import (
+        configure_refit_environment,
+        load_source_examples,
+        source_bundle_arguments,
+    )
     from tools.train_nested_semantic_ranker import _verified_pair
-    from core.learning.semantic_program_compositional_transducer import compositional_semantic_program_transducer_from_dict
 
     configure_refit_environment(args.output)
     bank_plan, _ = _verified_pair(args.bank)

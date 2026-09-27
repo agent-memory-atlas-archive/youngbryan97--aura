@@ -9,6 +9,8 @@ import pytest
 from mlx.utils import tree_flatten
 
 from tools.probe_semantic_native_prefix_branches import (
+    convert_parameter_precision,
+    finite_target_values,
     float32_parameters,
     installed_arithmetic_basis,
     precision_contract,
@@ -19,7 +21,7 @@ from tools.probe_semantic_native_prefix_branches import (
 def test_native_precision_keeps_the_original_contract(monkeypatch):
     monkeypatch.delenv("MLX_ENABLE_TF32", raising=False)
     assert precision_contract("native") is None
-    for mode in ("float32", "unknown", None):
+    for mode in ("float32", "float16", "unknown", None):
         with pytest.raises(ValueError, match="process launch"):
             precision_contract(mode)
     monkeypatch.setenv("MLX_ENABLE_TF32", "1")
@@ -53,6 +55,58 @@ def test_parameter_conversion_retains_packed_quantized_weights_and_values():
     assert all(after[name] is value and after[name].tolist() == values[name] for name, value in packed.items())
     assert all(value.dtype == mx.float32 for value in after.values() if mx.issubdtype(value.dtype, mx.floating))
     assert model(mx.ones((1, 3, 32), dtype=mx.float32)).dtype == mx.float32
+
+
+def test_float16_keeps_the_native_error_budget_and_float32_recurrent_basis(monkeypatch):
+    monkeypatch.setenv("MLX_ENABLE_TF32", "0")
+    contract = precision_contract("float16")
+    assert contract["target_logprob_tolerance"] == precision_contract("float32")["target_logprob_tolerance"]
+    assert contract["native_float32_parameters"] == "same_objects"
+    assert contract["recurrent_accumulator"] == "installed_float32_state_unchanged"
+    assert contract["native_full_sequence_reference_required"] is True
+    assert contract["nonfinite_parameter_cast"] == "refuse"
+
+
+def test_float16_conversion_preserves_float32_and_packed_objects():
+    model = nn.Sequential(nn.Linear(32, 32), nn.RMSNorm(32))
+    model.set_dtype(mx.bfloat16)
+    nn.quantize(model, group_size=32, bits=4)
+    model.accumulator_basis = mx.array([1e20, 1e-30], dtype=mx.float32)
+    before = dict(tree_flatten(model.parameters()))
+    receipt = convert_parameter_precision(model, mode="float16")
+    after = dict(tree_flatten(model.parameters()))
+    assert receipt["before_parameter_bytes"] == receipt["after_parameter_bytes"]
+    assert receipt["unchanged_float32_parameters"] == 1
+    assert receipt["converted_bfloat16_parameters"] > 0
+    assert receipt["parameters_finite"] is True
+    for name, value in before.items():
+        if value.dtype == mx.bfloat16:
+            assert after[name].dtype == mx.float16
+            assert mx.array_equal(value.astype(mx.float32), after[name].astype(mx.float32)).item()
+        else:
+            assert after[name] is value
+
+
+def test_float16_refuses_overflow_or_absent_native_basis():
+    model = nn.Linear(2, 2)
+    with pytest.raises(ValueError, match="native bfloat16"):
+        convert_parameter_precision(model, mode="float16")
+    model.set_dtype(mx.bfloat16)
+    model.weight = mx.full((2, 2), 1e20, dtype=mx.bfloat16)
+    with pytest.raises(ValueError, match="nonfinite parameters"):
+        convert_parameter_precision(model, mode="float16")
+    with pytest.raises(ValueError, match="unsupported parameter precision"):
+        convert_parameter_precision(model, mode="unknown")
+
+
+@pytest.mark.parametrize("values", ([float("inf")], [float("nan")], []))
+def test_precision_accounting_refuses_nonfinite_or_empty_target_arrays(values):
+    with pytest.raises(ValueError, match="nonfinite target"):
+        finite_target_values(mx.array(values))
+
+
+def test_precision_accounting_retains_each_target():
+    assert finite_target_values(mx.array([-1.25, -3.5], dtype=mx.float32)) == [-1.25, -3.5]
 
 
 def test_precision_conversion_refuses_inventory_changes():

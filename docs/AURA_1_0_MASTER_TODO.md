@@ -1176,6 +1176,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Shared causal-prefix computation](evidence/G_NATIVE_TRIE_ARITHMETIC_2026-09-26.md)
+  checks all 56 choices of one source across 12 decision competitions in FP32.
+  Complete rankings agree; full work took 105.35 seconds versus 12.48 seconds
+  with the trie in this run. FP16 fails the unchanged numerical allowance.
+  Explicit FP32 training and both replay paths are connected. The eight-update
+  canary completed in 627.17 seconds: 2/4 native, incumbent, and unfitted,
+  with zero gains or regressions, independently regraded. Lossless bounded
+  source-shard storage prepares a complete fitting epoch. This is computation
+  evidence, not a promoted fit or semantic-transfer result; G03 remains open.
   [FP32 cache result](evidence/G_NATIVE_BRANCH_FP32_RESULT_2026-09-26.md)
   passes twelve alternatives at the unchanged allowance with a maximum
   target-log-probability error of 0.0000763. The arithmetic change itself is
