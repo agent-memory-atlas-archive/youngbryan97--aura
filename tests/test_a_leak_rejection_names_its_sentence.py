@@ -19,3 +19,11 @@ def test_the_sentence_that_leaked_is_the_one_named():
 
 def test_a_reply_that_is_not_a_leak_names_nothing():
     assert internal_task_prompt_leak_evidence("My prediction is INTP. I plan ahead.", "take the test") == ""
+
+
+def test_an_unfounded_tool_claim_names_its_sentence():
+    from core.conversation.response_reliability import unfounded_tool_execution_claim_evidence
+
+    said = "I expect INTP. I ran the code and the output is: 5."
+    assert unfounded_tool_execution_claim_evidence(said, None) == "I ran the code and the output is: 5."
+    assert unfounded_tool_execution_claim_evidence("I expect INTP.", None) == ""

@@ -6945,6 +6945,23 @@ def internal_task_prompt_leak_evidence(reply_text: Any, asked: Any = "") -> str:
     return (sentences[0] if sentences else body)[:300]
 
 
+def unfounded_tool_execution_claim_evidence(reply_text: Any, tool_receipts: Any = None) -> str:
+    """The first sentence that claims work no receipt shows, or "".
+
+    The same reason as the leak evidence above: LIVE 27 Sep 04:07 her
+    prediction before a test was refused as an unfounded tool claim, and the
+    log held only its opening, which claimed nothing.
+    """
+    body = str(reply_text or "")
+    if not _has_unfounded_tool_execution_claim(body, tool_receipts=tool_receipts):
+        return ""
+    sentences = [one.strip() for one in re.split(r"(?<=[.!?])\s+|\n+", body) if one.strip()]
+    for sentence in sentences:
+        if _has_unfounded_tool_execution_claim(sentence, tool_receipts=tool_receipts):
+            return sentence[:300]
+    return (sentences[0] if sentences else body)[:300]
+
+
 def _has_internal_task_prompt_leak(reply_text: Any, asked: Any = "") -> bool:
     body = str(reply_text or "")
     if _INTERNAL_TASK_PROMPT_RE.search(body):
