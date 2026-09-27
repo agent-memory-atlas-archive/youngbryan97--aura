@@ -435,7 +435,7 @@ class ResourceGovernor:
                 logger.debug("Suppressed %s in core.resource.resource_governor: %s", type(_exc).__name__, _exc)
 
         logger.log(
-            logging.WARNING if tier != self._tier_reported else logging.INFO,
+            logging.WARNING if tier != getattr(self, "_tier_reported", None) else logging.INFO,
             "ResourceGovernor: Eviction tier=%s, callbacks=%d",
             tier.value, invoked,
         )

@@ -413,7 +413,7 @@ class MetabolicMonitor:
 
     def _apply_pressure_controls(self, snapshot: MetabolismSnapshot) -> None:
         if snapshot.pressure_state == "nominal":
-            if self._mitigating:
+            if getattr(self, "_mitigating", False):
                 logger.info("Metabolic pressure is over after %d mitigations.", self._pressure_actions_total)
             self._mitigating = False
             return
@@ -441,7 +441,7 @@ class MetabolicMonitor:
             self._last_pressure_action_at = now
             self._pressure_actions_total += 1
             logger.log(
-                logging.INFO if self._mitigating else logging.WARNING,
+                logging.INFO if getattr(self, "_mitigating", False) else logging.WARNING,
                 "Metabolic pressure mitigation executed: state=%s tier=%s callbacks=%d",
                 snapshot.pressure_state,
                 tier.value,

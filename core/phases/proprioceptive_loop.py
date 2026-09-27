@@ -1152,9 +1152,10 @@ class ProprioceptiveLoop(BasePhase):
         # B. Hardware Stress Reflex
         cpu = self._hardware_float(state.soma, "cpu_usage")
         holding = cpu > 90
-        if holding and not self._cpu_reflex_holding:
+        was_holding = getattr(self, "_cpu_reflex_holding", False)
+        if holding and not was_holding:
             logger.warning("🔥 [REFLEX] Critical CPU Stress (%.1f%%). Dropping background metabolic load.", cpu)
-        elif self._cpu_reflex_holding and not holding:
+        elif was_holding and not holding:
             logger.info("[REFLEX] CPU stress is over (%.1f%%); background metabolic load resumes.", cpu)
         self._cpu_reflex_holding = holding
         if holding:

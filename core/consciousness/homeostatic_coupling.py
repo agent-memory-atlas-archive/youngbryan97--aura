@@ -345,9 +345,10 @@ class HomeostaticCoupling:
         September the declared host was hot through every strain condition, and
         the same two warnings came 648 times a run.
         """
-        for name in sorted(strain - self._reported_strain):
+        reported = getattr(self, "_reported_strain", frozenset())
+        for name in sorted(strain - reported):
             logger.warning(self._STRAIN_STARTS[name])
-        for name in sorted(self._reported_strain - strain):
+        for name in sorted(reported - strain):
             logger.info("Homeostasis: %s strain is over; cognitive depth is no longer throttled for it.", name)
         self._reported_strain = strain
 

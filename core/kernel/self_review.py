@@ -65,11 +65,12 @@ class SelfReviewPhase(Phase):
         # every review pushed out an intent something does read, such as the
         # autotelic objectives the research cycle looks for there.
         flagged = entropy > 0.7 or phi < 0.2
-        if flagged and not self._flagged:
+        was_flagged = getattr(self, "_flagged", False)
+        if flagged and not was_flagged:
             logger.warning("📉 [SELF-REVIEW] High entropy or low phi (phi=%.3f, entropy=%.3f).", phi, entropy)
         elif flagged:
             logger.debug("SelfReview: still high entropy or low phi (phi=%.3f, entropy=%.3f).", phi, entropy)
-        elif self._flagged:
+        elif was_flagged:
             logger.info("🧠 [SELF-REVIEW] Phi and entropy are back in range (phi=%.3f, entropy=%.3f).", phi, entropy)
         self._flagged = flagged
 
