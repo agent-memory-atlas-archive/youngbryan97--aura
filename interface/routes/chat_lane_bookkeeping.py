@@ -1379,11 +1379,22 @@ def _capabilities_this_turn_needs() -> set[str]:
     counts as relevant here cannot drift from what was actually offered.
     """
     try:
+        from core.conversation.page_interaction import asks_to_act_on_a_page
         from core.conversation.session_scope import current_user_question
         from core.phases.response_contract import derive_capability_set
 
         question = current_user_question()
-        return set(derive_capability_set(question)) if question else set()
+        if not question:
+            return set()
+        needs = set(derive_capability_set(question))
+        # Work on a page is done by the browser the desktop task hands it to,
+        # whatever the selector's effect ceiling admits for the reply. LIVE
+        # 27 Sep: with this set empty, "I can't actually take the test in this
+        # turn" was read as denying the repository diagnoser, and replaced
+        # with "I do have diagnose repo" in a reply about a personality test.
+        if asks_to_act_on_a_page(question):
+            needs |= {"sovereign_browser", "desktop_task"}
+        return needs
     except _CHAT_RECOVERABLE_ERRORS as exc:
         record_degradation(
             "chat.capability_relevance",

@@ -199,6 +199,36 @@ async def _read_what_she_is_like(prompt: str) -> str:
     return await asyncio.to_thread(what_she_is_like_block, prompt)
 
 
+# ── what this turn does after the reply ─────────────────────────────────────
+
+def _matches_page_work(prompt: str) -> bool:
+    from core.conversation.page_interaction import page_interaction_target
+
+    return bool(page_interaction_target(prompt))
+
+
+async def _read_page_work(prompt: str) -> str:
+    """What the runtime will do once she has replied, read from the same
+    decision that hands the work to her browser.
+
+    LIVE 26-27 Sep: asked to take a test on a named site, she wrote before
+    any page was open, and twice said she could not: "I can't confirm a live
+    browser session in this turn". True as she wrote it; the session opens
+    after her reply, and nothing told her so.
+    """
+    from core.conversation.page_interaction import page_interaction_target
+
+    url = page_interaction_target(prompt)
+    if not url:
+        return ""
+    return (
+        f"After this reply your own browser opens {url} and works toward what was asked. "
+        "Each question on the page is put to you there, one at a time, and the answer you "
+        "choose is the one clicked; each choice and your reason for it is said aloud as you "
+        "go. None of that has happened yet: this reply comes before the first page opens."
+    )
+
+
 # ── what has actually been failing ───────────────────────────────────────────
 
 def _matches_operational_state(prompt: str) -> bool:
@@ -1166,6 +1196,24 @@ _DEFAULT_OBSERVABLES: tuple[Observable, ...] = (
             "describe the personality of Sherlock Holmes",
             "what is the Myers-Briggs test?",
             "what do you like to study?",
+        ),
+    ),
+    Observable(
+        "page_work_after_this_reply",
+        "## WHAT HAPPENS AFTER THIS REPLY",
+        _matches_page_work,
+        _read_page_work,
+        examples=(
+            "Take the Open Extended Jungian Type Scales personality test on openpsychometrics.org. "
+            "Before you start, tell me what type you think it will give you and why.",
+            "go take it for real: https://www.16personalities.com/free-personality-test — work through the whole thing",
+            "fill in the survey at example.org",
+        ),
+        counter_examples=(
+            "what is the Myers-Briggs test?",
+            "read https://example.com and summarize it",
+            "what is on openpsychometrics.org?",
+            "open Notes and write a paragraph about yourself",
         ),
     ),
     Observable(
