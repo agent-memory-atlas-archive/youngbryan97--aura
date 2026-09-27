@@ -345,3 +345,27 @@ def test_an_outcome_does_not_teach_her_conscience(tmp_path):
     assert after["truth"] == pytest.approx(before["truth"])
     assert after["care"] == pytest.approx(before["care"])
     assert after["novelty"] < before["novelty"]
+
+
+
+def test_what_she_holds_more_is_what_she_takes(tmp_path):
+    """Truth, held at 0.94, over play, held at 0.50, when each option serves only one."""
+    engine = SubjectiveChoiceEngine(state_path=tmp_path / "choice.json", mirror_identity=False)
+    receipt = engine.choose(
+        [
+            ChoiceOption(id="play", label="play a game", features={"play": 1.0}),
+            ChoiceOption(id="truth", label="check the source", features={"truth": 1.0}),
+        ],
+        context="test",
+    )
+    assert receipt.chosen_id == "truth"
+    assert receipt.preference_scores["truth"] > receipt.preference_scores["play"]
+
+
+def test_serving_one_more_value_never_lowers_what_an_option_is_worth(tmp_path):
+    engine = SubjectiveChoiceEngine(state_path=tmp_path / "choice.json", mirror_identity=False)
+    truth = engine.score_features({"truth": 1.0})
+    truth_and_a_little_play = engine.score_features({"truth": 1.0, "play": 0.2})
+    play = engine.score_features({"play": 1.0})
+    assert truth_and_a_little_play >= truth > play
+    assert engine.score_features({"truth": 0.5}) < truth

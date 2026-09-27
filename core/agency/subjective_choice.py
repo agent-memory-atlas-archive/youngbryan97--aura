@@ -369,16 +369,33 @@ class SubjectiveChoiceEngine:
             return None
 
     def score_features(self, features: dict[str, float]) -> float:
+        """How much of what she values an option serves.
+
+        Each value the option serves is a reason to take it, as strong as how
+        fully it serves that value times how strongly she holds it against the
+        value she holds most. The score is the chance that at least one reason
+        holds, reasons combined as independent causes are (noisy-OR, Pearl
+        1988): one minus the product of each reason failing. An option fully
+        serving her most-held value scores one, serving another value never
+        lowers it, and several values add up without reaching one early.
+
+        It had been the mean of the option's intensities, weighted by her
+        values but divided by the weight of only the values it touched. For an
+        option serving one value that value's weight cancelled: an option only
+        about truth, held at 0.94, and one only about play, held at 0.50, both
+        scored 1.0 and a tie-break chose. Adding a minor second value lowered
+        the score, so an option mostly about truth and a little about play lost
+        to one only about play.
+        """
         features = _norm_features(features)
         with self._lock:
-            total = sum(
-                self._preferences[key] for key in PREFERENCE_KEYS if features[key] > 0.0
-            )
-            if total <= 0.0:
+            top = max((self._preferences[key] for key in PREFERENCE_KEYS), default=0.0)
+            if top <= 0.0:
                 return 0.0
-            return _clamp(
-                sum(features[key] * self._preferences[key] for key in PREFERENCE_KEYS) / total
-            )
+            failing = 1.0
+            for key in PREFERENCE_KEYS:
+                failing *= 1.0 - _clamp(features[key] * self._preferences[key] / top)
+            return _clamp(1.0 - failing)
 
     def preference_affinity(self, text: str, metadata: dict[str, Any] | None = None) -> float:
         return self.score_features(infer_preference_features(text, metadata))
