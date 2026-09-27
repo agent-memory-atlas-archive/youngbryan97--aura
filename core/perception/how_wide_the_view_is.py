@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from typing import Awaitable, Callable
 
 from core.perception.how_the_view_moves import grey, how_it_moved
 
@@ -97,7 +98,11 @@ def _a_landmark(layout: object) -> str:
     return min(named, key=lambda said: abs(named[said] - 0.5))
 
 
-async def _the_view_back_where_it_was(world: object, turned_through: int, *, slot_s: float) -> None:
+async def _the_view_back_where_it_was(
+    move_view: Callable[[int], Awaitable[None]],
+    settle_view: Callable[[], tuple[object, object]],
+    turned_through: int,
+) -> None:
     """Turn back by everything she turned through, so the next thing starts here.
 
     The same courtesy the body learner already pays the mouse probe. Without
@@ -105,18 +110,16 @@ async def _the_view_back_where_it_was(world: object, turned_through: int, *, slo
     """
     if not turned_through:
         return
-    from core.agency.what_hands_do import Chunk, Slot
-    from core.skills.in_a_world_through_a_camera import _played, look_settled
-
-    await _played(world, Chunk((Slot(moved=(-int(turned_through), 0)),), slot_s))
-    look_settled(world)
+    await move_view(-int(turned_through))
+    settle_view()
 
 
 async def turn_all_the_way_round(
     world: object,
     body: object,
     *,
-    slot_s: float,
+    move_view: Callable[[int], Awaitable[None]],
+    settle_view: Callable[[], tuple[object, object]],
     most_turns: int = 240,
 ) -> HowWideTheViewIs:
     """Turn steadily until a landmark has been round the room, and measure the slide.
@@ -130,9 +133,6 @@ async def turn_all_the_way_round(
     ``known=False``, and every caller then behaves as it did before any of
     this existed.
     """
-    from core.agency.what_hands_do import Chunk, Slot
-    from core.skills.in_a_world_through_a_camera import _played, look_settled
-
     first_frame, first_layout = world.look()
     wide = float(grey(first_frame).shape[1])
     travel = body.turn_for(wide / 6.0)
@@ -152,14 +152,14 @@ async def turn_all_the_way_round(
         # whole sweep of the room shows nothing named, there is nothing here
         # to measure by.
         for _ in range(int(most_turns)):
-            await _played(world, Chunk((Slot(moved=(travel, 0)),), slot_s))
+            await move_view(travel)
             turned_through += travel
-            _frame, layout = look_settled(world)
+            _frame, layout = settle_view()
             landmark = _a_landmark(layout)
             if landmark:
                 break
         if not landmark:
-            await _the_view_back_where_it_was(world, turned_through, slot_s=slot_s)
+            await _the_view_back_where_it_was(move_view, settle_view, turned_through)
             logger.info(
                 "the view's width was not measured: nothing named came into view all the way round"
             )
@@ -170,9 +170,9 @@ async def turn_all_the_way_round(
     crossings: list[float] = []
     for turn in range(1, int(most_turns) + 1):
         before, _ = world.look()
-        await _played(world, Chunk((Slot(moved=(travel, 0)),), slot_s))
+        await move_view(travel)
         turned_through += travel
-        after, layout = look_settled(world)
+        after, layout = settle_view()
         across, _down, _grew, _sure = how_it_moved(grey(before), grey(after))
         slid += abs(across)
         here = _named_on_screen(layout).get(landmark)
@@ -188,7 +188,7 @@ async def turn_all_the_way_round(
             if len(crossings) >= 2:
                 break
         was = (slid, here)
-    await _the_view_back_where_it_was(world, turned_through, slot_s=slot_s)
+    await _the_view_back_where_it_was(move_view, settle_view, turned_through)
     if len(crossings) < 2:
         logger.info(
             "the view's width was not measured: %s crossed the middle of the view %d time(s) "

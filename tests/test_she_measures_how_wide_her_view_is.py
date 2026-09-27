@@ -34,13 +34,12 @@ def _a_world(seed: int):
 
 
 async def _measured(seed: int):
-    from core.perception.how_wide_the_view_is import turn_all_the_way_round
-    from core.skills.in_a_world_through_a_camera import ACameraWorld, learn_the_body
+    from core.skills.in_a_world_through_a_camera import ACameraWorld, learn_the_body, measure_view
 
     world = _a_world(seed)
     loop = ACameraWorld(look=world.look, play=world.play)
     body = await learn_the_body(loop, keys=("w", "s"), slot_s=0.2, measure_the_view=False)
-    return await turn_all_the_way_round(loop, body, slot_s=0.2)
+    return await measure_view(loop, body, slot_s=0.2)
 
 
 @pytest.mark.parametrize("seed", (0, 1, 2))
@@ -64,17 +63,25 @@ def test_degrees_and_pixels_convert_both_ways() -> None:
     assert wide.degrees_for(across) == pytest.approx(wide.degrees_across, rel=1e-6)
 
 
+def test_body_learning_wires_the_view_measurement() -> None:
+    from core.skills.in_a_world_through_a_camera import ACameraWorld, learn_the_body
+
+    world = _a_world(0)
+    loop = ACameraWorld(look=world.look, play=world.play)
+    body = asyncio.run(learn_the_body(loop, keys=("w", "s"), slot_s=0.2))
+    assert body.view.known
+
+
 def test_a_world_with_nothing_named_reports_nothing() -> None:
     """No landmark, no measurement — and no guess."""
-    from core.perception.how_wide_the_view_is import turn_all_the_way_round
-    from core.skills.in_a_world_through_a_camera import ACameraWorld, learn_the_body
+    from core.skills.in_a_world_through_a_camera import ACameraWorld, learn_the_body, measure_view
 
     async def run():
         world = _a_world(0)
         world.things.clear()
         loop = ACameraWorld(look=world.look, play=world.play)
         body = await learn_the_body(loop, keys=("w", "s"), slot_s=0.2, measure_the_view=False)
-        return await turn_all_the_way_round(loop, body, slot_s=0.2, most_turns=30)
+        return await measure_view(loop, body, slot_s=0.2, most_turns=30)
 
     wide = asyncio.run(run())
     assert not wide.known

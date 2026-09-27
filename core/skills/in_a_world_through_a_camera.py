@@ -184,10 +184,27 @@ async def learn_the_body(
             after, _ = look_settled(world)
             body.watched(key, before, after)
     if measure_the_view:
-        from core.perception.how_wide_the_view_is import turn_all_the_way_round
-
-        body.view = await turn_all_the_way_round(world, body, slot_s=slot_s)
+        body.view = await measure_view(world, body, slot_s=slot_s)
     return body
+
+
+async def measure_view(
+    world: ACameraWorld,
+    body: WhatMyHandsDoToTheView,
+    *,
+    slot_s: float,
+    most_turns: int = 240,
+):
+    """Own the actions used by the perception-only field-of-view measurement."""
+    from core.perception.how_wide_the_view_is import turn_all_the_way_round
+
+    async def move_view(travel: int) -> None:
+        await _played(world, Chunk((Slot(moved=(travel, 0)),), slot_s))
+
+    return await turn_all_the_way_round(
+        world, body, move_view=move_view,
+        settle_view=lambda: look_settled(world), most_turns=most_turns,
+    )
 
 
 async def go_to(
@@ -529,4 +546,3 @@ async def what_is_around(
         turned += 0.5
         frame, layout = look_settled(world)
     return sorted(seen.items(), key=lambda item: item[1])
-
