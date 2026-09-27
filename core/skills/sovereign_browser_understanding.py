@@ -738,7 +738,7 @@ class _UnderstandsThePage:
             # observation is unchanged, so what she sees is this item in its
             # real context — the same URL, the same page text.
             single = {**observation, "elements": list(options)}
-            decision = await self._decide_next_actions(goal, single, history, understanding)
+            decision = await self._decide_next_actions(goal, single, history, understanding, about_her=True)
             if on_progress is not None:
                 # Each question decided is the run moving, however long the
                 # screen as a whole takes.
@@ -805,6 +805,7 @@ class _UnderstandsThePage:
         understanding: Mapping[str, Any] | None = None,
         *,
         said_before: str = "",
+        about_her: bool | None = None,
     ) -> dict[str, Any]:
         """Ask her own reasoning what to do with this page.
 
@@ -823,6 +824,15 @@ class _UnderstandsThePage:
         router = optional_service("llm_router", default=None)
         if router is None:
             return {"error": "llm_router_unavailable"}
+
+        # Whether the page asks about her is a fact about the page, so a caller
+        # that holds one question of it says so. LIVE-rehearsed 27 Sep: one
+        # question's five options, read alone, are not a scale; every item of
+        # the test went to the fast lane, without her record and without the
+        # check that the answer is hers.
+        asks_about_her = (
+            self._asks_about_the_one_answering(observation) if about_her is None else bool(about_her)
+        )
 
         # Her whole mind, not a subset assembled here.
         #
@@ -866,7 +876,7 @@ class _UnderstandsThePage:
             record_degradation("sovereign_browser.self_state", exc, severity="debug")
         # And what she is like, where the page asks it: what her own record of
         # choices says, not what a language model believes an AI is like.
-        if self._asks_about_the_one_answering(observation):
+        if asks_about_her:
             try:
                 from core.agency.what_she_is_like import what_she_is_like_line
 
@@ -894,7 +904,7 @@ class _UnderstandsThePage:
         # What she told them before she began, so that at the end she can hold
         # the outcome against it. Never beside a question about her: an answer
         # given with her own forecast in view is an answer bent toward it.
-        said = "" if self._asks_about_the_one_answering(observation) else " ".join(str(said_before or "").split())
+        said = "" if asks_about_her else " ".join(str(said_before or "").split())
         prompt = (
             f"GOAL: {goal}\n\n"
             + (f"WHAT YOU TOLD THEM BEFORE YOU BEGAN: {said}\n\n" if said else "")
@@ -961,7 +971,7 @@ class _UnderstandsThePage:
                 #
                 # Everything else — the Next button, a cookie banner, a login
                 # form — is mechanics, and stays fast.
-                if self._asks_about_the_one_answering(observation):
+                if asks_about_her:
                     # Asked of her own model, and taken only from it. A
                     # stand-in lane answering "you regularly make new friends"
                     # would be a different mind's answer submitted as hers.

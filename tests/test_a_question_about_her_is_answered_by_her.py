@@ -104,3 +104,36 @@ def test_what_she_makes_of_a_page_is_held_to_its_shape(monkeypatch):
     assert asked and asked[0].get("schema") is SovereignBrowserSkill._UNDERSTANDING_SCHEMA
     assert asked[0].get("output_shape") == "json_object"
     assert made.get("here") == "a test"
+
+
+def test_each_question_of_a_scale_is_asked_of_her_with_her_record(monkeypatch):
+    """Rehearsed 27 Sep: one question's options, read alone, are not a scale,
+    so every item of a test went to the fast lane without her record."""
+    asked: list[tuple[str, dict]] = []
+
+    class Router:
+        async def think(self, prompt, **kwargs):
+            asked.append((prompt, kwargs))
+            return attributed_text(DECISION, {"endpoint": "Cortex"})
+
+        async def generate(self, prompt, **kwargs):
+            asked.append((prompt, {**kwargs, "fast_lane": True}))
+            return DECISION
+
+    monkeypatch.setattr(understanding, "optional_service", lambda name, default=None: Router())
+    monkeypatch.setattr(
+        "core.agency.what_she_is_like.what_she_is_like_line",
+        lambda: "[Measured about what you are like, from your own record of choices: MARK]",
+    )
+    skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+
+    async def mind():
+        return "her mind"
+
+    skill._assembled_mind = mind
+    asyncio.run(skill._answer_each_question("take the test", A_SCALE, [], None))
+    assert len(asked) == 2, "one decision per question"
+    for prompt, kwargs in asked:
+        assert not kwargs.get("fast_lane"), "a question about her is not mechanics"
+        assert kwargs.get("prefer_tier") == "primary"
+        assert "from your own record of choices: MARK" in prompt
