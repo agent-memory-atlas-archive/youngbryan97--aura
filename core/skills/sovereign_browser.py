@@ -182,7 +182,11 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
             browser_type=browser_type,
             principal="sovereign_browser",
         )
-        ready = await asyncio.wait_for(browser.ensure_ready(), timeout=30.0)
+        started = time.monotonic()
+        ready = await asyncio.wait_for(browser.ensure_ready(), timeout=browser.startup_bound_s())
+        took = time.monotonic() - started
+        if took > browser.LAUNCH_TIMEOUT_S:
+            logger.info("🌐 The browser took %.1fs to start.", took)
         if not ready:
             status = browser.get_status()
             raise RuntimeError(

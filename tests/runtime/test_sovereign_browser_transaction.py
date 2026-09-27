@@ -41,8 +41,13 @@ async def test_browser_startup_failure_is_not_treated_as_ready(
         def __init__(self, **kwargs: Any) -> None:
             self.kwargs = kwargs
 
+        LAUNCH_TIMEOUT_S = 30.0
+
         async def ensure_ready(self) -> bool:
             return False
+
+        def startup_bound_s(self) -> float:
+            return self.LAUNCH_TIMEOUT_S
 
         def get_status(self) -> dict[str, Any]:
             return {"startup_error": "browser binary unavailable"}

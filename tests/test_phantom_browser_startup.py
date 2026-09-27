@@ -147,6 +147,7 @@ async def test_browser_uses_installed_chrome_when_playwright_cache_is_stale(
         {
             "headless": True,
             "args": ["--disable-blink-features=AutomationControlled"],
+            "timeout": PhantomBrowser.LAUNCH_TIMEOUT_S * 1000.0,
             "executable_path": str(system_chrome),
         }
     ]

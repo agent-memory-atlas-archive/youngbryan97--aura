@@ -261,6 +261,27 @@ class PhantomBrowser(_ActsOnThePage):
             return self.is_active
 
 
+    #: Playwright's own bound on one launch attempt (its default), stated
+    #: here so whatever waits on a start can be sized from it.
+    LAUNCH_TIMEOUT_S = 30.0
+
+    def startup_bound_s(self) -> float:
+        """The longest a start can take with every inner bound honoured.
+
+        The driver comes up, then each engine and each executable is tried in
+        turn, every attempt under `LAUNCH_TIMEOUT_S`. A wait shorter than
+        that sum cuts the start off before the attempts' own limits can.
+        LIVE 27 Sep, on a host in Low Power Mode: a flat 30-second wait on the
+        whole start ended a pursuit sized in hours before its first page, with
+        not one launch attempt reported.
+        """
+        engines = 1 if str(self.browser_type or "") == "chromium" else 2
+        try:
+            executables = max(1, len(self._chromium_launch_candidates()))
+        except (OSError, RuntimeError, AttributeError, TypeError, ValueError):
+            executables = 1
+        return self.LAUNCH_TIMEOUT_S * (1 + engines + executables)
+
     #: Below this the host cannot afford a browser's several hundred MB and
     #: handful of processes. Deliberately generous — refusing a user-visible
     #: browse is a real cost, so this protects the machine from a launch that
@@ -414,13 +435,17 @@ class PhantomBrowser(_ActsOnThePage):
                 self._last_launch_attempts.append(bt)
                 try:
                     if bt == "firefox":
-                        self.browser = await self.playwright.firefox.launch(headless=not self.visible)
+                        self.browser = await self.playwright.firefox.launch(
+                            headless=not self.visible, timeout=self.LAUNCH_TIMEOUT_S * 1000.0
+                        )
                         self._launched_executable = str(
                             getattr(self.playwright.firefox, "executable_path", "")
                             or "playwright_firefox"
                         )
                     elif bt == "webkit":
-                        self.browser = await self.playwright.webkit.launch(headless=not self.visible)
+                        self.browser = await self.playwright.webkit.launch(
+                            headless=not self.visible, timeout=self.LAUNCH_TIMEOUT_S * 1000.0
+                        )
                         self._launched_executable = str(
                             getattr(self.playwright.webkit, "executable_path", "")
                             or "playwright_webkit"
@@ -584,6 +609,7 @@ class PhantomBrowser(_ActsOnThePage):
             kwargs: dict[str, Any] = {
                 "headless": not self.visible,
                 "args": ["--disable-blink-features=AutomationControlled"],
+                "timeout": self.LAUNCH_TIMEOUT_S * 1000.0,
             }
             if executable:
                 kwargs["executable_path"] = executable
