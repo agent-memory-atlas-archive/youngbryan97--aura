@@ -345,3 +345,94 @@ def test_an_outcome_does_not_teach_her_conscience(tmp_path):
     assert after["truth"] == pytest.approx(before["truth"])
     assert after["care"] == pytest.approx(before["care"])
     assert after["novelty"] < before["novelty"]
+
+
+
+def test_what_she_holds_more_is_what_she_takes(tmp_path):
+    """Truth, held at 0.94, over play, held at 0.50, when each option serves only one."""
+    engine = SubjectiveChoiceEngine(state_path=tmp_path / "choice.json", mirror_identity=False)
+    receipt = engine.choose(
+        [
+            ChoiceOption(id="play", label="play a game", features={"play": 1.0}),
+            ChoiceOption(id="truth", label="check the source", features={"truth": 1.0}),
+        ],
+        context="test",
+    )
+    assert receipt.chosen_id == "truth"
+    assert receipt.preference_scores["truth"] > receipt.preference_scores["play"]
+
+
+def test_serving_one_more_value_never_lowers_what_an_option_is_worth(tmp_path):
+    engine = SubjectiveChoiceEngine(state_path=tmp_path / "choice.json", mirror_identity=False)
+    truth = engine.score_features({"truth": 1.0})
+    truth_and_a_little_play = engine.score_features({"truth": 1.0, "play": 0.2})
+    play = engine.score_features({"play": 1.0})
+    assert truth_and_a_little_play >= truth > play
+    assert engine.score_features({"truth": 0.5}) < truth
+
+
+def _lived_record(engine):
+    """Truth and care taken over play every time; connection offered against a strong drive and passed over."""
+    for _ in range(20):
+        engine.choose(
+            [
+                ChoiceOption(id="truth", label="check it", features={"truth": 1.0}),
+                ChoiceOption(id="play", label="play", features={"play": 1.0}),
+            ],
+            context="test",
+        )
+        engine.choose(
+            [
+                ChoiceOption(id="care", label="help", features={"care": 1.0}),
+                ChoiceOption(id="play", label="play", features={"play": 1.0}),
+            ],
+            context="test",
+        )
+        engine.choose(
+            [
+                ChoiceOption(id="connection", label="call them", drive_score=0.0, features={"connection": 1.0}),
+                ChoiceOption(id="task", label="finish the task", drive_score=1.0, features={"challenge": 1.0}),
+            ],
+            context="test",
+        )
+
+
+def test_a_value_she_holds_and_does_not_live_presses_on_her_choices(tmp_path):
+    engine = SubjectiveChoiceEngine(state_path=tmp_path / "choice.json", mirror_identity=False)
+    _lived_record(engine)
+    shortfall = engine._held_and_not_lived()
+    assert shortfall.get("connection", 0.0) > 0.0
+    assert "truth" not in shortfall and "care" not in shortfall
+
+
+def test_the_pressure_lands_only_on_a_choice_she_is_making(tmp_path):
+    engine = SubjectiveChoiceEngine(state_path=tmp_path / "choice.json", mirror_identity=False)
+    _lived_record(engine)
+    options = [
+        ChoiceOption(id="connection", label="call them", drive_score=0.5, features={"connection": 1.0}),
+        ChoiceOption(id="other", label="something else", drive_score=0.5, features={"novelty": 1.0}),
+    ]
+    living = engine.choose(options, context="test")
+    probe = engine.choose(options, context="test", record=False)
+    assert living.final_scores["connection"] > probe.final_scores["connection"]
+    assert living.final_scores["other"] == pytest.approx(probe.final_scores["other"])
+
+
+def test_nothing_presses_before_there_is_a_record(tmp_path):
+    engine = SubjectiveChoiceEngine(state_path=tmp_path / "choice.json", mirror_identity=False)
+    assert engine._held_and_not_lived() == {}
+
+
+def test_an_answer_to_a_question_set_to_measure_her_is_not_a_choice_she_lived(tmp_path):
+    from core.agency.what_she_is_like import portrait_of
+
+    engine = SubjectiveChoiceEngine(state_path=tmp_path / "choice.json", mirror_identity=False)
+    options = [
+        ChoiceOption(id="truth", label="check it", features={"truth": 1.0}),
+        ChoiceOption(id="play", label="play", features={"play": 1.0}),
+    ]
+    engine.choose(options, context="tournament", influenced=False)
+    engine.choose(options, context="life")
+    receipts = engine.history()
+    assert [one.lived for one in receipts] == [False, True]
+    assert portrait_of(engine.preferences(), [one.to_dict() for one in receipts]).choices == 1

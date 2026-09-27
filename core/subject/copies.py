@@ -61,6 +61,7 @@ def _furniture_types() -> tuple[type, ...]:
     import multiprocessing.queues
     import multiprocessing.sharedctypes
     import multiprocessing.synchronize
+    import queue as _queue_module
     import socket as _socket_module
     import sqlite3
     import threading as _threading
@@ -107,6 +108,13 @@ def _furniture_types() -> tuple[type, ...]:
         asyncio.Lock,
         asyncio.Condition,
         asyncio.Queue,
+        # And the threads' own queue. Its lock and conditions were furniture
+        # and its counts were not, so a restore rewound `unfinished_tasks`
+        # under a consumer that had already taken an item: the state
+        # registry's dispatcher died of "task_done() called too many times"
+        # on the seed-7 run of 26 September.
+        _queue_module.Queue,
+        _queue_module.SimpleQueue,
         asyncio.AbstractEventLoop,
         Executor,
         Future,

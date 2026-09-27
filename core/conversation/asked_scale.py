@@ -32,6 +32,7 @@ def asked_scale(prompt: Any) -> tuple[float, float] | None:
         ends = [value for value in found.groups() if value is not None]
         try:
             low, high = sorted(float(value.replace("−", "-")) for value in ends[:2])
+        # not a failure: ends that are not numbers do not make a scale.
         except ValueError:
             return None
         return (low, high) if low < high else None

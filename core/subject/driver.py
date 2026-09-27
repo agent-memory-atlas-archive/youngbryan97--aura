@@ -1207,6 +1207,12 @@ class SubjectRuntime:
             )
             outcome = expected if ok else f"{expected} — it did not"
             loop.observe(identifier, observation=expected, actual_outcome=outcome)
+            # And close it. Intend, act, observe and revise is the loop, and the
+            # driver stopped after observing: on the seed-7 run at 27dc1dda9
+            # every one of 3,608 intentions was still in progress at the end,
+            # so her open intentions were a pile of everything she had ever
+            # meant to do and none of them had ever finished.
+            loop.revise(identifier, success=ok)
         except Exception as exc:  # noqa: BLE001 - the probe's action still stands
             logger.debug("intention loop unavailable: %s", exc)
 

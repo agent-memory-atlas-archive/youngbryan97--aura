@@ -385,8 +385,8 @@ def answer(question: Mapping[str, Any]) -> dict[str, Any]:
                 made = measure_named(name)
                 if made is not None:
                     promote(made, worth)
-    except ImportError:
-        pass
+    except ImportError as exc:
+        logger.info("the child judges without the measures she invented: %s", exc)
     found = work_out_what_matters(
         knows, world, _from_places(question["start"]), list(question.get("actions") or ()),
         weights=weights or None, toward=str(question.get("toward") or ""),
@@ -483,7 +483,8 @@ async def in_a_process_of_its_own(
             pass
     try:
         return json.loads(said.strip().splitlines()[-1]) if said and said.strip() else None
-    except ValueError:
+    except ValueError as exc:
+        logger.info("no answer from playing this world out: its last line was not a result (%s)", exc)
         return None
 
 
