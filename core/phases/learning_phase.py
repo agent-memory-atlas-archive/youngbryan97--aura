@@ -135,6 +135,12 @@ class LearningPhase(Phase):
                 reading = read_turn(state)
                 direction = broadcast(reading)
                 lessons = await asyncio.to_thread(teach_connections, reading)
+                # And what it leaves her to work on. See core/soma/reserve.py.
+                from core.affect.what_it_was_worth import dose
+                from core.soma.reserve import get_reserve_ledger
+
+                if reading.measured:
+                    get_reserve_ledger().charge(dose(reading))
                 _ensure_response_modifiers(state)["worth"] = {
                     **reading.as_dict(),
                     "sent": direction,
