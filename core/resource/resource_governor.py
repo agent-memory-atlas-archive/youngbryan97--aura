@@ -252,6 +252,9 @@ class ResourceGovernor:
         self._eviction_callback_failures: dict[int, int] = {}
         self._throttle_active: bool = False
         self._consecutive_pressure_samples: int = 0
+        # The tier last reported, so a run of evictions at one tier is reported
+        # once. A sample that finds no pressure clears it.
+        self._tier_reported: EvictionTier | None = None
 
     @property
     def inference(self) -> InferenceSemaphore:
@@ -313,6 +316,8 @@ class ResourceGovernor:
 
         # Compute eviction tier
         snap.eviction_tier = self._compute_eviction_tier(snap)
+        if snap.eviction_tier == EvictionTier.NONE:
+            self._tier_reported = None
 
         # Throttle decision
         snap.throttle_active = self._should_throttle(snap)
@@ -429,10 +434,12 @@ class ResourceGovernor:
             except (ImportError, AttributeError, RuntimeError) as _exc:
                 logger.debug("Suppressed %s in core.resource.resource_governor: %s", type(_exc).__name__, _exc)
 
-        logger.warning(
+        logger.log(
+            logging.WARNING if tier != self._tier_reported else logging.INFO,
             "ResourceGovernor: Eviction tier=%s, callbacks=%d",
             tier.value, invoked,
         )
+        self._tier_reported = tier
 
         # Report to incident manager at aggressive tier
         if tier == EvictionTier.AGGRESSIVE:

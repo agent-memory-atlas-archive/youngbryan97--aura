@@ -427,7 +427,12 @@ def get_memory_pressure_snapshot(
         level=level,
         reason=reason,
         observation_source=provenance.source.value,
-        kernel_pressure_level=kernel_memory_pressure_level(),
+        # The kernel speaks for the machine it runs on. A simulated reading, the
+        # host a measurement run declares, is some other machine, and the
+        # kernel's verdict on this one would relax or tighten its limits.
+        kernel_pressure_level=(
+            kernel_memory_pressure_level() if provenance.host_observed else MEMORY_PRESSURE_UNKNOWN
+        ),
         observation_scenario_id=provenance.scenario_id,
         host_observed=provenance.host_observed,
         qualifies_as_live_pressure=provenance.qualifies_as_live_pressure,

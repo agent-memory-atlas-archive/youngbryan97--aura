@@ -137,6 +137,10 @@ class HomeostaticCoupling:
         self._cpu_stress = 0.0
         self._mem_stress = 0.0
         self._stress_timestamp = 0.0
+        self._thermal_stress = 0
+        # Which strains have been reported, so each is logged as it starts and
+        # ends rather than on every update it lasts through.
+        self._reported_strain: frozenset[str] = frozenset()
         
         # v7.2: Liquid Substrate link, resolved on first use rather than here.
         # Fetching it in the constructor made the link depend on boot order:
@@ -302,11 +306,17 @@ class HomeostaticCoupling:
             self._cpu_stress = 0.0
             self._mem_stress = 0.0
             self._thermal_stress = 0
+            self._report_strain(frozenset())
             return
 
+        overheated = self._thermal_stress >= 2
+        loaded = self._cpu_stress > 85.0 or self._mem_stress > 3500
+        self._report_strain(
+            frozenset(name for name, on in (("thermal", overheated), ("load", loaded)) if on)
+        )
+
         # 1. Thermal Throttling (Phase 7: Priority 1)
-        if self._thermal_stress >= 2: # Serious or Critical
-            logger.warning("🔥 THERMAL RESONANCE: Hardware is overheating. Emergency throttling.")
+        if overheated: # Serious or Critical
             mods.depth_mod *= 0.4
             mods.creativity_mod *= 0.5
             mods.temperature_mod *= 0.7 
@@ -316,12 +326,30 @@ class HomeostaticCoupling:
             mods.mood_prefix += " (Feeling a bit warm)"
 
         # 2. Resource Throttling (Phase 5)
-        if self._cpu_stress > 85.0 or self._mem_stress > 3500: # Over 85% CPU or 3.5GB RAM
-            logger.warning("📉 HARDWARE RESONANCE: High host load. Throttling cognitive depth.")
+        if loaded: # Over 85% CPU or 3.5GB RAM
             mods.depth_mod *= 0.6  # Shorter responses
             mods.creativity_mod *= 0.8 # More deterministic to save tokens/compute
             if "hardware load" not in mods.mood_prefix:
                 mods.mood_prefix += " (Feeling cognitively constrained by hardware load)"
+
+    #: What each strain is called when it starts.
+    _STRAIN_STARTS = {
+        "thermal": "🔥 THERMAL RESONANCE: Hardware is overheating. Emergency throttling.",
+        "load": "📉 HARDWARE RESONANCE: High host load. Throttling cognitive depth.",
+    }
+
+    def _report_strain(self, strain: frozenset[str]) -> None:
+        """Log a strain as it starts and as it ends, not on every update it lasts through.
+
+        A strain lasts as long as the body reports it. On the seed-7 runs of 26
+        September the declared host was hot through every strain condition, and
+        the same two warnings came 648 times a run.
+        """
+        for name in sorted(strain - self._reported_strain):
+            logger.warning(self._STRAIN_STARTS[name])
+        for name in sorted(self._reported_strain - strain):
+            logger.info("Homeostasis: %s strain is over; cognitive depth is no longer throttled for it.", name)
+        self._reported_strain = strain
 
     def process_resource_stress(self, cpu_load: float, mem_mb: float, thermal_level: int = 0):
         """Called by IntegrityMonitor when hardware limits are approached."""

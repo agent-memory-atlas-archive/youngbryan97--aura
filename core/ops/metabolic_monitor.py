@@ -106,6 +106,9 @@ class MetabolicMonitor:
         self._last_error_at = 0.0
         self._consecutive_failures = 0
         self._last_pressure_action_at = 0.0
+        # Whether the monitor is shedding load, so a pressure episode is
+        # reported as it starts and ends rather than at every action in it.
+        self._mitigating = False
         self._pressure_action_cooldown_s = 30.0
         self._pressure_actions_total = 0
 
@@ -410,6 +413,9 @@ class MetabolicMonitor:
 
     def _apply_pressure_controls(self, snapshot: MetabolismSnapshot) -> None:
         if snapshot.pressure_state == "nominal":
+            if self._mitigating:
+                logger.info("Metabolic pressure is over after %d mitigations.", self._pressure_actions_total)
+            self._mitigating = False
             return
         if not self._eviction_pressure_present(snapshot):
             logger.debug(
@@ -421,7 +427,10 @@ class MetabolicMonitor:
                 snapshot.disk_usage_percent,
             )
             return
-        now = time.monotonic()
+        # On her clock, which in a measurement run is the run's own and is
+        # rewound with everything else, so how many times she sheds load in a
+        # strain condition does not depend on how fast the machine ran.
+        now = time.time()
         if now - self._last_pressure_action_at < self._pressure_action_cooldown_s:
             return
         try:
@@ -431,12 +440,14 @@ class MetabolicMonitor:
             invoked = get_resource_governor().execute_eviction(tier)
             self._last_pressure_action_at = now
             self._pressure_actions_total += 1
-            logger.warning(
+            logger.log(
+                logging.INFO if self._mitigating else logging.WARNING,
                 "Metabolic pressure mitigation executed: state=%s tier=%s callbacks=%d",
                 snapshot.pressure_state,
                 tier.value,
                 invoked,
             )
+            self._mitigating = True
         except _METABOLIC_ERRORS as exc:
             _record_metabolic_degradation(
                 exc,

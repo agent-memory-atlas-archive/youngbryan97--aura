@@ -132,8 +132,14 @@ class MemoryConsolidationPhase(BasePhase):
     async def _execute_conversational_loop_detection(new_state):
         # 1.1 Conversational Loop Detection (v46)
         # If the latest assistant message repeats a previous one, degrade stability to force shift.
-        assistant_msgs = [m for m in new_state.cognition.working_memory if isinstance(m, dict) and m.get("role") == "assistant"]
-        if len(assistant_msgs) >= 2:
+        #
+        # Only her own replies count. A reply built from a template is marked
+        # `fixed` when it is committed; the same prompt gives the same template
+        # back, which says nothing about whether she is stuck, and a turn she
+        # answered from one says nothing either way.
+        replies = [m for m in new_state.cognition.working_memory if isinstance(m, dict) and m.get("role") == "assistant"]
+        assistant_msgs = [m for m in replies if not m.get("fixed")]
+        if len(assistant_msgs) >= 2 and not replies[-1].get("fixed"):
             latest = str(assistant_msgs[-1].get("content", "")).strip()
             if assistant_msgs[-1].get("ephemeral"):
                 latest = ""
