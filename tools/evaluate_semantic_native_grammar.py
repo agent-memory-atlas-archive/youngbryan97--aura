@@ -15,6 +15,12 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+INTERVENTION_DATASETS = frozenset({
+    "operation_intervention", "definition_intervention", "equation_intervention",
+    "role_intervention", "dependency_intervention",
+})
+RETAINED_DATASETS = frozenset({"retained_validation", "retained_test"})
+
 
 def select_search_proposal(search, scorer):
     """Rank every admitted graph without receiving its target or correctness."""
@@ -36,10 +42,20 @@ def grammar_examples(*, dataset, seed, count):
         )
         ordered = tuple(examples[index] for sample in range(24) for index in
                         (sample, sample + 24, sample + 48))
-    elif dataset == "operation_intervention":
-        from tools.semantic_native_operation_interventions import build_native_operation_interventions
+    elif dataset in INTERVENTION_DATASETS:
+        if dataset == "operation_intervention":
+            from tools.semantic_native_operation_interventions import build_native_operation_interventions
 
-        pairs = build_native_operation_interventions(seed=seed)
+            pairs = build_native_operation_interventions(seed=seed)
+        elif dataset in {"role_intervention", "dependency_intervention"}:
+            from tools.semantic_native_graph_interventions import build_native_graph_interventions
+
+            pairs = build_native_graph_interventions(seed=seed, kind=dataset.removesuffix("_intervention"))
+        else:
+            from tools.semantic_native_paraphrase_interventions import build_native_paraphrase_interventions
+
+            pairs = build_native_paraphrase_interventions(
+                seed=seed, style=dataset.removesuffix("_intervention"))
         groups = {}
         for pair in pairs:
             groups.setdefault(pair.original.topology_id, []).append(pair)
@@ -66,7 +82,7 @@ def source_input_types(source_text):
 
 
 def grammar_pair_totals(rows, *, dataset):
-    if dataset != "operation_intervention":
+    if dataset not in INTERVENTION_DATASETS:
         return {"pair_count": 0, "pair_exact": 0, "source_responsive": 0}
     if len(rows) % 2:
         raise ValueError("operation intervention outcomes split a source pair")
@@ -77,8 +93,21 @@ def grammar_pair_totals(rows, *, dataset):
         if original["decode_status"] != "completed" or changed["decode_status"] != "completed":
             continue
         left, right = original["program"]["instructions"], changed["program"]["instructions"]
-        source_responsive += (left[:-1] == right[:-1] and left[-1][1] == right[-1][1]
-                              and left[-1][0] != right[-1][0])
+        if dataset in {"role_intervention", "dependency_intervention"}:
+            if len(left) != len(right) or any(a[0] != b[0] for a, b in zip(left, right, strict=True)):
+                continue
+            differences = [(a[1], b[1]) for a, b in zip(left, right, strict=True) if a[1] != b[1]]
+            if len(differences) != 1:
+                continue
+            before, after = differences[0]
+            if dataset == "role_intervention":
+                source_responsive += len(before) == 2 and before == after[::-1]
+            else:
+                source_responsive += (len(before) == len(after)
+                    and sum(a != b for a, b in zip(before, after, strict=True)) == 1)
+        else:
+            source_responsive += (left[:-1] == right[:-1] and left[-1][1] == right[-1][1]
+                                  and left[-1][0] != right[-1][0])
     return {"pair_count": len(rows) // 2, "pair_exact": pair_exact,
             "source_responsive": source_responsive}
 
@@ -95,18 +124,26 @@ def main():
     parser.add_argument("--search-score-mode", choices=("normalized_choices", "native_nonpositive"),
                         default="native_nonpositive")
     parser.add_argument("--weight-mode", choices=("fitted", "base"), default="fitted")
-    parser.add_argument("--dataset", choices=("natural_request", "operation_intervention"),
+    parser.add_argument("--dataset", choices=("natural_request", *sorted(INTERVENTION_DATASETS | RETAINED_DATASETS)),
                         default="natural_request")
+    parser.add_argument("--source-report", type=Path)
+    parser.add_argument("--bundle", action="append")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args()
-    if not 1 <= args.max_steps <= 128 or not 1 <= args.canary <= 72 or not 0 < args.max_seconds <= 14400:
+    population_bound = 500 if args.dataset in RETAINED_DATASETS else 72
+    if not 1 <= args.max_steps <= 128 or not 1 <= args.canary <= population_bound or not 0 < args.max_seconds <= 14400:
         parser.error("finite depth, population, and runtime bounds required")
     if not 0 <= args.search_completions <= 128 or not 1 <= args.search_nodes <= 100000:
         parser.error("finite search node and completion bounds required")
-    if args.dataset == "operation_intervention" and args.seed is None:
+    if args.dataset in INTERVENTION_DATASETS and args.seed is None:
         parser.error("operation interventions require an explicit frozen seed")
-    seed = 3141592 if args.seed is None else args.seed
+    if args.dataset in RETAINED_DATASETS:
+        if args.source_report is None or not args.bundle or args.seed is not None:
+            parser.error("retained development sources need their report and bundles, without a new seed")
+    elif args.source_report is not None or args.bundle is not None:
+        parser.error("source report and bundles belong to retained development evaluation")
+    seed = 0 if args.dataset in RETAINED_DATASETS else (3141592 if args.seed is None else args.seed)
     if seed < 0:
         parser.error("native grammar seed must be nonnegative")
     from tools.evaluate_semantic_native_checkpoint import digest, selected_checkpoint
@@ -123,7 +160,16 @@ def main():
             or spec.pointer_sha256 != training["pointer_sha256"]
             or spec.model_path.resolve() != Path(training["model_path"]).resolve()):
         raise ValueError("native grammar model identity differs from training")
-    examples = grammar_examples(dataset=args.dataset, seed=seed, count=args.canary)
+    source_basis = None
+    if args.dataset in RETAINED_DATASETS:
+        from tools.semantic_native_retained_sources import load_retained_native_sources
+
+        examples, source_basis = load_retained_native_sources(args.source_report, args.bundle,
+            split=args.dataset.removeprefix("retained_"), count=args.canary)
+        if source_basis["source_report_sha256"] != training["source_report_sha256"]:
+            raise ValueError("retained native evaluation differs from the trained source basis")
+    else:
+        examples = grammar_examples(dataset=args.dataset, seed=seed, count=args.canary)
     sources = [hashlib.sha256(example.source_text.encode()).hexdigest() for example in examples]
     forbidden = set(training["fit_ids"]) | set(training["calibration_ids"]) | set(training["held_ids"])
     if forbidden & set(sources) or len(set(sources)) != len(sources):
@@ -140,10 +186,23 @@ def main():
              "core/learning/semantic_program_corpus_natural.py",
              "core/learning/semantic_public_inputs.py",
              "tools/train_semantic_native_program.py")
-    if args.dataset == "operation_intervention":
+    if args.dataset in INTERVENTION_DATASETS:
         paths += ("tools/semantic_native_operation_interventions.py",)
+    if args.dataset in {"definition_intervention", "equation_intervention"}:
+        paths += ("tools/semantic_native_paraphrase_interventions.py",)
+    if args.dataset in {"role_intervention", "dependency_intervention"}:
+        paths += ("tools/semantic_native_graph_interventions.py",
+                  "tools/semantic_native_paraphrase_interventions.py")
+    if args.dataset in RETAINED_DATASETS:
+        paths += ("tools/semantic_native_retained_sources.py",
+                  "core/learning/semantic_program_feature_materialization.py")
     implementation = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in paths}
-    body = {"schema": "aura.semantic_native_grammar_plan.v3",
+    schema_version = "v4" if args.dataset in {"definition_intervention", "equation_intervention"} else "v3"
+    if args.dataset in {"role_intervention", "dependency_intervention"}:
+        schema_version = "v5"
+    if args.dataset in RETAINED_DATASETS:
+        schema_version = "v6"
+    body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
             "weight_mode": args.weight_mode,
@@ -158,6 +217,8 @@ def main():
             "candidate_inventory": "none", "input_grounding": "semantic_public_character_inputs.v1",
             "target_available_to_scorer": False, "held_labels_used_for_fit_or_selection": False,
             "serving_authority": False, "qualification_evidence": False}
+    if source_basis is not None:
+        body["source_cohort_basis"] = source_basis
     plan = {**body, "plan_sha256": digest(body)}
     _save_if_absent(args.directory / "plan.json", plan)
     if args.plan_only:
@@ -296,7 +357,8 @@ def main():
                 or selected_checkpoint(args.training_directory) != (training, selected)):
             raise ValueError("native grammar implementation, model, or checkpoint drifted")
         pair_totals = grammar_pair_totals(rows, dataset=args.dataset)
-        result = {"schema": "aura.semantic_native_grammar.v3", "plan_sha256": plan["plan_sha256"],
+        result = {"schema": f"aura.semantic_native_grammar.{schema_version}",
+                  "plan_sha256": plan["plan_sha256"],
                   "weight_mode": args.weight_mode, "dataset": args.dataset, "seed": seed,
                   "population": len(rows), "program_equivalent": sum(row["program_equivalent"] for row in rows),
                   "answer_correct": sum(row["answer_correct"] for row in rows),
@@ -307,6 +369,8 @@ def main():
                   "candidate_inventory": "none", "input_grounding": "semantic_public_character_inputs.v1",
                   "target_available_to_scorer": False, "serving_authority": False,
                   "qualification_evidence": False, "elapsed_seconds": time.monotonic() - started}
+        if source_basis is not None:
+            result["source_cohort_basis"] = source_basis
         _save_if_absent(args.directory / "report.json", {**result, "receipt_sha256": digest(result)})
         print(json.dumps({key: value for key, value in result.items() if key != "row_receipts"}), flush=True)
 

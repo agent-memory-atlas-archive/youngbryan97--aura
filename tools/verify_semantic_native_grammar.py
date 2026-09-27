@@ -14,6 +14,11 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+_INTERVENTION_DATASETS = frozenset({
+    "operation_intervention", "definition_intervention", "equation_intervention",
+    "role_intervention", "dependency_intervention",
+})
+
 
 def verify_grammar_row(row, *, example, identity, plan_sha256):
     from core.learning.procedure_induction import Instruction, Program
@@ -152,7 +157,7 @@ def verify_source_separation(training, source_report_path, bundles, target_examp
 
 def verified_weight_mode(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    if (version not in {"v1", "v2", "v3"}
+    if (version not in {"v1", "v2", "v3", "v4", "v5", "v6"}
             or plan["schema"] != f"aura.semantic_native_grammar_plan.{version}"
             or report.get("schema") != f"aura.semantic_native_grammar.{version}"):
         raise ValueError("native grammar schema versions differ")
@@ -168,7 +173,7 @@ def verified_weight_mode(plan, report):
 
 def verified_input_grounding(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    expected = ("semantic_public_character_inputs.v1" if version == "v3"
+    expected = ("semantic_public_character_inputs.v1" if version in {"v3", "v4", "v5", "v6"}
                 else "declared_public_inputs")
     if (plan.get("input_grounding") != expected
             or report.get("input_grounding") != plan["input_grounding"]):
@@ -184,7 +189,18 @@ def verified_dataset(plan, report):
             raise ValueError("historical native grammar dataset differed")
         return "natural_request", 3141592
     dataset, seed = plan.get("dataset"), plan.get("seed")
-    if (dataset not in {"natural_request", "operation_intervention"}
+    allowed = ({"definition_intervention", "equation_intervention"} if version == "v4"
+               else {"natural_request", "operation_intervention"})
+    if version == "v5":
+        allowed = {"role_intervention", "dependency_intervention"}
+    if version == "v6":
+        allowed = {"retained_validation", "retained_test"}
+        if (seed != 0 or not isinstance(plan.get("source_cohort_basis"), dict)
+                or plan["source_cohort_basis"] != report.get("source_cohort_basis")):
+            raise ValueError("retained native development source basis differs")
+    elif "source_cohort_basis" in plan or "source_cohort_basis" in report:
+        raise ValueError("historical native grammar cannot acquire a retained source basis")
+    if (dataset not in allowed
             or type(seed) is not int or seed < 0
             or report.get("dataset") != dataset or report.get("seed") != seed):
         raise ValueError("native grammar dataset or seed differs")
@@ -197,6 +213,18 @@ def verified_examples(plan, *, dataset, seed):
     )
 
     count = len(plan["sources"])
+    if dataset in {"retained_validation", "retained_test"}:
+        from tools.semantic_native_retained_sources import load_retained_native_sources
+
+        basis = plan["source_cohort_basis"]
+        if basis["split"] != dataset.removeprefix("retained_"):
+            raise ValueError("retained native development split differs")
+        examples, rebuilt = load_retained_native_sources(basis["source_report_path"],
+            [f"{name}={path}" for name, path in sorted(basis["source_manifest_paths"].items())],
+            split=basis["split"], count=count)
+        if rebuilt != basis:
+            raise ValueError("retained native development source reconstruction differs")
+        return examples
     if dataset == "natural_request":
         corpus = build_semantic_program_natural_request_corpus(
             seed=seed, examples_per_schema_domain=3,
@@ -205,8 +233,17 @@ def verified_examples(plan, *, dataset, seed):
                         for index in (sample, sample + 24, sample + 48))
     else:
         from tools.semantic_native_operation_interventions import build_native_operation_interventions
+        if dataset == "operation_intervention":
+            pairs = build_native_operation_interventions(seed=seed)
+        elif dataset in {"role_intervention", "dependency_intervention"}:
+            from tools.semantic_native_graph_interventions import build_native_graph_interventions
 
-        pairs = build_native_operation_interventions(seed=seed)
+            pairs = build_native_graph_interventions(seed=seed, kind=dataset.removesuffix("_intervention"))
+        else:
+            from tools.semantic_native_paraphrase_interventions import build_native_paraphrase_interventions
+
+            pairs = build_native_paraphrase_interventions(
+                seed=seed, style=dataset.removesuffix("_intervention"))
         groups = {}
         for pair in pairs:
             groups.setdefault(pair.original.topology_id, []).append(pair)
@@ -220,7 +257,7 @@ def verified_examples(plan, *, dataset, seed):
 
 
 def verified_pair_totals(rows, *, dataset):
-    if dataset != "operation_intervention":
+    if dataset not in _INTERVENTION_DATASETS:
         return {"pair_count": 0, "pair_exact": 0, "source_responsive": 0}
     if len(rows) % 2:
         raise ValueError("native grammar intervention rows split a source pair")
@@ -232,9 +269,24 @@ def verified_pair_totals(rows, *, dataset):
         if left["decode_status"] == right["decode_status"] == "completed":
             left_steps = left["program"]["instructions"]
             right_steps = right["program"]["instructions"]
-            responsive += (left_steps[:-1] == right_steps[:-1]
-                           and left_steps[-1][1] == right_steps[-1][1]
-                           and left_steps[-1][0] != right_steps[-1][0])
+            if dataset in {"role_intervention", "dependency_intervention"}:
+                if (len(left_steps) != len(right_steps)
+                        or [step[0] for step in left_steps] != [step[0] for step in right_steps]):
+                    continue
+                changed_indices = [i for i in range(len(left_steps))
+                                   if left_steps[i][1] != right_steps[i][1]]
+                if len(changed_indices) != 1:
+                    continue
+                before, after = left_steps[changed_indices[0]][1], right_steps[changed_indices[0]][1]
+                if dataset == "role_intervention":
+                    responsive += len(before) == 2 and after == before[::-1]
+                else:
+                    responsive += (len(before) == len(after)
+                                   and sum(before[i] != after[i] for i in range(len(before))) == 1)
+            else:
+                responsive += (left_steps[:-1] == right_steps[:-1]
+                               and left_steps[-1][1] == right_steps[-1][1]
+                               and left_steps[-1][0] != right_steps[-1][0])
     return {"pair_count": len(rows) // 2, "pair_exact": exact,
             "source_responsive": responsive}
 
@@ -248,6 +300,39 @@ def verified_public_inputs(example):
     return recovered.values
 
 
+def audit_grammar_meanings(rows, examples):
+    """Keep procedure fidelity, proven denotation, and sampled agreement distinct."""
+    from core.learning.procedure_induction import Instruction, Program
+    from core.learning.semantic_graph_counterexamples import compare_program_meanings, counterfactual_inputs
+
+    if len(rows) != len(examples) or not rows:
+        raise ValueError("native meaning audit needs complete matched source rows")
+    comparisons = []
+    for row, example in zip(rows, examples, strict=True):
+        identity = hashlib.sha256(example.source_text.encode()).hexdigest()
+        structural, answer = verify_grammar_row(row, example=example, identity=identity,
+            plan_sha256=row["plan_sha256"])
+        if row["decode_status"] != "completed":
+            meaning = {"status": "unavailable", "method": "incomplete_native_graph"}
+        else:
+            program = Program(len(example.inputs), tuple(Instruction(op, tuple(arguments))
+                              for op, arguments in row["program"]["instructions"]))
+            meaning = compare_program_meanings(example.program, program,
+                counterfactual_inputs(example.inputs))
+        comparisons.append({"source_sha256": identity, "procedure_equivalent": structural,
+                            "observed_answer_correct": answer, "meaning": meaning})
+    return {"population": len(rows),
+            "procedure_equivalent": sum(row["procedure_equivalent"] for row in comparisons),
+            "proven_output_and_domain_equivalent": sum(row["meaning"]["status"] == "equivalent"
+                                                       for row in comparisons),
+            "witnessed_different": sum(row["meaning"]["status"] == "different" for row in comparisons),
+            "meaning_unknown": sum(row["meaning"]["status"] == "unknown" for row in comparisons),
+            "meaning_unavailable": sum(row["meaning"]["status"] == "unavailable" for row in comparisons),
+            "comparisons": comparisons,
+            "claim": "grading_only_no_procedure_fidelity_or_source_understanding_waiver",
+            "historical_totals_unchanged": True}
+
+
 def verify_grammar(directory, training_directory):
     from tools.evaluate_semantic_native_checkpoint import selected_checkpoint, verified_document
 
@@ -257,6 +342,9 @@ def verify_grammar(directory, training_directory):
     weight_mode = verified_weight_mode(plan, report)
     input_grounding = verified_input_grounding(plan, report)
     dataset, seed = verified_dataset(plan, report)
+    if (plan["schema"].endswith(".v6")
+            and plan["source_cohort_basis"]["source_report_sha256"] != training["source_report_sha256"]):
+        raise ValueError("retained native source basis differs from the fitted checkpoint")
     if (plan["training_plan_sha256"] != training["plan_sha256"]
             or plan["checkpoint_receipt_sha256"] != selected["receipt_sha256"]
             or plan["model_descriptor_sha256"] != training["model_descriptor_sha256"]
@@ -282,7 +370,7 @@ def verify_grammar(directory, training_directory):
     for example, identity in zip(examples, sources, strict=True):
         verified_public_inputs(example)
         row = verified_document(directory / "rows" / f"{identity}.json")
-        if plan["schema"].endswith(".v3"):
+        if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6")):
             from core.learning.semantic_public_inputs import semantic_public_character_inputs
 
             receipt = semantic_public_character_inputs(example.source_text).receipt()
@@ -301,7 +389,7 @@ def verify_grammar(directory, training_directory):
               "answer_correct": sum(correct for _, correct in outcomes),
               "bound_forced_completion": sum(row["bound_forced_completion"] for row in rows),
               "depth_bound_reached": sum(row["depth_bound_reached"] for row in rows)}
-    if plan["schema"].endswith(".v3"):
+    if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6")):
         totals.update(verified_pair_totals(rows, dataset=dataset))
     if any(report[key] != value for key, value in totals.items()):
         raise ValueError("native grammar reported totals differ from execution")
@@ -327,6 +415,8 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-report", type=Path)
     parser.add_argument("--bundle", action="append")
+    parser.add_argument("--meaning-audit", action="store_true",
+                        help="also prove denotation or witness differences without changing historical scores")
     args = parser.parse_args()
     if (args.source_report is None) != (args.bundle is None):
         parser.error("source report and every source bundle must be supplied together")
@@ -340,9 +430,25 @@ def main():
         training, _ = selected_checkpoint(args.training_directory)
         plan = verified_document(args.directory / "plan.json", "plan_sha256")
         examples = verified_examples(plan, dataset=result["dataset"], seed=result["seed"])
-        result["source_separation"] = verify_source_separation(
-            training, args.source_report, args.bundle, examples)
-    body = {"schema": "aura.semantic_native_grammar_verification.v1", **result}
+        if plan["schema"].endswith(".v6"):
+            from tools.semantic_native_retained_sources import load_retained_native_sources
+
+            _, basis = load_retained_native_sources(args.source_report, args.bundle,
+                split=plan["source_cohort_basis"]["split"], count=len(examples))
+            if basis != plan["source_cohort_basis"]:
+                raise ValueError("retained native verification input basis differs")
+            result["source_cohort_basis"] = basis
+        else:
+            result["source_separation"] = verify_source_separation(
+                training, args.source_report, args.bundle, examples)
+    version = "v1"
+    if args.meaning_audit:
+        plan = verified_document(args.directory / "plan.json", "plan_sha256")
+        examples = verified_examples(plan, dataset=result["dataset"], seed=result["seed"])
+        rows = [verified_document(args.directory / "rows" / f"{identity}.json") for identity in plan["sources"]]
+        result["meaning_audit"] = audit_grammar_meanings(rows, examples)
+        version = "v2"
+    body = {"schema": f"aura.semantic_native_grammar_verification.{version}", **result}
     _save_if_absent(args.output, {**body, "receipt_sha256": digest(body)})
     verified_document(args.output)
     print(json.dumps(result, sort_keys=True))

@@ -168,3 +168,61 @@ def test_the_null_does_not_pass_on_noise(seed: int) -> None:
     behavioural = _from_points(_points(seed + 1))
     result = agreement(internal, behavioural, size=SIZE, draws=199, seed=seed + 2)
     assert not result.holds(bar=0.3), (seed, result)
+
+
+def test_a_displacement_no_bigger_than_a_second_look_measures_nothing() -> None:
+    """If the manifold moved no further than repeating the measurement moves it,
+    there is no movement for the behaviour to follow, whatever the two correlate.
+
+    The seed-7 content run at 4e1923da1 moved the internal geometry by 0.0048
+    against a spread of 0.264; this is the case that has to read as unmeasured
+    rather than as two structures that do not track.
+    """
+    rng = np.random.default_rng(81)
+    before = _points(82)
+    internal_before = _from_points(before)
+    behavioural_before = _from_points(before)
+    # Displaced and sham: the same size of wobble, so nothing was displaced.
+    internal_after = {k: v + rng.normal(scale=0.01) for k, v in internal_before.items()}
+    behavioural_after = {k: v + rng.normal(scale=0.01) for k, v in behavioural_before.items()}
+    sham_internal = {k: v + rng.normal(scale=0.01) for k, v in internal_before.items()}
+    sham_behavioural = {k: v + rng.normal(scale=0.01) for k, v in behavioural_before.items()}
+    result = moves_together(
+        internal_before, internal_after, behavioural_before, behavioural_after,
+        size=SIZE, sham_internal_after=sham_internal,
+        sham_behavioural_after=sham_behavioural, draws=199, seed=83,
+    )
+    assert not result.measured, result
+    assert "no further than repeating the measurement" in result.why
+    assert result.sham_internal_shift > 0.0
+    assert result.moved_p_value >= 0.01
+
+
+def _content_tool():
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parents[1] / "tools" / "run_subject_core_content.py"
+    spec = importlib.util.spec_from_file_location("run_subject_core_content", path)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+@pytest.mark.parametrize(
+    ("agreement_rho", "moves", "verdict"),
+    [
+        (0.5, {"measured": True, "rho": 0.5, "p_value": 0.001, "floor_rho": 0.0}, "ONE_STRUCTURE"),
+        (0.5, {"measured": True, "rho": 0.0, "p_value": 0.5, "floor_rho": 0.0}, "AGREES_BUT_DOES_NOT_TRACK"),
+        (0.5, {"measured": False, "rho": 0.0, "p_value": 1.0, "floor_rho": 0.0}, "NOT_MEASURED"),
+        (0.2, {"measured": False, "rho": 0.0, "p_value": 1.0, "floor_rho": 0.0}, "SEPARATE_STRUCTURES"),
+    ],
+)
+def test_the_content_verdict_claims_only_what_was_measured(agreement_rho, moves, verdict) -> None:
+    evidence = {
+        "authority": {"blockers": []},
+        "agreement": {"measured": True, "rho": agreement_rho, "p_value": 0.001},
+        "moves_together": moves,
+    }
+    assert _content_tool()._verdict(evidence) == verdict

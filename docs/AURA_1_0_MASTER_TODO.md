@@ -1176,6 +1176,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Inference-choice objective](evidence/G_NATIVE_GRAMMAR_CHOICE_OBJECTIVE_2026-09-26.md)
+  trains operation, role, and explicit stop competitions through the existing
+  native grammar. Source-hash canary preflight materializes 519 sequences;
+  resident-checkpoint fitting and retained evaluation remain unmeasured here.
+  The implementation tests confer no promotion or G03 closure.
+  [Retained native canary](evidence/G03_NATIVE_RETAINED_CANARY_2026-09-26.md)
+  independently verifies 10/14 procedure matches and 11/14 proven equivalent
+  answers across seven exposed cohorts. Two disconnected paths and an early
+  finish reject promotion; the 500-case run is not launched.
+  [Native retained-source connection](evidence/G03_NATIVE_RETAINED_SOURCE_CONNECTION_2026-09-26.md)
+  reconstructs both exposed 500-case splits and relabels grading coordinates to
+  public literal order without giving targets to the scorer. Forty-four focused
+  checks pass; model measurements, non-regression, and admission remain pending.
+  [Frozen prefix branch reuse](evidence/G_NATIVE_PREFIX_BRANCH_REUSE_PLAN_2026-09-26.md)
+  passes thirty-one focused MLX checks without skipping source or suffix computation.
+  Its resident equivalence probe is planned; evaluator defaults are unchanged.
+  [Resident branch measurement](evidence/G_NATIVE_PREFIX_BRANCH_REJECTION_2026-09-26.md)
+  rejects reuse on all three measured sources despite unchanged rankings:
+  target-log-probability errors exceed the unchanged tolerance.
   [Explicit native codec and global search](evidence/G_NATIVE_CODEC_AND_SEARCH_2026-09-26.md)
   are wired and component-tested. The complete-epoch control remains rejected
   at 37/47 against incumbent 43/47. Relative-register model measurement is
@@ -1842,6 +1861,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   constructions, with no overlap against 1,764 bound source examples. These
   exposed, fixed-template, declared-input development cases do not close G04;
   matched unfitted and fresh public-grounding comparisons remain required.
+  [Source-form canary plan](evidence/G04_NATIVE_FORM_CANARY_PLAN_2026-09-26.md)
+  freezes definition and equation forms, with public-source grounding and
+  independent population reconstruction. These reuse development programs;
+  the preflight checks and plans are not transfer results.
+  [Source-form canary result](evidence/G04_NATIVE_FORM_CANARY_RESULT_2026-09-26.md)
+  independently verifies 6/6 definition and 6/6 equation decodes, each with
+  3/3 source-responsive pairs. New expressions of existing development tasks
+  do not replace matched controls, fresh task identities, or broader transfer.
+  [Role and dependency controls](evidence/G04_NATIVE_BINDING_CONTROL_PLAN_2026-09-26.md)
+  construct paired source changes with identical operations and public values.
+  Shared-floor typing and causal connectivity are checked before scoring;
+  independent graph replay is implemented. Model measurement is pending.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
   OPEN, observed live 2026-09-21, and recorded here because it is a
   reasoning error rather than a plumbing one. Asked how far a bird flies
@@ -1878,6 +1909,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the repaired 27B path. This is component evidence, not RLC gain or desktop proof.
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
+  [Matched source-erasure result](evidence/G06_NATIVE_SOURCE_ERASURE_RESULT_2026-09-26.md)
+  independently verifies the same 46/50 correctness outcomes as intact-source
+  fitting, with five different program selections. It does not support attributing
+  the gain to newly learned source meaning; native adaptation remains a confound.
   [Native base control](evidence/G06_NATIVE_BASE_CONTROL_2026-09-26.md)
   independently replays 12/12 unfitted grammar decodes: four exact scalar
   answers, zero lookup/count answers, versus 12/12 fitted on the same exposed
@@ -1889,6 +1924,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   independently verifies 6/6 exact fitted decodes and 3/3 source-responsive
   pairs across scalar, lookup, and count. Fixed sentence forms and missing
   matched controls keep G04/G06 open.
+  [Matched depth control](evidence/G06_NATIVE_DEPTH_CONTROL_2026-09-26.md)
+  independently verifies 2/6 unfitted against 6/6 fitted score-prefix
+  replay at three steps. The fitted projection is not a second model run;
+  output-wire adaptation and fixed sentence forms remain confounds.
+  [Fit-only source-erasure control](evidence/G06_NATIVE_SOURCE_ERASURE_PLAN_2026-09-26.md)
+  preserves the native training schedule and output supervision while removing
+  fitting-source content tokens. CPU reconstruction verifies every changed token
+  and intact calibration sequence. The model measurement remains separate.
   [Public composition diagnostic](evidence/G06_COMPOSITION_PUBLIC_DIAGNOSTIC_2026-09-14.md)
   independently verifies 48 complete decodes: treatment 8/8, controls 0/8.
   A separate semantic audit preserves that result but identifies missing public

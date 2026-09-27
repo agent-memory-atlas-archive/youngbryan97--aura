@@ -5,6 +5,48 @@ what broke, what fixed it, and where the evidence is. Runs live in
 `~/subject-core-runs/`; the order runs are read in is
 `~/.aura/subject_core/scratch/AFTER_THE_DECISIVE_RUN.md`.
 
+## 26 September
+
+### J* structure at 24 anchors on the new design (seed 7, 4e1923da1)
+
+The content run finished in 18 hours and reads SEPARATE_STRUCTURES, with
+authority: the internal geometry stood out of its own noise. Agreement between
+her internal geometry and her recall geometry was rho 0.274 (p 0.002) against a
+bar of 0.3, and the verdict turns on that. Design recovery was 0.645. Under the
+displacement the two geometries' movements did not correlate (rho -0.022), but
+the displacement moved the internal geometry by 0.0048 against a spread of
+0.264, and the run kept no sham geometry to say whether that was more than a
+second look moves it.
+
+So moving together now has to clear that first. The displaced changes of the
+internal geometry must exceed the sham's, pair by pair, by a one-sided
+signed-rank test at 0.01, or moving together is not measured and the verdict
+cannot read AGREES_BUT_DOES_NOT_TRACK; it reads NOT_MEASURED, and the bridge
+carries the reason. The sham is scored on the same folds as the geometries it
+is compared with. It had its own seed, which gave its changes fold noise the
+displaced changes did not have. Seed 7 is diagnostic; these land before seed 23.
+
+### What the 370-round validations read
+
+Both seed-7 validations read 18 of 24 on v1, with the lesion, the rescue and
+the nulls skipped, so three of the six failures are unmeasured. At c5f0ea5fe,
+with the declared host holding her memory still, closure held (leak -0.0018),
+irreducibility was 0.0297 with a lower bound of 0.0207 against a bar of 0.05,
+and synergy passed A,S -> G and P,M -> W. W,A -> D failed with an established
+interaction gain (lower bound 0.027) and an MMI synergy under its null.
+
+### The synergy line cannot see a pure product
+
+docs/SYNERGY_KNOWN_ANSWERS.md. On toy systems the v3 line passed a pure product
+at none of five seeds. A Kraskov estimator passed all five. A failing triple does
+not show that no product coupling is there, and W,A -> D above is the case.
+
+Corrected at 16:00: this entry said the Kraskov estimator also passed a plain sum.
+The "additive" system's switch takes the largest of four sums, which is an
+interaction, and on a separable sum the estimator scored below zero at all five
+seeds. Under that control the Kraskov estimator qualifies; it is not adopted on
+those seeds, and a replication on five fresh ones was fixed before it ran.
+
 ## 24 September
 
 ### 21:50: the lease was lost to a restore as well as to a clock

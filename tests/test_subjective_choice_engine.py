@@ -326,3 +326,22 @@ def test_situation_favorite_tournament_is_stable_across_independent_runs(tmp_pat
     assert len(set(champions)) == 1
     assert all(order == seed_orders[0] for order in seed_orders)
     assert all(majority == pair_majorities[0] for majority in pair_majorities)
+
+
+
+def test_an_outcome_does_not_teach_her_conscience(tmp_path):
+    """A choice that served truth, care and novelty went badly: novelty loses, truth and care do not."""
+    from core.agency.subjective_choice import CONSCIENCE
+
+    engine = SubjectiveChoiceEngine(state_path=tmp_path / "choice.json", mirror_identity=False)
+    before = engine.preferences()
+    receipt = engine.choose(
+        [ChoiceOption(id="a", label="tell them", features={"truth": 0.9, "care": 0.9, "novelty": 0.9})],
+        context="test",
+    )
+    engine.appraise_outcome(receipt.choice_id, outcome="it cost her", satisfaction=-1.0)
+    after = engine.preferences()
+    assert CONSCIENCE == {"truth", "care"}
+    assert after["truth"] == pytest.approx(before["truth"])
+    assert after["care"] == pytest.approx(before["care"])
+    assert after["novelty"] < before["novelty"]

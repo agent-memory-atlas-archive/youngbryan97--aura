@@ -15,6 +15,7 @@ import warnings
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 
@@ -545,7 +546,34 @@ class HermeticResourceSandbox:
             return False
         return any(marker in command for marker in cls._RUNTIME_OWNED_CHILD_MARKERS)
 
+    @contextlib.contextmanager
+    def _psutil_as_shipped(self):
+        """psutil with its own names back in place, for as long as it is observed.
+
+        Pinning the constructors is not enough: psutil's own methods look
+        `Process` up in their module (`__eq__`, `is_running`), so a test that
+        replaced `psutil.Process` with a double reached them anyway, and three
+        tests failed at teardown on a TypeError from inside psutil. Whatever
+        the test put there is restored afterwards.
+        """
+        import psutil
+
+        names = ("Process", "Error", "wait_procs")
+        held = {name: getattr(psutil, name) for name in names}
+        psutil.Process = self._native_process
+        psutil.Error = self._native_error
+        psutil.wait_procs = self._native_wait_procs
+        try:
+            yield
+        finally:
+            for name, value in held.items():
+                setattr(psutil, name, value)
+
     def snapshot(self) -> _ResourceLeakSnapshot:
+        with self._psutil_as_shipped():
+            return self._snapshot()
+
+    def _snapshot(self) -> _ResourceLeakSnapshot:
         try:
             process = self._native_process(os.getpid())
             children = frozenset(
@@ -634,6 +662,10 @@ class HermeticResourceSandbox:
                 self._leased_sockets.remove(listener)
 
     def close_and_assert_clean(self) -> None:
+        with self._psutil_as_shipped():
+            self._close_and_assert_clean()
+
+    def _close_and_assert_clean(self) -> None:
         leaked_leases = [sock for sock in self._leased_sockets if sock.fileno() >= 0]
         for listener in tuple(self._leased_sockets):
             with contextlib.suppress(OSError):
@@ -1912,9 +1944,22 @@ def _reset_shutdown_request_between_tests():
         pass
     yield
     try:
-        from core.runtime.shutdown_coordinator import clear_shutdown_request
+        from core.runtime.shutdown_coordinator import (
+            clear_shutdown_request,
+            get_shutdown_coordinator,
+            reset_shutdown_coordinator,
+        )
 
         clear_shutdown_request()
+        # A coordinator that has finished a teardown refuses every handler
+        # registered after it, for the life of the process. Clearing the
+        # request left that singleton in place, and fifteen conversation-lane
+        # tests failed in a group run behind whichever test had run a teardown
+        # to the end. One that has not run keeps the handlers modules
+        # registered at import.
+        status = get_shutdown_coordinator().get_status()
+        if not status.get("running") and status.get("report") is not None:
+            reset_shutdown_coordinator()
     except (ImportError, RuntimeError, AttributeError):
         pass
 

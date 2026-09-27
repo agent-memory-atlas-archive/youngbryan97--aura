@@ -62,6 +62,16 @@ def test_the_frame_does_not_write_the_named_psychological_state(substrate) -> No
         assert substrate.x[index] == pytest.approx(0.5), index
 
 
+def _bands(substrate: LiquidSubstrate) -> set[int]:
+    """Every dimension a frame addresses: telemetry, the person, the screen, the
+    room, the cross-modal products, and what she intends and how settled she is
+    (the band a1932a8eb added at `_INTENTION_BASE`)."""
+    bands = set(range(substrate._TELEMETRY_BASE, substrate._TELEMETRY_BASE + 6))
+    bands |= set(range(16, 20)) | set(range(32, 36)) | set(range(48, 52)) | {64, 65, 66}
+    bands |= set(range(substrate._INTENTION_BASE, substrate._INTENTION_BASE + 3))
+    return bands
+
+
 def test_a_dimension_the_frame_says_nothing_about_keeps_its_value(substrate) -> None:
     """The recurrence lives in the dimensions no frame addresses."""
     with substrate.sync_lock:
@@ -69,7 +79,9 @@ def test_a_dimension_the_frame_says_nothing_about_keeps_its_value(substrate) -> 
     before = substrate.x.copy()
     substrate.inject_perceptual_frame(dict(LOUD))
     moved = np.flatnonzero(np.abs(substrate.x - before) > 1e-12)
-    assert moved.size <= 20, f"{moved.size} dimensions moved for a frame of twenty"
+    bands = _bands(substrate)
+    assert set(moved.tolist()) <= bands, sorted(set(moved.tolist()) - bands)
+    assert moved.size <= len(bands), f"{moved.size} dimensions moved for a frame of {len(bands)}"
     untouched = np.setdiff1d(np.arange(substrate.x.size), moved)
     assert substrate.x[untouched] == pytest.approx(0.5)
 
@@ -86,8 +98,7 @@ def test_an_empty_frame_leaves_everything_outside_the_bands(substrate) -> None:
     before = substrate.x.copy()
     substrate.inject_perceptual_frame({})
     moved = set(np.flatnonzero(np.abs(substrate.x - before) > 1e-12).tolist())
-    bands = set(range(substrate._TELEMETRY_BASE, substrate._TELEMETRY_BASE + 6))
-    bands |= set(range(16, 20)) | set(range(32, 36)) | set(range(48, 52)) | {64, 65, 66}
+    bands = _bands(substrate)
     assert moved <= bands, sorted(moved - bands)
     assert substrate.x[100:] == pytest.approx(before[100:])
 

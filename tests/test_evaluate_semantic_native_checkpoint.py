@@ -62,6 +62,23 @@ def test_unfitted_checkpoint_can_win_instead_of_forcing_an_update(tmp_path):
     assert selected_checkpoint(tmp_path)[1]["step"] == 0
 
 
+def test_checkpoint_selection_accepts_only_the_explicit_fit_source_control(tmp_path):
+    from core.learning.semantic_native_source_control import SOURCE_ERASURE_CONTRACT
+
+    plan = {**campaign(tmp_path), "schema": "aura.semantic_native_fit_plan.v2",
+            "source_evidence_control": SOURCE_ERASURE_CONTRACT}
+    write(tmp_path / "plan.json", plan, "plan_sha256")
+    for path in tmp_path.glob("checkpoint-*.json"):
+        row = verified_document(path)
+        write(path, {**{key: value for key, value in row.items() if key != "receipt_sha256"},
+                     "plan_sha256": digest(plan)})
+    assert selected_checkpoint(tmp_path)[1]["step"] == 4
+    write(tmp_path / "plan.json", {**plan, "source_evidence_control": {
+        **SOURCE_ERASURE_CONTRACT, "supervision_tokens_unchanged": False}}, "plan_sha256")
+    with pytest.raises(ValueError, match="contract differs"):
+        selected_checkpoint(tmp_path)
+
+
 @pytest.mark.parametrize("defect", ["missing", "weights", "partition", "plan", "report"])
 def test_replay_refuses_incomplete_or_substituted_training(tmp_path, defect):
     plan = campaign(tmp_path)

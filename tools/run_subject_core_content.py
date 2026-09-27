@@ -164,6 +164,11 @@ def _verdict(evidence: dict[str, Any]) -> str:
     )
     if agrees and tracks:
         return "ONE_STRUCTURE"
+    # Agreeing and not tracking is a finding only when tracking was measured.
+    # A displacement that moved the manifold no further than a second look is
+    # no test of whether the behaviour follows it.
+    if agrees and not moves.get("measured"):
+        return "NOT_MEASURED"
     if agrees:
         return "AGREES_BUT_DOES_NOT_TRACK"
     return "SEPARATE_STRUCTURES"
@@ -334,7 +339,10 @@ async def main() -> int:
         sham = await sample_classes(
             runtime, anchors, conditions, classes, turns=args.turns, lag=args.lag
         )
-        sham_internal, _ = internal_geometry(sham, classes, seed=args.seed + 1)
+        # The same folds as the two geometries it is compared against. With
+        # its own seed the sham's changes carried fold-assignment noise the
+        # displaced changes did not, which widened the floor it sets.
+        sham_internal, _ = internal_geometry(sham, classes, seed=args.seed)
         sham_behavioural, _ = behavioural_geometry(sham, classes)
 
         tracked = moves_together(

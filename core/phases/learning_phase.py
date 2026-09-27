@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
 from typing import TYPE_CHECKING, Any
@@ -119,6 +120,34 @@ class LearningPhase(Phase):
         return self._learner
 
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
+        # What the turn was worth to her against what she expected, read before
+        # anything below can return early: a turn with no reply still paid or
+        # cost her something. See core/affect/what_it_was_worth.py.
+        try:
+            from core.affect.what_it_was_worth import (
+                broadcast,
+                disabled,
+                read_turn,
+                teach_connections,
+            )
+
+            if not disabled():
+                reading = read_turn(state)
+                direction = broadcast(reading)
+                lessons = await asyncio.to_thread(teach_connections, reading)
+                _ensure_response_modifiers(state)["worth"] = {
+                    **reading.as_dict(),
+                    "sent": direction,
+                    "taught": sorted(lessons),
+                }
+        except _LEARNING_RECOVERABLE_ERRORS as e:
+            _record_learning_degradation(
+                e,
+                stage="worth",
+                action="left this turn's payoff unread; her chemistry and connections were not taught by it",
+                state=state,
+            )
+
         # ISSUE-88: Self-Modification Awareness
         has_mod = False
         if hasattr(state.cognition, "modifiers") and state.cognition.modifiers:

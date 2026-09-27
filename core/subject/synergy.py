@@ -49,7 +49,15 @@ from core.subject.estimate import fit_predict, split_rows
 from core.subject.irreducibility import LOWER_BOUND_Z, MIN_TRANSITIONS, _folds
 from core.subject.recording import Recording
 
-__all__ = ["SynergyReport", "synergy", "synergy_suite", "without_clocks"]
+__all__ = [
+    "KraskovSynergy",
+    "SynergyReport",
+    "kraskov_suite",
+    "kraskov_synergy",
+    "synergy",
+    "synergy_suite",
+    "without_clocks",
+]
 
 #: Components kept per domain. Three is enough to carry the shape of a domain
 #: and small enough that the joint covariance stays invertible.
@@ -557,3 +565,166 @@ def synergy_suite(
     if clocks_out:
         recording = without_clocks(recording)
     return [synergy(recording, a, b, y, seed=seed, of=of) for a, b, y in TRIPLES]
+
+
+# ── A line that can see a product ───────────────────────────────────────────
+#
+# The line above reads synergy through a Gaussian copula, which keeps only rank
+# correlations, and a zero-mean product of two independent sources has none: on
+# toy systems of a campaign's length it registered a pure product at none of
+# ten seeds (docs/SYNERGY_KNOWN_ANSWERS.md). This one reads the same MMI synergy
+# through a Kraskov estimator on the same components, against the shifted null
+# and against surrogates that hold only the additive part of the target. It is
+# reported beside the line above and counts toward nothing it counts toward.
+
+#: Neighbours for the Kraskov estimator, the middle of the two to four its
+#: authors recommend (Kraskov, Stoegbauer and Grassberger 2004).
+KRASKOV_NEIGHBOURS: int = 3
+
+#: Degrees the additive account of the target may take per source; the one with
+#: the lowest held-out loss is used.
+ADDITIVE_DEGREES: tuple[int, ...] = (1, 2, 3)
+
+#: Folds the additive account's degree is chosen over.
+ADDITIVE_FOLDS: int = 5
+
+
+def kraskov_mi(x: np.ndarray, y: np.ndarray, rng: np.random.Generator) -> float:
+    """Mutual information in nats, Kraskov estimator 1 with the max norm."""
+    from scipy.spatial import cKDTree
+
+    k = KRASKOV_NEIGHBOURS
+    # A vanishing jitter breaks the ties the rank transform leaves.
+    x = x + 1e-10 * rng.normal(size=x.shape)
+    y = y + 1e-10 * rng.normal(size=y.shape)
+    joint = np.hstack([x, y])
+    eps = cKDTree(joint).query(joint, k=k + 1, p=np.inf)[0][:, -1]
+    nx = cKDTree(x).query_ball_point(x, eps - 1e-15, p=np.inf, return_length=True) - 1
+    ny = cKDTree(y).query_ball_point(y, eps - 1e-15, p=np.inf, return_length=True) - 1
+    n = x.shape[0]
+    return float(psi(k) + psi(n) - np.mean(psi(nx + 1) + psi(ny + 1)))
+
+
+def kraskov_synergy_value(
+    a: np.ndarray, b: np.ndarray, y: np.ndarray, rng: np.random.Generator
+) -> tuple[float, float]:
+    """MMI synergy and the joint information, both through the Kraskov estimator."""
+    joint = kraskov_mi(np.hstack([a, b]), y, rng)
+    return joint - max(kraskov_mi(a, y, rng), kraskov_mi(b, y, rng)), joint
+
+
+def _additive_basis(a: np.ndarray, b: np.ndarray, degree: int) -> np.ndarray:
+    columns = [np.ones((a.shape[0], 1))]
+    for source in (a, b):
+        for power in range(1, degree + 1):
+            columns.append(source**power)
+    return np.hstack(columns)
+
+
+def additive_account(a: np.ndarray, b: np.ndarray, y: np.ndarray) -> np.ndarray:
+    """The best account of y as a sum of what a says and what b says, its degree held out."""
+    rows = y.shape[0]
+    fold = np.arange(rows) * ADDITIVE_FOLDS // rows
+    best, best_loss = ADDITIVE_DEGREES[0], np.inf
+    for degree in ADDITIVE_DEGREES:
+        basis = _additive_basis(a, b, degree)
+        loss = 0.0
+        for index in range(ADDITIVE_FOLDS):
+            train, test = fold != index, fold == index
+            coef = np.linalg.lstsq(basis[train], y[train], rcond=None)[0]
+            loss += float(np.sum((y[test] - basis[test] @ coef) ** 2))
+        if loss < best_loss:
+            best, best_loss = degree, loss
+    basis = _additive_basis(a, b, best)
+    return basis @ np.linalg.lstsq(basis, y, rcond=None)[0]
+
+
+@dataclass(frozen=True)
+class KraskovSynergy:
+    """Kraskov MMI synergy, the two bars it must clear, and whether it did."""
+
+    sources: tuple[str, str]
+    target: str
+    synergy: float
+    joint: float
+    shift_bar: float
+    additive_bar: float
+    draws: int
+    rows: int
+
+    @property
+    def passes(self) -> bool:
+        return self.draws > 1 and self.synergy > self.shift_bar and self.synergy > self.additive_bar
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "sources": list(self.sources),
+            "target": self.target,
+            "estimator": f"kraskov_k{KRASKOV_NEIGHBOURS}_max_norm",
+            "synergy": round(self.synergy, 5),
+            "joint_information": round(self.joint, 5),
+            "shift_bar": round(self.shift_bar, 5),
+            "additive_bar": round(self.additive_bar, 5),
+            "draws": self.draws,
+            "rows": self.rows,
+            "passes": self.passes,
+        }
+
+
+def kraskov_synergy(
+    recording: Recording,
+    source_a: str,
+    source_b: str,
+    target: str,
+    *,
+    seed: int = 0,
+    draws: int = NULL_DRAWS,
+    clocks_out: bool = True,
+) -> KraskovSynergy:
+    """Syn(A_t, B_t ; Y_{t+1} - Y_t) through a Kraskov estimator, against two nulls.
+
+    The first slides both sources together by one circular shift, as the line
+    above does. The second keeps the best additive account of the target and
+    permutes its residual over rows, which holds every dependence of the target
+    on each source alone and removes anything the two do together; a sum
+    cannot clear it and a product can.
+    """
+    if clocks_out:
+        recording = without_clocks(recording)
+    following = recording.domain(target)
+    raw = (
+        _components(recording.domain(source_a)[:-1]),
+        _components(recording.domain(source_b)[:-1]),
+        _components(following[1:] - following[:-1]),
+    )
+    rows = raw[0].shape[0]
+    if rows < MIN_TRANSITIONS or min(block.shape[1] for block in raw) < 1:
+        return KraskovSynergy((source_a, source_b), target, 0.0, 0.0, 0.0, 0.0, 0, rows)
+    a, b, y = (_copula_normal(block) for block in raw)
+    rng = np.random.default_rng(seed)
+    value, joint = kraskov_synergy_value(a, b, y, rng)
+    shifted = []
+    for _ in range(draws):
+        shift = int(rng.integers(rows // 8, rows - rows // 8))
+        shifted.append(kraskov_synergy_value(np.roll(a, shift, 0), np.roll(b, shift, 0), y, rng)[0])
+    fitted = additive_account(a, b, y)
+    residual = y - fitted
+    additive = []
+    for _ in range(draws):
+        surrogate = fitted + residual[rng.permutation(rows)]
+        additive.append(kraskov_synergy_value(a, b, surrogate, rng)[0])
+    return KraskovSynergy(
+        sources=(source_a, source_b),
+        target=target,
+        synergy=value,
+        joint=joint,
+        shift_bar=float(np.quantile(shifted, 0.99)),
+        additive_bar=float(np.quantile(additive, 0.99)),
+        draws=draws,
+        rows=rows,
+    )
+
+
+def kraskov_suite(recording: Recording, *, seed: int = 0, draws: int = NULL_DRAWS) -> list[KraskovSynergy]:
+    """The Kraskov line on the four declared triples, counters out."""
+    return [kraskov_synergy(recording, a, b, y, seed=seed, draws=draws) for a, b, y in TRIPLES]

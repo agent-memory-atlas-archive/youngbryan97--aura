@@ -69,6 +69,12 @@ W_MAX = 1.80
 LEARNING_RATE = 0.07
 MAX_HISTORY = 500
 
+#: Values an outcome does not teach. Her other values move with how her choices
+#: turned out; these do not, so a run of turns where honesty or care cost her
+#: does not make her less honest or less caring. They move only as her own
+#: choices show them moving (core/agency/what_she_is_like.py).
+CONSCIENCE: frozenset[str] = frozenset({"truth", "care"})
+
 
 def _clamp(value: float, low: float = 0.0, high: float = 1.0) -> float:
     value = float(value)
@@ -624,7 +630,7 @@ class SubjectiveChoiceEngine:
             receipt.appraised_at = time.time()
             features = receipt.option_features.get(receipt.chosen_id, {})
             for key, value in features.items():
-                if key not in self._preferences or value <= 0.0:
+                if key not in self._preferences or value <= 0.0 or key in CONSCIENCE:
                     continue
                 delta = LEARNING_RATE * satisfaction * value
                 self._preferences[key] = _clamp(self._preferences[key] + delta, W_MIN, W_MAX)

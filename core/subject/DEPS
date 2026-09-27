@@ -77,6 +77,10 @@ include_rules = [
     # What she has come to feel about an act, one of the reasons her weighing
     # ranks acts by. See core/subject/choosing.py.
     "+core.affect.feelings_about",
+    # What a turn was worth to her and what winning her attention has earned,
+    # read as organs of A and G. Read only.
+    "+core.affect.what_it_was_worth",
+    "+core.affect.what_winning_earned",
     # Construct the same observation/action vectors the measured cycle uses.
     "+core.world_model.observe_cycle",
 
