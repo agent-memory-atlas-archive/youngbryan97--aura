@@ -1176,6 +1176,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Complete native grammar epoch](evidence/G_NATIVE_GRAMMAR_FULL_EPOCH_2026-09-27.md)
+  independently verifies 44/50 held-bank correctness against incumbent
+  41/50, with two regressions and three unreachable targets. It is not
+  promotable or target-blind transfer; G03 stays open.
   [Causal supervision identifiability](evidence/G_NATIVE_SUPERVISION_IDENTIFIABILITY_2026-09-26.md)
   audits all 4,416 grammar decisions for identical scoring inputs requiring
   conflicting teacher labels. None are found; this excludes one artificial
