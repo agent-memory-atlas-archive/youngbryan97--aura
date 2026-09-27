@@ -175,3 +175,36 @@ amendment adopted, and the within-condition permutation. A first null qualifies
 when product passes at four of five and separable and uncoupled at no more than
 one. One that qualifies where the shift does not is proposed as an amendment for
 recordings whose conditions cycle, which hers do, before it reads any of them.
+
+#### What it read (26 September)
+
+| toy | seed | synergy | shift bar | condition bar | additive bar |
+|---|---|---|---|---|---|
+| product | 3 | +0.420 | +0.099 | +0.136 | +0.097 |
+| product | 7 | +0.452 | +0.080 | +0.120 | +0.071 |
+| product | 11 | +0.338 | +0.037 | +0.042 | +0.059 |
+| product | 19 | +0.492 | +0.114 | +0.149 | +0.068 |
+| product | 23 | +0.352 | +0.134 | +0.178 | +0.089 |
+| separable | 3 | +0.163 | +0.070 | +0.091 | +0.147 |
+| separable | 7 | +0.117 | +0.061 | +0.082 | +0.129 |
+| separable | 11 | −0.164 | +0.032 | +0.018 | +0.071 |
+| separable | 19 | −0.187 | +0.046 | +0.042 | +0.059 |
+| separable | 23 | +0.067 | +0.111 | +0.132 | +0.072 |
+| none | 3 | +0.053 | +0.082 | +0.124 | +0.088 |
+| none | 7 | +0.096 | +0.097 | +0.147 | +0.079 |
+| none | 11 | +0.022 | +0.055 | +0.077 | +0.042 |
+| none | 19 | +0.054 | +0.089 | +0.106 | +0.049 |
+| none | 23 | +0.112 | +0.102 | +0.157 | +0.068 |
+
+Passes, product / separable / uncoupled: shift 5 / 1 / 1, condition 5 / 1 / 0.
+Both first nulls qualify under the rule above, so nothing is proposed: the shift
+stays. The condition bar was the higher of the two in 13 of 15 rows, and it is
+the only one that kept the uncoupled toy out at every seed.
+
+The schedule did not reproduce what it was built to explain. On her seed-7
+recording W,A→D failed against a shifted null of 0.40 to 0.50; here, with W, A
+and D all moved by one shared cycle, the shift bars ran 0.04 to 0.13. A shared
+schedule alone does not inflate the shift null that far, so the cause on her
+data is something the toy leaves out, and the next candidate is how long her
+conditions hold: here each lasts one row, and on the seed-7 look at 415f400c0
+each of hers held for 33 consecutive rows, one turn's frames, 192 times over.
