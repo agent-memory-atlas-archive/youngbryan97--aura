@@ -128,6 +128,8 @@ def main():
     parser.add_argument("--search-score-mode", choices=("normalized_choices", "native_nonpositive"),
                         default="native_nonpositive")
     parser.add_argument("--weight-mode", choices=("fitted", "base"), default="fitted")
+    parser.add_argument("--source-evidence", choices=("source_text", "source_token_erasure"),
+                        default="source_text")
     parser.add_argument("--dataset", choices=("natural_request", *sorted(INTERVENTION_DATASETS | RETAINED_DATASETS)),
                         default="natural_request")
     parser.add_argument("--source-report", type=Path)
@@ -184,6 +186,7 @@ def main():
              "core/learning/semantic_native_program.py",
              "core/learning/semantic_native_codec.py",
              "core/learning/semantic_native_relative_program.py",
+             "core/learning/semantic_native_source_control.py",
              "core/learning/semantic_register_identity.py",
              "core/learning/frozen_decoder_prefix.py",
              "core/learning/semantic_program_floor.py",
@@ -213,6 +216,7 @@ def main():
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
             "weight_mode": args.weight_mode,
+            "source_evidence": args.source_evidence,
             "dataset": args.dataset, "seed": seed,
             "model_descriptor_sha256": spec.descriptor_sha256,
             "pointer_sha256": spec.pointer_sha256, "implementation": implementation,
@@ -244,6 +248,7 @@ def main():
         decode_native_grammar,
     )
     from core.learning.semantic_native_program import native_text_decision_sequence
+    from core.learning.semantic_native_source_control import apply_native_source_evidence
     from core.learning.semantic_native_search import search_native_grammar
     from core.learning.semantic_program_floor import semantic_programs_structurally_equivalent
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
@@ -280,6 +285,8 @@ def main():
                     sequence = native_text_decision_sequence(
                         source, choice.text, (choice.span,), tokenizer,
                         max_tokens=training["max_sequence_tokens"])
+                    sequence, _control = apply_native_source_evidence(
+                        sequence, source, tokenizer, mode=args.source_evidence)
                     hidden = prefix.capture(mx.array([sequence.tokens[:-1]], dtype=mx.int32))
                     scores.append(-native_loss(suffix, hidden, sequence, summed=True,
                                                scope="semantic_decisions").item())
@@ -300,6 +307,8 @@ def main():
                         sequence = native_sequence_for_encoding(source, program, tokenizer,
                             max_tokens=training["max_sequence_tokens"], register_encoding=register_encoding,
                             decision_basis=training.get("semantic_decision_basis", "program_atoms_v1"))
+                        sequence, _control = apply_native_source_evidence(
+                            sequence, source, tokenizer, mode=args.source_evidence)
                         hidden = prefix.capture(mx.array([sequence.tokens[:-1]], dtype=mx.int32))
                         return -native_loss(suffix, hidden, sequence, summed=True,
                                            scope="semantic_decisions").item()
@@ -344,6 +353,7 @@ def main():
             else:
                 answer_correct = False
             row_body = {"plan_sha256": plan["plan_sha256"], "source_sha256": identity,
+                        "source_evidence": args.source_evidence,
                         "construction": example.construction_id,
                         "public_input_receipt_sha256": public_inputs.receipt()["receipt_sha256"],
                         "program": None if program is None else program.to_dict(), "decode_status": status,
@@ -370,6 +380,7 @@ def main():
         result = {"schema": f"aura.semantic_native_grammar.{schema_version}",
                   "plan_sha256": plan["plan_sha256"],
                   "weight_mode": args.weight_mode, "dataset": args.dataset, "seed": seed,
+                  "source_evidence": args.source_evidence,
                   "population": len(rows), "program_equivalent": sum(row["program_equivalent"] for row in rows),
                   "answer_correct": sum(row["answer_correct"] for row in rows),
                   **pair_totals,

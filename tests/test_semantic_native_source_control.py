@@ -7,9 +7,14 @@ import pytest
 
 from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
-from core.learning.semantic_native_program import NativeProgramSequence, native_program_sequence
+from core.learning.semantic_native_program import (
+    NativeProgramSequence,
+    native_program_sequence,
+    native_text_decision_sequence,
+)
 from core.learning.semantic_native_source_control import (
     SOURCE_ERASURE_CONTRACT,
+    apply_native_source_evidence,
     erase_native_source_tokens,
     source_control_mode_from_plan,
 )
@@ -43,6 +48,21 @@ def test_control_refuses_source_or_template_drift():
         erase_native_source_tokens(row, "Other source", tokenizer)
     with pytest.raises(ValueError, match="complete source-bound"):
         erase_native_source_tokens(NativeProgramSequence((1, 2), 5), "Exact source", tokenizer)
+
+
+def test_source_evidence_applies_the_same_intervention_to_any_native_sequence():
+    tokenizer = Tokenizer()
+    source = "Subtract 8 from 13."
+    row = native_program_sequence(source, Program(2, (Instruction("sub", (0, 1)),)), tokenizer)
+    original, receipt = apply_native_source_evidence(row, source, tokenizer, mode="source_text")
+    assert original is row and receipt is None
+    erased, receipt = apply_native_source_evidence(
+        row, source, tokenizer, mode="source_token_erasure")
+    assert erased != row
+    assert receipt["source_content_tokens_available"] is False
+    assert erased.tokens[row.continuation_start:] == row.tokens[row.continuation_start:]
+    with pytest.raises(ValueError, match="source-evidence mode"):
+        apply_native_source_evidence(row, source, tokenizer, mode="unknown")
 
 
 def test_plan_distinguishes_old_evidence_from_explicit_fit_only_control():
@@ -85,3 +105,21 @@ def test_current_tokenizer_can_erase_source_but_preserves_the_private_channel():
     assert len(erased.tokens) == len(row.tokens)
     assert erased.tokens[row.continuation_start:] == row.tokens[row.continuation_start:]
     assert "</think>" in tokenizer.decode(list(erased.tokens))
+
+
+def test_current_tokenizer_erases_source_before_an_incomplete_grammar_decision():
+    checkpoint = os.environ.get("AURA_NATIVE_TOKENIZER_CHECKPOINT")
+    if not checkpoint:
+        pytest.skip("local resident tokenizer checkpoint not supplied")
+    from mlx_lm.utils import load_tokenizer
+
+    tokenizer = load_tokenizer(Path(checkpoint))
+    source = "Subtract 8 from 13."
+    target = '{"inputs":2,"steps":[["sub"'
+    start = target.index("sub")
+    row = native_text_decision_sequence(source, target, ((start, start + 3),), tokenizer)
+    erased, receipt = apply_native_source_evidence(
+        row, source, tokenizer, mode="source_token_erasure")
+    assert receipt["erased_source_tokens"] > 0
+    assert erased.semantic_positions == row.semantic_positions
+    assert erased.tokens[row.continuation_start:] == row.tokens[row.continuation_start:]

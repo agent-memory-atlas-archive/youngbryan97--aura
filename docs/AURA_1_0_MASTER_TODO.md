@@ -1176,6 +1176,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Paired source-choice fit](evidence/G03_PAIRED_SOURCE_FIT_2026-09-27.md)
+  independently verifies 47/50 on the exposed held candidate bank against
+  incumbent 41/50, with six gains and zero regressions. Three arithmetic
+  targets remain absent from the frozen bank. Source erasure, target-blind
+  generation, and fresh-family transfer are unproved; G03 stays open.
   [Complete native grammar epoch](evidence/G_NATIVE_GRAMMAR_FULL_EPOCH_2026-09-27.md)
   independently verifies 44/50 held-bank correctness against incumbent
   41/50, with two regressions and three unreachable targets. It is not

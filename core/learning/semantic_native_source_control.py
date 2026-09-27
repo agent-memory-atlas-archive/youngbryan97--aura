@@ -115,3 +115,13 @@ def erase_native_source_tokens(sequence: NativeProgramSequence, source: str, tok
         "serving_authority": False,
     }
     return controlled, receipt
+
+
+def apply_native_source_evidence(sequence: NativeProgramSequence, source: str,
+                                 tokenizer, *, mode: str):
+    """Apply the same source-content intervention to any native scoring path."""
+    if mode == "source_text":
+        return sequence, None
+    if mode == "source_token_erasure":
+        return erase_native_source_tokens(sequence, source, tokenizer)
+    raise ValueError("unknown native source-evidence mode")
