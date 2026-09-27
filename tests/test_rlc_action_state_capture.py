@@ -2006,20 +2006,23 @@ def test_disk_full_before_bundle_commit_rolls_back_the_entire_staging_tree(
         atomic_publish(path, payload, replace=replace)
 
     monkeypatch.setattr(store, "_atomic_publish", fail_publication)
-    with pytest.raises(
-        ActionStateCaptureError,
-        match="private_snapshot_publication_io_failed",
-    ) as failed:
-        store.publish(
-            case["admission"],
-            case["private_state"],
-            created_at_unix=NOW + 1,
-        )
-    assert isinstance(failed.value.__cause__, OSError)
-    assert failed.value.__cause__.errno == 28
+    try:
+        with pytest.raises(
+            ActionStateCaptureError,
+            match="private_snapshot_publication_io_failed",
+        ) as failed:
+            store.publish(
+                case["admission"],
+                case["private_state"],
+                created_at_unix=NOW + 1,
+            )
+        assert isinstance(failed.value.__cause__, OSError)
+        assert failed.value.__cause__.errno == 28
 
-    assert not any((store.root / "bundles").iterdir())
-    assert not any((store.root / "transactions").iterdir())
+        assert not any((store.root / "bundles").iterdir())
+        assert not any((store.root / "transactions").iterdir())
+    finally:
+        store.close()
 
 
 def test_concurrent_same_request_publish_is_single_copy_and_idempotent(tmp_path: Path):

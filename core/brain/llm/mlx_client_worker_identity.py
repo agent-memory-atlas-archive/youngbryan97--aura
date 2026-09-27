@@ -14,9 +14,10 @@ logger = logging.getLogger("LLM.MLX")
 
 import copy
 import os
-import time
 from collections.abc import Mapping
 from typing import Any
+
+from core.runtime.wall_clock import wall_time
 
 
 class _KnowsWhichWorkerItIsTalkingTo:
@@ -253,7 +254,7 @@ class _KnowsWhichWorkerItIsTalkingTo:
             authority,
             capture_identity,
             attested_at_unix=(
-                int(time.time()) if attested_at_unix is None else attested_at_unix
+                int(wall_time()) if attested_at_unix is None else attested_at_unix
             ),
             expected_worker_pid=expected_pid,
         )
@@ -288,7 +289,7 @@ class _KnowsWhichWorkerItIsTalkingTo:
             authority,
             worker_capture_identity,
             attested_at_unix=(
-                int(time.time()) if attested_at_unix is None else attested_at_unix
+                int(wall_time()) if attested_at_unix is None else attested_at_unix
             ),
             expected_worker_pid=expected_pid,
         )

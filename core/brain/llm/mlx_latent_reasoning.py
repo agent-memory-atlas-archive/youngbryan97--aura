@@ -32,6 +32,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.wall_clock import wall_time
 from core.utils.concurrency import run_io_bound
 from core.utils.deadlines import get_deadline
 from core.utils.memory_monitor import get_memory_pressure_snapshot
@@ -41,7 +42,6 @@ from .mlx_worker import (
     _HIDDEN_SEQUENCE_MAX_TOKENS,
     _HIDDEN_SEQUENCE_MAX_WIDTH,
 )
-
 
 #: What an extracted block returns when it fell through to the code after it.
 _FALL_THROUGH = object()
@@ -516,7 +516,7 @@ class _ReasonsInLatentSpace:
         admitted_runtime = admit_action_state_runtime(
             candidate_runtime,
             worker_launch_challenge=binding.get("launch_challenge"),
-            now_unix=int(time.time()),
+            now_unix=int(wall_time()),
         )
         if (
             admitted_runtime.mode == "capture"
@@ -770,7 +770,16 @@ class _ReasonsInLatentSpace:
         never spawns a worker just to think — no resident model, no episode.
         Returns ``{"ok": bool, "text": str, "receipt": {...}, "reason": str}``.
         """
-        from .mlx_client import _AURA_SOURCE_ROOT, _SEAM_FELL_THROUGH, _apply_the_wire_action_intervention, _await_shared_future, _foreground_owner_context, _is_internal_inference, _record_mlx_degradation, _remaining_budget
+        from .mlx_client import (
+            _AURA_SOURCE_ROOT,
+            _SEAM_FELL_THROUGH,
+            _apply_the_wire_action_intervention,
+            _await_shared_future,
+            _foreground_owner_context,
+            _is_internal_inference,
+            _record_mlx_degradation,
+            _remaining_budget,
+        )
 
         base = {"ok": False, "text": "", "receipt": {}}
         if self._closed:

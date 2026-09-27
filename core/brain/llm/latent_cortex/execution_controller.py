@@ -47,6 +47,7 @@ from core.brain.llm.latent_cortex.value_of_computation import (
     validate_action_transition,
 )
 from core.runtime.file_read_gateway import read_stable_bytes
+from core.runtime.wall_clock import wall_time
 
 logger = logging.getLogger("Aura.LatentCortex.ExecutionController")
 
@@ -400,7 +401,7 @@ class ExecutionController:
                 policy_document,
                 trusted_root_public_key_pem=trust_root,
                 expected_campaign_name=campaign_name,
-                now_unix=int(time.time()),
+                now_unix=int(wall_time()),
             )
             verified = verify_action_calibration_certificate(
                 certificate,

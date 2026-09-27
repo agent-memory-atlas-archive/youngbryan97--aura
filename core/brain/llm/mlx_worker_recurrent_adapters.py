@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import json
 import os
-import time
 from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
 from core.runtime.errors import record_degradation
+from core.runtime.wall_clock import wall_time
 
 
 def _attach_certified_recurrent_adapter(
@@ -87,7 +87,7 @@ def _attach_certified_recurrent_adapter(
         pointer_path=pointer_path,
         trusted_root_public_key_pem=trusted_root,
         approved_adapter_roots=(approved_root,),
-        now_unix=int(time.time()),
+        now_unix=int(wall_time()),
     )
     identity = receipt.get("adapter_identity")
     if not isinstance(identity, Mapping):
