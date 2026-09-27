@@ -75,7 +75,7 @@ def test_grammar_decision_replay_rejects_forged_winner():
         replay_greedy_decisions(forged, example=example, plan=plan)
 
 
-@pytest.mark.parametrize("mode", ["source_text", "source_token_erasure"])
+@pytest.mark.parametrize("mode", ["source_text", "source_token_erasure", "source_pair_swap"])
 def test_grammar_replay_binds_each_score_to_the_scored_input(mode):
     from core.learning.semantic_native_grammar import decode_native_grammar
     from core.learning.semantic_native_program import native_text_decision_sequence
@@ -87,6 +87,8 @@ def test_grammar_replay_binds_each_score_to_the_scored_input(mode):
     from tests.test_semantic_native_program import Tokenizer
 
     example = SimpleNamespace(source_text="Add 8 and 3.", inputs=(8, 3))
+    scored_source = ("Subtract 8 from 3." if mode == "source_pair_swap"
+                     else example.source_text)
     tokenizer = Tokenizer()
     input_receipts = []
 
@@ -94,10 +96,11 @@ def test_grammar_replay_binds_each_score_to_the_scored_input(mode):
         receipts = []
         for choice in choices:
             sequence = native_text_decision_sequence(
-                example.source_text, choice.text, (choice.span,), tokenizer,
+                scored_source, choice.text, (choice.span,), tokenizer,
                 max_tokens=1024)
             sequence, control = apply_native_source_evidence(
-                sequence, example.source_text, tokenizer, mode=mode)
+                sequence, scored_source, tokenizer,
+                mode="source_text" if mode == "source_pair_swap" else mode)
             receipts.append(native_score_input_receipt(sequence, control))
         input_receipts.append(receipts)
         return tuple(1.0 if choice.value in ("add", "input:0", "finish") else 0.0
@@ -112,12 +115,13 @@ def test_grammar_replay_binds_each_score_to_the_scored_input(mode):
     plan = {"max_steps": 8, "register_encoding": REGISTER_ENCODING,
             "source_evidence": mode}
     replay_greedy_decisions(row, example=example, plan=plan, tokenizer=tokenizer,
-                            max_sequence_tokens=1024)
+                            max_sequence_tokens=1024, scored_source=scored_source)
     forged = json.loads(json.dumps(row))
     forged["score_input_receipts"][0][0]["sequence_sha256"] = "0" * 64
     with pytest.raises(ValueError, match="scored-input tokens"):
         replay_greedy_decisions(forged, example=example, plan=plan,
-                                tokenizer=tokenizer, max_sequence_tokens=1024)
+                                tokenizer=tokenizer, max_sequence_tokens=1024,
+                                scored_source=scored_source)
     with pytest.raises(ValueError, match="receipts are missing"):
         replay_greedy_decisions(row, example=example, plan=plan)
 

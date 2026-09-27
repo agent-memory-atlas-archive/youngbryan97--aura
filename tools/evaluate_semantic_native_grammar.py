@@ -85,6 +85,29 @@ def source_input_types(source_text):
     return public, types
 
 
+def validated_source_pair_map(examples, *, dataset, require_contrast=False):
+    """Bind adjacent intervention sources without using a target during scoring."""
+    if dataset not in INTERVENTION_DATASETS:
+        if require_contrast:
+            raise ValueError("source-pair swap needs an intervention dataset")
+        return {}
+    if len(examples) % 2:
+        raise ValueError("source-pair intervention population is incomplete")
+    sources = [hashlib.sha256(example.source_text.encode()).hexdigest() for example in examples]
+    if len(set(sources)) != len(sources):
+        raise ValueError("source-pair intervention sources are not unique")
+    if require_contrast:
+        from core.learning.semantic_program_floor import semantic_programs_structurally_equivalent
+
+        for index in range(0, len(examples), 2):
+            left, right = examples[index:index + 2]
+            if (source_input_types(left.source_text)[0].values
+                    != source_input_types(right.source_text)[0].values
+                    or semantic_programs_structurally_equivalent(left.program, right.program)):
+                raise ValueError("source-pair swap needs matched inputs and distinct programs")
+    return {sources[index]: sources[index ^ 1] for index in range(len(sources))}
+
+
 def grammar_pair_totals(rows, *, dataset):
     if dataset not in INTERVENTION_DATASETS:
         return {"pair_count": 0, "pair_exact": 0, "source_responsive": 0}
@@ -128,7 +151,8 @@ def main():
     parser.add_argument("--search-score-mode", choices=("normalized_choices", "native_nonpositive"),
                         default="native_nonpositive")
     parser.add_argument("--weight-mode", choices=("fitted", "base"), default="fitted")
-    parser.add_argument("--source-evidence", choices=("source_text", "source_token_erasure"),
+    parser.add_argument("--source-evidence", choices=("source_text", "source_token_erasure",
+                                                      "source_pair_swap"),
                         default="source_text")
     parser.add_argument("--dataset", choices=("natural_request", *sorted(INTERVENTION_DATASETS | RETAINED_DATASETS)),
                         default="natural_request")
@@ -177,6 +201,9 @@ def main():
     else:
         examples = grammar_examples(dataset=args.dataset, seed=seed, count=args.canary)
     sources = [hashlib.sha256(example.source_text.encode()).hexdigest() for example in examples]
+    source_pair_map = validated_source_pair_map(
+        examples, dataset=args.dataset, require_contrast=args.source_evidence == "source_pair_swap")
+    source_text_by_sha256 = dict(zip(sources, (example.source_text for example in examples), strict=True))
     forbidden = set(training["fit_ids"]) | set(training["calibration_ids"]) | set(training["held_ids"])
     if forbidden & set(sources) or len(set(sources)) != len(sources):
         raise ValueError("native grammar evaluation sources overlap training")
@@ -217,6 +244,7 @@ def main():
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
             "weight_mode": args.weight_mode,
             "source_evidence": args.source_evidence,
+            "source_pair_map": source_pair_map,
             "dataset": args.dataset, "seed": seed,
             "model_descriptor_sha256": spec.descriptor_sha256,
             "pointer_sha256": spec.pointer_sha256, "implementation": implementation,
@@ -278,9 +306,13 @@ def main():
         apply_execution(model, training)
         for example, identity in zip(examples, sources, strict=True):
             public_inputs, types = source_input_types(example.source_text)
+            scored_source = (source_text_by_sha256[source_pair_map[identity]]
+                             if args.source_evidence == "source_pair_swap"
+                             else example.source_text)
+            scored_source_sha256 = hashlib.sha256(scored_source.encode()).hexdigest()
             scored = 0
             score_input_receipts = []
-            def score(choices, *, source=example.source_text, source_identity=identity):
+            def score(choices, *, source=scored_source, source_identity=identity):
                 nonlocal scored
                 scores = []
                 input_receipts = []
@@ -291,7 +323,9 @@ def main():
                         source, choice.text, (choice.span,), tokenizer,
                         max_tokens=training["max_sequence_tokens"])
                     sequence, control = apply_native_source_evidence(
-                        sequence, source, tokenizer, mode=args.source_evidence)
+                        sequence, source, tokenizer,
+                        mode="source_text" if args.source_evidence == "source_pair_swap"
+                        else args.source_evidence)
                     hidden = prefix.capture(mx.array([sequence.tokens[:-1]], dtype=mx.int32))
                     scores.append(-native_loss(suffix, hidden, sequence, summed=True,
                                                scope="semantic_decisions").item())
@@ -308,14 +342,16 @@ def main():
                     searched = search_native_grammar(types, score, max_steps=args.max_steps,
                         max_nodes=args.search_nodes, completions=args.search_completions,
                         register_encoding=register_encoding, score_mode=args.search_score_mode)
-                    def whole_graph_score(program, *, source=example.source_text):
+                    def whole_graph_score(program, *, source=scored_source):
                         if time.monotonic() - started > args.max_seconds:
                             raise TimeoutError("native grammar run reached its finite bound")
                         sequence = native_sequence_for_encoding(source, program, tokenizer,
                             max_tokens=training["max_sequence_tokens"], register_encoding=register_encoding,
                             decision_basis=training.get("semantic_decision_basis", "program_atoms_v1"))
                         sequence, _control = apply_native_source_evidence(
-                            sequence, source, tokenizer, mode=args.source_evidence)
+                            sequence, source, tokenizer,
+                            mode="source_text" if args.source_evidence == "source_pair_swap"
+                            else args.source_evidence)
                         hidden = prefix.capture(mx.array([sequence.tokens[:-1]], dtype=mx.int32))
                         return -native_loss(suffix, hidden, sequence, summed=True,
                                            scope="semantic_decisions").item()
@@ -361,6 +397,7 @@ def main():
                 answer_correct = False
             row_body = {"plan_sha256": plan["plan_sha256"], "source_sha256": identity,
                         "source_evidence": args.source_evidence,
+                        "scored_source_sha256": scored_source_sha256,
                         "construction": example.construction_id,
                         "public_input_receipt_sha256": public_inputs.receipt()["receipt_sha256"],
                         "program": None if program is None else program.to_dict(), "decode_status": status,
