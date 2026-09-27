@@ -551,3 +551,52 @@ her in both arms alike: a template reply read as her looping cleared her
 pending initiatives 240 times, and the self-review fired on the first turn of
 every arm. Both were fixed afterwards, in 7d6e04ece, so a look at that commit
 is not comparable with these.
+
+## Addendum, 26 September 2026, 22:40: what changed in her since the payoff look
+
+The payoff look ran at 415f400c0. These commits since then change what she does
+on a turn, and a decisive run on any commit that includes them is a run on a
+different organism from that look. Each was built without reading a decisive
+number.
+
+- **A reserve that good turns charge and effort draws on** (be76e35be). The
+  turn's dose charges `core/soma/reserve.py`, which leaks back at 1/256 a turn;
+  spending energy draws on it before the drive budget. D reads its share.
+- **One critic for her values** (8b3048919). Her habits and her choice engine
+  learn from the turn's worth, the same signal her connections learn from, in
+  place of a raw valence change. Truth and care are never taught by outcomes.
+- **What she holds more is what she takes** (2bc754d35). An option's score is
+  the chance that at least one of the values it serves holds for it
+  (noisy-OR), in place of a weighted mean that cancelled the weights out.
+- **The core reads what she is like** (b98f4085a). S carries how strongly she
+  holds each value, how much more often than chance she lives it, how narrow
+  her choosing is, and how often her values overrode her strongest drive.
+- **Living by her values pays** (ee5778604). A ninth payoff channel, integrity:
+  how far what she chose served her values over the average option on offer.
+- **Her self-knowledge is scored** (5bc71a491). How well her values alone
+  foretell her choices, less chance, read into S.
+- **A value held and not lived presses on her** (76bc6e26b). Among values held
+  at or above her median, the shortfall of one lived less than the median
+  lifts options that serve it on her next lived choices. Choices asked of her
+  to measure her are marked and no longer count as lived.
+- **An intention she acted on is closed** (3ccb6742a). The subject driver
+  declared, acted and observed, and never revised: 3,608 intentions were open
+  at the end of the seed-7 run at 27dc1dda9.
+
+Four fixes to how the harness treated her also land here (7d6e04ece,
+d969b5667). Both payoff arms carried them, so neither is a difference between
+those arms, but each changes what a run records. A repeated template reply no
+longer lowers her stability or clears her pending initiatives. A restore no
+longer rewinds a thread queue under its consumer. The kernel's memory verdict
+no longer reaches a run whose host is declared. The self-review and the
+metabolic monitor keep time on her clock, and the review files no intent that
+nothing reads.
+
+### The design for the next seed-7 look
+
+The singleton look of the design above, at the first commit that holds all of
+the above, seed 7, as built. What is read is each cut's excess rate and bound,
+and the closure, beside the payoff arm at 415f400c0. It is diagnostic: it
+moves no threshold, and nothing from it is read on seed 23 or any decisive
+seed. The reports ground's seed-7 check (`reports_alone.sh 351555bec 7`) runs
+first; it has waited since 25 September for the machine to be alone.
