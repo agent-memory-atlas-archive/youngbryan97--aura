@@ -300,6 +300,39 @@ def verified_public_inputs(example):
     return recovered.values
 
 
+def audit_grammar_meanings(rows, examples):
+    """Keep procedure fidelity, proven denotation, and sampled agreement distinct."""
+    from core.learning.procedure_induction import Instruction, Program
+    from core.learning.semantic_graph_counterexamples import compare_program_meanings, counterfactual_inputs
+
+    if len(rows) != len(examples) or not rows:
+        raise ValueError("native meaning audit needs complete matched source rows")
+    comparisons = []
+    for row, example in zip(rows, examples, strict=True):
+        identity = hashlib.sha256(example.source_text.encode()).hexdigest()
+        structural, answer = verify_grammar_row(row, example=example, identity=identity,
+            plan_sha256=row["plan_sha256"])
+        if row["decode_status"] != "completed":
+            meaning = {"status": "unavailable", "method": "incomplete_native_graph"}
+        else:
+            program = Program(len(example.inputs), tuple(Instruction(op, tuple(arguments))
+                              for op, arguments in row["program"]["instructions"]))
+            meaning = compare_program_meanings(example.program, program,
+                counterfactual_inputs(example.inputs))
+        comparisons.append({"source_sha256": identity, "procedure_equivalent": structural,
+                            "observed_answer_correct": answer, "meaning": meaning})
+    return {"population": len(rows),
+            "procedure_equivalent": sum(row["procedure_equivalent"] for row in comparisons),
+            "proven_output_and_domain_equivalent": sum(row["meaning"]["status"] == "equivalent"
+                                                       for row in comparisons),
+            "witnessed_different": sum(row["meaning"]["status"] == "different" for row in comparisons),
+            "meaning_unknown": sum(row["meaning"]["status"] == "unknown" for row in comparisons),
+            "meaning_unavailable": sum(row["meaning"]["status"] == "unavailable" for row in comparisons),
+            "comparisons": comparisons,
+            "claim": "grading_only_no_procedure_fidelity_or_source_understanding_waiver",
+            "historical_totals_unchanged": True}
+
+
 def verify_grammar(directory, training_directory):
     from tools.evaluate_semantic_native_checkpoint import selected_checkpoint, verified_document
 
@@ -382,6 +415,8 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--source-report", type=Path)
     parser.add_argument("--bundle", action="append")
+    parser.add_argument("--meaning-audit", action="store_true",
+                        help="also prove denotation or witness differences without changing historical scores")
     args = parser.parse_args()
     if (args.source_report is None) != (args.bundle is None):
         parser.error("source report and every source bundle must be supplied together")
@@ -406,7 +441,14 @@ def main():
         else:
             result["source_separation"] = verify_source_separation(
                 training, args.source_report, args.bundle, examples)
-    body = {"schema": "aura.semantic_native_grammar_verification.v1", **result}
+    version = "v1"
+    if args.meaning_audit:
+        plan = verified_document(args.directory / "plan.json", "plan_sha256")
+        examples = verified_examples(plan, dataset=result["dataset"], seed=result["seed"])
+        rows = [verified_document(args.directory / "rows" / f"{identity}.json") for identity in plan["sources"]]
+        result["meaning_audit"] = audit_grammar_meanings(rows, examples)
+        version = "v2"
+    body = {"schema": f"aura.semantic_native_grammar_verification.{version}", **result}
     _save_if_absent(args.output, {**body, "receipt_sha256": digest(body)})
     verified_document(args.output)
     print(json.dumps(result, sort_keys=True))

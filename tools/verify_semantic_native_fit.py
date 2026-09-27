@@ -36,6 +36,58 @@ def verify_native_totals(report, rows):
             "unknown_pretrained": sum(row["pretrained_correct"] is None for row in rows)}
 
 
+def compare_source_erasure_outcomes(reference_plan, control_plan, reference_report, control_report):
+    """Pair a matched fit control without equating aggregate ties to equal programs."""
+    from core.learning.semantic_native_source_control import source_control_mode_from_plan
+    from core.learning.semantic_program_replication import _exact_one_sided_pair
+
+    if (source_control_mode_from_plan(reference_plan) != "source_text"
+            or source_control_mode_from_plan(control_plan) != "source_token_erasure"):
+        raise ValueError("native fit comparison needs intact and erased fitting arms")
+    allowed = {"schema", "plan_sha256", "implementation", "input", "source_evidence_control"}
+    left = {key: value for key, value in reference_plan.items() if key not in allowed}
+    right = {key: value for key, value in control_plan.items() if key not in allowed}
+    if left != right:
+        raise ValueError("native source control changes the matched fit protocol")
+    for plan, report in ((reference_plan, reference_report), (control_plan, control_report)):
+        if report["plan_sha256"] != plan["plan_sha256"]:
+            raise ValueError("native fit comparison report belongs to another plan")
+        verify_native_totals(report, report["rows"])
+    reference = {row["source"]: row for row in reference_report["rows"]}
+    control = {row["source"]: row for row in control_report["rows"]}
+    if set(reference) != set(reference_plan["held_ids"]) or reference.keys() != control.keys():
+        raise ValueError("native fit comparison source population differs")
+    baseline_fields = ("program_sha256s", "incumbent_correct", "pretrained_correct",
+                       "pretrained_program_sha256", "bank_reachable")
+    if any(any(reference[key].get(field) != control[key].get(field) for field in baseline_fields)
+           for key in reference):
+        raise ValueError("native fit comparison proposal bank or baseline differs")
+    known = [key for key in sorted(reference)
+             if type(reference[key]["selected_correct"]) is bool
+             and type(control[key]["selected_correct"]) is bool]
+    paired = _exact_one_sided_pair(
+        [{"source_text_sha256": key, "answer_exact": reference[key]["selected_correct"]} for key in known],
+        [{"source_text_sha256": key, "answer_exact": control[key]["selected_correct"]} for key in known],
+        metric="answer_exact") if known else None
+    return {"reference_plan_sha256": reference_plan["plan_sha256"],
+            "control_plan_sha256": control_plan["plan_sha256"],
+            "reference_report_sha256": reference_report["receipt_sha256"],
+            "control_report_sha256": control_report["receipt_sha256"],
+            "population": len(reference), "known_pairs": len(known),
+            "unknown_pairs": len(reference) - len(known),
+            "both_correct": sum(reference[key]["selected_correct"] and control[key]["selected_correct"]
+                                for key in known),
+            "both_incorrect": sum(not reference[key]["selected_correct"]
+                                  and not control[key]["selected_correct"] for key in known),
+            "different_selected_programs": sum(reference[key]["chosen_program_sha256"]
+                                               != control[key]["chosen_program_sha256"] for key in reference),
+            "paired_exact_test": paired,
+            "implementation_differences": sorted(name for name in
+                reference_plan["implementation"].keys() | control_plan["implementation"].keys()
+                if reference_plan["implementation"].get(name) != control_plan["implementation"].get(name)),
+            "claim": "paired_fit_control_not_a_proof_of_source_meaning_or_general_transfer"}
+
+
 def regrade_bank(bank, item):
     from core.learning.procedure_induction import Instruction, Program
     from core.learning.semantic_graph_counterexamples import ProgramObservationCache, compare_program_meanings, counterfactual_inputs
@@ -190,6 +242,8 @@ def main():
     for name in ("directory", "bank", "parent", "source-report", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--bundle", action="append", required=True)
+    parser.add_argument("--reference-directory", type=Path,
+                        help="independently regrade an intact-source fit for paired erasure comparison")
     args = parser.parse_args()
     from tools.evaluate_semantic_native_checkpoint import digest, verified_document
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
@@ -214,7 +268,19 @@ def main():
         from mlx_lm.utils import load_tokenizer
         tokenizer = load_tokenizer(Path(plan["model_path"]))
     result = verify_fit(args.directory, args.bank, items, tokenizer=tokenizer)
-    body = {"schema": "aura.semantic_native_fit_verification.v1", **result}
+    version = "v1"
+    if args.reference_directory is not None:
+        reference = verify_fit(args.reference_directory, args.bank, items)
+        reference_plan = verified_document(args.reference_directory / "plan.json", "plan_sha256")
+        reference_report = verified_document(args.reference_directory / "report.json")
+        control_report = verified_document(args.directory / "report.json")
+        if result["training_source_evidence"].get("source_control_verified") is not True:
+            raise ValueError("native erasure comparison lacks reconstructed source control")
+        result["reference_verification"] = reference
+        result["matched_source_control"] = compare_source_erasure_outcomes(
+            reference_plan, plan, reference_report, control_report)
+        version = "v2"
+    body = {"schema": f"aura.semantic_native_fit_verification.{version}", **result}
     _save_if_absent(args.output, {**body, "receipt_sha256": digest(body)})
     verified_document(args.output)
     print(json.dumps(result, sort_keys=True))

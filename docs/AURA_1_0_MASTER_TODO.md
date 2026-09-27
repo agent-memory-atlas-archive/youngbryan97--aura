@@ -1176,6 +1176,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Retained native canary](evidence/G03_NATIVE_RETAINED_CANARY_2026-09-26.md)
+  independently verifies 10/14 procedure matches and 11/14 proven equivalent
+  answers across seven exposed cohorts. Two disconnected paths and an early
+  finish reject promotion; the 500-case run is not launched.
   [Native retained-source connection](evidence/G03_NATIVE_RETAINED_SOURCE_CONNECTION_2026-09-26.md)
   reconstructs both exposed 500-case splits and relabels grading coordinates to
   public literal order without giving targets to the scorer. Forty-four focused
@@ -1183,6 +1187,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Frozen prefix branch reuse](evidence/G_NATIVE_PREFIX_BRANCH_REUSE_PLAN_2026-09-26.md)
   passes thirty-one focused MLX checks without skipping source or suffix computation.
   Its resident equivalence probe is planned; evaluator defaults are unchanged.
+  [Resident branch measurement](evidence/G_NATIVE_PREFIX_BRANCH_REJECTION_2026-09-26.md)
+  rejects reuse on all three measured sources despite unchanged rankings:
+  target-log-probability errors exceed the unchanged tolerance.
   [Explicit native codec and global search](evidence/G_NATIVE_CODEC_AND_SEARCH_2026-09-26.md)
   are wired and component-tested. The complete-epoch control remains rejected
   at 37/47 against incumbent 43/47. Relative-register model measurement is
@@ -1897,6 +1904,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the repaired 27B path. This is component evidence, not RLC gain or desktop proof.
 - [ ] G06 Compare ordinary model, equal-compute alternatives, matched controls,
   and causal lesions; account for selection, retries, and regressions.
+  [Matched source-erasure result](evidence/G06_NATIVE_SOURCE_ERASURE_RESULT_2026-09-26.md)
+  independently verifies the same 46/50 correctness outcomes as intact-source
+  fitting, with five different program selections. It does not support attributing
+  the gain to newly learned source meaning; native adaptation remains a confound.
   [Native base control](evidence/G06_NATIVE_BASE_CONTROL_2026-09-26.md)
   independently replays 12/12 unfitted grammar decodes: four exact scalar
   answers, zero lookup/count answers, versus 12/12 fitted on the same exposed
