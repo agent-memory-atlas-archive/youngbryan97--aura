@@ -6,12 +6,14 @@ from pathlib import Path
 import pytest
 
 from core.learning.procedure_induction import Instruction, Program
+from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
 from core.learning.semantic_native_program import NativeProgramSequence, native_program_sequence
 from core.learning.semantic_native_source_control import (
     SOURCE_ERASURE_CONTRACT,
     erase_native_source_tokens,
     source_control_mode_from_plan,
 )
+from core.learning.semantic_native_source_pairs import SOURCE_PAIR_CONTRACT
 from tests.test_semantic_native_program import Tokenizer
 
 
@@ -52,6 +54,20 @@ def test_plan_distinguishes_old_evidence_from_explicit_fit_only_control():
                     {**plan, "schema": "aura.semantic_native_fit_plan.v1"},
                     {**plan, "source_evidence_control": {**SOURCE_ERASURE_CONTRACT, "scope": "all"}}):
         with pytest.raises(ValueError, match="contract differs"):
+            source_control_mode_from_plan(invalid)
+
+
+def test_paired_grammar_plan_requires_intact_source_and_bound_interaction():
+    plan = {"schema": "aura.semantic_native_fit_plan.v4",
+            "objective": "grammar_source_pairs", "loss_scope": "semantic_decisions",
+            "grammar_choice_contract": GRAMMAR_CHOICE_CONTRACT,
+            "grammar_source_pair_contract": SOURCE_PAIR_CONTRACT,
+            "grammar_source_pair_fit_partners": {"a": {"partner": "b"}}}
+    assert source_control_mode_from_plan(plan) == "source_text"
+    for invalid in ({**plan, "source_evidence_control": SOURCE_ERASURE_CONTRACT},
+                    {**plan, "grammar_source_pair_contract": {**SOURCE_PAIR_CONTRACT, "weight": 0.}},
+                    {**plan, "grammar_source_pair_fit_partners": {}}):
+        with pytest.raises(ValueError, match="paired-source|contract differs"):
             source_control_mode_from_plan(invalid)
 
 

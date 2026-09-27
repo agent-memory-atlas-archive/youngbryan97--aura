@@ -38,7 +38,7 @@ def selected_checkpoint(directory):
     from tools.semantic_native_execution import execution_from_plan
     execution_from_plan(plan)
     if (plan.get("schema") not in {"aura.semantic_native_fit_plan.v1", "aura.semantic_native_fit_plan.v2",
-                                   "aura.semantic_native_fit_plan.v3"}
+                                   "aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4"}
             or plan.get("held_labels_used_for_fit_or_selection") is not False
             or plan.get("serving_authority") is not False
             or plan.get("qualification_evidence") is not False):

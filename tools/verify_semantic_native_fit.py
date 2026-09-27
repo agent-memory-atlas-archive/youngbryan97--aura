@@ -205,7 +205,7 @@ def verify_source_control_supervision(plan, supervision, items, tokenizer):
     from tools.evaluate_semantic_native_checkpoint import digest
 
     mode = source_control_mode_from_plan(plan)
-    if plan["schema"] == "aura.semantic_native_fit_plan.v3":
+    if plan["schema"] in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4"}:
         from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
         from tools.train_semantic_native_program import native_grammar_supervision_sets
 
@@ -380,7 +380,8 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
         raise ValueError("native fit report arithmetic differs from its plan")
     bank_plan, bank_report = _verified_pair(bank_directory)
     mode = source_control_mode_from_plan(plan)
-    expected_schema = ("aura.semantic_native_fit.v3" if plan["schema"] == "aura.semantic_native_fit_plan.v3"
+    expected_schema = ("aura.semantic_native_fit.v4" if plan["schema"] == "aura.semantic_native_fit_plan.v4"
+                       else "aura.semantic_native_fit.v3" if plan["schema"] == "aura.semantic_native_fit_plan.v3"
                        else "aura.semantic_native_fit.v2" if mode == "source_token_erasure"
                        else "aura.semantic_native_fit.v1")
     if (report.get("schema") != expected_schema
@@ -393,6 +394,16 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
     if (len(history) != plan["steps"]
             or any(row["step"] != index or not math.isfinite(row["loss"]) for index, row in enumerate(history, 1))):
         raise ValueError("native fit optimizer history is incomplete")
+    if plan["schema"] == "aura.semantic_native_fit_plan.v4":
+        from core.learning.semantic_native_source_pairs import native_source_pair_plan
+
+        pairs = native_source_pair_plan(
+            tuple(items[identity] for identity in plan["fit_ids"]), plan["fit_ids"],
+            register_encoding=plan["register_encoding"])
+        if (pairs != plan["grammar_source_pair_fit_partners"]
+                or plan["grammar_source_pair_updates"] != sum(
+                    identity in pairs for identity in plan["scheduled_fit_ids"])):
+            raise ValueError("native fit source-pair supervision differs")
     checkpoints = [verified_document(directory / f"checkpoint-{row['step']}.json") for row in report["checkpoints"]]
     if checkpoints != report["checkpoints"] or selected not in checkpoints:
         raise ValueError("native fit checkpoint report differs")
@@ -468,7 +479,7 @@ def main():
     plan = verified_document(args.directory / "plan.json", "plan_sha256")
     tokenizer = None
     if (source_control_mode_from_plan(plan) == "source_token_erasure"
-            or plan["schema"] == "aura.semantic_native_fit_plan.v3"):
+            or plan["schema"] in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4"}):
         from mlx_lm.utils import load_tokenizer
         tokenizer = load_tokenizer(Path(plan["model_path"]))
     result = verify_fit(args.directory, args.bank, items, tokenizer=tokenizer)
