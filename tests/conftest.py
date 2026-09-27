@@ -513,6 +513,7 @@ class HermeticResourceSandbox:
         # Tests deliberately monkeypatch psutil's module attributes. Pin the
         # native constructors before the test body so teardown observation
         # cannot be redirected through the very double it is auditing.
+        self._native_module = psutil
         self._native_process = psutil.Process
         self._native_error = psutil.Error
         self._native_wait_procs = psutil.wait_procs
@@ -555,9 +556,12 @@ class HermeticResourceSandbox:
         replaced `psutil.Process` with a double reached them anyway, and three
         tests failed at teardown on a TypeError from inside psutil. Whatever
         the test put there is restored afterwards.
-        """
-        import psutil
 
+        The module is the one captured when the sandbox started. A test that
+        replaces the whole module in `sys.modules` leaves the real one alone,
+        and importing it again here would hand back the test's double.
+        """
+        psutil = self._native_module
         names = ("Process", "Error", "wait_procs")
         held = {name: getattr(psutil, name) for name in names}
         psutil.Process = self._native_process
