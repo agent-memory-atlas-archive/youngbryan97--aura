@@ -248,7 +248,10 @@ def main():
         decode_native_grammar,
     )
     from core.learning.semantic_native_program import native_text_decision_sequence
-    from core.learning.semantic_native_source_control import apply_native_source_evidence
+    from core.learning.semantic_native_source_control import (
+        apply_native_source_evidence,
+        native_score_input_receipt,
+    )
     from core.learning.semantic_native_search import search_native_grammar
     from core.learning.semantic_program_floor import semantic_programs_structurally_equivalent
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
@@ -276,21 +279,25 @@ def main():
         for example, identity in zip(examples, sources, strict=True):
             public_inputs, types = source_input_types(example.source_text)
             scored = 0
+            score_input_receipts = []
             def score(choices, *, source=example.source_text, source_identity=identity):
                 nonlocal scored
                 scores = []
+                input_receipts = []
                 for choice in choices:
                     if time.monotonic() - started > args.max_seconds:
                         raise TimeoutError("native grammar run reached its finite bound")
                     sequence = native_text_decision_sequence(
                         source, choice.text, (choice.span,), tokenizer,
                         max_tokens=training["max_sequence_tokens"])
-                    sequence, _control = apply_native_source_evidence(
+                    sequence, control = apply_native_source_evidence(
                         sequence, source, tokenizer, mode=args.source_evidence)
                     hidden = prefix.capture(mx.array([sequence.tokens[:-1]], dtype=mx.int32))
                     scores.append(-native_loss(suffix, hidden, sequence, summed=True,
                                                scope="semantic_decisions").item())
+                    input_receipts.append(native_score_input_receipt(sequence, control))
                     scored += 1
+                score_input_receipts.append(input_receipts)
                 print(json.dumps({"stage": "decision", "source_sha256": source_identity,
                                   "scored_prefixes": scored, "choices": len(choices)}), flush=True)
                 return tuple(scores)
@@ -361,6 +368,7 @@ def main():
                         "bound_forced_completion": forced,
                         "depth_bound_reached": forced or status == "disconnected_at_depth_bound",
                         "decision_trace": trace, "search": search_evidence,
+                        "score_input_receipts": score_input_receipts,
                         "target_available_to_scorer": False}
             row = {**row_body, "receipt_sha256": digest(row_body)}
             _save_if_absent(args.directory / "rows" / f"{identity}.json", row)

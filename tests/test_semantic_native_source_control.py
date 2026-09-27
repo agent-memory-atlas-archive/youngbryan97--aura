@@ -16,6 +16,7 @@ from core.learning.semantic_native_source_control import (
     SOURCE_ERASURE_CONTRACT,
     apply_native_source_evidence,
     erase_native_source_tokens,
+    native_score_input_receipt,
     source_control_mode_from_plan,
 )
 from core.learning.semantic_native_source_pairs import SOURCE_PAIR_CONTRACT
@@ -61,6 +62,12 @@ def test_source_evidence_applies_the_same_intervention_to_any_native_sequence():
     assert erased != row
     assert receipt["source_content_tokens_available"] is False
     assert erased.tokens[row.continuation_start:] == row.tokens[row.continuation_start:]
+    intact_input = native_score_input_receipt(row, None)
+    erased_input = native_score_input_receipt(erased, receipt)
+    assert intact_input["sequence_sha256"] != erased_input["sequence_sha256"]
+    assert intact_input["source_control_sha256"] is None
+    assert erased_input["source_control_sha256"] is not None
+    assert erased_input["erased_source_tokens"] == receipt["erased_source_tokens"]
     with pytest.raises(ValueError, match="source-evidence mode"):
         apply_native_source_evidence(row, source, tokenizer, mode="unknown")
 
