@@ -2099,6 +2099,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   focused tests passed; broad task-outcome learning remains open.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
+  [Balanced polarity controls](evidence/G10_BALANCED_POLARITY_CONTROLS_2026-09-27.md)
+  prevent an extraction null from exactly reproducing the treatment direction;
+  the model-active development and sealed qualifications remain open.
   [Contrastive development path](evidence/G10_CONTRASTIVE_DEVELOPMENT_PIPELINE_2026-09-27.md)
   now builds paired train-only raw/purified/null vector candidates and a
   disjoint development layer/alpha/control selection. CPU gates pass; no new

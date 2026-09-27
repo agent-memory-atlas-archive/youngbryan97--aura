@@ -80,14 +80,26 @@ def test_paired_direction_and_nuisance_projection() -> None:
 
 
 def test_pair_order_is_not_a_null_but_polarity_flips_are() -> None:
-    positive = np.array([[4., 2.], [2., 4.], [5., 3.], [3., 5.]])
+    positive = np.ones((4, 4)) + 2 * np.eye(4)
     negative = np.zeros_like(positive)
     assert np.array_equal(paired_direction(positive, negative),
                           paired_direction(positive[::-1], negative[::-1]))
-    nulls = polarity_flip_nulls(positive, negative, count=12, seed=3)
-    assert len(nulls) == 12
-    assert any(not np.allclose(value, paired_direction(positive, negative)) for value in nulls)
-    assert all(value.shape == (2,) for value in nulls)
+    nulls = polarity_flip_nulls(positive, negative, count=6, seed=3)
+    assert len(nulls) == 6
+    assert all(abs(float(np.dot(value, paired_direction(positive, negative)))) < 1e-8
+               for value in nulls)
+    assert all(value.shape == (4,) for value in nulls)
+    assert all(np.array_equal(left, right) for left, right in zip(
+        nulls, polarity_flip_nulls(positive, negative, count=6, seed=3), strict=True))
+
+
+def test_polarity_controls_refuse_a_treatment_direction_disguised_as_null() -> None:
+    positive = np.tile(np.array([1., 0.]), (8, 1))
+    negative = np.zeros_like(positive)
+    with pytest.raises(ValueError, match="geometry_unidentified"):
+        polarity_flip_nulls(positive, negative, count=8, seed=25)
+    with pytest.raises(ValueError, match="count_invalid"):
+        polarity_flip_nulls(positive[:3], negative[:3], count=2, seed=25)
 
 
 def test_provisional_corpus_has_disjoint_dev_for_every_target_and_control() -> None:
@@ -102,23 +114,26 @@ def test_provisional_corpus_has_disjoint_dev_for_every_target_and_control() -> N
 
 
 def test_raw_and_purified_are_distinct_candidates_with_declared_nulls() -> None:
-    positive = np.array([[2., 1., 0.], [1., 2., 0.], [3., 2., 0.], [2., 3., 0.]])
+    positive = np.concatenate((np.tile([2., 1.], (4, 1)), np.eye(4) - .25), axis=1)
     negative = np.zeros_like(positive)
-    controls = {"length": (np.array([[1., 0., 0.], [2., 0., 0.]]),
-                           np.zeros((2, 3)))}
+    controls = {"length": (np.array([[1., 0., 0., 0., 0., 0.],
+                                      [2., 0., 0., 0., 0., 0.]]),
+                           np.zeros((2, 6)))}
     candidates = construct_candidates(positive, negative, controls, null_count=6, seed=9)
     assert candidates["nuisance_dimensions"] == ("length",)
     assert candidates["raw"][0] > 0
-    assert np.allclose(candidates["purified"], [0., 1., 0.])
+    assert np.allclose(candidates["purified"], [0., 1., 0., 0., 0., 0.])
     assert len(candidates["polarity_flip_nulls"]) == 6
+    assert all(abs(cosine) < 1e-8 for cosine in candidates["polarity_null_target_cosines"])
 
 
 def test_capture_consumes_train_pairs_only_and_requires_complete_geometry() -> None:
     design = build_contrastive_corpus("c" * 64)
     activations = {}
     for index, pair in enumerate(design.pairs):
-        base = np.array([float(index % 7), 0., 1.])
-        activations[pair.positive] = {25: base + [0., 1., 0.]}
+        base = np.array([float(index % 7), 0., *([0.] * 8)])
+        difference = np.array([0., 1., *(np.eye(8)[index % 8] - .125)])
+        activations[pair.positive] = {25: base + difference}
         activations[pair.negative] = {25: base}
     called = []
 
@@ -126,9 +141,9 @@ def test_capture_consumes_train_pairs_only_and_requires_complete_geometry() -> N
         called.append(prompt)
         return activations[prompt]
 
-    candidates = capture_designed_vectors(design, read, [25], 3, NUISANCE_BY_TARGET)
+    candidates = capture_designed_vectors(design, read, [25], 10, NUISANCE_BY_TARGET)
     assert set(candidates) == set(TARGET_DIMENSIONS)
-    assert all(candidates[name][25]["raw"].shape == (3,) for name in candidates)
+    assert all(candidates[name][25]["raw"].shape == (10,) for name in candidates)
     assert len(called) == sum(2 * len(design.partition(name, "train"))
                               for name in (*TARGET_DIMENSIONS, *CONTROL_DIMENSIONS))
     assert not set(called) & {prompt for pair in design.pairs if pair.split == "dev"
@@ -139,3 +154,10 @@ def test_capture_consumes_train_pairs_only_and_requires_complete_geometry() -> N
 
     with pytest.raises(ValueError, match="capture_incomplete"):
         capture_designed_vectors(design, missing, [25], 3, NUISANCE_BY_TARGET)
+
+    def collinear(prompt):
+        side = 1.0 if prompt in {pair.positive for pair in design.pairs} else 0.0
+        return {25: np.array([side, *([0.] * 9)])}
+
+    with pytest.raises(ValueError, match="polarity_null_geometry_unidentified"):
+        capture_designed_vectors(design, collinear, [25], 10, NUISANCE_BY_TARGET)
