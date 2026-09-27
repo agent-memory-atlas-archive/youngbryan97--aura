@@ -323,3 +323,33 @@ def test_the_child_action_does_not_inherit_the_task_contract(monkeypatch):
     for key in DesktopTaskSkill._TASK_LEVEL_EXPECTATION_KEYS:
         assert key not in seen["context"], f"{key} must not reach the child action"
     assert seen["context"].get("source") == "desktop_ui", "provenance still travels"
+
+
+def test_a_page_named_to_work_through_reaches_the_browser_body():
+    """LIVE 2026-09-27: it never got there.
+
+    "Take the Open Extended Jungian Type Scales personality test on
+    openpsychometrics.org" stayed on the chat lane and she answered from her
+    own record of choices instead — "I don't have a browser result showing me
+    on that page with questions rendered." The delegation that opens the page
+    sits behind a gate that reads the steps the DESKTOP lane derives, and for
+    page work those come back as the generic clipboard receipt: a
+    set_clipboard and a paste, which land in the prose set and refuse the
+    whole lane. A page named to work through is the browser's job, and the
+    browser composes no prose — it reads the page, decides, and acts.
+    """
+    from interface.routes.chat_desktop_evidence import (
+        _desktop_objective_self_sufficient_without_cognitive_text as reaches_the_body,
+    )
+
+    assert reaches_the_body(
+        "Take the Open Extended Jungian Type Scales personality test on "
+        "openpsychometrics.org. Before you start, tell me what type you think "
+        "it will give you and why."
+    )
+    assert reaches_the_body("go to example.com and fill in the form")
+    # And what it must not admit: work that needs her words, and a question
+    # about the screen that the reading itself answers.
+    assert not reaches_the_body("open Notes and write a report about quantum mechanics")
+    assert not reaches_the_body("what's on my screen right now?")
+    assert not reaches_the_body("write a haiku")

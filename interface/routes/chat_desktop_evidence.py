@@ -894,6 +894,25 @@ def _desktop_objective_self_sufficient_without_cognitive_text(user_message: str)
         return False
     text = str(user_message or "").strip()
     lowered = text.lower()
+    # A page named to work through is the browser body's job, and the browser
+    # composes nothing: it reads the page, decides, and acts. The steps this
+    # gate reads are derived for the DESKTOP lane, and for page work they come
+    # back as the generic clipboard receipt — set_clipboard and a paste — which
+    # lands in the prose set and refuses the whole lane.
+    #
+    # LIVE 2026-09-27: "Take the Open Extended Jungian Type Scales personality
+    # test on openpsychometrics.org" stayed on the chat lane and she answered
+    # from her own record of choices without ever opening the page: "I don't
+    # have a browser result showing me on that page with questions rendered."
+    # The delegation that would have opened it (desktop_task's
+    # `_delegate_page_objective`) sits behind this gate.
+    try:
+        from core.conversation.page_interaction import page_interaction_target
+
+        if page_interaction_target(text):
+            return True
+    except (ImportError, AttributeError, TypeError, ValueError):
+        pass
     try:
         from core.skills.desktop_task import DesktopTaskSkill
 

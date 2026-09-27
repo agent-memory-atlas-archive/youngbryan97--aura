@@ -2241,6 +2241,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   window and its title; asked again with the screen locked she said "the screen
   is locked, so there is nothing for me to look at yet" and claimed nothing.
   Highlighting and incognito exclusion are untested.
+  UPDATE 2026-09-27. Reading a real questionnaire, measured separately from
+  answering it, by `tools/check_a_questionnaire_reads.py`: on the OEJTS
+  landing page she sees four elements and finds the way in from the page's own
+  words; inside, 161 elements in 32 groups, taken for a scale instrument
+  because every group offers the same five unlabelled options, and each item
+  reads as laid out — "makes lists [1] [2] [3] [4] [5] relies on memory". The
+  instrument is two parts of 32 with a Continue between them.
+  What blocked the live run was routing, not reading: a page named to work
+  through was refused by the gate that reads the DESKTOP lane's derived steps,
+  which for page work come back as a generic clipboard receipt, so the turn
+  stayed on the chat lane and she answered without ever opening the page.
+  Fixed with its test; the live run follows.
 - [ ] U06 General desktop actions, app controls, wallpaper/media selection,
   file creation/download/organization, and undo where applicable.
   PARTIAL 2026-09-07. The governance boundary holds and reports itself well:

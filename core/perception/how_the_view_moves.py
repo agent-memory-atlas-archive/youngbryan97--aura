@@ -31,7 +31,16 @@ from typing import Any
 
 import numpy as np
 
-__all__ = ["ViewChange", "WhatMyHandsDoToTheView", "grey", "how_alike", "how_it_grew", "how_it_moved", "how_it_slid"]
+__all__ = [
+    "ViewChange",
+    "WhatMyHandsDoToTheView",
+    "alike_where_they_are",
+    "grey",
+    "how_alike",
+    "how_it_grew",
+    "how_it_moved",
+    "how_it_slid",
+]
 
 #: The size frames are measured at. Big enough that a slide of a few pixels
 #: at full size still registers; small enough that a measurement costs
@@ -145,6 +154,20 @@ def how_it_moved(before: np.ndarray, after: np.ndarray) -> tuple[float, float, f
     return best
 
 
+def alike_where_they_are(one: np.ndarray, two: np.ndarray) -> float:
+    """How alike two views are as they stand, without lining them up.
+
+    The question ``how_alike`` cannot answer. It takes the slide out first, so
+    two views of the same wall a quarter turn apart come back nearly identical
+    — which is right for "is this the same place" and wrong for "am I facing
+    the way I was". Left where they are, only the same heading matches.
+    """
+    if one.shape != two.shape or min(one.shape) < 8:
+        return 0.0
+    alike = _lined_up(one - one.mean(), two - two.mean(), 0.0, 0.0)
+    return alike if alike > -math.inf else 0.0
+
+
 def how_alike(one: np.ndarray, two: np.ndarray) -> float:
     """How alike two views are once the slide between them is taken out; one is the same view.
 
@@ -182,6 +205,11 @@ class WhatMyHandsDoToTheView:
     seen: dict[str, list[ViewChange]] = field(default_factory=dict)
     #: Mouse travel and the slide it caused, for fitting the gain.
     _mouse: list[tuple[float, float, float, float]] = field(default_factory=list)
+    #: How wide the view is in degrees, once a turn of the room has measured
+    #: it. `Any` rather than the type, because the measurement imports this
+    #: module. Nought where it has not been measured, and every caller then
+    #: behaves as it did before it could be.
+    view: Any = None
 
     def watched(self, act: str, before: Any, after: Any, *, mouse: tuple[int, int] = (0, 0)) -> ViewChange:
         """One act, and the frames either side of it."""

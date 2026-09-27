@@ -132,13 +132,17 @@ class GoingTo:
     #: Why the trip ended, once it has.
     ended: str = ""
     #: Whether to aim where a moving thing will be when she arrives rather
-    #: than where it is. Off: measured 2026-09-26 in thirty generated worlds
-    #: with a thing circling at under her pace, walking while steering at
-    #: where it is caught it in 20, and leading by its drift over the time to
-    #: arrive caught it in 11. The drift carried over twenty looks aims at the
-    #: edge of the view and she loses it; the right lead is an angle, and that
-    #: needs the field of view in degrees, which nothing measures yet.
+    #: than where it is. Measured 2026-09-26 in thirty generated worlds with a
+    #: thing circling at under her pace: walking while steering at where it is
+    #: caught it in 20, and leading by its drift over the time to arrive
+    #: caught it in 11 — the drift carried over twenty looks aimed at the edge
+    #: of the view and she lost it. The lead is an angle, and she can measure
+    #: the field of view now (core/perception/how_wide_the_view_is.py), so it
+    #: is bounded by what keeps the thing on screen rather than by a share of
+    #: the frame.
     leads: bool = False
+    #: How wide her view is, when a turn of the room has measured it.
+    view: Any = None
     #: Where the thing was at the last look.
     _last: float | None = None
     #: How far the whole picture slid since the last look, as her eyes measured it.
@@ -177,16 +181,24 @@ class GoingTo:
         # Aim where it will be when she gets there, not one look on: a thing
         # moving across is caught by heading for where it is going. How many
         # looks away she is comes from her own walking: a step that makes the
-        # view grow by g leaves her g/(g-1) steps from it. Never further off
-        # than half a view, because past that she aims at something she can
-        # no longer see.
+        # view grow by g leaves her g/(g-1) steps from it.
         horizon = 1.0
         if self.growths and self.growths[-1] > 1.0:
             grew = self.growths[-1]
             horizon = grew / (grew - 1.0)
         lead = drift * horizon
-        if abs(lead) > 0.5:
-            lead = 0.5 if lead > 0 else -0.5
+        # Never past the edge of the thing. Aiming at the edge of the VIEW is
+        # what lost it: she turns until the thing is off screen, and a thing
+        # she cannot see cannot be steered toward. The far edge of the thing
+        # itself is the furthest aim that still keeps it in sight, and where
+        # its width is not known, half of what is left of the view to that
+        # side. Measured 2026-09-26: leading to the view's edge caught 11 of
+        # 30 against 20 for not leading at all.
+        room = max(0.0, 0.5 - abs(sight.across))
+        edge = max(sight.wide / 2.0, 0.02) if sight.wide else room / 2.0
+        furthest = min(edge, room)
+        if abs(lead) > furthest:
+            lead = furthest if lead > 0 else -furthest
         return sight.across + lead
 
     def _the_cue_is_ours(self, layout: Sequence[dict[str, Any]], seen: list[Sighting]) -> bool:

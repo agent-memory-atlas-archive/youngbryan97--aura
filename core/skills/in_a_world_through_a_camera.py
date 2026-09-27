@@ -117,13 +117,24 @@ def look_settled(world: ACameraWorld, *, most: int = 3) -> tuple[Any, list[dict[
 
 
 async def learn_the_body(
-    world: ACameraWorld, *, keys: Sequence[str], slot_s: float, most_travel: int = 4096
+    world: ACameraWorld,
+    *,
+    keys: Sequence[str],
+    slot_s: float,
+    most_travel: int = 4096,
+    measure_the_view: bool = True,
 ) -> WhatMyHandsDoToTheView:
     """What the mouse and each key do to the view, measured by trying them.
 
     ``most_travel`` only stops a mouse that never moves the view from being
     doubled for ever; a world where nothing a mouse does shows is a world
     this learns nothing about the mouse in, and says so by a gain of nought.
+
+    ``measure_the_view`` follows something named round the room to find how
+    many degrees wide the view is, which is what makes aiming at a moving
+    thing an angle rather than a slide in pixels. It costs one turn of the
+    room and is worth it once per world; off, everything behaves as it did
+    before it could be measured.
     """
     body = WhatMyHandsDoToTheView()
     if world.bring_forward is not None and not await world.bring_forward():
@@ -172,6 +183,10 @@ async def learn_the_body(
             await _played(world, Chunk((Slot(frozenset({key})),), slot_s))
             after, _ = look_settled(world)
             body.watched(key, before, after)
+    if measure_the_view:
+        from core.perception.how_wide_the_view_is import turn_all_the_way_round
+
+        body.view = await turn_all_the_way_round(world, body, slot_s=slot_s)
     return body
 
 
@@ -205,7 +220,13 @@ async def go_to(
         return [*layout, found] if found else layout
 
     layout = with_what_it_looks_like(frame, layout)
-    going = GoingTo(named, turn_for=lambda share: body.turn_for(share * small_wide), walks=walks, leads=leads)
+    going = GoingTo(
+        named,
+        turn_for=lambda share: body.turn_for(share * small_wide),
+        walks=walks,
+        leads=leads,
+        view=getattr(body, "view", None),
+    )
     last_said = ""
     sweep: list[Any] = []
     walked_since_press = True
