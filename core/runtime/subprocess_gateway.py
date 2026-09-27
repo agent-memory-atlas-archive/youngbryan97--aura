@@ -692,12 +692,18 @@ def _child_cpu_seconds(pid: int) -> float | None:
         return None  # not a failure: no CPU fields, no figure
 
 
-class WorkBoundExpired(subprocess.TimeoutExpired):
+class WorkBoundExpired(subprocess.TimeoutExpired, TimeoutError):  # noqa: N818 - named before it was a TimeoutError; callers match on the name
     """A ``TimeoutExpired`` that says which bound was hit.
 
     The base class prints "timed out after 10.0 seconds" whatever happened;
     the log then read as a wall-clock timeout for a child that was killed
     for making no CPU progress, or for exhausting its budget.
+
+    And a ``TimeoutError``, because it is one. Callers of a probe say "the
+    probe did not answer" with the builtin, and ``TimeoutExpired`` is not
+    one: LIVE 2026-09-26 a memory-pressure sysctl ran past its two seconds on
+    a loaded machine, got past a handler that caught ``TimeoutError``, and
+    was taken for her own model failing, so a stand-in answered her turn.
     """
 
     def __init__(
@@ -715,6 +721,14 @@ class WorkBoundExpired(subprocess.TimeoutExpired):
     def __str__(self) -> str:
         base = super().__str__()
         return f"{base} ({self.reason})" if self.reason else base
+
+    def __reduce__(self) -> tuple[Any, tuple[Any, ...]]:
+        # ``OSError`` pickles by its own args, which this never fills.
+        return (_work_bound_expired, (self.cmd, self.timeout, self.output, self.stderr, self.reason))
+
+
+def _work_bound_expired(cmd: Any, timeout: Any, output: Any, stderr: Any, reason: str) -> WorkBoundExpired:
+    return WorkBoundExpired(cmd, timeout, output=output, stderr=stderr, reason=reason)
 
 
 def _drain_stopped_child(proc: Any, *, timeout_s: float, text: bool) -> tuple[Any, Any]:

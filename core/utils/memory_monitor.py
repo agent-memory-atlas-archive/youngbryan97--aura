@@ -2,6 +2,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import subprocess
 import sys
 import time
 from dataclasses import asdict, dataclass
@@ -229,6 +230,21 @@ class MemoryPressureSnapshot:
 # Ask it, instead of inferring a worse answer from page counts.
 
 
+def _kernel_int(name: str) -> int | None:
+    """An integer sysctl, read through libc. None where it cannot be."""
+    try:
+        import ctypes
+
+        libc = ctypes.CDLL(None)
+        value = ctypes.c_int(0)
+        size = ctypes.c_size_t(ctypes.sizeof(value))
+        if libc.sysctlbyname(name.encode("utf-8"), ctypes.byref(value), ctypes.byref(size), None, 0) != 0:
+            return None
+        return int(value.value)
+    except (OSError, AttributeError, TypeError, ValueError):
+        return None
+
+
 def kernel_memory_pressure_level() -> str:
     """What the OS itself says about memory pressure.
 
@@ -245,11 +261,26 @@ def kernel_memory_pressure_level() -> str:
             return cached
     if sys.platform != "darwin":
         return MEMORY_PRESSURE_UNKNOWN
+    # Read from the kernel directly, not by starting a process.
+    #
+    # A sysctl is a value the kernel hands back to a library call; starting
+    # `sysctl` to print it forks a process, and on a loaded machine the fork is
+    # what takes the time. LIVE 2026-09-26 it took longer than its two seconds
+    # while a measurement run and her 27B shared the machine, the timeout
+    # escaped this function, and the router took it for her own model failing:
+    # "Endpoint Cortex raised exception: ... timed out after 2.0 seconds", and
+    # a 1.5B stand-in answered a question about her personality. Reading it
+    # this way takes microseconds and starts nothing.
+    native = _kernel_int("kern.memorystatus_vm_pressure_level")
+    if native is not None:
+        level = _KERNEL_PRESSURE_LEVELS.get(native, MEMORY_PRESSURE_UNKNOWN)
+        with _KERNEL_PRESSURE_LOCK:
+            _KERNEL_PRESSURE_CACHE = (now, level)
+        return level
     try:
-        # Through the governed gateway: it is the canonical owner of process
-        # execution, and a raw subprocess.run here is how that ownership
-        # erodes one reading at a time. This one is read-only — a sysctl that
-        # changes nothing — and says so.
+        # Through the governed gateway where a process has to be started: it is
+        # the canonical owner of process execution. This one is read-only — a
+        # sysctl that changes nothing — and says so.
         from core.runtime.subprocess_gateway import get_subprocess_gateway
 
         raw = get_subprocess_gateway().run(
@@ -263,7 +294,9 @@ def kernel_memory_pressure_level() -> str:
             int(str(getattr(raw, "stdout", "") or "").strip() or "0"),
             MEMORY_PRESSURE_UNKNOWN,
         )
-    except (OSError, ValueError, RuntimeError, ImportError, TypeError):
+    # A reading that could not be taken in time is no opinion, as this
+    # function promises, and never an exception for its caller to die of.
+    except (OSError, ValueError, RuntimeError, ImportError, TypeError, subprocess.TimeoutExpired):
         return MEMORY_PRESSURE_UNKNOWN
     with _KERNEL_PRESSURE_LOCK:
         _KERNEL_PRESSURE_CACHE = (now, level)
