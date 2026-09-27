@@ -184,6 +184,16 @@ class WorthLedger:
                 value = 0.0
             if value != value:
                 value = 0.0
+            # A channel this ledger has never held gets its store on first
+            # sight. The mend in `what_came_before` fills a kept mapping's new
+            # keys, and this is the same guarantee where the crash landed: a
+            # ninth channel added one night raised KeyError here 23 times the
+            # next morning and tripped the learning phase's circuit, so she
+            # learned nothing for the whole run.
+            if name not in self._changes:
+                self._changes[name] = deque(maxlen=_WINDOW)
+                self._expected.setdefault(name, 0.0)
+                self._paid.setdefault(name, 0)
             history = self._changes[name]
             spread = _median([abs(item) for item in history if item != 0.0])
             if value != 0.0:

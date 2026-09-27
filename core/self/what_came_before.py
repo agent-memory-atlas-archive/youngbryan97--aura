@@ -171,7 +171,20 @@ def _decode(value: Any) -> Any:
             # has nothing to default, and the kept fields are all of it.
             pass
         for name, item in (value.get("fields") or {}).items():
-            object.__setattr__(built, name, _decode(item))
+            kept = _decode(item)
+            # A mapping keyed by a declared set of names has the same problem
+            # one level in: the kept dict REPLACED the default, so a key added
+            # since is gone from an object that otherwise looks whole. LIVE
+            # 27 Sep: a ninth channel of a turn's worth was added the night
+            # before, and every learning phase raised KeyError: 'integrity'
+            # from a ledger kept before it existed — 23 in a row, which tripped
+            # the phase's circuit and left her learning nothing all run. The
+            # kept entries still win; only the names it has never heard of take
+            # their default.
+            default = getattr(built, name, None)
+            if isinstance(default, dict) and isinstance(kept, dict):
+                kept = {**default, **kept}
+            object.__setattr__(built, name, kept)
         return built
     return {key: _decode(item) for key, item in value.items()}
 

@@ -145,3 +145,24 @@ def test_the_core_reads_the_reserve_in_deliberation():
     reading = read_core_state(AuraState.default(), organs=Organs(reserve=ledger))
     column = list(schema("D").features).index("energy_reserve")
     assert float(reading.values["D"][column]) == pytest.approx(0.1)
+
+
+def test_a_channel_the_ledger_has_never_held_gets_its_store() -> None:
+    """LIVE 27 Sep: a ninth channel added the night before raised
+    KeyError: 'integrity' on every learning phase — 23 in a row, which tripped
+    the phase's circuit and left her learning nothing for the whole run. The
+    kept record is mended where it is decoded; this is the same guarantee where
+    the crash landed."""
+    from core.affect import what_it_was_worth as worth
+
+    worth.reset_for_test()
+    ledger = worth.get_worth_ledger()
+    for name in ("_changes", "_expected", "_paid"):
+        getattr(ledger, name).pop("integrity", None)
+
+    reading = ledger.note({"integrity": 0.3, "satisfaction": 0.1})
+
+    assert reading is not None
+    assert "integrity" in ledger._changes
+    assert ledger._expected["integrity"] == 0.0
+    worth.reset_for_test()

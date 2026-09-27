@@ -83,6 +83,14 @@ wired to screen work, or covering part of it), **none**.
 | Answering questions by exploring | looking around for a named thing, half a view a step (`in_a_world_through_a_camera`) | part |
 | Explaining intentions | the standing strategy line, spoken | have |
 
+A measured null, 27 Sep: the resident encoder cannot do this on bare names.
+Embedding a goal and each thing's name and taking the nearest resolved "puerta"
+to *chest* at 0.721 against *door* at 0.720, "porte" to chest, "Tur" to chest;
+only the door emoji and the Chinese character landed on door. A capability
+built on that margin would be a coin flip wearing a mechanism's name, so
+multilingual and emoji goals wait for a translation faculty or the VLM rather
+than for a nearest-neighbour over single words.
+
 ### Reasoning, memory and horizon
 
 | Faculty | Aura today | Status |

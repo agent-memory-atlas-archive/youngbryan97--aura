@@ -126,6 +126,34 @@ def test_a_field_added_since_the_record_was_kept_comes_back_with_its_default() -
     habits.reset_for_test()
 
 
+def test_a_channel_added_since_the_record_was_kept_comes_back_in_its_mapping() -> None:
+    """LIVE 27 Sep: a ninth channel of a turn's worth was added the night
+    before, and every learning phase raised KeyError: 'integrity' from a ledger
+    kept before it existed — 23 in a row, which tripped the phase's circuit and
+    left her learning nothing for the whole run.
+
+    The object-level mend above was not enough: the kept dict REPLACED the
+    default one, so a key added since was gone from an object that otherwise
+    looked whole.
+    """
+    worth = importlib.import_module("core.affect.what_it_was_worth")
+    worth.reset_for_test()
+    _lived("core.affect.what_it_was_worth")
+    ledger = worth.get_worth_ledger()
+    ledger.note({"satisfaction": 0.4})
+    record = keeper._encode(ledger)
+    # Kept before the channel existed.
+    for field in ("_changes", "_expected", "_paid"):
+        record["fields"][field].pop("integrity", None)
+    back = keeper._decode(json.loads(json.dumps(record)))
+    assert "integrity" in back._changes, "the channel added since is missing"
+    assert "integrity" in back._expected and "integrity" in back._paid
+    # And what was kept is still what she has.
+    assert list(back._changes["satisfaction"]) == [0.4]
+    back.note({"integrity": 0.2})  # no KeyError
+    worth.reset_for_test()
+
+
 def test_a_record_cannot_name_a_class_outside_her_ledgers() -> None:
     with pytest.raises(TypeError):
         keeper._decode({"~obj": "subprocess:Popen", "fields": {}})
