@@ -215,6 +215,7 @@ def test_every_channel_is_read_from_her_state():
     assert set(ledger._last_levels) >= {"satisfaction", "excitement", "peace", "ease", "spirit", "wonder_count"}
     assert set(CHANNELS) == {
         "satisfaction", "accomplishment", "warmth", "excitement", "peace", "ease", "spirit", "wonder",
+        "integrity",
     }
 
 
@@ -250,3 +251,51 @@ def test_the_ablation_switch_takes_the_whole_layer_out(monkeypatch):
     assert chemistry.calls == []
     monkeypatch.setenv(worth.DISABLE_ENV, "")
     assert not worth.disabled()
+
+
+class _ChoiceEngine:
+    def __init__(self, receipts):
+        self._receipts = receipts
+
+    def history(self):
+        return list(self._receipts)
+
+
+def _receipt(choice_id: str, chosen: str, scores: dict[str, float]):
+    return SimpleNamespace(choice_id=choice_id, chosen_id=chosen, preference_scores=scores)
+
+
+def _with_choices(monkeypatch, receipts):
+    import core.agency.subjective_choice as subjective
+
+    engine = _ChoiceEngine(receipts)
+    monkeypatch.setattr(subjective, "get_subjective_choice_engine", lambda: engine)
+    return engine
+
+
+def test_a_choice_that_served_her_values_pays_and_one_against_them_costs(monkeypatch):
+    from collections import deque
+
+    _with_choices(monkeypatch, [_receipt("c1", "truth", {"truth": 0.9, "play": 0.3})])
+    assert worth._integrity(deque()) == pytest.approx(0.3)
+    _with_choices(monkeypatch, [_receipt("c2", "play", {"truth": 0.9, "play": 0.3})])
+    assert worth._integrity(deque()) == pytest.approx(-0.3)
+
+
+def test_each_choice_is_counted_once_and_a_lone_option_says_nothing(monkeypatch):
+    from collections import deque
+
+    seen: deque[str] = deque()
+    engine = _with_choices(monkeypatch, [_receipt("c1", "truth", {"truth": 0.9, "play": 0.3})])
+    assert worth._integrity(seen) == pytest.approx(0.3)
+    assert worth._integrity(seen) == 0.0
+    engine._receipts.append(_receipt("c2", "only", {"only": 0.8}))
+    assert worth._integrity(seen) == 0.0
+
+
+def test_integrity_is_one_of_the_channels_a_turn_is_read_on(monkeypatch):
+    _with_choices(monkeypatch, [_receipt("c1", "truth", {"truth": 0.9, "play": 0.3})])
+    ledger = WorthLedger()
+    read_turn(_state(0.1, 0.5), ledger)
+    assert "integrity" in CHANNELS
+    assert list(ledger._changes["integrity"]) == [pytest.approx(0.3)]

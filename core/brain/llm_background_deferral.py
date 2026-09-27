@@ -464,12 +464,18 @@ class _DefersBackgroundWork:
         # whether pages are currently contested, not whether two model peaks
         # fit together. Lowering this floor to 4GB admitted a 9B beside the cortex
         # at 67% host use, then the emergency reclaimer killed the Cortex.
-        try:
-            from core.utils.memory_monitor import kernel_memory_pressure_level
+        #
+        # The kernel speaks for this machine, so it is asked only when the
+        # percentages above are this machine's too, and not the host a
+        # measurement run declares.
+        kernel_level = "unknown"
+        if getattr(snapshot, "host_observed", True):
+            try:
+                from core.utils.memory_monitor import kernel_memory_pressure_level
 
-            kernel_level = kernel_memory_pressure_level()
-        except (ImportError, OSError, RuntimeError, ValueError):
-            kernel_level = "unknown"
+                kernel_level = kernel_memory_pressure_level()
+            except (ImportError, OSError, RuntimeError, ValueError):
+                kernel_level = "unknown"
         if kernel_level == "normal":
             max_pressure = max(max_pressure, 100.0)
         elif kernel_level == "critical":

@@ -459,7 +459,8 @@ async def _execute_new_state_new_state(self, state):
     # strong edge into the body went from 8.9583 at eight conditions of eight
     # to 0.4307 at two. See core/soma/pulse.py.
     affect = new_state.affect
-    from core.soma.pulse import expression_for, rate as pulse_rate
+    from core.soma.pulse import expression_for
+    from core.soma.pulse import rate as pulse_rate
 
     soma.expressive["current_expression"] = expression_for(
         affect.valence, affect.arousal
@@ -681,6 +682,9 @@ class ProprioceptiveLoop(BasePhase):
     
     def __init__(self, container: Any):
         self._thermal_probe: Any = None
+        # Whether the CPU reflex is holding, so it is reported as it starts
+        # rather than on every turn it holds through.
+        self._cpu_reflex_holding = False
         self.container = container
         self._last_thought_time: float = 0.0
         self._last_perception_time: float = 0.0
@@ -1147,8 +1151,14 @@ class ProprioceptiveLoop(BasePhase):
 
         # B. Hardware Stress Reflex
         cpu = self._hardware_float(state.soma, "cpu_usage")
-        if cpu > 90:
+        holding = cpu > 90
+        was_holding = getattr(self, "_cpu_reflex_holding", False)
+        if holding and not was_holding:
             logger.warning("🔥 [REFLEX] Critical CPU Stress (%.1f%%). Dropping background metabolic load.", cpu)
+        elif was_holding and not holding:
+            logger.info("[REFLEX] CPU stress is over (%.1f%%); background metabolic load resumes.", cpu)
+        self._cpu_reflex_holding = holding
+        if holding:
             await self._inhibit(
                 inhibition,
                 "metabolic_cycle",

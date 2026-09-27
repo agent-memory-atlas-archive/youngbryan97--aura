@@ -4029,6 +4029,33 @@ async def _run_cognitive_engine_chat_turn(
         # The soft transaction slice may be spent by the initial generation;
         # append-only completion may use the remaining bounded desktop ceiling.
         # Unrelated regeneration remains on the original soft budget.
+        #
+        # And neither is repairing a draft this turn's own generation handed
+        # back after the slice was gone. The soft slice is sized from the
+        # user's message; the wait inside it is sized from the assembled
+        # prompt, which is larger, so on a long turn the draft arrives after
+        # the slice has expired and the repair is dead by construction — on
+        # exactly the turns most likely to need one.
+        #
+        # LIVE 2026-09-27, the personality test: the draft came back at 336s
+        # against a 144.4s slice, denying a browser her own instruments
+        # reported as usable ("the tool is registered but I haven't confirmed
+        # it's reachable"); the gate refused it for three floors, the repair
+        # was skipped as out of budget, and the small model answered the turn.
+        # The bounded desktop ceiling still ends the turn.
+        # The wait inside this turn was allowed to outrun the turn itself.
+        #
+        # `engine_cycle_timeout_s` is what the generation was allowed here;
+        # the gate's answer clock raises its own deadline to what the assembled
+        # prompt measures, which is larger, and nothing out here was told. A
+        # draft that took longer than this turn allowed it is this turn's own
+        # doing, so repairing it is the rest of this turn rather than a new one.
+        outran_its_allowance = bool(str(rejected_reply or "").strip()) and (
+            time.monotonic() - turn_budget_started_at
+        ) > engine_cycle_timeout_s
+        spent_by_this_turns_own_wait = (
+            outran_its_allowance and _remaining_turn_budget() <= 0.25
+        )
         remaining_turn_budget = (
             max(
                 0.0,
@@ -4036,9 +4063,16 @@ async def _run_cognitive_engine_chat_turn(
                 + _DESKTOP_COGNITIVE_MAX_TURN_TIMEOUT_S
                 - time.monotonic(),
             )
-            if completion_only_retry
+            if completion_only_retry or spent_by_this_turns_own_wait
             else _remaining_turn_budget()
         )
+        if spent_by_this_turns_own_wait and remaining_turn_budget > 0.25:
+            logger.info(
+                "The draft arrived after this turn's %.1fs slice; repairing it on the "
+                "remaining %.1fs of the bounded desktop ceiling rather than dropping it.",
+                timeout_s,
+                remaining_turn_budget,
+            )
         if remaining_turn_budget <= 0.25:
             if turn_trace is not None:
                 turn_trace["repair_retry_budget_exhausted"] = True

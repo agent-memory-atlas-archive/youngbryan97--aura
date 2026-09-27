@@ -7,6 +7,38 @@ what broke, what fixed it, and where the evidence is. Runs live in
 
 ## 26 September
 
+### The payoff look, and what its log showed the harness doing
+
+The two singleton looks at 415f400c0, one with the payoff and one without,
+read 3 and 2 of the 10 cuts decided (P, D and A with it; P and D without). A
+is where a turn's worth is written, and it crossed its bound only with the
+payoff: +0.046 [+0.010] against +0.035 [−0.010]. The closure differed more.
+Without the payoff the periphery predicted the core +0.045 better than
+shuffled, against a floor of +0.003; with it, no better than shuffled. One
+pair on one seed says nothing about why. The full table is the addendum of
+this date in docs/ISC_V5_PREREGISTRATION.md.
+
+Each run logged about 5,500 warnings, and reading them by kind found the
+harness acting on her in both arms alike. The planning template answered the
+same condition prompt every time it came round, and memory consolidation read
+the repeat as her looping: it lowered her stability and cleared her pending
+initiatives 240 times a run. A restore rewound a thread queue's counts under
+its consumer and killed the state registry's dispatcher. The kernel's memory
+verdict was this machine's while the rest of the reading was the declared
+host's. The self-review, timed on the machine's clock, fired on the first turn
+of every arm and each time filed an intent nothing reads, into a list of
+twenty that pushed out intents the research cycle does read. All fixed in
+7d6e04ece. The strain warnings (overheating, host load, reflex, inhibition,
+eviction) were her body's correct response to the strain conditions, logged
+once per update; they are logged as they start and end now.
+
+### The cycle table
+
+Both first nulls qualify on the toys run through a shared schedule, so by the
+rule fixed before the run the shift stays. The schedule did not reproduce the
+0.40 to 0.50 shifted null W,A -> D met on her seed-7 recording: its bars ran
+0.04 to 0.13. docs/SYNERGY_KNOWN_ANSWERS.md.
+
 ### J* structure at 24 anchors on the new design (seed 7, 4e1923da1)
 
 The content run finished in 18 hours and reads SEPARATE_STRUCTURES, with

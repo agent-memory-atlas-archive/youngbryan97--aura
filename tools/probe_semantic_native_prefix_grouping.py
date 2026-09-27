@@ -18,9 +18,16 @@ def supervision_sequences(supervision):
     from core.learning.semantic_native_program import NativeProgramSequence
 
     rows = supervision["rows"]
-    sequences = {(row["source"], row["program_sha256"]): NativeProgramSequence(
-        tuple(row["tokens"]), row["continuation_start"], tuple(row["semantic_positions"]))
-        for row in rows}
+    grammar = "grammar_choice_contract" in supervision
+    def identity(row):
+        if not grammar:
+            return row["source"], row["program_sha256"]
+        if (type(row["decision_index"]) is not int or row["decision_index"] < 0
+                or type(row["choice_index"]) is not int or row["choice_index"] < 0):
+            raise ValueError("prefix grouping needs declared grammar choice identities")
+        return row["source"], row["decision_index"], row["choice_index"]
+    sequences = {identity(row): NativeProgramSequence(tuple(row["tokens"]),
+        row["continuation_start"], tuple(row["semantic_positions"])) for row in rows}
     if not rows or len(sequences) != len(rows):
         raise ValueError("prefix grouping probe needs unique supervision rows")
     return sequences
@@ -34,7 +41,11 @@ def main():
     from tools.evaluate_semantic_native_checkpoint import digest, verified_document
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
     from tools.refit_semantic_argument_proposals import configure_refit_environment
-    from tools.train_semantic_native_program import exact_length_batches, native_prediction_positions, selected_projection_error
+    from tools.train_semantic_native_program import (
+        exact_length_batches,
+        native_prediction_positions,
+        selected_projection_error,
+    )
 
     configure_refit_environment(args.directory / "report.json")
     plan = verified_document(args.training_directory / "plan.json", "plan_sha256")
@@ -57,6 +68,7 @@ def main():
     import mlx.core as mx
     from mlx_lm import load
     from mlx_lm.tuner.utils import linear_to_lora_layers
+
     from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
     from core.runtime.model_lane_control import standalone_model_lane

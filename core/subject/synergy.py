@@ -651,6 +651,9 @@ class KraskovSynergy:
     additive_bar: float
     draws: int
     rows: int
+    #: Which first null the bar above came from: "shift", the one the amendment
+    #: adopted, or "condition", a candidate under test (docs/SYNERGY_KNOWN_ANSWERS.md).
+    first_null: str = "shift"
 
     @property
     def passes(self) -> bool:
@@ -663,6 +666,7 @@ class KraskovSynergy:
             "estimator": f"kraskov_k{KRASKOV_NEIGHBOURS}_max_norm",
             "synergy": round(self.synergy, 5),
             "joint_information": round(self.joint, 5),
+            "first_null": self.first_null,
             "shift_bar": round(self.shift_bar, 5),
             "additive_bar": round(self.additive_bar, 5),
             "draws": self.draws,
@@ -680,6 +684,7 @@ def kraskov_synergy(
     seed: int = 0,
     draws: int = NULL_DRAWS,
     clocks_out: bool = True,
+    first_null: str = "shift",
 ) -> KraskovSynergy:
     """Syn(A_t, B_t ; Y_{t+1} - Y_t) through a Kraskov estimator, against two nulls.
 
@@ -688,7 +693,15 @@ def kraskov_synergy(
     permutes its residual over rows, which holds every dependence of the target
     on each source alone and removes anything the two do together; a sum
     cannot clear it and a product can.
+
+    ``first_null="condition"`` replaces the slide with the candidate for
+    recordings driven by a shared schedule: the two sources permuted together
+    among the turns of the same condition, which keeps what each condition
+    does and breaks only the turn-by-turn alignment. It is not the adopted
+    line until its known-answers table says so.
     """
+    if first_null not in {"shift", "condition"}:
+        raise ValueError(f"no first null called {first_null!r}")
     if clocks_out:
         recording = without_clocks(recording)
     following = recording.domain(target)
@@ -704,9 +717,18 @@ def kraskov_synergy(
     rng = np.random.default_rng(seed)
     value, joint = kraskov_synergy_value(a, b, y, rng)
     shifted = []
-    for _ in range(draws):
-        shift = int(rng.integers(rows // 8, rows - rows // 8))
-        shifted.append(kraskov_synergy_value(np.roll(a, shift, 0), np.roll(b, shift, 0), y, rng)[0])
+    if first_null == "condition":
+        labels = np.asarray(list(recording.conditions)[:rows])
+        strata = [np.flatnonzero(labels == label) for label in np.unique(labels)]
+        for _ in range(draws):
+            order = np.arange(rows)
+            for rows_of in strata:
+                order[rows_of] = rng.permutation(rows_of)
+            shifted.append(kraskov_synergy_value(a[order], b[order], y, rng)[0])
+    else:
+        for _ in range(draws):
+            shift = int(rng.integers(rows // 8, rows - rows // 8))
+            shifted.append(kraskov_synergy_value(np.roll(a, shift, 0), np.roll(b, shift, 0), y, rng)[0])
     fitted = additive_account(a, b, y)
     residual = y - fitted
     additive = []
@@ -722,6 +744,7 @@ def kraskov_synergy(
         additive_bar=float(np.quantile(additive, 0.99)),
         draws=draws,
         rows=rows,
+        first_null=first_null,
     )
 
 

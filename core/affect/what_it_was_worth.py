@@ -31,6 +31,9 @@ that are hers already:
     wonder         her own self-model surprised this turn, signed by how she
                    felt: awe when it was good, something unsettling when it
                    was not
+    integrity      how far what she chose this turn served what she holds, over
+                   what the options on offer served on average: living by her
+                   values, or against them (core/agency/subjective_choice.py)
 
 The four affect channels are the quadrants of valence by arousal, the plane
 most accounts of affect share (Russell 1980); pleasant and unpleasant
@@ -93,6 +96,7 @@ CHANNELS: tuple[str, ...] = (
     "ease",
     "spirit",
     "wonder",
+    "integrity",
 )
 
 #: How many of her turns a channel's spread, its expectation and the size of
@@ -158,6 +162,8 @@ class WorthLedger:
         #: is paid for once. The recent ones only: an outcome older than the
         #: window has long left the goal list.
         self._outcomes_seen: deque[str] = deque(maxlen=_WINDOW)
+        #: Her choices already counted for integrity, so each is counted once.
+        self._choices_seen: deque[str] = deque(maxlen=_WINDOW)
         self._last = Worth()
         self.turns = 0
         #: Her valence at the end of the last turn read.
@@ -254,6 +260,37 @@ def _goal_outcomes(state: Any, seen: deque[str]) -> float:
     return total
 
 
+def _integrity(seen: deque[str]) -> float:
+    """How far this turn's choices served what she holds over the average option on offer.
+
+    Each choice she made of what to do next scored every option by her values
+    (`SubjectiveChoiceEngine.score_features`). What she took less the mean of
+    what was on offer is how much the choice lived by her values; the turn's
+    reading is the mean over the choices it made, each counted once. A choice
+    with nothing to choose between says nothing either way.
+    """
+    try:
+        from core.agency.subjective_choice import get_subjective_choice_engine
+
+        history = get_subjective_choice_engine().history()
+    # not a failure: no choice engine is a turn with no choices in it.
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError):
+        return 0.0
+    counted = set(seen)
+    margins = []
+    for receipt in history[-_WINDOW:]:
+        choice_id = str(getattr(receipt, "choice_id", "") or "")
+        if not choice_id or choice_id in counted:
+            continue
+        seen.append(choice_id)
+        scores = getattr(receipt, "preference_scores", {}) or {}
+        chosen = scores.get(getattr(receipt, "chosen_id", ""))
+        if chosen is None or len(scores) < 2:
+            continue
+        margins.append(float(chosen) - sum(float(v) for v in scores.values()) / len(scores))
+    return sum(margins) / len(margins) if margins else 0.0
+
+
 def _levels(state: Any) -> dict[str, float]:
     """The channels that are read as the change of a level."""
     levels: dict[str, float] = {}
@@ -320,9 +357,12 @@ def read_turn(state: Any, ledger: WorthLedger | None = None) -> Worth:
     changes["wonder"] = (1.0 if valence >= 0.0 else -1.0) if surprised else 0.0
     ledger.last_valence = valence
     changes["accomplishment"] = _goal_outcomes(state, ledger._outcomes_seen)
+    changes["integrity"] = _integrity(ledger._choices_seen)
     forces = getattr(getattr(state, "motivation", None), "forces", {}) or {}
     try:
         changes["warmth"] = float(forces.get("warmth_return", 0.0) or 0.0)
+    # not a failure: a warmth force that is not a number is no warmth to read,
+    # the same as a turn with no force at all.
     except (TypeError, ValueError):
         changes["warmth"] = 0.0
     reading = ledger.note(changes)

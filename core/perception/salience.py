@@ -128,6 +128,7 @@ def salience_of(
     """
     try:
         strength = float(intensity)
+    # not a failure: an arrival with no numeric strength is worth nothing.
     except (TypeError, ValueError):
         strength = 0.0
     if strength != strength:

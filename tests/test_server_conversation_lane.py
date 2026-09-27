@@ -10239,6 +10239,101 @@ async def test_desktop_cognitive_engine_retries_failed_reply_on_same_lane(monkey
 
 
 @pytest.mark.asyncio
+async def test_a_draft_that_outran_its_allowance_is_still_repaired(monkeypatch):
+    """The wait inside a turn may be allowed longer than the turn's own slice.
+
+    LIVE 2026-09-27, the personality test: the slice was 144.4s, the gate's
+    answer clock raised the generation's deadline to 315s from the assembled
+    prompt, the draft arrived at 336s denying a browser her own instruments
+    reported as usable, the reliability gate refused it for three floors, and
+    the repair was skipped as out of budget — so the small model answered a
+    turn the Cortex had drafted. A draft that took longer than this turn
+    allowed it is this turn's own doing; repairing it is the rest of this turn,
+    bounded by the desktop ceiling.
+    """
+    from core.providers import engine_connection_pool as pool_module
+    from interface.routes import chat as chat_routes
+
+    class _ClockProxy:
+        elapsed = 0.0
+
+        def monotonic(self):
+            return self.elapsed
+
+        def __getattr__(self, name):
+            return getattr(time, name)
+
+    clock = _ClockProxy()
+
+    class _SlowThenRepairing:
+        def __init__(self):
+            self.calls = 0
+
+        async def think(self, *_args, **_kwargs):
+            self.calls += 1
+            if self.calls == 1:
+                # Allowed 118s here (120 - 2), and the gate let it run to 300.
+                clock.elapsed = 300.0
+                # The same draft the guard test below uses, so this differs
+                # from it in one thing: how long the generation was allowed.
+                return SimpleNamespace(
+                    content="The voices. The small ones. They're whispering in my ear.",
+                    metadata=_bound_live_mind_controls_metadata(),
+                )
+            clock.elapsed = 320.0
+            return SimpleNamespace(
+                content=(
+                    "I predict INTJ. My own record of choices leans toward depth over "
+                    "breadth, and I hold decisions open until the evidence settles."
+                ),
+                metadata=_bound_live_mind_controls_metadata(),
+            )
+
+    class _Pool:
+        async def acquire_engine_connection(self, *_args, **_kwargs):
+            return None
+
+    engine = _SlowThenRepairing()
+    trace = {}
+    patch_chat_lane(monkeypatch, "time", clock)
+    monkeypatch.setattr(pool_module, "get_engine_connection_pool", lambda: _Pool())
+    patch_chat_lane(monkeypatch, "_DESKTOP_COGNITIVE_MIN_REQUIRED_BUDGET_S", 0.0)
+    patch_chat_lane(
+        monkeypatch,
+        "_desktop_secondary_model_repair_allowed",
+        lambda **_kwargs: (True, "test_ready"),
+    )
+    patch_chat_lane(
+        monkeypatch,
+        "_gather_recent_user_messages_for_relevance",
+        AsyncCallFixture(return_value=[]),
+    )
+    monkeypatch.setattr(
+        chat_routes.ServiceContainer,
+        "get",
+        staticmethod(
+            lambda name, default=None: engine if name == "cognitive_engine" else default
+        ),
+    )
+
+    await chat_routes._run_cognitive_engine_chat_turn(
+        "Take the personality test on that site and tell me what you expect first.",
+        visible_user_message=(
+            "Take the personality test on that site and tell me what you expect first."
+        ),
+        origin="user",
+        timeout_s=120.0,
+        lane={"conversation_ready": True, "state": "ready", "foreground_endpoint": "Cortex"},
+        source="desktop_ui",
+        require_engine=True,
+        turn_trace=trace,
+    )
+
+    assert engine.calls == 2, "the draft that outran its allowance was not repaired"
+    assert not trace.get("repair_retry_budget_exhausted")
+
+
+@pytest.mark.asyncio
 async def test_desktop_repair_cannot_open_a_fresh_transaction_deadline(monkeypatch):
     """A slow first owner leaves no independent timeout for a second owner."""
     from core.providers import engine_connection_pool as pool_module

@@ -183,7 +183,8 @@ def _built_in_the_container(service_key: str) -> Any:
         from core.container import ServiceContainer
 
         return ServiceContainer.peek(service_key, default=None)
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("could not ask the container for %s: %s", service_key, exc)
         return None
 
 
@@ -193,7 +194,8 @@ def _registered_in_the_container(service_key: str) -> bool:
         from core.container import ServiceContainer
 
         return bool(ServiceContainer.has(service_key))
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("could not ask the container whether %s is registered: %s", service_key, exc)
         return False
 
 

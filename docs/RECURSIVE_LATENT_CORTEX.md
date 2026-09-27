@@ -132,6 +132,18 @@ measurements, not desktop activation, broad gain, fusion, or frontier results.
 See [the matched control](evidence/G06_NATIVE_SOURCE_ERASURE_RESULT_2026-09-26.md)
 and [the retained canary](evidence/G03_NATIVE_RETAINED_CANARY_2026-09-26.md).
 
+**Native training computation (2026-09-26).** Shared causal-prefix execution
+preserves all 56 alternatives and 12 decision rankings of one source under
+an explicitly measured FP32 basis. Full work took 105.35 seconds and trie
+work 12.48 seconds in that probe. FP16 failed the unchanged numerical check;
+FP32 does not inherit native-BF16 qualifications. An eight-update grammar-choice
+canary completed in 627.17 seconds and independently regraded at 2/4, equal
+to incumbent and unfitted, with no gains or regressions. A complete fitting
+epoch is running with all 303 fitting and 185 calibration sources, using
+lossless source shards rather than retaining the estimated 61.1 GB prefix
+population in RAM. There is no completed full-fit quality result yet.
+See [the arithmetic and storage evidence](evidence/G_NATIVE_TRIE_ARITHMETIC_2026-09-26.md).
+
 **G03 boundary observed 2026-09-22.** A paired full-program replay found that
 expanding definition visibility left all 16 `sequence-role-binding-4`
 decisions unchanged: both arms returned 14/16 correct public values. The two

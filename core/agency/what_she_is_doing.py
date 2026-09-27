@@ -215,6 +215,31 @@ def just_finished() -> Undertaking | None:
     return _last
 
 
+def work_begun_since(started_at: float) -> Undertaking | None:
+    """The record of work this turn began, or None.
+
+    Whichever of the two records did the most, among those that STARTED at or
+    after ``started_at``. A report about a turn's work can only come from work
+    that turn began.
+
+    LIVE 2026-09-27: asked to take a personality test, the turn timed out and
+    the person was told "I got 273 step(s) into it. What I was doing: now
+    attack from a new axis to clear space and potentially merge the 16s or
+    32" — a record of a game of 2048 from before the turn, which won because
+    the reporter took whichever record had the most steps. Steps decide
+    between this turn's records; they cannot make a record belong to it.
+    """
+    began = float(started_at or 0.0)
+    mine = [
+        record
+        for record in (right_now(), just_finished())
+        if record is not None and record.began_at >= began
+    ]
+    if not mine:
+        return None
+    return max(mine, key=lambda record: record.steps)
+
+
 def as_lines() -> list[str]:
     """Her present tense, for whoever has to answer for it."""
     doing = right_now()

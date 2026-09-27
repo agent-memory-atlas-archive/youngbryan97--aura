@@ -39,12 +39,19 @@ class InhibitionManager:
             reason: Optional reason for logging.
         """
         async with self._lock:
-            expiry = time.time() + duration
+            now = time.time()
+            expiry = now + duration
             with self._thread_lock:
                 current_expiry = self._inhibited_sources.get(source, 0)
                 self._inhibited_sources[source] = max(current_expiry, expiry)
-            
-            logger.warning(
+
+            # A source newly held is news; one that is held again before it
+            # was let go is the same inhibition lasting longer. A reflex that
+            # holds a source through a whole strain condition renews it every
+            # turn, and each renewal was a warning: 322 a run on 26 September.
+            level = logging.WARNING if current_expiry <= now else logging.DEBUG
+            logger.log(
+                level,
                 "🛑 [INHIBITION] Source '%s' inhibited for %.1fs. Reason: %s",
                 source, duration, reason or "unspecified"
             )
