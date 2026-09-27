@@ -404,7 +404,7 @@ class _UnderstandsThePage:
             think = getattr(router, "think", None)
             if callable(think) and mind:
                 raw = self._the_text_of(await think(
-                    prompt, system_prompt=mind, schema=self._UNDERSTANDING_SCHEMA,
+                    prompt, system_prompt=mind, schema=self._UNDERSTANDING_SCHEMA, output_shape="json_object",
                     max_tokens=420, temperature=0.2, _non_chat_inference=True,
                 ))
             else:
@@ -506,6 +506,7 @@ class _UnderstandsThePage:
                 prefer_tier="local_fast",
                 max_tokens=_UnderstandsThePage.DECISION_MAX_TOKENS,
                 temperature=0.2,
+                output_shape="json_object",
             )
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.fast_lane", exc, severity="debug")
@@ -578,7 +579,11 @@ class _UnderstandsThePage:
     #: The most one decision about a page may write.
     DECISION_MAX_TOKENS = 900
 
-    #: The shape a decision about a page comes back in, held by the decoder.
+    #: The fields a decision about a page comes back with.
+    #:
+    #: The schema names them; `output_shape="json_object"` beside it is what
+    #: the decoder holds. The schema alone reached no decoder: LIVE 27 Sep 03:32
+    #: both page calls of a run came back as prose again, with no shape held.
     #:
     #: A decision is a structured choice, and asked of her own model with her
     #: whole mind in front of it, she talked about the task instead of choosing:
@@ -944,7 +949,7 @@ class _UnderstandsThePage:
                     # stand-in lane answering "you regularly make new friends"
                     # would be a different mind's answer submitted as hers.
                     reply = await think(
-                        prompt, system_prompt=mind, prefer_tier="primary", schema=self._DECISION_SCHEMA,
+                        prompt, system_prompt=mind, prefer_tier="primary", schema=self._DECISION_SCHEMA, output_shape="json_object",
                         max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
                     )
                     answered_by = self._who_answered(reply)
@@ -955,7 +960,7 @@ class _UnderstandsThePage:
                     raw = await self._decide_on_the_fast_lane(router, prompt, mind)
                     if not self._decision_is_usable(raw, observation):
                         raw = self._the_text_of(await think(
-                            prompt, system_prompt=mind, schema=self._DECISION_SCHEMA,
+                            prompt, system_prompt=mind, schema=self._DECISION_SCHEMA, output_shape="json_object",
                             max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
                         ))
             else:

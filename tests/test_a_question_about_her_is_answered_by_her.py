@@ -85,6 +85,9 @@ def test_a_decision_is_held_to_its_shape_by_the_decoder(monkeypatch):
     schema = asked[0].get("schema")
     assert schema is SovereignBrowserSkill._DECISION_SCHEMA
     assert set(schema["required"]) >= {"actions", "why"}
+    # The schema reached no decoder; the shape is what the worker holds
+    # (LIVE 27 Sep 03:32: prose again, no shape held).
+    assert asked[0].get("output_shape") == "json_object"
 
 
 def test_what_she_makes_of_a_page_is_held_to_its_shape(monkeypatch):
@@ -99,4 +102,5 @@ def test_what_she_makes_of_a_page_is_held_to_its_shape(monkeypatch):
     skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
     made = asyncio.run(skill._understand_page("take the test", A_SCALE, None, "her mind"))
     assert asked and asked[0].get("schema") is SovereignBrowserSkill._UNDERSTANDING_SCHEMA
+    assert asked[0].get("output_shape") == "json_object"
     assert made.get("here") == "a test"

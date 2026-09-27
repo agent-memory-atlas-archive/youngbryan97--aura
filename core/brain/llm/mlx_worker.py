@@ -5475,6 +5475,18 @@ def _mlx_worker_loop_part_17(job, logger, rejection_reasons, response_text, surf
         rejection_reasons,
     )
     validation_resolution = _surface_prompt_resolution(job)
+    if "internal_task_prompt_leak" in rejection_reasons:
+        try:
+            from core.conversation.response_reliability import (
+                internal_task_prompt_leak_evidence,
+            )
+
+            logger.warning(
+                "⚠️ [WORKER] The sentence read as a prompt leak: %r",
+                internal_task_prompt_leak_evidence(response_text, validation_resolution.prompt),
+            )
+        except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+            logger.debug("Leak evidence unavailable: %s", exc)
     logger.warning(
         "⚠️ [WORKER] Rejected live user-surface draft "
         "reasons=%s validation_source=%s "

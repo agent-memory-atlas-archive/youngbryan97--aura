@@ -6926,6 +6926,25 @@ def _is_structured_payload(body: str) -> bool:
     return True
 
 
+def internal_task_prompt_leak_evidence(reply_text: Any, asked: Any = "") -> str:
+    """The first sentence that makes this reply a prompt leak, or "".
+
+    A rejection that shows only the reply's opening cannot be checked:
+    LIVE 27 Sep, three drafts in a row were refused as leaks, each opening
+    with a prediction, and the sentence that tripped the detector was never
+    in the log.
+    """
+    body = str(reply_text or "")
+    if not _has_internal_task_prompt_leak(body, asked):
+        return ""
+    sentences = [one.strip() for one in re.split(r"(?<=[.!?])\s+|\n+", body) if one.strip()]
+    for sentence in sentences:
+        if _has_internal_task_prompt_leak(sentence, asked):
+            return sentence[:300]
+    # Only the whole reply reads as one (a planning opening, say).
+    return (sentences[0] if sentences else body)[:300]
+
+
 def _has_internal_task_prompt_leak(reply_text: Any, asked: Any = "") -> bool:
     body = str(reply_text or "")
     if _INTERNAL_TASK_PROMPT_RE.search(body):
