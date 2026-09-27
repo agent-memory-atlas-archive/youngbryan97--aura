@@ -256,6 +256,19 @@ def _reply_assessment_requires_repair_with_memory_evidence(
             severity="warning",
             action="kept the standard repair path after the short-answer check failed",
         )
+    # On work on a page the reply comes first and the page does the rest. LIVE
+    # 27 Sep, asked to predict a personality type, answer a test and then say
+    # whether the result matched, her prediction was refused four times for
+    # not covering "each answer" and "whether it matches" — which only the
+    # test, after the reply, can give — and each refusal cost a regeneration.
+    if reasons == {"missing_requested_objective_facets"}:
+        try:
+            from core.conversation.page_interaction import page_interaction_target
+
+            if page_interaction_target(user_message):
+                return False
+        except _CHAT_RECOVERABLE_ERRORS as exc:
+            record_degradation("chat", exc, severity="info", action="kept the facet repair on page work")
     if (
         reasons
         and reasons.issubset(_MEMORY_STATE_COMPATIBLE_ASSESSMENT_REASONS)

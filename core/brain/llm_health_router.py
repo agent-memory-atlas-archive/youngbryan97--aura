@@ -2453,6 +2453,12 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
         """
         self._publish_generation_metadata({})
         kwargs.pop("_contract_tool_handoff", False)
+        # This entry already means non-chat inference, and says so below. A
+        # caller saying so too made the call raise before any model saw it:
+        # "got multiple values for keyword argument '_non_chat_inference'".
+        # LIVE 27 Sep, every page decision of a personality test failed that
+        # way, and a bare fallback with no shape wrote prose in its place.
+        kwargs.pop("_non_chat_inference", None)
         if not prompt and "messages" in kwargs:
             prompt, inferred_system_prompt = self._coerce_prompt_from_messages(kwargs.get("messages", []))
             if not system_prompt and inferred_system_prompt:
