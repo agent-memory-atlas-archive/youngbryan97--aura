@@ -267,6 +267,11 @@ class SubjectiveChoiceReceipt:
     satisfaction: float | None = None
     happy_with_outcome: bool | None = None
     appraised_at: float | None = None
+    #: Whether this was a choice she made in her own life, or an answer to a
+    #: question set to measure her (a tournament, a choice game). What she is
+    #: like is read from the first kind only. Receipts saved before this was
+    #: recorded were all of the first kind.
+    lived: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -427,6 +432,9 @@ class SubjectiveChoiceEngine:
         option_features: dict[str, dict[str, float]] = {}
         impulse = impulse_record(self.history())
         intactness = self._intactness_cost()
+        # What she holds and has not been living presses on this choice. Only on
+        # a choice she is actually making, for the reason the pull below gives.
+        shortfall = self._held_and_not_lived() if (record and influenced) else {}
         for option in option_list:
             features = _norm_features(option.features or infer_preference_features(
                 f"{option.label} {option.description}", option.metadata
@@ -451,11 +459,13 @@ class SubjectiveChoiceEngine:
             # make two independent runs depend on each other — which is what
             # the preference tournament measures and what it caught.
             pull = self._pull_toward(option.id) if (record and influenced) else 0.0
+            pressed = sum(features[key] * gap for key, gap in shortfall.items())
             final = (
                 ((1.0 - self.preference_latitude) * drive)
                 + (self.preference_latitude * pref)
                 + (0.30 * item_bonus)
                 + pull
+                + pressed
                 - risk_penalty
             )
             drive_scores[option.id] = drive
@@ -521,6 +531,7 @@ class SubjectiveChoiceEngine:
             preference_scores=preference_scores,
             final_scores=final_scores,
             option_features=option_features,
+            lived=bool(influenced),
         )
         if record:
             self._learn_item_preference_from_choice(chosen, context=context, receipt=receipt)
@@ -707,6 +718,38 @@ class SubjectiveChoiceEngine:
         if influenced:
             self._note_what_she_passed_over(receipt)
         logger.info("🧭 [SubjectiveChoice] %s", receipt.rationale)
+
+    def _held_and_not_lived(self) -> dict[str, float]:
+        """How far each value she holds falls short of what holding a value usually means in what she does.
+
+        Dissonance (Festinger 1957): holding something and not acting on it
+        presses on the next thing she does. What holding a value usually
+        means for her is read off her own record: among the values she holds
+        at or above her median, the median of how much more often than chance
+        she took the option serving each when one was on offer. A value she
+        holds that high and lives less than that falls short by the
+        difference, and that shortfall, a share of occasions like the pull
+        below, is added to each option by how fully it serves the value.
+        Values she holds below her median press on nothing.
+        """
+        try:
+            from core.agency.what_she_is_like import portrait_of
+
+            portrait = portrait_of(self.preferences(), [one.to_dict() for one in self.history() if one.lived])
+        # not a failure: a record that cannot be read presses on nothing.
+        except (ImportError, AttributeError, TypeError, ValueError):
+            return {}
+        held = sorted(self.preferences().values())
+        if not held or not portrait.values:
+            return {}
+        middle = held[len(held) // 2] if len(held) % 2 else 0.5 * (held[len(held) // 2 - 1] + held[len(held) // 2])
+        excess = {one.value: one.rate - one.chance for one in portrait.values if one.held >= middle}
+        if not excess:
+            return {}
+        ordered = sorted(excess.values())
+        count = len(ordered)
+        usual = ordered[count // 2] if count % 2 else 0.5 * (ordered[count // 2 - 1] + ordered[count // 2])
+        return {name: usual - lived for name, lived in excess.items() if lived < usual}
 
     @staticmethod
     def _pull_toward(option_id: str) -> float:

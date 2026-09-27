@@ -158,8 +158,10 @@ def _what_was_chosen(label: Any) -> str:
 
 def portrait_of(preferences: Mapping[str, float], records: Iterable[Mapping[str, Any]]) -> Portrait:
     """What these values and this record of choices say about her."""
+    # What she chose when nobody asked: an answer to a question set to measure
+    # her (a tournament, a choice game) is not a choice she made in her life.
     ordered = sorted(
-        (dict(one) for one in records if isinstance(one, Mapping)),
+        (dict(one) for one in records if isinstance(one, Mapping) and one.get("lived", True)),
         key=lambda one: float(one.get("created_at") or 0.0),
     )
     held_order = tuple(sorted(((str(k), float(v)) for k, v in preferences.items()), key=lambda kv: -kv[1]))
