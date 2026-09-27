@@ -33,8 +33,10 @@ from core.runtime.errors import record_degradation
 
 __all__ = [
     "Portrait",
+    "PortraitReader",
     "ValueLean",
     "asks_what_she_is_like",
+    "get_portrait_reader",
     "portrait_of",
     "what_she_is_like",
     "what_she_is_like_block",
@@ -209,6 +211,63 @@ def what_she_is_like() -> Portrait | None:
     except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("what_she_is_like", exc, severity="info", action="said nothing measured about what she is like")
         return None
+
+
+class PortraitReader:
+    """Her portrait as numbers the subject core records, recomputed only when she has chosen again.
+
+    The core is read after every phase of every turn and the record is five
+    hundred choices long, so the portrait is kept until the record or her
+    values change. Each value gives two numbers: how strongly she holds it, and
+    how much more often than chance she took the option serving it when one was
+    on offer (zero when none was). Then how much of her choosing the single act
+    she chooses most has taken, in the later half of the record, and the share
+    of her choices in which her values overrode her strongest drive.
+    """
+
+    def __init__(self, engine: Any | None = None) -> None:
+        self._engine = engine
+        self._key: tuple[Any, ...] | None = None
+        self._columns: dict[str, float] = {}
+
+    def _source(self) -> Any:
+        if self._engine is not None:
+            return self._engine
+        from core.agency.subjective_choice import get_subjective_choice_engine
+
+        return get_subjective_choice_engine()
+
+    def columns(self) -> dict[str, float]:
+        engine = self._source()
+        preferences = engine.preferences()
+        history = engine.history()
+        last = history[-1].choice_id if history else ""
+        key = (len(history), last, tuple(sorted(preferences.items())))
+        if key == self._key:
+            return dict(self._columns)
+        portrait = portrait_of(preferences, [one.to_dict() for one in history])
+        leans = {lean.value: lean for lean in portrait.values}
+        columns: dict[str, float] = {}
+        for name, held in preferences.items():
+            lean = leans.get(name)
+            columns[f"held_{name}"] = float(held)
+            columns[f"enacted_{name}"] = (lean.rate - lean.chance) if lean is not None else 0.0
+        columns["narrowness"] = float(portrait.narrowest_later)
+        columns["values_over_drive"] = (
+            portrait.over_impulse / portrait.choices if portrait.choices else 0.0
+        )
+        self._key, self._columns = key, columns
+        return dict(columns)
+
+
+_READER: PortraitReader | None = None
+
+
+def get_portrait_reader() -> PortraitReader:
+    global _READER
+    if _READER is None:
+        _READER = PortraitReader()
+    return _READER
 
 
 def _day(stamp: float) -> str:
