@@ -1176,6 +1176,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [FP32 cache result](evidence/G_NATIVE_BRANCH_FP32_RESULT_2026-09-26.md)
+  passes twelve alternatives at the unchanged allowance with a maximum
+  target-log-probability error of 0.0000763. The arithmetic change itself is
+  not native-equivalent and grants no serving or training optimization.
+  [Grammar-choice canary result](evidence/G_NATIVE_GRAMMAR_CHOICE_CANARY_RESULT_2026-09-26.md)
+  independently verifies the eight-update fit and its 2/4 held-bank result.
+  Generated replay is manually stopped after one witnessed answer regression;
+  the partial receipt grants no full-run score or promotion.
+  [Precision-controlled cache probe](evidence/G_NATIVE_BRANCH_PRECISION_PLAN_2026-09-26.md)
+  compares full and cached FP32 execution at the unchanged absolute allowance,
+  with a separate native-arithmetic control and exclusive model ownership.
+  Its completion is unmeasured here; serving and training defaults are unchanged.
   [Inference-choice objective](evidence/G_NATIVE_GRAMMAR_CHOICE_OBJECTIVE_2026-09-26.md)
   trains operation, role, and explicit stop competitions through the existing
   native grammar. Source-hash canary preflight materializes 519 sequences;
