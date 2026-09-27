@@ -1109,6 +1109,36 @@ def _probe_world_access() -> Availability:
     )
 
 
+def _probe_browser() -> Availability:
+    """Whether she can drive a browser of her own: open a page, click, type, work a form.
+
+    LIVE, 2026-09-26, asked to take a personality test on a named site: "My
+    browser tools are registered but I have no evidence in hand that they're
+    reachable this turn". She was right that nothing in her readings said so.
+    World access names web search, the screen and the camera; nothing named the
+    browser she drives, which had been working through questionnaires since
+    August.
+    """
+    import importlib.util
+
+    skill = importlib.util.find_spec("core.skills.sovereign_browser") is not None
+    driver = importlib.util.find_spec("playwright") is not None
+    usable = skill and driver
+    return Availability(
+        name="browser",
+        present=skill,
+        usable_now=usable,
+        summary=(
+            "I can drive a browser of my own: open a page, read it, click, type, "
+            "and work through a form or a questionnaire item by item."
+            if usable
+            else "I have no browser I can drive on this build."
+        ),
+        blocker="" if usable else ("the browser driver is not installed" if skill else "the browser skill is not installed"),
+        evidence={"browser_skill_installed": skill, "browser_driver_installed": driver},
+    )
+
+
 def _probe_deferred_action() -> Availability:
     """Whether an instruction can outlive the turn that gave it.
 
@@ -1220,6 +1250,14 @@ def _default_ledger() -> CapabilityLedger:
             "world_access",
             ("world", "internet", "web", "outside", "external", "news"),
             _probe_world_access,
+        )
+    )
+    ledger.register(
+        LiveCapability(
+            "browser",
+            ("browser", "website", "web page", "webpage", "click", "form", "questionnaire", "survey"),
+            _probe_browser,
+            denial_subjects=("browser", "website", "web page", "webpage", "questionnaire", "survey"),
         )
     )
     ledger.register(

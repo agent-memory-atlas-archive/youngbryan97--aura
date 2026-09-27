@@ -953,3 +953,34 @@ def test_a_denial_beside_a_quotation_is_still_hers():
     reconciled = cl.reconcile_contradicted_claims(reply, claims)
     assert reconciled.startswith('Someone once said "measure twice". ')
     assert "I cannot execute code" not in reconciled
+
+
+# ── the browser she drives ───────────────────────────────────────────────────
+
+def test_the_browser_she_drives_is_in_her_readings(monkeypatch):
+    """LIVE 2026-09-26: "My browser tools are registered but I have no evidence
+    in hand that they're reachable this turn." Nothing in her readings named it."""
+    monkeypatch.setattr(cl, "_probe_browser", lambda: cl.Availability(
+        name="browser", present=True, usable_now=True, summary="I can drive a browser of my own."
+    ))
+    ledger = cl._default_ledger()
+    assert ledger.measure_all()["browser"].usable_now is True
+    flagged = {claim.availability.name for claim in ledger.contradicted_claims("I can't use a browser.")}
+    assert "browser" in flagged
+
+
+def test_the_browser_probe_reads_what_is_installed():
+    measured = cl._probe_browser()
+    assert measured.name == "browser"
+    assert set(measured.evidence) == {"browser_skill_installed", "browser_driver_installed"}
+    assert measured.usable_now == (
+        measured.evidence["browser_skill_installed"] and measured.evidence["browser_driver_installed"]
+    )
+
+
+def test_a_page_that_does_not_support_a_browser_is_not_her_denying_hers():
+    flagged = {
+        claim.availability.name
+        for claim in cl._default_ledger().contradicted_claims("The website has no browser support for Safari.")
+    }
+    assert "browser" not in flagged
