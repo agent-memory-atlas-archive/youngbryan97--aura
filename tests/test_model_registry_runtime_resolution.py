@@ -10,6 +10,7 @@ weights on respawn.
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -128,10 +129,18 @@ def test_ttl_cache_serves_then_expires(registry_sandbox, monkeypatch):
     assert model_registry.get_model_path(CORTEX).endswith("gen2")
 
 
-def test_missing_everything_falls_back_to_hf_repo(registry_sandbox):
+def test_missing_everything_answers_the_path_not_a_repository(registry_sandbox):
+    """It used to answer `mlx-community/Qwen2.5-32B-Instruct-8bit` here.
+
+    That id goes to `mlx_lm.load`, which downloads anything that is not a local
+    directory, so a missing cortex became a network fetch inside the path that
+    answers a person. With the wifi off the resolver blocked on DNS, no lane
+    reached `ready`, and she could not reply at all.
+    """
     _tmp_path, _manifest = registry_sandbox
     resolved = model_registry.get_model_path(CORTEX)
-    assert resolved == "mlx-community/Qwen2.5-32B-Instruct-8bit"
+    assert not model_registry.is_model_repository_id(resolved)
+    assert Path(resolved).is_absolute()
 
 
 def test_explicit_legacy_artifact_does_not_borrow_active_pointer(
@@ -143,6 +152,9 @@ def test_explicit_legacy_artifact_does_not_borrow_active_pointer(
     monkeypatch.setattr(model_registry, "_cortex_path_cache", None)
 
     assert model_registry.get_model_path(CORTEX).endswith("new-generation")
-    assert model_registry.get_model_path("Qwen2.5-32B-Instruct-8bit") == (
-        "mlx-community/Qwen2.5-32B-Instruct-8bit"
-    )
+    # The legacy name resolves to its own absent path rather than borrowing the
+    # active pointer — and not to a repository id, which is what it used to give.
+    legacy = model_registry.get_model_path("Qwen2.5-32B-Instruct-8bit")
+    assert not legacy.endswith("new-generation")
+    assert not model_registry.is_model_repository_id(legacy)
+    assert legacy.endswith("Qwen2.5-32B-Instruct-8bit")

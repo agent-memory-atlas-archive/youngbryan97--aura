@@ -51,7 +51,10 @@ class SelfHealer:
         return False
 
     def _report_connection_issue(self, match: re.Match[str], exc: Exception) -> bool:
-        logger.error("SelfHealer: Connection refused. Subsystems may be offline (Check Ollama/Docker).")
+        logger.error(
+            "SelfHealer: connection refused. A subsystem of hers is down; "
+            "nothing she thinks with is reached over a network."
+        )
         # Could attempt to restart a service here if paths are known
         return False
 

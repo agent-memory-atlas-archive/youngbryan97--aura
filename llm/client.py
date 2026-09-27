@@ -31,15 +31,19 @@ def _record_sovereign_client_degradation(exc: BaseException, *, action: str) -> 
 
 
 class OpenAIClient:
-    """
-    Sovereign Replacement for Legacy OpenAI Client.
-    Redirects all calls to the local Ollama brain.
+    """Legacy shim. Every call goes to the resident MLX brain.
+
+    This class used to say it bridged to a local model server, and it has not
+    done that for months: `LocalBrain` is an MLX-only facade that refuses to
+    fall through to any external endpoint. The line cost a diagnosis — asked why
+    she could not reply with the network down, the first place anyone looks is
+    the file naming a server, and the answer was in the model registry.
     """
 
     def __init__(self, api_key: str | None = None) -> None:
-        # Legacy compat: api_key is ignored in sovereign mode
+        # Legacy compat: api_key is ignored; there is nothing to authenticate to.
         self.brain = LocalBrain()
-        logger.info("Sovereign LLM Client initialized (Ollama bridge).")
+        logger.info("Sovereign LLM client initialized on the resident MLX brain.")
 
     def call(self, prompt: str, system: str | None = None, **kwargs: Any) -> dict[str, Any]:
         """

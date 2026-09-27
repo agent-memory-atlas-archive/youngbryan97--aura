@@ -991,8 +991,45 @@ def _read_adapter_target_model(adapter_dir: Path) -> str:
     return str(payload.get("model") or "").strip()
 
 
+def _no_remote_fallback(name: str, looked_in: Path) -> None:
+    """Say once that an artifact is missing, rather than fetching it.
+
+    Recorded rather than raised: a caller asking where a model is has a right to
+    an answer it can print, and every one of them already handles a path that
+    does not exist. What none of them handled was being handed a repository id
+    and passing it to a loader that downloads.
+    """
+    record_degradation(
+        "model_registry",
+        FileNotFoundError(f"{name} is not at {looked_in}"),
+        severity="warning",
+        action=(
+            "answered the local path rather than a repository id, so serving "
+            "cannot turn into a download"
+        ),
+    )
+
+
 def get_model_path(model_name: str | None = None) -> str:
-    """Resolve the path for a model. Returns absolute path if local, else HF repo ID."""
+    """Resolve the local path for a model. Never a remote identifier.
+
+    This is the serving resolver: every lane, every worker respawn, the live
+    learner and the optimizer ask it where the weights are. It used to answer a
+    Hugging Face repository id when the artifact was missing locally — for any
+    model through `HF_FALLBACKS`, and for the cortex itself through
+    `_LEGACY_CORTEX_REPOSITORY_ID` — and that id goes to `mlx_lm.load`, which
+    calls `snapshot_download`. So a missing local file turned into a network
+    fetch inside the path that answers a person, and with no network the resolver
+    blocked on DNS, the lane never reached `ready`, and routing had no lane to
+    send the turn to: she could not reply at all because a file was not where she
+    looked.
+
+    Nothing she thinks with may depend on the internet. A missing
+    artifact is a missing artifact: this returns the path it looked in, says so
+    once, and leaves fetching to `core.brain.llm.model_lifecycle`, which is the
+    explicit, governed operation for it. `HF_FALLBACKS` stays as the table that
+    names what a download would fetch.
+    """
     raw_name = str(model_name or ACTIVE_MODEL).strip() or ACTIVE_MODEL
     if is_model_repository_id(raw_name):
         return raw_name
@@ -1009,7 +1046,8 @@ def get_model_path(model_name: str | None = None) -> str:
         cortex = _current_cortex_path().expanduser()
         if cortex.exists():
             return str(cortex.resolve())
-        return _LEGACY_CORTEX_REPOSITORY_ID
+        _no_remote_fallback(name, cortex)
+        return str(cortex)
 
     local_path = _configured_model_location(name)
 
@@ -1018,11 +1056,12 @@ def get_model_path(model_name: str | None = None) -> str:
         local_path = local_path.expanduser()
         if local_path.exists():
             return str(local_path.resolve())
-        # Fallback to repo ID if missing locally
         shared_path = get_models_dir() / name
         if shared_path != local_path and shared_path.exists():
             return str(shared_path.resolve())
-        return HF_FALLBACKS.get(name, str(local_path))
+        # And not the repository id it used to answer here. See the docstring.
+        _no_remote_fallback(name, local_path)
+        return str(local_path)
 
     return str(local_path)
 
