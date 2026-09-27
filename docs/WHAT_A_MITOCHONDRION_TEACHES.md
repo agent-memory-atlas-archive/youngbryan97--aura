@@ -114,8 +114,13 @@ electron transport halts and ATP synthesis with it. That is why we breathe.
 
 Her drives and intentions end in acts on a world. When the act cannot land,
 upstream should slow rather than keep producing intentions that pile up.
-**Waits:** a check of whether her intention backlog already pushes back on the
-drives that produce it.
+
+The check found the chain with nothing at its end. The subject driver declared
+an intention for every act, recorded the act and observed it, and never closed
+it: on the seed-7 run at 27dc1dda9 all 3,608 intentions were still in progress.
+Each act now closes its intention, completed or failed (3ccb6742a). Whether a
+backlog of intentions that genuinely cannot land pushes back on the drives that
+produce them is still to be read, on a run where some do not land.
 
 ## 11. Packed densely, the membrane is the power plant
 
