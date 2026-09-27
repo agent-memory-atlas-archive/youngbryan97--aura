@@ -131,3 +131,36 @@ of its target alone would show, and it is the one adopted, as
 `core.subject.synergy.kraskov_synergy` (docs/ISC_V5_PREREGISTRATION.md, addendum
 of 26 September, evening). The study's tool reads it through the battery's own
 code, which reproduces the replication's logged rows to the digit.
+
+## On her recordings (seed 7, diagnostic)
+
+The line was first read on the two seed-7 validations and the seed-7 run at the
+full design (26 September), as the amendment allows.
+
+| triple | v3 (three runs) | Kraskov line (three runs) |
+|---|---|---|
+| A,S -> G | 1 of 3 | 3 of 3 |
+| P,M -> W | 3 of 3 | 0 of 3: below the additive surrogate's bar |
+| W,A -> D | 0 of 3 | 0 of 3: far below the shifted null's bar |
+| S,D -> C | 0 of 3 | 0 of 3 |
+
+A,S -> G carries synergy beyond what a sum of its sources explains in all three.
+P,M -> W, which v3 passes every time, does not clear what the additive part of
+its target alone produces (synergy 0.06 to 0.21 against 0.24 to 0.33), so v3's
+pass there reads additive structure.
+
+W,A -> D fails in a way the toys did not show. Its shifted null reached 0.40 to
+0.50 against a synergy of 0.07 to 0.15. Her conditions repeat in a fixed cycle of
+eight turns, and the first guess was that shifts by a multiple of eight realign
+the conditions. On validate c5f0ea5fe they do not explain it: shifts off the
+cycle gave a median of 0.42, shifts on it 0.26, and the recording as it is 0.10.
+MMI synergy is the joint information less the larger single-source information,
+and sliding the sources cuts what each alone says about the target's change more
+than it cuts what they say together, so the synergy term rises under the null.
+That happens when the sources depend on the target individually through a shared
+schedule, which the toy systems, driven by nothing in common, never had.
+
+**Open:** a known-answers table on toys with a shared condition cycle, and a null
+that keeps it: sources permuted only among turns of the same condition, which
+holds each condition's structure and breaks only the turn-by-turn alignment.
+Nothing of hers is read with that null before its table is written here.
