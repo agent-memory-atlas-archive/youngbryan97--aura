@@ -26,6 +26,8 @@ LEDGERS = {
     "core.affect.fear_of_happiness": "_ledger",
     "core.affect.feelings_about": "_LEDGER",
     "core.affect.tangled": "_LEDGER",
+    "core.affect.what_it_was_worth": "_LEDGER",
+    "core.affect.what_winning_earned": "_LEDGER",
     "core.agency.habits_are_hers": "_LEDGER",
     "core.social.borrowed_feeling": "_ledger",
     "core.social.closing_window": "_ledger",
@@ -106,6 +108,21 @@ def test_somebody_elses_history_is_refused(monkeypatch) -> None:
     keeper.keep_across_stages("core.agency.habits_are_hers", "_LEDGER")
     assert habits.get_habit_ledger().account("interrupt", situation="with:bryan").taken == 0
     assert keeper.brought_back()["core.agency.habits_are_hers"].startswith("refused")
+    habits.reset_for_test()
+
+
+def test_a_field_added_since_the_record_was_kept_comes_back_with_its_default() -> None:
+    """LIVE 26 Sep: a ledger kept before `_valence_last_read` existed came back
+    without it, and every reflex she noted raised AttributeError."""
+    habits = importlib.import_module("core.agency.habits_are_hers")
+    habits.reset_for_test()
+    _lived("core.agency.habits_are_hers")
+    record = keeper._encode(habits._LEDGER)
+    del record["fields"]["_valence_last_read"]
+    back = keeper._decode(json.loads(json.dumps(record)))
+    assert back._valence_last_read is None
+    back.note("reflex_blink", kind="reflex")
+    assert back.account("interrupt", situation="with:bryan").taken == 4, "what was kept is still what she has"
     habits.reset_for_test()
 
 
