@@ -4676,15 +4676,13 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             # keys was written for it; the delegation simply was not using it.
             report = await capability_engine.execute(
                 "sovereign_browser",
-                {
-                    "mode": "pursue",
-                    "url": url,
-                    "goal": objective,
-                    # What she told them before starting. At the end of the
-                    # page she can hold the outcome against it, which is what
-                    # "does it match what you said" asks of her.
-                    "said_before": str((context or {}).get("cognitive_reply") or "").strip(),
-                },
+                # What she told them before starting rides in the context, as
+                # `cognitive_reply`, not in the arguments. Arguments are what
+                # the permission model reads for what an action touches, and
+                # LIVE 27 Sep 03:51 her reply about her drives matched its
+                # word for Google Drive: "Modality 'cloud_write' is disabled",
+                # and the test never opened.
+                {"mode": "pursue", "url": url, "goal": objective},
                 context=self._child_step_context(context),
             )
             report = report if isinstance(report, dict) else {}

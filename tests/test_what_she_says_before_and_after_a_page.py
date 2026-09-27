@@ -68,7 +68,7 @@ def _delegated(monkeypatch, steps, context):
 
     class _Engine:
         async def execute(self, skill, params, context=None):
-            sent.append(dict(params))
+            sent.append({"params": dict(params), "context": dict(context or {})})
             return {"ok": True, "completed": True, "final_url": params["url"], "result_text": "Your type: INTJ", "steps": steps}
 
     import core.container as container
@@ -87,7 +87,46 @@ def _delegated(monkeypatch, steps, context):
 
 def test_the_page_loop_is_told_what_she_said_before(monkeypatch):
     _result, sent = _delegated(monkeypatch, [], {"cognitive_reply": SAID})
-    assert sent[0]["said_before"] == SAID
+    assert sent[0]["context"]["cognitive_reply"] == SAID
+
+
+def test_what_she_said_is_not_read_as_what_the_action_touches(monkeypatch):
+    """LIVE 27 Sep 03:51: her reply named her "strongest drive", the permission
+    model read "drive" in the arguments as Google Drive, and blocked the test."""
+    said = SAID + " My values overrode my strongest drive 75 times in 500."
+    _result, sent = _delegated(monkeypatch, [], {"cognitive_reply": said})
+    assert "drive" not in str(sent[0]["params"]).lower()
+
+    from core.capabilities.permission_model import PermissionRiskModel
+
+    decision = PermissionRiskModel().check_permission(
+        "sovereign_browser", str(sent[0]["params"]), {}, effect_scope="external_io", execution_risk="medium"
+    )
+    assert "cloud_write" not in str(getattr(decision, "reason", ""))
+
+
+def test_the_browser_takes_her_words_from_the_context(monkeypatch):
+    seen: dict[str, str] = {}
+
+    async def pursue(self, browser, url, goal, max_steps, *, action_context=None, said_before=""):
+        seen["said_before"] = said_before
+        return {"ok": True, "steps": []}
+
+    async def create(self, preference, *, visible=False):
+        return object()
+
+    async def close(self, browser):
+        return None
+
+    monkeypatch.setattr(SovereignBrowserSkill, "_handle_pursue", pursue)
+    monkeypatch.setattr(SovereignBrowserSkill, "_create_browser", create)
+    monkeypatch.setattr(SovereignBrowserSkill, "_safe_close", close, raising=False)
+    from core.skills.sovereign_browser import BrowserInput
+
+    skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+    params = BrowserInput(mode="pursue", url="https://example.org", goal="take the test")
+    asyncio.run(skill._execute_browser(params, action_context={"cognitive_reply": SAID}))
+    assert seen["said_before"] == SAID
 
 
 def test_what_she_concluded_at_the_finished_page_is_kept(monkeypatch):

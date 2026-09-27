@@ -646,7 +646,10 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                         params.goal or "",
                         params.max_steps,
                         action_context=action_context,
-                        said_before=params.said_before or "",
+                        # Her reply to this turn, carried in the context so
+                        # the permission model does not read it as the target.
+                        said_before=params.said_before
+                        or str((action_context or {}).get("cognitive_reply") or ""),
                     )
                 else:
                     return {"ok": False, "error": f"Unsupported browser mode: {params.mode}"}
