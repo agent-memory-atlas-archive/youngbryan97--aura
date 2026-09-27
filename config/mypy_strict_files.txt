@@ -62,6 +62,7 @@ core/runtime/runtime_settings.py
 core/runtime/safe_mode.py
 core/runtime/service_access.py
 core/runtime/subprocess_gateway.py
+core/runtime/subprocess_reaping.py
 core/security/device_pairing.py
 core/self_modification/error_intelligence.py
 core/service_names.py

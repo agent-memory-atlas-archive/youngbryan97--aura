@@ -14,7 +14,6 @@ import multiprocessing as mp
 import os
 import shlex
 import shutil
-import signal
 import subprocess
 import sys
 import time
@@ -50,6 +49,11 @@ from .subprocess_privilege import (  # noqa: F401  (re-exported: they were defin
     _validate_desktop_safe_subprocess,
     _validate_offline_tooling_bypass,
     _validate_read_only_source,
+)
+from .subprocess_reaping import (  # noqa: F401  (re-exported: they were defined here)
+    _run_bounded_by_its_work,
+    _terminate_and_reap_python_process,
+    _terminate_async_process_group,
 )
 
 GovernanceViolation = _governance_context.GovernanceViolation
@@ -548,89 +552,6 @@ def _python_process_entrypoint(
     target(*args, **kwargs)
 
 
-def _terminate_and_reap_python_process(
-    process: Any,
-    *,
-    terminate_timeout_s: float = 1.0,
-    kill_timeout_s: float = 1.0,
-) -> bool:
-    """Bounded handle-based termination; never signal an observed PID directly."""
-
-    try:
-        alive = bool(process.is_alive())
-    except (AssertionError, AttributeError, OSError, RuntimeError, ValueError):
-        alive = True
-    if alive:
-        try:
-            process.terminate()
-        except (AttributeError, OSError, RuntimeError, ValueError):
-            # not a failure: every rung may fail, the next is harder, and the
-            # is_alive() below is the verdict.
-            pass
-    try:
-        process.join(timeout=max(0.0, float(terminate_timeout_s)))
-    except (AssertionError, AttributeError, OSError, RuntimeError, ValueError):
-        pass  # not a failure: see the rung above.
-    try:
-        alive = bool(process.is_alive())
-    except (AssertionError, AttributeError, OSError, RuntimeError, ValueError):
-        alive = True
-    if alive:
-        try:
-            process.kill()
-        except (AttributeError, OSError, RuntimeError, ValueError):
-            pass  # not a failure: see the rung above.
-        try:
-            process.join(timeout=max(0.0, float(kill_timeout_s)))
-        except (AssertionError, AttributeError, OSError, RuntimeError, ValueError):
-            pass  # not a failure: see the rung above.
-    try:
-        return not bool(process.is_alive())
-    except (AssertionError, AttributeError, OSError, RuntimeError, ValueError) as exc:
-        # A failure: the ladder ran and the verdict cannot be read, so the caller
-        # is told the process may still be alive.
-        logger.warning("Could not confirm the process ended: %s", exc)
-        return False
-
-
-async def _terminate_async_process_group(
-    process: asyncio.subprocess.Process,
-    *,
-    grace_s: float = 5.0,
-) -> tuple[bytes | None, bytes | None]:
-    """Terminate and reap an isolated async process and all descendants."""
-    process_group_id = int(getattr(process, "_aura_process_group_id", 0) or 0)
-    try:
-        if process_group_id <= 0:
-            process_group_id = int(os.getpgid(process.pid))
-    except (OSError, ProcessLookupError, ValueError):
-        if bool(getattr(process, "_aura_start_new_session", False)):
-            process_group_id = int(process.pid)
-
-    try:
-        if process_group_id > 0 and process_group_id != os.getpgrp():
-            os.killpg(process_group_id, signal.SIGTERM)
-        else:
-            process.terminate()
-    except (OSError, ProcessLookupError):
-        pass  # not a failure: the SIGKILL rung below covers a live group.
-    try:
-        return await asyncio.wait_for(process.communicate(), timeout=max(0.1, grace_s))
-    except TimeoutError:
-        try:
-            if process_group_id > 0 and process_group_id != os.getpgrp():
-                os.killpg(process_group_id, signal.SIGKILL)
-            else:
-                process.kill()
-        except (OSError, ProcessLookupError):
-            pass  # not a failure: see the SIGTERM rung above.
-        try:
-            return await asyncio.wait_for(process.communicate(), timeout=max(0.1, grace_s))
-        except TimeoutError:
-            logger.error("Async subprocess group could not be reaped pid=%s pgid=%s", process.pid, process_group_id)
-            return None, None
-
-
 def _require_not_shutting_down(
     operation: str,
     *,
@@ -734,7 +655,8 @@ def _work_bound_expired(cmd: Any, timeout: Any, output: Any, stderr: Any, reason
 def _drain_stopped_child(proc: Any, *, timeout_s: float, text: bool) -> tuple[Any, Any]:
     """Reap the owned child without waiting forever for inherited output pipes."""
     try:
-        return proc.communicate(timeout=max(.05, timeout_s))
+        out, err = proc.communicate(timeout=max(.05, timeout_s))
+        return out, err
     except subprocess.TimeoutExpired as incomplete:
         def partial(value: Any, stream: Any) -> Any:
             if text and isinstance(value, bytes):
@@ -750,105 +672,6 @@ def _drain_stopped_child(proc: Any, *, timeout_s: float, text: bool) -> tuple[An
                 stream.close()
         proc.wait(timeout=max(.05, timeout_s))
         return out, err
-
-
-def _run_bounded_by_its_work(
-    command: list[str],
-    *,
-    cwd: str | None,
-    env: dict[str, str] | None,
-    budget_s: float,
-    capture_output: bool,
-    input: str | bytes | None,
-    stdin: int | None,
-    stdout: int | IO[Any] | None,
-    stderr: int | IO[Any] | None,
-    text: bool,
-    check: bool,
-) -> subprocess.CompletedProcess[Any]:
-    """``subprocess.run`` whose budget is the child's work, not the wall clock.
-
-    Every ``timeout`` handed to the gateway was measured on an idle host, and
-    on a loaded one measured the host instead: the MLX probe (56.6s of wall
-    on 16.6s of CPU), a boot's ``git symbolic-ref`` (past 3.0s), the snippet
-    verdict's walk (past 10s), the integrity guardian's ``git status`` — all
-    on 2026-09-16, load 34 on 18 cores. Seventy-nine call sites carry such a
-    budget. The budget now bounds the child's CPU time, and how long its CPU
-    may go without advancing; a starved child is neither over budget nor
-    wedged. Everything else is ``subprocess.run``: the same arguments, the
-    same ``CompletedProcess``, ``TimeoutExpired`` when the bound is hit (its
-    message says which bound), ``CalledProcessError`` under ``check``. A
-    child whose CPU cannot be read is bounded by the wall clock, as before.
-    """
-    budget = max(0.0, float(budget_s))
-    period = max(0.05, min(1.0, budget / 10.0)) if budget else 1.0
-    if capture_output:
-        stdout, stderr = subprocess.PIPE, subprocess.PIPE
-    if input is not None:
-        stdin = subprocess.PIPE
-    proc = subprocess.Popen(
-        command,
-        cwd=cwd,
-        env=env,
-        stdin=stdin,
-        stdout=stdout,
-        stderr=stderr,
-        text=text,
-        shell=False,
-    )
-    started = time.monotonic()
-    cpu_seen = 0.0
-    advanced_at = started
-    stopped_for = ""
-    out = err = None
-    pending_input = input
-    try:
-        while True:
-            try:
-                out, err = proc.communicate(pending_input, timeout=period)
-                break
-            except subprocess.TimeoutExpired:
-                pending_input = None  # not a failure: the timeout IS the watch period
-            now = time.monotonic()
-            cpu = _child_cpu_seconds(proc.pid)
-            if proc.poll() is not None:
-                stopped_for = "exited child left inherited output pipes open"
-            elif cpu is None:
-                if proc.poll() is None and now - started >= budget:
-                    stopped_for = (
-                        f"unobservable child ran {now - started:.1f}s of wall against a "
-                        f"{budget:.1f}s budget"
-                    )
-            else:
-                if cpu > cpu_seen:
-                    cpu_seen, advanced_at = cpu, now
-                if cpu_seen >= budget:
-                    stopped_for = (
-                        f"cpu budget exhausted: {cpu_seen:.1f}s of CPU against "
-                        f"{budget:.1f}s after {now - started:.1f}s of wall"
-                    )
-                elif now - advanced_at >= budget:
-                    stopped_for = (
-                        f"wedged: no CPU progress for {now - advanced_at:.1f}s at "
-                        f"{cpu_seen:.1f}s of CPU, {now - started:.1f}s of wall"
-                    )
-            if stopped_for:
-                if proc.poll() is None:
-                    proc.kill()
-                out, err = _drain_stopped_child(proc, timeout_s=period, text=text)
-                raise WorkBoundExpired(
-                    command, budget, output=out, stderr=err, reason=stopped_for
-                ) from None
-    except BaseException:
-        if proc.poll() is None:
-            proc.kill()
-            proc.wait()
-        raise
-    completed = subprocess.CompletedProcess(command, proc.returncode, out, err)
-    if check and proc.returncode:
-        raise subprocess.CalledProcessError(proc.returncode, command, output=out, stderr=err)
-    completed.cpu_seconds = cpu_seen or None  # type: ignore[attr-defined]
-    return completed
 
 
 class SubprocessGateway:

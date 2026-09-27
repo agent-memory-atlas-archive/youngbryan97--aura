@@ -3,7 +3,7 @@
   "description": "Modules already above the size thresholds, and the total oversize budget. Individual entries may move; the total may only shrink. A file that has shrunk must be re-recorded, because a stale entry is headroom nobody earned.",
   "max_new_module_lines": 2000,
   "max_new_class_methods": 30,
-  "oversize_budget_lines": 126666,
+  "oversize_budget_lines": 125937,
   "modules": {
     "core/adaptation/adaptive_immunity.py": {
       "lines": 3750,
@@ -22,7 +22,7 @@
       "max_class_methods": 57
     },
     "core/agency/autonomous_task_engine.py": {
-      "lines": 3011,
+      "lines": 3000,
       "max_class_methods": 56
     },
     "core/agency/task_commitment_verifier.py": {
@@ -158,15 +158,11 @@
       "max_class_methods": 16
     },
     "core/consciousness/liquid_substrate.py": {
-      "lines": 1507,
-      "max_class_methods": 36
+      "lines": 1501,
+      "max_class_methods": 34
     },
     "core/consciousness/neural_mesh.py": {
       "lines": 1459,
-      "max_class_methods": 32
-    },
-    "core/consciousness/neurochemical_system.py": {
-      "lines": 1138,
       "max_class_methods": 32
     },
     "core/consciousness/phi_core.py": {
@@ -274,7 +270,7 @@
       "max_class_methods": 20
     },
     "core/phases/response_generation_unitary.py": {
-      "lines": 7482,
+      "lines": 7069,
       "max_class_methods": 86
     },
     "core/reality_reach/attachments.py": {
