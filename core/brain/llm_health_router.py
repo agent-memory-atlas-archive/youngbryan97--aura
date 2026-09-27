@@ -2458,7 +2458,9 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
         # "got multiple values for keyword argument '_non_chat_inference'".
         # LIVE 27 Sep, every page decision of a personality test failed that
         # way, and a bare fallback with no shape wrote prose in its place.
-        kwargs.pop("_non_chat_inference", None)
+        # The caller's word is kept for what follows: a failed generation it
+        # asked for comes back empty, not as the canned reply-lane line.
+        caller_non_chat = bool(kwargs.pop("_non_chat_inference", False))
         if not prompt and "messages" in kwargs:
             prompt, inferred_system_prompt = self._coerce_prompt_from_messages(kwargs.get("messages", []))
             if not system_prompt and inferred_system_prompt:
@@ -2510,7 +2512,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                         or bool(kwargs.get("health_probe", False)),
                     )
                 ):
-                    if strict_answer_request or kwargs.get("_non_chat_inference"):
+                    if strict_answer_request or caller_non_chat:
                         return None
                     return "I lost the reply lane for a moment. Ask that again and I'll answer cleanly."
                 return None
@@ -2533,7 +2535,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
                     or bool(kwargs.get("health_probe", False)),
                 )
             ):
-                if strict_answer_request or kwargs.get("_non_chat_inference"):
+                if strict_answer_request or caller_non_chat:
                     return None
                 return "I lost the reply lane for a moment. Ask that again and I'll answer cleanly."
             # [STABILITY v55] Don't mask failures with robot responses.

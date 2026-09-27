@@ -59,3 +59,16 @@ def test_a_page_decision_arrives_with_its_shape_and_origin(monkeypatch):
     assert not decision.get("error"), decision
     assert seen.get("output_shape") == "json_object"
     assert seen.get("origin") == "sovereign_browser"
+
+
+def test_a_failed_non_chat_generation_comes_back_empty_not_as_a_canned_line():
+    router = HealthAwareLLMRouter.__new__(HealthAwareLLMRouter)
+
+    async def generate_with_metadata(**kwargs):
+        return {"ok": False, "text": "", "error": "client_returned_no_text"}
+
+    router.generate_with_metadata = generate_with_metadata
+    router._publish_generation_metadata = lambda *args, **kwargs: None
+    router._is_background_request = lambda **kwargs: False
+    out = asyncio.run(router.think("p", system_prompt="m", _non_chat_inference=True))
+    assert not out, "a decision that failed is empty, not 'I lost the reply lane'"
