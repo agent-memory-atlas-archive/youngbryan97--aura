@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from core.conversation.word_markers import names_any
@@ -504,7 +504,7 @@ class _UnderstandsThePage:
                 system_prompt=mind,
                 timeout=45.0,
                 prefer_tier="local_fast",
-                max_tokens=900,
+                max_tokens=_UnderstandsThePage.DECISION_MAX_TOKENS,
                 temperature=0.2,
             )
         except _BROWSER_DECISION_ERRORS as exc:
@@ -574,6 +574,9 @@ class _UnderstandsThePage:
 
     #: The lane her own model answers on. See `_who_answered`.
     _HER_OWN_LANE = "Cortex"
+
+    #: The most one decision about a page may write.
+    DECISION_MAX_TOKENS = 900
 
     #: The shape a decision about a page comes back in, held by the decoder.
     #:
@@ -686,6 +689,8 @@ class _UnderstandsThePage:
         observation: Mapping[str, Any],
         history: list[dict[str, Any]],
         understanding: Mapping[str, Any] | None,
+        *,
+        on_progress: Callable[[str], None] | None = None,
     ) -> dict[str, Any] | None:
         """Decide every open question on the screen, one decision each.
 
@@ -712,6 +717,10 @@ class _UnderstandsThePage:
             # real context — the same URL, the same page text.
             single = {**observation, "elements": list(options)}
             decision = await self._decide_next_actions(goal, single, history, understanding)
+            if on_progress is not None:
+                # Each question decided is the run moving, however long the
+                # screen as a whole takes.
+                on_progress("a question decided")
             if decision.get("error"):
                 return None
             for item in decision.get("actions") or []:
@@ -772,6 +781,8 @@ class _UnderstandsThePage:
         observation: Mapping[str, Any],
         history: list[dict[str, Any]],
         understanding: Mapping[str, Any] | None = None,
+        *,
+        said_before: str = "",
     ) -> dict[str, Any]:
         """Ask her own reasoning what to do with this page.
 
@@ -858,8 +869,13 @@ class _UnderstandsThePage:
                 for entry in stated[-12:]
             )
 
+        # What she told them before she began, so that at the end she can hold
+        # the outcome against it. Never beside a question about her: an answer
+        # given with her own forecast in view is an answer bent toward it.
+        said = "" if self._asks_about_the_one_answering(observation) else " ".join(str(said_before or "").split())
         prompt = (
             f"GOAL: {goal}\n\n"
+            + (f"WHAT YOU TOLD THEM BEFORE YOU BEGAN: {said}\n\n" if said else "")
             + (f"{self_state}\n\n" if self_state else "")
             + (f"{self._render_understanding(understanding)}\n\n" if understanding else "")
             + f"{self._render_observation(observation)}\n\n"
@@ -929,7 +945,7 @@ class _UnderstandsThePage:
                     # would be a different mind's answer submitted as hers.
                     reply = await think(
                         prompt, system_prompt=mind, prefer_tier="primary", schema=self._DECISION_SCHEMA,
-                        max_tokens=900, temperature=0.2, _non_chat_inference=True,
+                        max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
                     )
                     answered_by = self._who_answered(reply)
                     if answered_by and answered_by != self._HER_OWN_LANE:
@@ -940,7 +956,7 @@ class _UnderstandsThePage:
                     if not self._decision_is_usable(raw, observation):
                         raw = self._the_text_of(await think(
                             prompt, system_prompt=mind, schema=self._DECISION_SCHEMA,
-                            max_tokens=900, temperature=0.2, _non_chat_inference=True,
+                            max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
                         ))
             else:
                 generate = getattr(router, "generate", None)
