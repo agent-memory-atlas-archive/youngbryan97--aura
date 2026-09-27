@@ -880,9 +880,12 @@ async def _admit_to_foreground_lane(
             # on its own is worth waiting out. Retry inside the budget
             # already reserved for admission, and only report the
             # deferral if it is still true when that budget is gone.
-            if _lane_warmup_is_deliberately_deferred(
-                {"last_failure_reason": str(admission_exc or "")}
-            ) or str(admission_exc).strip() == "chat_dependencies_warming":
+            if (
+                _lane_warmup_is_deliberately_deferred(
+                    {"last_failure_reason": str(admission_exc or "")}
+                )
+                or str(admission_exc).strip() == "chat_dependencies_warming"
+            ) and not _a_smaller_lane_already_fits():
                 retry_deadline = time.monotonic() + max(0.0, admission_budget - 2.0)
                 logger.info(
                     "⏳ Foreground lane deferred (%s); waiting up to %.0fs "
@@ -928,6 +931,51 @@ async def _admit_to_foreground_lane(
                     state="failed" if hard_lane_failure else "recovering",
                 )
     return admission_override, admission_reason, hard_lane_failure, lane
+
+
+def _a_smaller_lane_already_fits() -> bool:
+    """Whether the fallback tier can be admitted right now.
+
+    The wait below was written for a deferral short by under a gigabyte, which
+    is a condition that clears on its own and is worth waiting out. It does not
+    distinguish that from being short by more memory than the fallback lane
+    weighs in total.
+
+    Live 2026-09-27: the cortex was refused at 11.9GB of headroom against 24GB
+    required, six spawn attempts, RAM at 81%. Nothing was going to free twelve
+    gigabytes in the sixty-eight seconds the turn then spent waiting, and the
+    tertiary tier's own floor — under 92% pressure and at least 6GB available —
+    was satisfied the whole time. The person polled a 202 until they gave up,
+    with a lane that fitted sitting idle.
+
+    So: ask the gate, in its own numbers, whether the smaller tier is
+    admissible. If it is, there is nothing to wait for — the ladder answers now
+    and says which mind answered, which is what it is for. Both thresholds are
+    the gate's; nothing here chooses one.
+    """
+    try:
+        from core.brain.inference_gate import InferenceGate
+
+        snapshot = InferenceGate._headroom_snapshot("tertiary") or {}
+    # not a failure: a gate that cannot measure gets the old behaviour, which
+    # is to wait.
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("could not ask whether a smaller lane fits: %s", exc)
+        return False
+    if not bool(snapshot.get("measured")):
+        return False
+    if not bool(snapshot.get("can_admit")):
+        return False
+    logger.info(
+        "🪜 The cortex is deferred and the smaller lane fits already "
+        "(%.1fGB available, needs %.1fGB; pressure %.1f%%, needs under %.1f%%). "
+        "Answering from the ladder rather than waiting.",
+        float(snapshot.get("available_gb") or 0.0),
+        float(snapshot.get("min_available_gb") or 0.0),
+        float(snapshot.get("pressure_pct") or 0.0),
+        float(snapshot.get("max_pressure_pct") or 0.0),
+    )
+    return True
 
 
 async def _protected_foreground_reply(
