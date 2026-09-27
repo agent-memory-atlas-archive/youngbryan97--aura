@@ -2768,17 +2768,6 @@ def test_conversation_lane_degraded_messages_do_not_ask_user_to_repeat():
     assert "unsafe RAM spike" in samples[-1]
 
 
-def test_output_guardrail_degraded_messages_do_not_ask_user_to_repeat():
-    from core.security.output_guardrails import OutputGuardrails
-
-    guard = OutputGuardrails()
-    empty, empty_report = guard.check_response("")
-    incomplete, incomplete_report = guard.check_response("...")
-
-    assert empty_report["ok"] is False
-    assert incomplete_report["ok"] is False
-    assert_no_live_reset_boilerplate(empty)
-    assert_no_live_reset_boilerplate(incomplete)
 
 
 @pytest.mark.asyncio

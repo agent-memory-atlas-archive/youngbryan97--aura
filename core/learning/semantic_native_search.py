@@ -36,7 +36,7 @@ class NativeGrammarSearchResult:
 
 
 class _UnscoredDecisionError(Exception):
-    def __init__(self, choices):
+    def __init__(self, choices: tuple[NativeGrammarDecision, ...]) -> None:
         self.choices = choices
 
 
@@ -67,9 +67,11 @@ def search_native_grammar(
     while frontier and expanded < max_nodes and len(candidates) < completions:
         negative_bound, _, path = heapq.heappop(frontier)
         expanded += 1
-        visited = []
+        visited: list[tuple[NativeGrammarDecision, ...]] = []
 
-        def replay(choices, *, visited=visited, path=path):
+        def replay(choices: tuple[NativeGrammarDecision, ...], *,
+                   visited: list[tuple[NativeGrammarDecision, ...]] = visited,
+                   path: tuple[int, ...] = path) -> tuple[float, ...]:
             position = len(visited)
             visited.append(choices)
             if position == len(path):
@@ -125,7 +127,7 @@ def search_native_grammar(
 @invariant("learning.native_search_keeps_limits_distinct_from_top_k_proof", scope="learning",
            owner="core/learning/semantic_native_search.py", observational=False)
 def _native_search_bound_truth() -> tuple:
-    def score(choices):
+    def score(choices: tuple[NativeGrammarDecision, ...]) -> tuple[float, ...]:
         return (0.,) * len(choices)
     limited = search_native_grammar(("integer",), score, max_steps=1, max_nodes=1, completions=2)
     assert not limited.requested_top_k_proven and limited.frontier_nodes > 0

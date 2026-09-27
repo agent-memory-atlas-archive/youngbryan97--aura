@@ -321,7 +321,7 @@ class ProceduralGeneralizer:
         if sum(e.matches(invariant) for e in successes) < criteria.min_episodes:
             return None
 
-        def contradictions(conditions):
+        def contradictions(conditions: Iterable[Feature]) -> list[DecisionEpisode]:
             return [e for e in episodes if e.matches(conditions) and (
                 (e.resolution != resolution and e.correct is True)
                 or (e.resolution == resolution and e.correct is False)

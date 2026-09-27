@@ -47,28 +47,39 @@ CONSUMERS = ("core", "interface", "skills", "executors", "tools", "tests")
 #: Where a PRODUCTION consumer could be: the same, without tests. A test that
 #: invokes a module directly and watches it refuse is how the deleted chain
 #: looked live, so a test is not a consumer.
-PRODUCTION = ("core", "interface", "skills", "executors", "tools", "security", "llm")
+PRODUCTION = ("core", "interface", "skills", "executors", "tools", "security", "llm", "scripts")
+#: `scripts` because the app build is production: macos_bundle_manifest is the
+#: one source of the TCC strings scripts/build_app.py writes into the bundle.
 
 #: Modules nothing in production imports, found 2026-09-22 when this guard
 #: stopped counting a mention as a use. It had matched the module's name as a
 #: word anywhere: `privacy_stealth` passed on two comments saying it had been
 #: removed. Each of these is either wired to a real caller or deleted; the set
 #: only shrinks, and an entry that has gained a caller or gone must leave it.
-KNOWN_ORPHANS = frozenset({
-    "audit_trail",
-    "credential_broker",
-    "macos_bundle_manifest",
-    "output_guardrails",
-    "permissions",
-    "workspace_jail",
-})
+KNOWN_ORPHANS: frozenset[str] = frozenset()
 
 #: Deleted 2026-09-22 rather than wired: each claimed something nothing used.
 #: `sandbox` delegated to the real sandbox in security/sandbox.py and said in
 #: its own docstring that nothing routed through it; `privacy_stealth` was an
 #: inert compatibility surface nothing imported; `secrets` re-exported three
 #: names from zenith_secrets, already marked RETIRE in orphan_dispositions.
-DELETED_SCENERY = ("sandbox", "privacy_stealth", "secrets")
+DELETED_SCENERY = (
+    "sandbox",
+    "privacy_stealth",
+    "secrets",
+    # 2026-09-27, each a "last line of defence" nothing called, with the live
+    # owner of what it claimed beside it:
+    "audit_trail",        # core/runtime/receipts.py and the audit chain
+    "credential_broker",  # not built: nothing brokers credentials; recorded under Q04
+    "output_guardrails",  # response_reliability's leak and integrity checks. Its
+                          # ontological-overclaim rewrite was never in force (this
+                          # was its only caller) and is not wired now: rewriting
+                          # what she says is the words-level fix ruled out here.
+    "permissions",        # standing authority, the Will, the mode manifest gates
+    "workspace_jail",     # file_operation's containment (reads outside only on the
+                          # person's own words, writes never) and the egress filter,
+                          # which strips a private key bound for any other machine
+)
 
 DELETED_CHAIN = (
     "consent_kernel",

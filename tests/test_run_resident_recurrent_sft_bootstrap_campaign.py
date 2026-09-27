@@ -16,11 +16,24 @@ from core.learning.resident_recurrent_sft_bootstrap_authority import sha256_json
 from core.runtime.secure_path_custody import DirectoryCustody, path_custody_threat_model
 from tools import run_resident_recurrent_sft_bootstrap_campaign as controller
 
+
+def _git_args(command: list[str]) -> list[str]:
+    """The git subcommand and its arguments, after any leading `-c key=value`.
+
+    The controller reads git with `-c core.fsmonitor=false` because fsmonitor
+    made each read take seconds; the fakes below match on the subcommand.
+    """
+    args = list(command[1:])
+    while len(args) >= 2 and args[0] == "-c":
+        args = args[2:]
+    return args
+
 _REAL_ACQUIRE_CAMPAIGN_CUSTODIES = controller._acquire_campaign_custodies
 _REAL_RESIDENT_TRAINING_HOST_LEASE = controller._resident_training_host_lease
 
 
 @pytest.fixture(autouse=True)
+
 def _stub_campaign_custody(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(controller, "_acquire_campaign_custodies", lambda _config: ())
 
@@ -541,7 +554,7 @@ def test_source_lineage_accepts_worktree_at_published_commit(
     frozen = "a" * 40
 
     def run(command: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
-        args = command[1:]
+        args = _git_args(command)
         if args == ["branch", "--show-current"]:
             stdout, returncode = "codex/rlc-control-candidate\n", 0
         elif args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):
@@ -571,7 +584,7 @@ def test_source_lineage_accepts_detached_checkout_at_published_commit(
     frozen = "a" * 40
 
     def run(command: list[str], **_kwargs: Any) -> subprocess.CompletedProcess[str]:
-        args = command[1:]
+        args = _git_args(command)
         if args == ["branch", "--show-current"]:
             stdout, returncode = "", 0
         elif args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):

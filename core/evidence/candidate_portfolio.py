@@ -5,6 +5,7 @@ from dataclasses import dataclass
 
 from core.evidence.necessary_condition_selector import (
     CandidateSelectionDecision,
+    NecessaryConditionSelector,
     PairwiseSelectionEvidence,
 )
 from core.evidence.packet import EvidencePacket, fuse
@@ -17,9 +18,13 @@ class CandidatePortfolioDecision:
     comparisons: tuple[CandidateSelectionDecision, ...]
 
 
-def select_candidate_portfolio(selector, *, incumbent: str,
-                               measurements: Mapping[str, Mapping[str, float]],
-                               provenance: Mapping[str, EvidencePacket]) -> CandidatePortfolioDecision:
+def select_candidate_portfolio(
+    selector: NecessaryConditionSelector,
+    *,
+    incumbent: str,
+    measurements: Mapping[str, Mapping[str, float]],
+    provenance: Mapping[str, EvidencePacket],
+) -> CandidatePortfolioDecision:
     """Replay a declared candidate order using measured evidence only.
 
     All candidates remain available to the caller. The caller fixes order

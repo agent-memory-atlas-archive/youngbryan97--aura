@@ -25,6 +25,8 @@ import contextlib
 import re
 from pathlib import Path
 
+import pytest
+
 from core.governance_context import GovernanceToken
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -97,21 +99,37 @@ def test_an_empty_receipt_authorizes_nothing():
 # ──────────────────── the sink that was getting it half right
 
 
-def test_the_subprocess_gateway_catches_both_non_authority_tokens():
+@pytest.mark.parametrize(
+    ("receipt", "domain", "refused"),
+    [
+        ("receipt-1", "file_write", False),
+        ("degraded_mode", "degraded", True),
+        ("VIOLATION", "ungoverned", True),
+    ],
+)
+def test_the_subprocess_gateway_catches_both_non_authority_tokens(
+    monkeypatch, receipt, domain, refused
+):
     """It checked `domain == "degraded"` and missed `ungoverned`.
 
-    Both record the absence of the boundary; only one was caught.
+    Both record the absence of the boundary; only one was caught. Each token
+    is handed to the gateway's effect check with governance live, and only
+    the grant gets through.
     """
-    from tests.source_contract import family_text_at
+    from core.runtime import subprocess_gateway
+    from core.runtime.subprocess_privilege import _require_effect_governance
 
-    # the privilege check was lifted into `subprocess_privilege`
-    source = family_text_at(ROOT / "core" / "runtime" / "subprocess_gateway.py")
-
-    assert 'getattr(token, "domain", "") == "degraded"' not in source, (
-        "the gateway hand-rolls a degraded-only check again, which lets an "
-        "ungoverned VIOLATION token through"
+    monkeypatch.setattr(subprocess_gateway, "governance_runtime_active", lambda: True)
+    monkeypatch.setattr(
+        subprocess_gateway,
+        "require_governance",
+        lambda *_a, **_k: _token(receipt, domain),
     )
-    assert 'not getattr(token, "authorizes", False)' in source
+    if refused:
+        with pytest.raises(subprocess_gateway.GovernanceViolation):
+            _require_effect_governance("subprocess_gateway.run:test")
+    else:
+        _require_effect_governance("subprocess_gateway.run:test")
 
 
 # ──────────────────────────── the guard on the whole class

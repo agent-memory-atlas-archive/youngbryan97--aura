@@ -10,6 +10,7 @@ from tools.evaluate_semantic_native_grammar import (
     select_search_proposal,
     source_input_types,
 )
+from tools.verify_semantic_native_grammar import verified_source_evidence
 
 
 def search(programs):
@@ -28,6 +29,18 @@ def test_every_program_is_scored_before_choosing_a_later_alternative():
 
 def test_empty_search_does_not_invent_a_candidate():
     assert select_search_proposal(search(()), lambda _: pytest.fail("no graph exists")) == (None, ())
+
+
+def test_source_control_mode_must_match_the_plan_report_and_each_row():
+    assert verified_source_evidence({}, {}, ({},)) == "source_text"
+    plan = {"source_evidence": "source_token_erasure"}
+    report = {"source_evidence": "source_token_erasure"}
+    rows = ({"source_evidence": "source_token_erasure"},)
+    assert verified_source_evidence(plan, report, rows) == "source_token_erasure"
+    with pytest.raises(ValueError, match="source-evidence mode differs"):
+        verified_source_evidence(plan, report, ({"source_evidence": "source_text"},))
+    with pytest.raises(ValueError, match="source-evidence mode differs"):
+        verified_source_evidence({"source_evidence": "unknown"}, report, rows)
 
 
 @pytest.mark.parametrize("invalid", [True, None, float("nan"), float("inf")])

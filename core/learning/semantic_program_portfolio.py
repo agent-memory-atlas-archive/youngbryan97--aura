@@ -2,9 +2,10 @@
 
 import hashlib
 import json
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from itertools import combinations
+from typing import TYPE_CHECKING
 
 from core.evidence.candidate_portfolio import CandidatePortfolioDecision, select_candidate_portfolio
 from core.evidence.necessary_condition_selector import (
@@ -23,6 +24,10 @@ from core.learning.semantic_program_floor import (
     execute_semantic_floor_program,
 )
 
+if TYPE_CHECKING:
+    from core.learning.semantic_program_inquiry import ProgramInquiry
+    from core.runtime.gateways import StateGateway, StateMutationReceipt
+
 
 @dataclass(frozen=True)
 class SemanticProgramPortfolio:
@@ -35,10 +40,10 @@ class SemanticProgramPortfolio:
     public_inputs: tuple = ()
 
     @property
-    def selected_program(self):
+    def selected_program(self) -> Program | None:
         return dict(self.proposals)[self.decision.selected]
 
-    def plan_inquiries(self, *, fuel: int = 100_000):
+    def plan_inquiries(self, *, fuel: int = 100_000) -> tuple["ProgramInquiry", ...]:
         """Use retained disagreement witnesses to plan actual observations."""
         from core.learning.semantic_program_inquiry import plan_program_inquiries
 
@@ -47,14 +52,16 @@ class SemanticProgramPortfolio:
             {name: program for name, program in self.proposals if program is not None},
             probes, fuel=fuel, source_sha256=self.source_sha256)
 
-    async def retain_inquiries(self, gateway, *, fuel: int = 100_000):
+    async def retain_inquiries(self, gateway: "StateGateway", *,
+                               fuel: int = 100_000) -> tuple["StateMutationReceipt", ...]:
         """Retain unanswered distinctions without putting floor work on the loop."""
         from core.runtime.executors import off_the_loop
 
         inquiries = await off_the_loop(self.plan_inquiries, fuel=fuel)
         return tuple([await inquiry.retain(gateway) for inquiry in inquiries])
 
-    async def reconcile_retained_inquiries(self, gateway, *, fuel: int = 100_000):
+    async def reconcile_retained_inquiries(self, gateway: "StateGateway", *,
+                                           fuel: int = 100_000) -> CandidatePortfolioDecision | None:
         """Replay durable caller-observed feedback against the unchanged proposals."""
         from core.learning.semantic_program_inquiry import ObservedProgramInquiry, ProgramInquiry
         from core.runtime.executors import off_the_loop
@@ -75,8 +82,8 @@ class SemanticProgramPortfolio:
             feedback.append((inquiry, record.observed_result, record.origin, record.ref))
         return await off_the_loop(self.reconcile_inquiries, tuple(feedback), fuel=fuel)
 
-    def reconcile_inquiry(self, inquiry, *, observed_result, origin: str, ref: str,
-                          fuel: int = 100_000):
+    def reconcile_inquiry(self, inquiry: "ProgramInquiry", *, observed_result: int | tuple[int, ...],
+                          origin: str, ref: str, fuel: int = 100_000) -> CandidatePortfolioDecision | None:
         """Select within this portfolio after independent probe feedback.
 
         None means the observation refutes every available candidate. Agreement
@@ -84,7 +91,10 @@ class SemanticProgramPortfolio:
         """
         return self.reconcile_inquiries(((inquiry, observed_result, origin, ref),), fuel=fuel)
 
-    def reconcile_inquiries(self, feedback, *, fuel: int = 100_000):
+    def reconcile_inquiries(
+        self, feedback: Iterable[tuple["ProgramInquiry", int | tuple[int, ...], str, str]], *,
+        fuel: int = 100_000,
+    ) -> CandidatePortfolioDecision | None:
         """Require agreement with every applicable observed probe in the history."""
         from core.learning.semantic_program_inquiry import ProgramInquiry, plan_program_inquiries
 

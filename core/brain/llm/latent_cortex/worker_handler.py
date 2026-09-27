@@ -54,6 +54,7 @@ from core.brain.llm.latent_cortex.types import (
     RecurrenceConfig,
     WorkspaceConfig,
 )
+from core.runtime.wall_clock import wall_time
 
 logger = logging.getLogger("Aura.LatentCortex.WorkerHandler")
 
@@ -436,7 +437,7 @@ def _handle_latent_reason_admit_action_state_runtime(
     action_state_runtime = admit_action_state_runtime(
         action_state_runtime_wire,
         worker_launch_challenge=worker_capture_launch_challenge,
-        now_unix=int(time.time()),
+        now_unix=int(wall_time()),
     )
     actual_model_identity = resident_model_identity_for_worker(
         worker_identity

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import replace
+from typing import Any
 
 from core.learning.semantic_native_program import NativeProgramSequence
 
@@ -18,16 +20,23 @@ SOURCE_ERASURE_CONTRACT = {
 }
 
 
-def source_control_mode_from_plan(plan):
+def source_control_mode_from_plan(plan: Mapping[str, Any]) -> str:
     """Keep historical fits intact and require explicit authority for erasure."""
     schema = plan.get("schema")
-    if schema == "aura.semantic_native_fit_plan.v3":
+    if schema in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4"}:
         from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
+        from core.learning.semantic_native_source_pairs import SOURCE_PAIR_CONTRACT
 
-        if (plan.get("objective") != "grammar_choices"
+        objective = "grammar_source_pairs" if schema.endswith(".v4") else "grammar_choices"
+        if (plan.get("objective") != objective
                 or plan.get("loss_scope") != "semantic_decisions"
-                or plan.get("grammar_choice_contract") != GRAMMAR_CHOICE_CONTRACT):
+                or plan.get("grammar_choice_contract") != GRAMMAR_CHOICE_CONTRACT
+                or (schema.endswith(".v4") and (
+                    plan.get("grammar_source_pair_contract") != SOURCE_PAIR_CONTRACT
+                    or not plan.get("grammar_source_pair_fit_partners")))):
             raise ValueError("native fit grammar-choice contract differs")
+        if schema.endswith(".v4") and "source_evidence_control" in plan:
+            raise ValueError("native paired-source fit cannot erase its training source")
         if "source_evidence_control" not in plan:
             return "source_text"
         if plan["source_evidence_control"] == SOURCE_ERASURE_CONTRACT:
@@ -43,7 +52,8 @@ def source_control_mode_from_plan(plan):
     raise ValueError("native fit source-evidence control contract differs")
 
 
-def erase_native_source_tokens(sequence: NativeProgramSequence, source: str, tokenizer):
+def erase_native_source_tokens(sequence: NativeProgramSequence, source: str, tokenizer: Any
+                               ) -> tuple[NativeProgramSequence, dict[str, Any]]:
     """A training/lesion control, retaining length but no source-content tokens."""
     from core.learning.semantic_program_feature_materialization import (
         offset_tokenizer_for_worker,
@@ -105,3 +115,13 @@ def erase_native_source_tokens(sequence: NativeProgramSequence, source: str, tok
         "serving_authority": False,
     }
     return controlled, receipt
+
+
+def apply_native_source_evidence(sequence: NativeProgramSequence, source: str,
+                                 tokenizer, *, mode: str):
+    """Apply the same source-content intervention to any native scoring path."""
+    if mode == "source_text":
+        return sequence, None
+    if mode == "source_token_erasure":
+        return erase_native_source_tokens(sequence, source, tokenizer)
+    raise ValueError("unknown native source-evidence mode")

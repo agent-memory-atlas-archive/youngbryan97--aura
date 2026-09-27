@@ -4,6 +4,11 @@ This diagnostic has no serving authority. Frozen argument heads may have seen
 the source fold, so its results do not establish full-program held-out transfer.
 """
 
+from __future__ import annotations
+
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING
+
 from core.learning.semantic_graph_counterexamples import argument_graph_program
 from core.learning.semantic_program_ir import TokenSpan, normalize_semantic_value
 from core.learning.semantic_program_transducer import _hidden_array
@@ -12,9 +17,21 @@ from core.learning.semantic_program_transducer_fitting import (
     _OperationNode,
 )
 
+if TYPE_CHECKING:
+    import numpy as np
 
-def resolve_operation_set(model, *, source_token_ids, hidden_states, public_inputs,
-                          operations, time_limit_s=10.):
+    from core.learning.procedure_induction import Program
+    from core.learning.semantic_program_compositional_transducer import (
+        CompositionalSemanticProgramTransducer,
+    )
+    from core.learning.semantic_program_ir import SemanticValue
+
+
+def resolve_operation_set(model: CompositionalSemanticProgramTransducer, *,
+                          source_token_ids: Sequence[int], hidden_states: np.ndarray,
+                          public_inputs: Iterable[SemanticValue],
+                          operations: Sequence[tuple[int, int, str]],
+                          time_limit_s: float = 10.) -> tuple[Program | None, str]:
     """Return a program or refusal from public evidence and predicted spans.
 
     No target program, target spans, or expected output is accepted here.

@@ -5,14 +5,19 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+from collections.abc import Iterable
+from typing import TYPE_CHECKING, Any
 
 import mlx.core as mx
 
 from core.brain.llm.decoder_topology import decoder_backbone_owner, decoder_layer_masks
 from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix
 
+if TYPE_CHECKING:
+    from core.learning.semantic_native_program import NativeProgramSequence
 
-def native_source_anchor(sequences):
+
+def native_source_anchor(sequences: Iterable[NativeProgramSequence]) -> tuple[int, ...]:
     """Use only the common, offset-bound source/template tokens of one request."""
     rows = tuple(sequences)
     if not rows or any(type(row.continuation_start) is not int
@@ -33,7 +38,8 @@ class FrozenPrefixBranches:
     No suffix layers, output decisions, or source tokens are skipped.
     """
 
-    def __init__(self, model, *, split_at, anchor_tokens, max_tokens):
+    def __init__(self, model: Any, *, split_at: int, anchor_tokens: tuple[int, ...],
+                 max_tokens: int) -> None:
         from mlx_lm.models.cache import make_prompt_cache
 
         if type(max_tokens) is not int or max_tokens < 1:
@@ -49,13 +55,13 @@ class FrozenPrefixBranches:
         self.executed_branch_tokens = self.trie_calls = self.trie_nodes = 0
         self.peak_retained_cache_states = 1
 
-    def _tokens(self, tokens):
+    def _tokens(self, tokens: tuple[int, ...]) -> tuple[int, ...]:
         if (not isinstance(tokens, tuple) or not tokens or len(tokens) > self.max_tokens
                 or any(type(token) is not int or token < 0 for token in tokens)):
             raise ValueError("frozen branches require a nonempty bounded token tuple")
         return tokens
 
-    def _advance(self, tokens, cache):
+    def _advance(self, tokens: tuple[int, ...], cache: list[Any]) -> mx.array:
         self.prefix._assert_frozen()
         hidden = self.prefix.embedding(mx.array([tokens], dtype=mx.int32))
         masks = decoder_layer_masks(self.prefix.backbone, hidden, cache, end=self.prefix.split_at)
@@ -65,7 +71,7 @@ class FrozenPrefixBranches:
         mx.eval(hidden, [entry.state for entry in cache])
         return hidden
 
-    def capture(self, tokens):
+    def capture(self, tokens: tuple[int, ...]) -> mx.array:
         tokens = self._tokens(tokens)
         self.prefix._assert_frozen()
         boundary = len(self.anchor_tokens)
@@ -83,7 +89,7 @@ class FrozenPrefixBranches:
         self.executed_branch_tokens += len(continuation)
         return result
 
-    def capture_many(self, sequences):
+    def capture_many(self, sequences: tuple[tuple[int, ...], ...]) -> tuple[mx.array, ...]:
         """Execute a compressed token trie with depth-first cache ownership.
 
         Pending siblings share read-only ancestor states. A child owns a deep
@@ -137,7 +143,7 @@ class FrozenPrefixBranches:
         self.trie_nodes += nodes
         return tuple(results)
 
-    def receipt(self):
+    def receipt(self) -> dict[str, Any]:
         body = {"schema": "aura.frozen_prefix_branches.v1",
                 "anchor_token_sha256": hashlib.sha256(json.dumps(
                     self.anchor_tokens, separators=(",", ":")).encode("ascii")).hexdigest(),

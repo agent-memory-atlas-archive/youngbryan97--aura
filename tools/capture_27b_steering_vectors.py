@@ -30,6 +30,7 @@ import hashlib
 import json
 import os
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -40,6 +41,43 @@ if str(REPO) not in sys.path:
 os.environ.setdefault("AURA_LOG_DIR", "/tmp/aura_steering_capture")
 
 DEFAULT_PLAN = REPO / "artifacts/migration/27b/recovery/steering_plan.json"
+
+
+def capture_designed_vectors(design, read_prompt, layers_wanted, hidden, nuisance_by_target):
+    """Capture paired train activations and retain raw, purified and null arms."""
+    import numpy as np
+
+    from core.consciousness.caa.contrastive_design import construct_candidates
+
+    train = {}
+    for dimension in sorted({row.dimension for row in design.pairs}):
+        rows = design.partition(dimension, "train")
+        by_layer = {layer: {"positive": [], "negative": []} for layer in layers_wanted}
+        for pair in rows:
+            for polarity in ("positive", "negative"):
+                reading = read_prompt(getattr(pair, polarity))
+                if reading is None or set(reading) != set(layers_wanted):
+                    raise ValueError("contrast_capture_incomplete")
+                for layer in layers_wanted:
+                    vector = np.asarray(reading[layer], dtype=np.float32)
+                    if vector.shape != (hidden,) or not np.isfinite(vector).all():
+                        raise ValueError("contrast_capture_geometry_invalid")
+                    by_layer[layer][polarity].append(vector)
+        train[dimension] = {layer: (np.stack(values["positive"]),
+                                    np.stack(values["negative"]))
+                            for layer, values in by_layer.items()}
+    candidates = {}
+    for dimension, nuisances in nuisance_by_target.items():
+        if dimension not in train or any(name not in train for name in nuisances):
+            raise ValueError("contrast_capture_dimension_missing")
+        candidates[dimension] = {}
+        for layer in layers_wanted:
+            candidates[dimension][layer] = construct_candidates(
+                *train[dimension][layer],
+                {name: train[name][layer] for name in nuisances},
+                seed=layer,
+            )
+    return candidates
 
 
 def _sha256_file(path: Path) -> str:
@@ -60,6 +98,11 @@ def main(argv: list[str] | None = None) -> int:
         help="where the per-layer .npz files land",
     )
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--contrastive-corpus", action="store_true",
+        help="capture paired, template-held-out train stimuli as separate raw, "
+             "purified and polarity-null candidates; never grants serving authority",
+    )
     arguments = parser.parse_args(argv)
 
     import numpy as np
@@ -92,7 +135,17 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    pairs = sum(len(d["positive"]) + len(d["negative"]) for d in AFFECTIVE_DIMENSIONS)
+    design = None
+    if arguments.contrastive_corpus:
+        from training.caa_contrastive_corpus import build_contrastive_corpus
+        design = build_contrastive_corpus(descriptor)
+        if arguments.out.exists():
+            print("contrastive output must be a fresh directory", file=sys.stderr)
+            return 1
+    pairs = (sum(2 * len(design.partition(dimension, "train"))
+                 for dimension in {row.dimension for row in design.pairs})
+             if design is not None else
+             sum(len(d["positive"]) + len(d["negative"]) for d in AFFECTIVE_DIMENSIONS))
     print(
         f"checkpoint      {model_path.name}\n"
         f"descriptor      {descriptor[:16]}\n"
@@ -179,9 +232,90 @@ def main(argv: list[str] | None = None) -> int:
                 if value is not None
             }
 
-        arguments.out.mkdir(parents=True, exist_ok=True)
         config_path = model_path / "config.json"
         config_sha = _sha256_file(config_path) if config_path.exists() else ""
+        if design is not None:
+            from training.caa_contrastive_corpus import NUISANCE_BY_TARGET
+
+            candidates = capture_designed_vectors(design, read_prompt,
+                                                    layers_wanted, hidden,
+                                                    NUISANCE_BY_TARGET)
+            arguments.out.parent.mkdir(parents=True, exist_ok=True)
+            with tempfile.TemporaryDirectory(prefix=".caa-capture-",
+                                             dir=arguments.out.parent) as temporary:
+                staging = Path(temporary) / "generation"
+                staging.mkdir()
+                entries = []
+                for dimension, by_layer in sorted(candidates.items()):
+                    for layer, variants in sorted(by_layer.items()):
+                        for kind in ("raw", "purified"):
+                            vector = variants[kind]
+                            if vector is None:
+                                continue
+                            directory = staging / kind
+                            directory.mkdir(exist_ok=True)
+                            path = directory / f"{dimension}_layer{layer}.npz"
+                            np.savez(path, v=vector, source="extracted_caa",
+                                     extracted=True, dimension=dimension, layer=layer,
+                                     layer_kind=kind_by_layer[layer], model=str(model_path),
+                                     model_path=str(model_path), model_config_sha256=config_sha,
+                                     model_config_path=str(config_path),
+                                     model_descriptor_sha256=descriptor,
+                                     plan_descriptor_fingerprint=str(plan["descriptor_fingerprint"]),
+                                     contrast_design_sha256=design.sha256,
+                                     purification=kind,
+                                     derived_at=time.time())
+                            entries.append({"path": str(path.relative_to(staging)),
+                                            "sha256": _sha256_file(path),
+                                            "raw_norm": variants["raw_norm"],
+                                            "purified_norm": variants["purified_norm"],
+                                            "nuisance_dimensions": variants["nuisance_dimensions"]})
+                        for ordinal, vector in enumerate(variants["polarity_flip_nulls"]):
+                            if vector is None:
+                                continue
+                            directory = staging / "polarity_nulls" / str(ordinal)
+                            directory.mkdir(parents=True, exist_ok=True)
+                            path = directory / f"{dimension}_layer{layer}.npz"
+                            np.savez(path, v=vector, source="extracted_caa_null",
+                                     extracted=True, dimension=dimension, layer=layer,
+                                     model_descriptor_sha256=descriptor,
+                                     contrast_design_sha256=design.sha256,
+                                     control="within_pair_polarity_flip")
+                            entries.append({"path": str(path.relative_to(staging)),
+                                            "sha256": _sha256_file(path)})
+                metadata = {"schema": "aura.caa.contrastive_capture.v1",
+                            "model_descriptor_sha256": descriptor,
+                            "contrast_design_sha256": design.sha256,
+                            "plan_descriptor_fingerprint": plan["descriptor_fingerprint"],
+                            "train_pairs": {name: len(design.partition(name, "train"))
+                                            for name in sorted({row.dimension for row in design.pairs})},
+                            "dev_prompts_used_for_extraction": False,
+                            "serving_authority": False,
+                            "vectors": entries}
+                for directory in (staging / "raw", staging / "purified",
+                                  *(staging / "polarity_nulls" / str(index)
+                                    for index in range(8))):
+                    if directory.exists():
+                        relative = directory.relative_to(staging)
+                        (directory / "metadata.json").write_text(
+                            json.dumps({"schema": "aura.caa.contrastive_vector_arm.v1",
+                                        "model_descriptor_sha256": descriptor,
+                                        "contrast_design_sha256": design.sha256,
+                                        "arm": str(relative),
+                                        "serving_authority": False,
+                                        "vectors": [entry for entry in entries
+                                                    if (staging / entry["path"]).parent == directory]},
+                                       sort_keys=True, indent=2) + "\n", encoding="utf-8")
+                (staging / "metadata.json").write_text(
+                    json.dumps(metadata, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+                if arguments.out.exists():
+                    raise ValueError("contrast_output_appeared_during_capture")
+                staging.rename(arguments.out)
+            print(f"captured {len(entries)} candidate/control vectors into {arguments.out}; "
+                  "no serving authority", flush=True)
+            return 0
+
+        arguments.out.mkdir(parents=True, exist_ok=True)
         written = 0
         for dimension in AFFECTIVE_DIMENSIONS:
             key = str(dimension["key"])

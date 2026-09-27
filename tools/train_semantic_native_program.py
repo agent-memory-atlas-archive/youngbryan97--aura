@@ -304,7 +304,7 @@ def build_native_supervision(items, texts, tokenizer, identities, plan, peer_pro
 
     control = source_control_mode_from_plan(plan) == "source_token_erasure"
     erased = plan["captured_fit_ids"] if control else ()
-    if plan["objective"] == "grammar_choices":
+    if plan["objective"] in {"grammar_choices", "grammar_source_pairs"}:
         sequences, groups, rows = native_grammar_supervision_sets(items, texts, tokenizer, identities,
             max_tokens=plan["max_sequence_tokens"], register_encoding=plan["register_encoding"],
             source_erasure_ids=erased)
@@ -320,7 +320,7 @@ def build_native_supervision(items, texts, tokenizer, identities, plan, peer_pro
                  **({"source_control_receipt": receipts.get(key)} if control else {})}
                 for key, sequence in sorted(sequences.items())]
     supervision = {"plan_sha256": plan["plan_sha256"], "rows": rows}
-    if plan["objective"] == "grammar_choices":
+    if plan["objective"] in {"grammar_choices", "grammar_source_pairs"}:
         supervision["grammar_choice_contract"] = dict(GRAMMAR_CHOICE_CONTRACT)
     if control:
         supervision["source_evidence_control"] = {
@@ -359,7 +359,7 @@ def main():
     parser.add_argument("--loss-scope", choices=("continuation", "semantic_decisions"),
                         default="continuation")
     parser.add_argument("--objective", choices=("token", "contrastive", "relational", "relational_metric",
-                                               "grammar_choices"), default="token")
+                                               "grammar_choices", "grammar_source_pairs"), default="token")
     parser.add_argument("--contrast-limit", type=int, default=4)
     parser.add_argument("--register-encoding", choices=REGISTER_ENCODINGS, default="absolute_v1")
     parser.add_argument("--source-evidence", choices=("source_text", "source_token_erasure"),
@@ -385,13 +385,17 @@ def main():
             args.steps, args.save_every, args.rank, args.layers, args.max_sequence_tokens))
             or args.steps % args.save_every or not 0 < args.max_seconds <= 14400
             or not 1 <= args.prefix_batch_size <= 32 or not 2 <= args.contrast_limit <= 32
-            or args.objective in {"contrastive", "relational", "relational_metric", "grammar_choices"}
+            or args.objective in {"contrastive", "relational", "relational_metric",
+                                  "grammar_choices", "grammar_source_pairs"}
             and args.loss_scope != "semantic_decisions"):
         parser.error("positive sizes, complete checkpoint intervals and a finite time bound required")
     if (args.plan_only and args.supervision_only
-            or any(value is not None and (value < 1 or args.objective != "grammar_choices")
+            or any(value is not None and (value < 1 or args.objective not in
+                   {"grammar_choices", "grammar_source_pairs"})
                    for value in (args.calibration_source_limit, args.held_source_limit))):
         parser.error("supervision inventory and source-hash canary bounds need explicit independent modes")
+    if args.objective == "grammar_source_pairs" and args.source_evidence != "source_text":
+        parser.error("paired-source training needs intact source evidence")
 
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
@@ -436,6 +440,14 @@ def main():
     if args.calibration_source_limit is not None:
         calibration_ids = tuple(sorted(calibration_ids)[:args.calibration_source_limit])
     schedule = native_training_schedule(outer["fit_ids"], steps=args.steps, seed=20260925)
+    grammar_pairs = {}
+    if args.objective == "grammar_source_pairs":
+        from core.learning.semantic_native_source_pairs import native_source_pair_plan
+
+        grammar_pairs = native_source_pair_plan(fit, outer["fit_ids"],
+            register_encoding=args.register_encoding)
+        if not grammar_pairs or not set(grammar_pairs) <= set(schedule):
+            raise ValueError("paired-source objective lacks scheduled witnessed contrasts")
     relational_partners = (cross_construction_relation_partners(tuple(fit))
                            if args.objective == "relational" else {})
     metric_triplets = (cross_construction_relation_triplets(tuple(fit))
@@ -449,6 +461,7 @@ def main():
     if args.objective == "relational_metric" and not scheduled_triplets:
         raise ValueError("relational metric objective has no scheduled fit triplets")
     captured_fit_ids = sorted(set(schedule) | set(scheduled_partners.values())
+                              | {row["partner"] for row in grammar_pairs.values()}
                               | {source for pair in scheduled_triplets.values() for source in pair})
     peer_programs = {item.ir.to_program().sha(): item.ir.to_program() for item in fit}
     spec = get_active_cortex_spec(force_refresh=True)
@@ -485,6 +498,10 @@ def main():
         reuse_path = ROOT / "tools/semantic_native_prefix_reuse.py"
         implementation_paths.append(reuse_path)
         implementation[str(reuse_path.relative_to(ROOT))] = hashlib.sha256(reuse_path.read_bytes()).hexdigest()
+    if grammar_pairs:
+        pair_path = ROOT / "core/learning/semantic_native_source_pairs.py"
+        implementation_paths.append(pair_path)
+        implementation[str(pair_path.relative_to(ROOT))] = hashlib.sha256(pair_path.read_bytes()).hexdigest()
     plan = {"schema": "aura.semantic_native_fit_plan.v1", "steps": args.steps,
             "save_every": args.save_every, "rank": args.rank, "suffix_layers": args.layers,
             "prefix_batch_size": args.prefix_batch_size,
@@ -506,7 +523,7 @@ def main():
             "contrast_policy": "source_floor_typed_witnessed_difference_v1",
             "contrast_weight": 1.0 if args.objective != "token" else 0.0,
             "supervision_peer_program_sha256s": sorted(peer_programs)
-                if args.objective not in {"token", "grammar_choices"} else [],
+                if args.objective not in {"token", "grammar_choices", "grammar_source_pairs"} else [],
             "max_seconds": args.max_seconds, "max_sequence_tokens": args.max_sequence_tokens,
             "model_descriptor_sha256": spec.descriptor_sha256,
             "model_path": str(spec.model_path), "pointer_sha256": spec.pointer_sha256,
@@ -538,7 +555,7 @@ def main():
             "schema": "aura.frozen_state_storage_contract.v1", "mode": "source_shards",
             "max_resident_bytes": args.prefix_resident_mib * 1024 * 1024,
             "lossy_compression": False, "all_alternatives_retained": True}
-    if args.objective == "grammar_choices":
+    if args.objective in {"grammar_choices", "grammar_source_pairs"}:
         plan.update(schema="aura.semantic_native_fit_plan.v3",
                     grammar_choice_contract=dict(GRAMMAR_CHOICE_CONTRACT),
                     contrast_policy="all_native_type_admitted_teacher_decisions_v1",
@@ -548,6 +565,13 @@ def main():
                         "eligible_calibration_subset": complete_calibration_subset,
                         "eligible_held_subset": complete_held_subset,
                         "selection_basis": "sorted_source_sha256_without_outcomes"})
+    if args.objective == "grammar_source_pairs":
+        from core.learning.semantic_native_source_pairs import SOURCE_PAIR_CONTRACT
+
+        plan.update(schema="aura.semantic_native_fit_plan.v4",
+                    grammar_source_pair_contract=dict(SOURCE_PAIR_CONTRACT),
+                    grammar_source_pair_fit_partners=grammar_pairs,
+                    grammar_source_pair_updates=sum(identity in grammar_pairs for identity in schedule))
     plan = {**plan, "plan_sha256": _digest(plan)}
     if execution is not None:
         plan.pop("plan_sha256")
@@ -598,7 +622,7 @@ def main():
                                       max(len(row.tokens) for row in sequences.values())],
             "decision_counts": dict(Counter(kind for _source, _ordinal, kind in {
                     (row["source"], row["decision_index"], row["kind"]) for row in supervision["rows"]}))
-                if args.objective == "grammar_choices" else {},
+                if args.objective in {"grammar_choices", "grammar_source_pairs"} else {},
             "preparation_seconds": preparation_seconds,
             "model_weights_loaded": False}), flush=True)
         return
@@ -612,6 +636,7 @@ def main():
 
     from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
     from core.learning.semantic_native_codec import native_sequence_for_encoding
+    from core.learning.semantic_native_source_pairs import native_source_interaction_loss
     from core.runtime.atomic_writer import atomic_write_bytes_if_absent
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
     from core.runtime.model_lane_control import standalone_model_lane
@@ -724,7 +749,8 @@ def main():
                     branch_scores.append(float(mx.sum(right).item()))
                 if not capture_receipts:
                     from tools.probe_semantic_native_prefix_branches import ranked_score_equivalence
-                    partitions = (groups[batch[0][0]] if args.objective == "grammar_choices" else
+                    partitions = (groups[batch[0][0]] if args.objective in
+                                  {"grammar_choices", "grammar_source_pairs"} else
                                   ((batch, 0),))
                     offsets = {key: index for index, key in enumerate(batch)}
                     for keys, _gold in partitions:
@@ -785,8 +811,23 @@ def main():
                                   "elapsed_seconds": time.monotonic() - started,
                                   "active_memory_bytes": mx.get_active_memory()}), flush=True)
         def source_objective(tail, identity, states):
-            if args.objective == "grammar_choices":
-                return native_grammar_source_loss(tail, states, sequences, groups[identity])
+            if args.objective in {"grammar_choices", "grammar_source_pairs"}:
+                source_loss = native_grammar_source_loss(tail, states, sequences, groups[identity])
+                pair = grammar_pairs.get(identity)
+                if pair is None:
+                    return source_loss
+                partner = pair["partner"]
+                ordinal = pair["decision_index"]
+                own_keys, _own_correct = groups[identity][ordinal]
+                partner_keys, _partner_correct = groups[partner][ordinal]
+                i, j = pair["own_index"], pair["partner_index"]
+                def score(key):
+                    return -native_loss(tail, states[key], sequences[key], summed=True,
+                                        scope="semantic_decisions")
+                interaction = native_source_interaction_loss(
+                    score(own_keys[i]), score(own_keys[j]),
+                    score(partner_keys[i]), score(partner_keys[j]))
+                return source_loss + plan["grammar_source_pair_contract"]["weight"] * interaction
             keys = groups[identity]
             hidden = [states[key] for key in keys]
             rows = [sequences[key] for key in keys]
@@ -921,7 +962,8 @@ def main():
                 or any(path.read_bytes() != raw[name] for name, path in (
                     ("parent", args.parent), ("source", args.source_report), ("folds", args.folds)))):
             raise ValueError("native fit identity changed during measurement")
-        body = {"schema": ("aura.semantic_native_fit.v3" if args.objective == "grammar_choices"
+        body = {"schema": ("aura.semantic_native_fit.v4" if args.objective == "grammar_source_pairs"
+                           else "aura.semantic_native_fit.v3" if args.objective == "grammar_choices"
                            else "aura.semantic_native_fit.v2" if args.source_evidence == "source_token_erasure"
                            else "aura.semantic_native_fit.v1"), "plan_sha256": plan["plan_sha256"],
                 "selected_step": best[1], "baseline_calibration_loss": baseline,

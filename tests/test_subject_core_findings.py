@@ -52,18 +52,24 @@ def test_the_affect_phase_runs_the_grounding_engine():
     assert "affect_grounding" in source
 
 
-def test_the_motivation_phase_reads_the_action_urgency():
-    """The heartbeat read it to bid; the drives never did."""
-    from core.phases.motivation_signals import _ReadsTheDriveSignals
+@pytest.mark.parametrize(("urgency", "pressure"), [(0.0, 1.0), (0.8, 1.8)])
+def test_the_motivation_phase_reads_the_action_urgency(service_container, urgency, pressure):
+    """The heartbeat read it to bid; the drives never did.
+
+    With no world model, the free-energy engine's action urgency is what the
+    drives are pressed by, and a turn of the phase records that pressure.
+    """
     from core.phases.motivation_update import MotivationUpdatePhase
 
-    # The readers moved into the phase's mixin, so the phase is the class and
-    # what it inherits the reading from. Reading only the class's own source
-    # would pass a phase that had lost the read entirely.
-    assert issubclass(MotivationUpdatePhase, _ReadsTheDriveSignals)
-    source = inspect.getsource(MotivationUpdatePhase) + inspect.getsource(_ReadsTheDriveSignals)
-    assert "_surprise_pressure" in source
-    assert "get_action_urgency" in source
+    class _FreeEnergy:
+        def get_action_urgency(self) -> float:
+            return urgency
+
+    service_container.register_instance("free_energy_engine", _FreeEnergy(), required=False)
+    state = asyncio.run(
+        MotivationUpdatePhase(None).execute(AuraState.default(), objective="a turn")
+    )
+    assert state.motivation.forces["pressure"] == pytest.approx(pressure)
 
 
 def test_the_consciousness_phase_feeds_the_workspace():

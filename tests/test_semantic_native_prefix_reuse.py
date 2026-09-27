@@ -8,6 +8,8 @@ import mlx.core as mx
 import pytest
 
 from core.learning.frozen_state_store import FrozenStateStore
+from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
+from core.learning.semantic_native_source_pairs import SOURCE_PAIR_CONTRACT
 from tools.evaluate_semantic_native_checkpoint import digest
 from tools.semantic_native_prefix_reuse import open_reused_prefix, prefix_reuse_contract
 from tools.verify_semantic_native_fit import verify_state_storage
@@ -87,6 +89,47 @@ def test_reuse_accepts_unchanged_implementation_and_rejects_capture_receipt_drif
     body["checked_choices"] = 0
     capture.write_text(json.dumps(body))
     assert prefix_reuse_contract(source, new)["capture_inventory_sha256"] != contract["capture_inventory_sha256"]
+
+
+def test_reuse_admits_only_bound_paired_objective_on_identical_frozen_sequences(tmp_path):
+    source, new, row, _manifest, _supervision = fixture(tmp_path)
+    prior = json.loads((source / "plan.json").read_text())
+    prior.update(objective="grammar_choices", loss_scope="semantic_decisions",
+                 grammar_choice_contract=GRAMMAR_CHOICE_CONTRACT)
+    prior.pop("plan_sha256")
+    prior["plan_sha256"] = digest(prior)
+    (source / "plan.json").write_text(json.dumps(prior))
+    manifest_path = next((source / "prefix-states").glob("*.json"))
+    manifest = json.loads(manifest_path.read_text())
+    manifest["plan_sha256"] = prior["plan_sha256"]
+    manifest.pop("receipt_sha256")
+    manifest["receipt_sha256"] = digest(manifest)
+    manifest_path.chmod(0o600)
+    manifest_path.write_text(json.dumps(manifest))
+    supervision = {"plan_sha256": prior["plan_sha256"], "rows": [row]}
+    supervision["receipt_sha256"] = digest(supervision)
+    (source / "supervision.json").write_text(json.dumps(supervision))
+    receipt = source / "prefix-receipts" / "source.json"
+    body = json.loads(receipt.read_text())
+    body["plan_sha256"] = prior["plan_sha256"]
+    receipt.write_text(json.dumps(body))
+    new = deepcopy(prior)
+    new.update(schema="aura.semantic_native_fit_plan.v4", objective="grammar_source_pairs",
+               grammar_source_pair_contract=SOURCE_PAIR_CONTRACT,
+               grammar_source_pair_fit_partners={"source": {"partner": "peer"}},
+               grammar_source_pair_updates=1)
+    new["implementation"].update({"tools/train_semantic_native_program.py": "new",
+                                   "core/learning/semantic_native_source_pairs.py": "new"})
+    contract = prefix_reuse_contract(source, new)
+    assert contract["source_count"] == 1
+    assert contract["optimizer_state_reused"] is False
+    new["suffix_layers"] = 2
+    with pytest.raises(ValueError, match="differs"):
+        prefix_reuse_contract(source, new)
+    new["suffix_layers"] = 1
+    new["input"] = "source_erased"
+    with pytest.raises(ValueError, match="undeclared"):
+        prefix_reuse_contract(source, new)
 
 
 @pytest.mark.parametrize("defect", ["population", "model", "other_implementation", "source_rows",

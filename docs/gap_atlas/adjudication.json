@@ -5891,35 +5891,25 @@
     "A2.10": {
       "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
       "card_subject": "Claude Code web keeps sensitive credentials outside the sandbox and uses a proxy to attach validated Git credentials.",
-      "closed_by": [
-        "core/security/credential_broker.py",
-        "core/sandbox/macos_sandbox.py",
-        "tests/test_agent_surface.py"
-      ],
       "evidence": [
         "core/security/governance_vault.py"
       ],
-      "note": "",
+      "note": "Reopened after the unused credential broker was removed. Existing sandbox code does not demonstrate scoped credential attachment to a child process.",
       "plan": "Scoped, short-lived credentials per action rather than ambient ones. Real security work with a clear test: a compromised child cannot reach what it was not scoped to.",
-      "status": "closed",
+      "status": "open",
       "verdict": "ABSENT",
       "wave": "W11"
     },
     "A2.11": {
       "bar": "Multi-day session across upgrade/restart/network interruption preserving state and meeting p50/p95 latency/memory/error SLOs.",
       "card_subject": "Anthropic reports sandboxing cut permission prompts by 84%.",
-      "closed_by": [
-        "core/security/credential_broker.py",
-        "core/sandbox/macos_sandbox.py",
-        "tests/test_agent_surface.py"
-      ],
       "evidence": [
         "core/runtime/authorization_receipt.py",
         "core/self_modification/mutation_constitution.py"
       ],
-      "note": "",
+      "note": "Reopened after the unused credential broker was removed. Prompt reduction and multi-day SLOs have not been measured against this bar.",
       "plan": "Risk classification exists. Permission fatigue falls when the OS enforces, because more can be allowed by default.",
-      "status": "closed",
+      "status": "open",
       "verdict": "PARTIAL",
       "wave": "W11"
     },
@@ -6004,17 +5994,12 @@
     "A2.16": {
       "bar": "Independent red-team across browser/docs/code/tool injection; track escape, exfiltration, false-effect and unsafe-promotion rates.",
       "card_subject": "Anthropic's containment combines product permissions with hardened OS primitives.",
-      "closed_by": [
-        "core/security/credential_broker.py",
-        "core/sandbox/macos_sandbox.py",
-        "tests/test_agent_surface.py"
-      ],
       "evidence": [
         "core/security/"
       ],
-      "note": "",
+      "note": "Reopened after the unused credential broker was removed. The cited agent-surface test does not exercise sandbox containment or credential scoping.",
       "plan": "Defence in depth: application governance plus OS isolation plus credential scoping. Two of three exist.",
-      "status": "closed",
+      "status": "open",
       "verdict": "PARTIAL",
       "wave": "W11"
     },
@@ -6184,36 +6169,26 @@
     "A2.8": {
       "bar": "Adversarial child-process suite attempts file escape, secrets, network exfiltration, symlink/path tricks and shell escapes; OS must deny even with app checks bypassed.",
       "card_subject": "Claude Code uses macOS Seatbelt and Linux bubblewrap, including spawned subprocesses.",
-      "closed_by": [
-        "core/security/credential_broker.py",
-        "core/sandbox/macos_sandbox.py",
-        "tests/test_agent_surface.py"
-      ],
       "evidence": [
         "core/sandbox/macos_sandbox.py",
         "security/sandbox.py"
       ],
-      "note": "The audit reports this absent. It is implemented and not universally enforced, which is a different and cheaper problem.",
+      "note": "Sandbox profiles exist, but the cited agent-surface test does not prove child-process containment or universal enforcement. Reopened after the unused credential broker was removed.",
       "plan": "sandbox-exec profiles already exist in core/sandbox/macos_sandbox.py with file, network and exec constraints. The gap is COVERAGE: host action does not universally pass through it.",
-      "status": "closed",
+      "status": "open",
       "verdict": "PARTIAL",
       "wave": "W11"
     },
     "A2.9": {
       "bar": "Adversarial child-process suite attempts file escape, secrets, network exfiltration, symlink/path tricks and shell escapes; OS must deny even with app checks bypassed.",
       "card_subject": "Claude Code sandbox networking flows through an external policy proxy.",
-      "closed_by": [
-        "core/security/credential_broker.py",
-        "core/sandbox/macos_sandbox.py",
-        "tests/test_agent_surface.py"
-      ],
       "evidence": [
         "core/runtime/network_gateway.py",
         "core/security/egress_privacy.py"
       ],
-      "note": "",
+      "note": "Reopened after the unused credential broker was removed. Monitored egress is not an external policy proxy.",
       "plan": "Egress is monitored, not proxied. A local proxy with an allowlist puts the decision below Python.",
-      "status": "closed",
+      "status": "open",
       "verdict": "PARTIAL",
       "wave": "W11"
     },

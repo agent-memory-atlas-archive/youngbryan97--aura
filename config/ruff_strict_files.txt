@@ -1304,7 +1304,6 @@ core/security/macos_bundle_manifest.py
 core/security/native_desktop_bridge.py
 core/security/permission_guard.py
 core/security/permission_setup.py
-core/security/permissions.py
 core/security/plugin_allowlist.py
 core/security/prompt_fencing.py
 core/security/rekor_transparency.py

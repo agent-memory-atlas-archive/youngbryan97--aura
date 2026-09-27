@@ -41,6 +41,7 @@ from core.brain.llm.latent_cortex.journal_state import (
     replay_journal,
 )
 from core.runtime.file_read_gateway import read_stable_bytes
+from core.runtime.wall_clock import wall_time
 
 ACTION_INTERVENTION_SCHEMA: Final = "aura.rlc.action_intervention.v3"
 ACTION_INTERVENTION_AUTHORITY_SCHEMA: Final = "aura.rlc.action_intervention.authority.v3"
@@ -701,7 +702,7 @@ def validate_action_intervention(
     root_path = os.environ.get(_TRUST_ROOT_ENV)
     if not isinstance(root_path, str) or not root_path.strip():
         raise ValueError("action intervention trust root is not configured")
-    validation_time = int(time.time()) if require_current_policy and now_unix is None else now_unix
+    validation_time = int(wall_time()) if require_current_policy and now_unix is None else now_unix
     if not require_current_policy:
         validation_time = signed_at_unix
     if type(validation_time) is not int or validation_time <= 0:

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 
 import torch
@@ -20,7 +20,7 @@ from core.learning.semantic_request_context import RequestContextConfig, Semanti
 
 
 @contextmanager
-def triadic_evidence_lesion(ranker: ContextualProgramRanker):
+def triadic_evidence_lesion(ranker: ContextualProgramRanker) -> Iterator[ContextualProgramRanker]:
     """Remove only the operation-conditioned mention/definition product."""
     if not ranker.argument_evidence:
         raise ValueError("triadic lesion needs an argument-evidence ranker")
@@ -48,7 +48,7 @@ class ContextualProgramRanker(nn.Module):
 
     def __init__(self, config: RequestContextConfig, *, identity_bindings: bool = False,
                  argument_evidence: bool = False,
-                 retain_evidence_variants: bool = False):
+                 retain_evidence_variants: bool = False) -> None:
         super().__init__()
         if (type(identity_bindings) is not bool or type(argument_evidence) is not bool
                 or type(retain_evidence_variants) is not bool

@@ -8,7 +8,9 @@ It has no serving or promotion authority.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import torch
 from torch import nn
@@ -19,6 +21,14 @@ from core.learning.semantic_program_floor import (
     semantic_primitive_type_signature,
 )
 
+if TYPE_CHECKING:
+    from core.learning.semantic_program_ir import TokenSpan
+
+#: The resident memory, its register vectors and their floor types, as _encode returns them.
+_Encoded = tuple[torch.Tensor, list[torch.Tensor], list[str]]
+#: A proposal's log probability and search record, as decode and propose_beam return it.
+_ProposalReceipt = dict[str, float | int | str]
+
 
 @dataclass(frozen=True)
 class ProgramDecoderConfig:
@@ -27,7 +37,7 @@ class ProgramDecoderConfig:
     max_steps: int = 16
     feature_scaling: str = "none"
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if (
             any(type(x) is not int or x < 1 for x in (self.input_width, self.width, self.max_steps))
             or self.width % 2
@@ -45,7 +55,7 @@ class SemanticProgramDecoder(nn.Module):
     floor that executes the returned Program; there is no second interpreter.
     """
 
-    def __init__(self, config: ProgramDecoderConfig):
+    def __init__(self, config: ProgramDecoderConfig) -> None:
         super().__init__()
         self.config = config
         self.operations = tuple(sorted(PRIMITIVES_BY_NAME))
@@ -63,7 +73,8 @@ class SemanticProgramDecoder(nn.Module):
         self.register_query = nn.Linear(2 * width, width)
         self.result = nn.Linear(3 * width, width)
 
-    def _encode(self, features, input_spans, input_types):
+    def _encode(self, features: torch.Tensor, input_spans: Sequence[TokenSpan],
+                input_types: Sequence[str]) -> _Encoded:
         if (
             features.ndim != 2
             or features.shape[1] != self.config.input_width
@@ -101,7 +112,8 @@ class SemanticProgramDecoder(nn.Module):
         registers = [memory[span.start : span.end].mean(dim=0) for span in spans]
         return memory, registers, list(kinds)
 
-    def _advance(self, state, previous, memory):
+    def _advance(self, state: torch.Tensor, previous: torch.Tensor,
+                 memory: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         attention = (memory @ self.attention_query(state) / math.sqrt(self.config.width)).softmax(
             dim=0
         )
@@ -110,7 +122,7 @@ class SemanticProgramDecoder(nn.Module):
         return state, torch.cat((state, context))
 
     @staticmethod
-    def _distribution(logits, allowed):
+    def _distribution(logits: torch.Tensor, allowed: Sequence[int]) -> torch.Tensor:
         mask = torch.zeros_like(logits, dtype=torch.bool)
         mask[list(allowed)] = True
         if not mask.any().item():
@@ -120,14 +132,17 @@ class SemanticProgramDecoder(nn.Module):
         return logits.masked_fill(~mask, -torch.inf).log_softmax(dim=0)
 
     @staticmethod
-    def _choose(logits, allowed, target):
+    def _choose(logits: torch.Tensor, allowed: Sequence[int],
+                target: int | None) -> tuple[int, torch.Tensor]:
         probabilities = SemanticProgramDecoder._distribution(logits, allowed)
         selected = int(probabilities.argmax()) if target is None else target
         if type(selected) is not int or selected not in allowed:
             raise ValueError("teacher program violates the floor grammar")
         return selected, probabilities[selected]
 
-    def _run(self, features, input_spans, input_types, target=None, *, encoded=None):
+    def _run(self, features: torch.Tensor, input_spans: Sequence[TokenSpan],
+             input_types: Sequence[str], target: Program | None = None, *,
+             encoded: _Encoded | None = None) -> tuple[Program, torch.Tensor, int]:
         if encoded is None:
             memory, registers, kinds = self._encode(features, input_spans, input_types)
         else:
@@ -191,16 +206,19 @@ class SemanticProgramDecoder(nn.Module):
             previous = registers[-1]
         raise RuntimeError("typed decoder failed to emit its required terminal symbol")
 
-    def loss(self, features, input_spans, input_types, program):
+    def loss(self, features: torch.Tensor, input_spans: Sequence[TokenSpan],
+             input_types: Sequence[str], program: Program) -> torch.Tensor:
         """Whole-program teacher-forced loss; no annotated operation spans."""
         _, logp, count = self._run(features, input_spans, input_types, program)
         return -logp / count
 
-    def score(self, features, input_spans, input_types, program):
+    def score(self, features: torch.Tensor, input_spans: Sequence[TokenSpan],
+              input_types: Sequence[str], program: Program) -> torch.Tensor:
         """Unnormalized-by-length log probability of one complete proposal."""
         return self._run(features, input_spans, input_types, program)[1]
 
-    def score_many(self, features, input_spans, input_types, programs):
+    def score_many(self, features: torch.Tensor, input_spans: Sequence[TokenSpan],
+                   input_types: Sequence[str], programs: Sequence[Program]) -> torch.Tensor:
         """Score a candidate bank with one resident-source encoding."""
         if not isinstance(programs, (tuple, list)) or not programs:
             raise ValueError("program scores need a nonempty candidate bank")
@@ -210,7 +228,9 @@ class SemanticProgramDecoder(nn.Module):
             for program in programs
         ])
 
-    def rank_loss(self, features, input_spans, input_types, programs, correct):
+    def rank_loss(self, features: torch.Tensor, input_spans: Sequence[TokenSpan],
+                  input_types: Sequence[str], programs: Sequence[Program],
+                  correct: Sequence[bool]) -> torch.Tensor:
         """Train on witnessed runtime-bank confusions with one shared source view."""
         from core.learning.semantic_candidate_ranker import candidate_set_loss
 
@@ -224,14 +244,16 @@ class SemanticProgramDecoder(nn.Module):
         )
 
     @torch.no_grad()
-    def decode(self, features, input_spans, input_types):
+    def decode(self, features: torch.Tensor, input_spans: Sequence[TokenSpan],
+               input_types: Sequence[str]) -> tuple[Program, _ProposalReceipt]:
         """Greedy experimental proposal using only public request evidence."""
         program, logp, count = self._run(features, input_spans, input_types)
         return program, {"log_probability": float(logp), "tokens": count, "search": "greedy"}
 
     @torch.no_grad()
-    def propose_beam(self, features, input_spans, input_types, *, beam_width=4,
-                     max_programs=4):
+    def propose_beam(self, features: torch.Tensor, input_spans: Sequence[TokenSpan],
+                     input_types: Sequence[str], *, beam_width: int = 4,
+                     max_programs: int = 4) -> tuple[tuple[Program, _ProposalReceipt], ...]:
         """Retain typed complete-program rivals without using an expected answer."""
         if (type(beam_width) is not int or not 1 <= beam_width <= 32
                 or type(max_programs) is not int or not 1 <= max_programs <= beam_width):

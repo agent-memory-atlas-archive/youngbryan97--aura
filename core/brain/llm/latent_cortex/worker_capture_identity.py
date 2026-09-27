@@ -7,7 +7,6 @@ import binascii
 import hashlib
 import os
 import secrets
-import time
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Final
@@ -20,6 +19,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 )
 
 from core.brain.llm.latent_cortex.campaign_journal import canonical_json_bytes
+from core.runtime.wall_clock import wall_time
 
 WORKER_CAPTURE_IDENTITY_SCHEMA_V1: Final = "aura.rlc.worker_capture_identity.v1"
 WORKER_CAPTURE_IDENTITY_SCHEMA: Final = "aura.rlc.worker_capture_identity.v2"
@@ -183,7 +183,7 @@ def build_worker_capture_launch_authority(
 ) -> WorkerCaptureLaunchAuthority:
     """Mint one parent-held signer and one challenge for a single worker spawn."""
 
-    issued_at = int(time.time()) if issued_at_unix is None else _positive_int(
+    issued_at = int(wall_time()) if issued_at_unix is None else _positive_int(
         issued_at_unix,
         code="worker_capture_launch_issued_at_invalid",
     )
@@ -298,7 +298,7 @@ def build_worker_capture_identity(
     if launch_challenge is not None:
         challenge = validate_worker_capture_launch_challenge(
             launch_challenge,
-            now_unix=int(time.time()) if now_unix is None else now_unix,
+            now_unix=int(wall_time()) if now_unix is None else now_unix,
         )
     schema = (
         WORKER_CAPTURE_IDENTITY_SCHEMA

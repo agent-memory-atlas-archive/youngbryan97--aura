@@ -59,6 +59,16 @@ def verify_grammar_row(row, *, example, identity, plan_sha256):
     return equivalent, answer_correct
 
 
+def verified_source_evidence(plan, report, rows):
+    """Preserve the source intervention across plan, report, and every row."""
+    mode = plan.get("source_evidence", "source_text")
+    if (mode not in {"source_text", "source_token_erasure"}
+            or report.get("source_evidence", "source_text") != mode
+            or any(row.get("source_evidence", "source_text") != mode for row in rows)):
+        raise ValueError("native grammar source-evidence mode differs")
+    return mode
+
+
 def replay_greedy_decisions(row, *, example, plan):
     from core.learning.semantic_native_grammar import (
         NativeGrammarIncompleteError,
@@ -393,11 +403,13 @@ def verify_grammar(directory, training_directory):
         totals.update(verified_pair_totals(rows, dataset=dataset))
     if any(report[key] != value for key, value in totals.items()):
         raise ValueError("native grammar reported totals differ from execution")
+    source_evidence = verified_source_evidence(plan, report, rows)
     drift = sorted(name for name, sha in plan["implementation"].items()
                    if not (ROOT / name).is_file()
                    or hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != sha)
     return {"plan_sha256": plan["plan_sha256"], "report_receipt_sha256": report["receipt_sha256"],
             "weight_mode": weight_mode,
+            "source_evidence": source_evidence,
             "input_grounding": input_grounding,
             "dataset": dataset, "seed": seed,
             "training_plan_sha256": training["plan_sha256"],

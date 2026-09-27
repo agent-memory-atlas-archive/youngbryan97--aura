@@ -37,7 +37,24 @@ _DIRECT_EGRESS_CALLS = {
     "ClientSession",  # aiohttp
     "urlopen",  # urllib.request
     "build_opener",
+    "HTTPConnection",  # http.client
+    "HTTPSConnection",
 }
+
+#: Clients built first and used afterwards. `httpx.get(...)` was caught and
+#: `httpx.AsyncClient().post(...)` was not, because the verb sits on an
+#: instance rather than on the library; the constructor is where it shows.
+_CLIENT_CONSTRUCTORS = {
+    "httpx": {"Client", "AsyncClient"},
+    "requests": {"Session"},
+    "websockets": {"connect"},
+    "websocket": {"create_connection"},
+}
+
+#: Every package that ships, not only core/. A skill that sends a request
+#: carries the person's words as surely as core does, and the scan used to
+#: stop at the core/ directory.
+_PRODUCTION = ("core", "interface", "skills", "llm", "executors", "security")
 
 #: Module attributes that are an HTTP verb on a client library.
 _DIRECT_EGRESS_ROOTS = {"httpx", "requests", "urllib3", "aiohttp"}
@@ -56,20 +73,29 @@ _VENDOR_CLIENT_CALLS = {"Client", "AsyncClient", "AsyncAnthropic", "AsyncOpenAI"
 #: shrinks.
 ALLOWED: dict[str, str] = {
     "core/runtime/network_gateway.py": "is the gateway",
+    "core/adapters/chrome_cdp_transport.py": (
+        "the Chrome DevTools socket, refused unless the host is loopback"
+    ),
+    "core/embodiment/unity_bridge.py": "ws://localhost:8765, the local avatar renderer",
 }
 
 
-def _scan() -> dict[str, set[str]]:
-    """Every direct-egress call in ``core/``, by file."""
+def _scan(paths: list[Path] | None = None) -> dict[str, set[str]]:
+    """Every direct-egress call in every shipped package, by file."""
     found: dict[str, set[str]] = {}
-    for path in (PROJECT_ROOT / "core").rglob("*.py"):
+    if paths is None:
+        paths = [p for top in _PRODUCTION for p in (PROJECT_ROOT / top).rglob("*.py")]
+    for path in paths:
         if "__pycache__" in str(path):
             continue
         try:
             tree = ast.parse(path.read_text())
         except (SyntaxError, UnicodeDecodeError, OSError):
             continue
-        rel = str(path.relative_to(PROJECT_ROOT))
+        try:
+            rel = str(path.relative_to(PROJECT_ROOT))
+        except ValueError:
+            rel = str(path)
 
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
@@ -96,6 +122,11 @@ def _scan() -> dict[str, set[str]]:
             # genai.Client(...) — a vendor SDK that carries its own transport.
             elif func.attr in _VENDOR_CLIENT_CALLS and root.id in _VENDOR_CLIENT_ROOTS:
                 found.setdefault(rel, set()).add(f"{root.id}.{func.attr}")
+
+            # httpx.AsyncClient(...) / websockets.connect(...) — a way out held
+            # in a variable, used by a verb this scan cannot see.
+            elif func.attr in _CLIENT_CONSTRUCTORS.get(root.id, ()):
+                found.setdefault(rel, set()).add(f"{root.id}.{func.attr}")
     return found
 
 
@@ -105,7 +136,7 @@ def test_no_new_direct_egress_outside_the_gateway():
         rel: sorted(calls) for rel, calls in found.items() if rel not in ALLOWED
     }
     assert not offenders, (
-        "outbound HTTP in core/ that skips core/runtime/network_gateway.py — and "
+        "outbound HTTP that skips core/runtime/network_gateway.py — and "
         "therefore skips governance, the outbound preflight, and the egress "
         f"privacy boundary: {offenders}. Route it through "
         "get_network_gateway().request_async()."
@@ -120,3 +151,20 @@ def test_the_allowlist_only_shrinks():
         f"these files no longer contain direct egress and should be removed "
         f"from ALLOWED: {stale}"
     )
+
+
+def test_the_scan_sees_a_client_held_in_a_variable(tmp_path):
+    """The shapes the scan was blind to, each written the way a person would."""
+    samples = {
+        "httpx_client.py": "import httpx\nasync def f(b):\n    c = httpx.AsyncClient()\n    await c.post('https://x', json=b)\n",
+        "http_client.py": "import http.client\ndef f():\n    http.client.HTTPSConnection('x').request('POST', '/')\n",
+        "ws.py": "import websockets\nasync def f():\n    await websockets.connect('wss://x')\n",
+        "session.py": "import requests\ndef f():\n    requests.Session().post('https://x')\n",
+    }
+    paths = []
+    for name, body in samples.items():
+        target = tmp_path / name
+        target.write_text(body)
+        paths.append(target)
+    found = _scan(paths)
+    assert {Path(k).name for k in found} == set(samples), found

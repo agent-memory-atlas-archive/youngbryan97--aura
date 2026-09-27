@@ -42,7 +42,7 @@ class RequestContextBlock(nn.Module):
     Explicit public submodules avoid the fused encoder's boolean-mask path.
     """
 
-    def __init__(self, width: int, heads: int):
+    def __init__(self, width: int, heads: int) -> None:
         super().__init__()
         self.self_attn = nn.MultiheadAttention(width, heads, dropout=0., batch_first=True)
         self.linear1 = nn.Linear(width, 4 * width)
@@ -61,7 +61,7 @@ class RequestContextBlock(nn.Module):
 class SemanticRequestContext(nn.Module):
     """Reconsider each source token using the complete public request."""
 
-    def __init__(self, config: RequestContextConfig):
+    def __init__(self, config: RequestContextConfig) -> None:
         super().__init__()
         self.config = config
         self.project = nn.Linear(config.input_width, config.width)
@@ -144,7 +144,7 @@ class SemanticRequestContext(nn.Module):
 class ContextualSpanRecognizer(nn.Module):
     """Score proposed source spans without accepting a target graph at inference."""
 
-    def __init__(self, config: RequestContextConfig, labels: tuple[str, ...]):
+    def __init__(self, config: RequestContextConfig, labels: tuple[str, ...]) -> None:
         super().__init__()
         if not labels or len(set(labels)) != len(labels) or any(not x for x in labels):
             raise ValueError("span labels must be nonempty and unique")

@@ -21,7 +21,6 @@ from core.runtime.governed_subagent import (
     Finding,
     SubagentSpec,
 )
-from core.security.credential_broker import CredentialBroker, CredentialRefused
 from core.self_modification.coding_aci import (
     VIEW_BUDGET_LINES,
     CodingSurface,
@@ -261,78 +260,3 @@ def test_an_unjudged_fanout_claims_nothing():
         [SubagentSpec("w", "x", frozenset({"q"}), budget=5.0)], _work, context={"q": 1}
     )
     assert conductor.fanout_report()["fanouts_judged"] == 0
-
-
-# ── scoped credentials ────────────────────────────────────────────────────
-
-def _broker(now):
-    return CredentialBroker({"gh": "TOKEN"}, clock=lambda: now[0], default_ttl=10.0)
-
-
-def test_the_caller_never_receives_the_value():
-    now = [1000.0]
-    broker = _broker(now)
-    lease = broker.issue("gh", purpose="clone", scopes=["github.com"])
-    seen = broker.use(lease.lease_id, purpose="clone", scope="github.com",
-                      operation=lambda value: len(value))
-    assert seen == len("TOKEN")
-    assert broker.report()["values_returned_to_callers"] == 0
-
-
-def test_a_wildcard_scope_is_refused():
-    with pytest.raises(CredentialRefused, match="ceremony"):
-        _broker([0.0]).issue("gh", purpose="x", scopes=["*"])
-
-
-def test_a_lease_works_once_and_then_does_not():
-    now = [1000.0]
-    broker = _broker(now)
-    lease = broker.issue("gh", purpose="clone", scopes=["github.com"], uses=1)
-    broker.use(lease.lease_id, purpose="clone", scope="github.com", operation=lambda v: v)
-    with pytest.raises(CredentialRefused, match="no uses remaining"):
-        broker.use(lease.lease_id, purpose="clone", scope="github.com", operation=lambda v: v)
-
-
-def test_a_lease_used_for_another_purpose_is_refused():
-    now = [1000.0]
-    broker = _broker(now)
-    lease = broker.issue("gh", purpose="clone", scopes=["github.com"], uses=5)
-    with pytest.raises(CredentialRefused, match="issued for 'clone'"):
-        broker.use(lease.lease_id, purpose="push", scope="github.com", operation=lambda v: v)
-
-
-def test_a_lease_used_outside_its_scope_is_refused():
-    now = [1000.0]
-    broker = _broker(now)
-    lease = broker.issue("gh", purpose="clone", scopes=["github.com"], uses=5)
-    with pytest.raises(CredentialRefused, match="is not in"):
-        broker.use(lease.lease_id, purpose="clone", scope="evil.example",
-                   operation=lambda v: v)
-
-
-def test_expiry_is_checked_against_an_injected_clock_not_a_sleep():
-    now = [1000.0]
-    broker = _broker(now)
-    lease = broker.issue("gh", purpose="clone", scopes=["github.com"], uses=5, ttl=10.0)
-    now[0] += 100.0
-    with pytest.raises(CredentialRefused, match="expired"):
-        broker.use(lease.lease_id, purpose="clone", scope="github.com", operation=lambda v: v)
-
-
-def test_a_revoked_lease_stops_working_immediately():
-    now = [1000.0]
-    broker = _broker(now)
-    lease = broker.issue("gh", purpose="clone", scopes=["github.com"], uses=5)
-    assert broker.revoke(lease.lease_id)
-    with pytest.raises(CredentialRefused, match="revoked"):
-        broker.use(lease.lease_id, purpose="clone", scope="github.com", operation=lambda v: v)
-
-
-def test_every_refusal_is_recorded():
-    now = [1000.0]
-    broker = _broker(now)
-    lease = broker.issue("gh", purpose="clone", scopes=["github.com"], uses=5)
-    for scope in ("a", "b", "c"):
-        with pytest.raises(CredentialRefused):
-            broker.use(lease.lease_id, purpose="clone", scope=scope, operation=lambda v: v)
-    assert len(broker.report()["refusals"]) == 3

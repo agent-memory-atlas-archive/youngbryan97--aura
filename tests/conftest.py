@@ -502,6 +502,22 @@ def close_leaked_sqlite_connections(leaked_files: set[str]) -> list[str]:
     return holders
 
 
+#: The process id as the interpreter reports it, taken before any test runs.
+#: Tests patch `os.getpid` to stage a controller lineage (41, 42, 4242), and
+#: the leak sandbox's teardown ran while that patch was still armed, asked
+#: psutil for process 4242, and failed the test with "host leak observation
+#: unavailable". The sandbox already reads psutil as shipped for the same
+#: reason; it reads its own pid as shipped too.
+_REAL_GETPID = os.getpid
+
+
+#: The collector as shipped, for the same reason. Tests patch `gc.collect` on
+#: the shared gc module to assert a collection happens off the event loop, and
+#: this file's own teardown collections then ran their fake on the main
+#: thread and failed the test that had just passed.
+_REAL_GC_COLLECT = gc.collect
+
+
 class HermeticResourceSandbox:
     """Per-test host leak detector; never used as resource-policy evidence."""
 
@@ -579,7 +595,7 @@ class HermeticResourceSandbox:
 
     def _snapshot(self) -> _ResourceLeakSnapshot:
         try:
-            process = self._native_process(os.getpid())
+            process = self._native_process(_REAL_GETPID())
             children = frozenset(
                 (child.pid, float(child.create_time()))
                 for child in process.children(recursive=True)
@@ -592,7 +608,7 @@ class HermeticResourceSandbox:
             raise RuntimeError(f"host leak observation unavailable: {exc}") from exc
         listeners = frozenset(
             (
-                os.getpid(),
+                _REAL_GETPID(),
                 int(connection.fd),
                 str(getattr(connection.laddr, "ip", "") or ""),
                 int(getattr(connection.laddr, "port", 0) or 0),
@@ -696,12 +712,12 @@ class HermeticResourceSandbox:
         # subprocess_gateway.py — which wandered between tests run to run.
         # An object the collector is about to close was never a leak, the
         # same reasoning already applied to the settle loop below.
-        gc.collect()
+        _REAL_GC_COLLECT()
         deadline = time.monotonic() + 0.75
         leaks = self.leaks()
         while (leaks["children"] or leaks["open_files"]) and time.monotonic() < deadline:
             time.sleep(0.05)
-            gc.collect()
+            _REAL_GC_COLLECT()
             leaks = self.leaks()
 
         child_pids = sorted(int(identity[0]) for identity in leaks["children"])
@@ -729,7 +745,7 @@ class HermeticResourceSandbox:
 
         listener_leaks = list(leaks["listeners"])
         for pid, fd, _host, _port in listener_leaks:
-            if int(pid) == os.getpid() and int(fd) >= 0:
+            if int(pid) == _REAL_GETPID() and int(fd) >= 0:
                 with contextlib.suppress(OSError):
                     os.close(int(fd))
 
@@ -738,7 +754,7 @@ class HermeticResourceSandbox:
         # this fixture exists to catch, and no fixed settle deadline can
         # separate a two-second timer from a leak.
         if leaks.get("open_files") and wait_out_declared_background_writers():
-            gc.collect()
+            _REAL_GC_COLLECT()
             leaks = self.leaks()
 
         # Backstop for the dominant leak class. Five unrelated modules —
@@ -777,7 +793,7 @@ class HermeticResourceSandbox:
                 report = None
             if report and report.get("closed"):
                 print(f"\n[chain-sweeper] closed {report['closed']} live audit chain(s)")
-                gc.collect()
+                _REAL_GC_COLLECT()
                 leaks = self.leaks()
 
         # Last look, after the sqlite sweeper has dropped its references.
@@ -786,7 +802,7 @@ class HermeticResourceSandbox:
         # broke, so the collect has to come after the sweep, not only before
         # it. Cheap: this runs only when something already looks wrong.
         if leaks.get("open_files"):
-            gc.collect()
+            _REAL_GC_COLLECT()
             leaks = self.leaks()
 
         # One more look, because the writer runs on a timer nobody here sets.
@@ -795,7 +811,7 @@ class HermeticResourceSandbox:
         # milliseconds, so a teardown can still land on the following one.
         # Cheap: only reached when something already looks like a leak.
         if leaks.get("open_files") and wait_out_declared_background_writers():
-            gc.collect()
+            _REAL_GC_COLLECT()
             leaks = self.leaks()
 
         # Files a declared background writer owns, and nothing else: the
@@ -805,7 +821,7 @@ class HermeticResourceSandbox:
         owned = leaked_files_a_background_writer_owns(set(leaks.get("open_files") or ()))
         if owned and not leaks.get("children") and not leaks.get("listeners"):
             wait_out_declared_background_writers(6.0)
-            gc.collect()
+            _REAL_GC_COLLECT()
             leaks = self.leaks()
 
         if leaked_leases or any(leaks.values()):
@@ -2657,8 +2673,6 @@ def _mlx_clients_do_not_outlive_their_test(request):
     if "mlx" not in module.lower() and "cortex" not in module.lower():
         return
 
-    import gc
-
     try:
         from core.brain.llm import mlx_client as _mlx
     except Exception as exc:  # noqa: BLE001 - the module may not be importable here
@@ -2674,7 +2688,7 @@ def _mlx_clients_do_not_outlive_their_test(request):
                 except Exception as exc:  # noqa: BLE001 - teardown may never fail a test
                     logging.getLogger(__name__).debug("client close failed: %s", exc)
         registry.clear()
-    gc.collect()
+    _REAL_GC_COLLECT()
 
 
 @pytest.fixture

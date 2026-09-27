@@ -235,18 +235,23 @@ class LockWatchdog:
                     threshold_s = tracked.threshold_s if tracked.threshold_s is not None else self._threshold
                     if held_duration > threshold_s:
                         if _the_holder_is_working():
+                            # Read before the stamp: `refreshed` is the same
+                            # object as `tracked`, so asking after it made
+                            # the gap 0 and this line never printed. For the
+                            # same reason the count below is already this look.
+                            due = (now - tracked.last_alert_at) >= self._check_interval
                             with self._active_locks_guard:
                                 refreshed = self._active_locks.get(lock_id)
                                 if refreshed is not None:
                                     refreshed.working_looks += 1
                                     refreshed.last_alert_at = now
-                            if (now - tracked.last_alert_at) >= self._check_interval:
+                            if due:
                                 logger.info(
                                     "⏳ LockWatchdog: '%s' has been held %.1fs and the "
                                     "turn is still producing; not a deadlock (%d look(s)).",
                                     tracked.name,
                                     held_duration,
-                                    tracked.working_looks + 1,
+                                    tracked.working_looks,
                                 )
                             continue
                         if (now - tracked.last_alert_at) >= self._check_interval:

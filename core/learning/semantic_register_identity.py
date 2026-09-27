@@ -16,7 +16,7 @@ class RegisterIdentity:
     kind: str
     index: int
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if self.kind not in {"input", "result"} or type(self.index) is not int or self.index < 0:
             raise ValueError("semantic register identity is invalid")
 

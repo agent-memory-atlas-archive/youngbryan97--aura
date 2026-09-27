@@ -48,7 +48,7 @@ def three_learners_with_something_in_them(monkeypatch):
     for _ in range(12):
         general.record(
             DecisionEpisode(
-                features=frozenset({("channel", "screen"), ("held", "true")}),
+                features=frozenset({"channel=screen", "held=true"}),
                 resolution="read it again",
                 correct=True,
             )

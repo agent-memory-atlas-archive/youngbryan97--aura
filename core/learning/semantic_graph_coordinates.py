@@ -1,13 +1,15 @@
 """Put independently grounded programs into one source-coordinate system."""
 
+from collections.abc import Iterable
 from dataclasses import replace
 
 from core.learning.procedure_induction import Program
-from core.learning.semantic_program_ir import normalize_semantic_value
+from core.learning.semantic_program_ir import SemanticValue, TokenSpan, normalize_semantic_value
 
 
 def reanchor_program_inputs(
-    program: Program, *, from_spans, to_spans, from_inputs, to_inputs
+    program: Program, *, from_spans: Iterable[TokenSpan], to_spans: Iterable[TokenSpan],
+    from_inputs: Iterable[SemanticValue], to_inputs: Iterable[SemanticValue],
 ) -> Program:
     """Rename input registers by source anchors, never by expected answers.
 

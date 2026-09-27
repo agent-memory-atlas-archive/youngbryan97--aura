@@ -5,13 +5,17 @@ from __future__ import annotations
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_program_floor import semantic_program_structural_key
 
+if TYPE_CHECKING:
+    import mlx.core as mx
 
-def native_program_surface(program: Program, *, decision_basis="program_atoms_and_graph_termination_v1"
+
+def native_program_surface(program: Program, *,
+                           decision_basis: str = "program_atoms_and_graph_termination_v1"
                            ) -> tuple[str, tuple[tuple[int, int], ...]]:
     """Locate operations, references, and graph continuation/completion decisions."""
     if not isinstance(program, Program) or semantic_program_structural_key(program) is None:
@@ -20,7 +24,7 @@ def native_program_surface(program: Program, *, decision_basis="program_atoms_an
         raise ValueError("unknown native semantic decision basis")
     termination = decision_basis == "program_atoms_and_graph_termination_v1"
     parts, spans, position = [], [], 0
-    def append(value: Any, *, atom=False, decision=False):
+    def append(value: Any, *, atom: bool = False, decision: bool = False) -> None:
         nonlocal position
         piece = json.dumps(value, ensure_ascii=True, allow_nan=False) if atom else value
         if atom or decision:
@@ -45,7 +49,7 @@ def native_program_surface(program: Program, *, decision_basis="program_atoms_an
     return "".join(parts), tuple(spans)
 
 
-def native_choice_loss(scores, positive_indices: tuple[int, ...]):
+def native_choice_loss(scores: mx.array, positive_indices: tuple[int, ...]) -> mx.array:
     """Source-supervised competition over complete graphs, not answer authority.
 
     The loss is logsumexp(all scores) - logsumexp(known-positive scores).
@@ -72,7 +76,7 @@ def native_program_text(program: Program) -> str:
 
 def parse_native_program(text: str) -> Program:
     """Read the same typed graph; malformed output has no execution authority."""
-    def unique_fields(pairs):
+    def unique_fields(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         result = {}
         for key, value in pairs:
             if key in result:
@@ -116,7 +120,7 @@ class NativeProgramSequence:
 
 def native_program_sequence(source: str, program: Program, tokenizer: Any,
                             *, max_tokens: int = 1024,
-                            decision_basis="program_atoms_and_graph_termination_v1"
+                            decision_basis: str = "program_atoms_and_graph_termination_v1"
                             ) -> NativeProgramSequence:
     """Use the model's unchanged chat template and an ordinary, unmodified request.
 

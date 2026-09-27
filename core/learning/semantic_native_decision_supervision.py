@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from core.learning.procedure_induction import Program
 from core.learning.semantic_native_codec import native_surface_for_encoding
 from core.learning.semantic_native_grammar import NativeGrammarDecision, decode_native_grammar
+
+if TYPE_CHECKING:
+    import mlx.core as mx
 
 GRAMMAR_CHOICE_CONTRACT = {
     "basis": "native_typed_grammar_teacher_choices_v1",
@@ -28,7 +32,8 @@ class NativeTeacherDecision:
 
 
 def native_teacher_decisions(program: Program, input_types: tuple[str, ...], *,
-                             register_encoding="absolute_v1") -> tuple[NativeTeacherDecision, ...]:
+                             register_encoding: str = "absolute_v1",
+                             ) -> tuple[NativeTeacherDecision, ...]:
     """Recover a source target's decisions without constructing a second grammar.
 
     This function is training-only. The target chooses a path through the
@@ -42,7 +47,7 @@ def native_teacher_decisions(program: Program, input_types: tuple[str, ...], *,
     target, _spans = native_surface_for_encoding(program, register_encoding=register_encoding)
     observed = []
 
-    def teacher(choices):
+    def teacher(choices: tuple[NativeGrammarDecision, ...]) -> tuple[float, ...]:
         positive = tuple(index for index, choice in enumerate(choices)
                          if target.startswith(choice.text)
                          and (type(choice.value) is not int
@@ -61,7 +66,7 @@ def native_teacher_decisions(program: Program, input_types: tuple[str, ...], *,
                  for row, (choices, correct) in zip(result.trace, observed, strict=True))
 
 
-def native_decision_choice_loss(scores, correct_index: int):
+def native_decision_choice_loss(scores: mx.array, correct_index: int) -> mx.array:
     """Normalize over admitted alternatives, including deterministic choices."""
     import mlx.core as mx
 

@@ -397,18 +397,6 @@
       "lines": 1,
       "reason": "package __init__ \u2014 importing the package requires it"
     },
-    "core.security.audit_trail": {
-      "classified": "SERVICE",
-      "disposition": "WIRE_PENDING",
-      "lines": 217,
-      "reason": "exposes ['get_audit_trail', 'get_recent', 'get_by_target']"
-    },
-    "core.security.permissions": {
-      "classified": "SERVICE",
-      "disposition": "WIRE_PENDING",
-      "lines": 76,
-      "reason": "exposes ['get_permission_manager']"
-    },
     "core.self_modification.meta_optimization": {
       "classified": "SERVICE",
       "disposition": "WIRE_PENDING",

@@ -10,7 +10,15 @@ from tools.evaluate_semantic_native_checkpoint import digest, verified_document
 _REPLACED_IMPLEMENTATIONS = frozenset({
     "tools/train_semantic_native_program.py",
     "core/learning/frozen_state_store.py",
+    "core/learning/semantic_native_source_control.py",
     "tools/semantic_native_prefix_reuse.py",
+    "core/learning/semantic_native_source_pairs.py",
+})
+
+_PAIR_PLAN_FIELDS = frozenset({
+    "grammar_source_pair_contract",
+    "grammar_source_pair_fit_partners",
+    "grammar_source_pair_updates",
 })
 
 
@@ -22,6 +30,18 @@ def prefix_reuse_contract(origin: Path, new_plan: dict) -> dict:
             if key not in {"plan_sha256", "implementation"}}
     right = {key: value for key, value in json.loads(json.dumps(new_plan)).items()
              if key not in {"plan_sha256", "implementation", "reused_prefix_contract"}}
+    paired = right.get("schema") == "aura.semantic_native_fit_plan.v4"
+    if paired:
+        from core.learning.semantic_native_source_control import source_control_mode_from_plan
+
+        if source_control_mode_from_plan(new_plan) != "source_text":
+            raise ValueError("paired frozen reuse needs intact source evidence")
+        if set(right) - set(left) != _PAIR_PLAN_FIELDS:
+            raise ValueError("paired frozen reuse changes undeclared plan fields")
+        for name in _PAIR_PLAN_FIELDS:
+            right.pop(name)
+        right["schema"] = "aura.semantic_native_fit_plan.v3"
+        right["objective"] = "grammar_choices"
     differences = sorted(key for key in left.keys() | right.keys()
                          if left.get(key) != right.get(key))
     if (differences or prior.get("schema") != "aura.semantic_native_fit_plan.v3"
@@ -31,7 +51,8 @@ def prefix_reuse_contract(origin: Path, new_plan: dict) -> dict:
         raise ValueError(f"prior frozen capture differs from fresh fitting protocol: {differences}")
     changes = {name for name in prior["implementation"] | new_plan["implementation"]
                if prior["implementation"].get(name) != new_plan["implementation"].get(name)}
-    if changes - _REPLACED_IMPLEMENTATIONS:
+    if (changes - _REPLACED_IMPLEMENTATIONS
+            or ("core/learning/semantic_native_source_pairs.py" in changes and not paired)):
         raise ValueError("prior frozen capture implementation changed outside its reader")
     expected = {(row["source"], row["decision_index"], row["choice_index"]): digest(row["tokens"])
                 for row in supervision["rows"]}

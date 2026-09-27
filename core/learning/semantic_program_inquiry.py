@@ -9,14 +9,14 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from core.learning.procedure_induction import Program
 from core.learning.semantic_graph_counterexamples import ProgramObservationCache
 from core.perception.expected_information_gain import Observation, choose
-from core.runtime.gateways import StateGateway, StateMutationRequest
-from core.evidence.packet import observe
+from core.runtime.gateways import StateGateway, StateMutationReceipt, StateMutationRequest
+from core.evidence.packet import EvidencePacket, observe
 
 
 @dataclass(frozen=True)
@@ -28,7 +28,7 @@ class ProgramInquiry:
     program_shas: tuple[tuple[str, str], ...] = ()
     source_sha256: str | None = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         names = [name for name, _ in self.predictions]
         identities = dict(self.program_shas)
         if (not names or len(names) != len(set(names))
@@ -82,7 +82,7 @@ class ProgramInquiry:
         return payload
 
     @classmethod
-    def from_dict(cls, payload: Mapping):
+    def from_dict(cls, payload: Mapping) -> ProgramInquiry:
         content = dict(payload)
         digest = content.pop("content_sha256", None)
         if digest != hashlib.sha256(json.dumps(
@@ -105,7 +105,7 @@ class ProgramInquiry:
             payload.get("source_sha256"),
         )
 
-    async def retain(self, gateway: StateGateway):
+    async def retain(self, gateway: StateGateway) -> StateMutationReceipt:
         """Persist the pending inquiry through the canonical state owner."""
         return await gateway.mutate(StateMutationRequest(
             key=self.identity, new_value=self.to_dict(), domain="semantic_inquiries",
@@ -113,7 +113,7 @@ class ProgramInquiry:
         ))
 
     @classmethod
-    async def restore(cls, gateway: StateGateway, identity: str):
+    async def restore(cls, gateway: StateGateway, identity: str) -> ProgramInquiry | None:
         payload = await gateway.read(identity, domain="semantic_inquiries", fresh=True)
         if payload is None:
             return None
@@ -127,7 +127,8 @@ class ProgramInquiry:
         outcome = _outcome(observed_result)
         return tuple(name for name, predicted in self.predictions if predicted == outcome)
 
-    def evidence_for(self, *, observed_result: object, origin: str, ref: str):
+    def evidence_for(self, *, observed_result: object, origin: str,
+                     ref: str) -> dict[str, EvidencePacket]:
         """Bind measured probe agreement to the existing evidence algebra.
 
         The caller supplies the independent observation identity. These packets
@@ -156,7 +157,7 @@ class ObservedProgramInquiry:
     origin: str
     ref: str
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if (not isinstance(self.inquiry, ProgramInquiry)
                 or not isinstance(self.origin, str) or not self.origin.strip()
                 or not isinstance(self.ref, str) or not self.ref.strip()):
@@ -177,7 +178,7 @@ class ObservedProgramInquiry:
         return self.to_dict()["content_sha256"]
 
     @classmethod
-    def from_dict(cls, payload: Mapping):
+    def from_dict(cls, payload: Mapping) -> ObservedProgramInquiry:
         if not isinstance(payload, Mapping) or payload.get("schema") != "aura.observed_program_inquiry.v1":
             raise ValueError("invalid observed inquiry record")
         kind, value = json.loads(payload["observed_result"])
@@ -191,7 +192,7 @@ class ObservedProgramInquiry:
             raise ValueError("observed inquiry record digest or bindings differ")
         return observed
 
-    async def retain(self, gateway: StateGateway):
+    async def retain(self, gateway: StateGateway) -> StateMutationReceipt:
         """Keep every distinct observation through the canonical state owner."""
         return await gateway.mutate(StateMutationRequest(
             key=self.identity, new_value=self.to_dict(), domain="semantic_inquiry_observations",
@@ -199,7 +200,7 @@ class ObservedProgramInquiry:
         ))
 
     @classmethod
-    async def restore_all(cls, gateway: StateGateway):
+    async def restore_all(cls, gateway: StateGateway) -> tuple[ObservedProgramInquiry, ...]:
         rows = await gateway.snapshot(domain="semantic_inquiry_observations")
         observations = []
         for key, payload in sorted(rows.items()):
@@ -218,7 +219,8 @@ def _outcome(value: object) -> str:
     raise ValueError("inquiry outcomes require a measured integer or integer sequence")
 
 
-def _identity(inputs, programs, source_sha256=None):
+def _identity(inputs: tuple[int | tuple[int, ...], ...], programs: Iterable[str],
+              source_sha256: str | None = None) -> str:
     body = {"inputs": inputs, "programs": sorted(set(programs))}
     if source_sha256 is not None:
         body["source_sha256"] = source_sha256

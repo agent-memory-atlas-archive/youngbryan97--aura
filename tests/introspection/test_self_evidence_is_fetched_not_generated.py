@@ -902,7 +902,8 @@ def test_a_thermal_channel_that_did_not_read_is_named_not_silent():
     assert "host_thermal:" not in said
 
 
-def test_an_unmeasured_thermal_sensor_reaches_the_bundle_as_an_absence():
+@pytest.mark.parametrize("measured", [False, True])
+def test_an_unmeasured_thermal_sensor_reaches_the_bundle_as_an_absence(monkeypatch, measured):
     """The reading is built where the sensor is read, so a host with no
     thermal sensor produces a named absence rather than one fewer reading."""
     import core.introspection.self_evidence as evidence
@@ -910,15 +911,16 @@ def test_an_unmeasured_thermal_sensor_reaches_the_bundle_as_an_absence():
     class _World:
         cpu_percent = 12.0
         memory_percent = 40.0
-        thermal_pressure = 0.0
-        _thermal_measured = False
+        thermal_pressure = 0.25
+        _telemetry_measured = True
+        _thermal_measured = measured
 
-    readings = evidence._load_readings.__wrapped__(_World()) if hasattr(
-        evidence._load_readings, "__wrapped__"
-    ) else None
-    if readings is None:  # the helper reads the live world itself
-        import inspect
-
-        source = inspect.getsource(evidence._load_readings)
-        assert "ABSENT_UNAVAILABLE" in source
-        assert "no thermal sensor reading on this host" in source
+    monkeypatch.setattr("core.world_state.get_world_state", lambda: _World())
+    thermal = [r for r in evidence._load_readings() if r.channel == "host_thermal"]
+    assert len(thermal) == 1, "the thermal channel went missing from the bundle"
+    if measured:
+        assert thermal[0].state == evidence.ReadingState.READ
+        assert thermal[0].value == 0.25
+    else:
+        assert thermal[0].state == evidence.ReadingState.ABSENT_UNAVAILABLE
+        assert "no thermal sensor reading on this host" in thermal[0].detail

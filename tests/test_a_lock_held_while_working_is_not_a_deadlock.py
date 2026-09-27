@@ -61,27 +61,75 @@ def test_an_unreadable_signal_does_not_excuse_it(monkeypatch):
     assert lw._the_holder_is_working() is False
 
 
-def test_the_loop_checks_progress_before_it_alerts():
-    """The carve-out has to sit before the alert and before the recovery."""
-    import inspect
+def _one_pass_over_a_long_hold(monkeypatch, *, working: bool) -> dict:
+    """Run the monitor loop over a lock held 400s, and say what it did.
 
-    source = inspect.getsource(lw)
-    source = source[source.index("async def _monitor_loop") :]
-    working = source.index("_the_holder_is_working()")
-    alert = source.index("DEADLOCK ALERT")
-    recovery = source.index("_attempt_recovery")
-    assert working < alert < recovery, (
-        "a hold that is working must be excused before it is alerted on and "
-        "before anything force-releases it"
+    The loop runs until it has looked at the hold twice, so it has had every
+    chance to alert and to force-release.
+    """
+    import asyncio
+    import contextlib
+
+    import core.health.degraded_events as degraded_events
+
+    seen = {"looks": 0, "released": 0, "degraded": []}
+    looked_twice = asyncio.Event()
+
+    def holder_is_working() -> bool:
+        seen["looks"] += 1
+        if seen["looks"] >= 2:
+            looked_twice.set()
+        return working
+
+    monkeypatch.setattr(lw, "_the_holder_is_working", holder_is_working)
+    monkeypatch.setattr(
+        degraded_events,
+        "record_degraded_event",
+        lambda *a, **k: seen["degraded"].append((a, k)),
     )
 
+    def force_release() -> None:
+        seen["released"] += 1
 
-def test_the_excused_path_does_not_record_a_degraded_event():
-    import inspect
+    watchdog = lw.LockWatchdog(check_interval=0.01, threshold=180.0)
+    watchdog.report_acquire_start("b78f35cc", "AuraKernel.StateLock", on_stall=force_release)
+    watchdog._active_locks["b78f35cc"].start_time = time.monotonic() - 400.0
 
-    source = inspect.getsource(lw)
-    source = source[source.index("async def _monitor_loop") :]
-    excused = source[source.index("_the_holder_is_working()") :]
-    excused = excused[: excused.index("DEADLOCK ALERT")]
-    assert "record_degraded_event" not in excused
-    assert "continue" in excused
+    async def run() -> None:
+        watchdog._running = True
+        task = asyncio.create_task(watchdog._monitor_loop())
+        with contextlib.suppress(TimeoutError):
+            await asyncio.wait_for(looked_twice.wait(), timeout=5.0)
+        watchdog._running = False
+        await asyncio.wait_for(task, timeout=1.0)
+
+    asyncio.run(run())
+    assert seen["looks"] >= 2, "the loop never reached the hold"
+    return seen
+
+
+def test_a_working_hold_is_neither_alerted_on_nor_released(monkeypatch, caplog):
+    """The carve-out has to sit before the alert and before the recovery."""
+    import logging
+
+    with caplog.at_level(logging.INFO, logger=lw.logger.name):
+        seen = _one_pass_over_a_long_hold(monkeypatch, working=True)
+    assert seen["released"] == 0, (
+        "a hold that is working was force-released out from under live work"
+    )
+    assert not [r for r in caplog.records if "DEADLOCK ALERT" in r.getMessage()]
+    said = [r.getMessage() for r in caplog.records if "still producing" in r.getMessage()]
+    assert said, "the hold was excused without a word"
+    assert "(1 look(s))" in said[0]
+
+
+def test_the_excused_path_does_not_record_a_degraded_event(monkeypatch):
+    seen = _one_pass_over_a_long_hold(monkeypatch, working=True)
+    assert seen["degraded"] == []
+
+
+def test_a_silent_hold_is_still_alerted_on_and_released(monkeypatch):
+    """The carve-out is for work; a hold nobody is producing through is still one."""
+    seen = _one_pass_over_a_long_hold(monkeypatch, working=False)
+    assert seen["released"] >= 1
+    assert seen["degraded"], "a real stall reached no degraded event"

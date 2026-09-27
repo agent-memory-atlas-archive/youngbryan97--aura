@@ -90,7 +90,8 @@ def unify_semantic_candidates(
     origins: dict[str, list[str]] = {}
     parents: dict[str, str] = {}
 
-    def retain(name: str, program: Program, from_spans, provenance: str) -> None:
+    def retain(name: str, program: Program, from_spans: tuple[TokenSpan, ...],
+               provenance: str) -> None:
         if not isinstance(program, Program):
             raise ValueError("mixed candidate proposal is not an executable program")
         if (not isinstance(provenance, str) or len(provenance) != 64
