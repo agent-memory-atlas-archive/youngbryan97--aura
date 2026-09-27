@@ -10891,10 +10891,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             # a reply about it; the executor keeps its own guards for requests
             # that ask only for a plan.
             if _chat_preflight._looks_like_desktop_objective(_semantic_user_message):
+                refused = _looks_like_capability_refusal(salvaged_no_reply)
                 logger.info(
                     "No servable reply on a desktop objective (%s); running the "
                     "governed desktop lane rather than giving up on the work.",
-                    "a refusal" if _looks_like_capability_refusal(salvaged_no_reply) else "the reply failed its gates",
+                    "a refusal" if refused else "the reply failed its gates",
                 )
                 # The refusal itself is worthless as a document body, so the
                 # executor composes its own rather than inheriting it.
@@ -10905,9 +10906,16 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 # serve a receipt-less reply about work that did happen.
                 # That is the exact failure the gate was built for in
                 # visible-demo rounds 3-5.
+                # A draft that is not a refusal is still what she said before
+                # the work: this route serves such drafts rather than an
+                # apology, so it is said before the first click and the page
+                # can hold its result against it. LIVE 27 Sep 02:57: her
+                # prediction failed one gate, the lane ran, and nobody heard it.
+                said_first = "" if refused else str(salvaged_no_reply or "").strip()
                 executed_after_refusal = await _run_desktop_objective_tracked(
                     _semantic_user_message,
-                    cognitive_reply="",
+                    cognitive_reply=said_first,
+                    her_reply_first=bool(said_first),
                 )
                 if isinstance(executed_after_refusal, dict) and executed_after_refusal.get(
                     "response"

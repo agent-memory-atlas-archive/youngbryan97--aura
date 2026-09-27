@@ -90,3 +90,11 @@ def test_any_unusable_reply_on_a_desktop_objective_runs_the_executor():
         "_looks_like_desktop_objective(\n                _semantic_user_message\n            ) and _looks_like_capability_refusal"
         not in source
     )
+
+
+def test_a_draft_that_is_not_a_refusal_is_said_before_the_work():
+    """LIVE 27 Sep 02:57: her prediction failed one gate, the lane ran, and
+    nobody heard what she had said she expected."""
+    source = chat_lane_source()
+    assert 'said_first = "" if refused else str(salvaged_no_reply or "").strip()' in source
+    assert "her_reply_first=bool(said_first)" in source
