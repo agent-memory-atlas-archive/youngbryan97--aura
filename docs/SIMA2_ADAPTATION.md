@@ -163,6 +163,30 @@ mouse direction and gain, layout and prompt keys; she is told none of it.
 | asking | 30/30 | 0/30 |
 | chasing | 21/30 | not run |
 
+Re-measured 27 Sep over sixty worlds a category, after she learned to measure
+her own field of view and the lead became an angle bounded by the thing's own
+edge:
+
+| Category | Her |
+|---|---|
+| navigation | 60/60 |
+| using | 60/60 |
+| finding | 60/60 |
+| asking | 60/60 |
+| chasing, aiming where it is | 40/60 |
+| chasing, leading | 44/60 |
+
+Leading was 11/30 before the field of view was measurable, against 20/30 for
+not leading at all: the lead was a drift in pixels carried over the steps to
+arrival, and it aimed past the edge of the view, where a thing cannot be
+steered toward because it cannot be seen. The two chasing intervals overlap,
+so leading is not yet PROVEN better — what is measured is that it is no longer
+worse, and the units are right.
+
+The room sweep that measures the view turns back through everything it turned.
+Without that it left her facing away from the two things an "ask which one"
+world puts in front of her, and asking fell to 36/60.
+
 Live, in the test room, three fresh rooms: door and chest opened six times
 of six, 10.2 seconds a trip on average. Self-set practice: she set herself both,
 opened both, and did not repeat what she had managed.
