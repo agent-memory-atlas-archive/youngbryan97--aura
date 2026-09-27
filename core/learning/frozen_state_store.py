@@ -30,6 +30,49 @@ class FrozenStateStore(Mapping):
         self.peak_resident_bytes = 0
         self.loads = 0
 
+    @classmethod
+    def open_existing(cls, directory: Path, *, plan_sha256: str,
+                      max_resident_bytes: int, sequence_digests: Mapping):
+        """Bind complete immutable shards from a prior capture to fresh fitting."""
+        from tools.evaluate_semantic_native_checkpoint import verified_document
+
+        store = cls(directory, plan_sha256=plan_sha256,
+                    max_resident_bytes=max_resident_bytes)
+        keys = tuple(sorted(sequence_digests))
+        sources = sorted({key[0] for key in keys})
+        if not keys or any(not isinstance(key, tuple) or len(key) != 3
+                           or not isinstance(key[0], str) for key in keys):
+            raise ValueError("reused frozen state keys differ")
+        manifests = {hashlib.sha256(source.encode()).hexdigest() + ".json"
+                     for source in sources}
+        if {path.name for path in store.directory.glob("*.json")} != manifests:
+            raise ValueError("reused frozen state manifest inventory differs")
+        for source in sources:
+            name = hashlib.sha256(source.encode()).hexdigest()
+            receipt = verified_document(store.directory / f"{name}.json")
+            rows = receipt.get("arrays")
+            if (receipt.get("schema") != "aura.frozen_state_shard.v1"
+                    or receipt.get("source") != source
+                    or receipt.get("plan_sha256") != plan_sha256
+                    or type(receipt.get("array_bytes")) is not int
+                    or not 0 < receipt["array_bytes"] <= max_resident_bytes
+                    or not isinstance(rows, list) or not rows):
+                raise ValueError("reused frozen source manifest differs")
+            path = store.directory / f"{name}.safetensors"
+            if not path.is_file() or path.stat().st_size != receipt.get("file_bytes"):
+                raise ValueError("reused frozen source file differs")
+            store._shards[source] = receipt
+            for index, row in enumerate(rows):
+                key = tuple(row["key"])
+                if (key in store._entries or len(key) != 3 or key[0] != source
+                        or row.get("tensor") != str(index)
+                        or row.get("sequence_sha256") != sequence_digests.get(key)):
+                    raise ValueError("reused frozen source alternatives differ")
+                store._entries[key] = (source, str(index))
+        if set(store._entries) != set(keys):
+            raise ValueError("reused frozen source coverage differs")
+        return store
+
     def write_source(self, source: str, states: Mapping, *, sequence_digests: Mapping):
         import mlx.core as mx
 

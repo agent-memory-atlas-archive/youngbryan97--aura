@@ -346,6 +346,8 @@ def main():
     parser.add_argument("--prefix-strategy", choices=("full", "trie"), default="full")
     parser.add_argument("--prefix-storage", choices=("memory", "source_shards"), default="memory")
     parser.add_argument("--prefix-resident-mib", type=int, default=512)
+    parser.add_argument("--reuse-prefix-from", type=Path,
+                        help="fresh optimizer run over a complete, bound lossless capture")
     parser.add_argument("--held-per-construction", type=int, default=1)
     parser.add_argument("--calibration-per-construction", type=int, default=1)
     parser.add_argument("--calibration-source-limit", type=int,
@@ -377,6 +379,8 @@ def main():
     if (args.prefix_storage == "source_shards" and args.prefix_strategy != "trie"
             or not 1 <= args.prefix_resident_mib <= 4096):
         parser.error("source shards require trie capture and a resident bound inside [1, 4096] MiB")
+    if args.reuse_prefix_from is not None and args.prefix_storage != "source_shards":
+        parser.error("prefix reuse requires lossless source shards")
     if (any(type(value) is not int or value < 1 for value in (
             args.steps, args.save_every, args.rank, args.layers, args.max_sequence_tokens))
             or args.steps % args.save_every or not 0 < args.max_seconds <= 14400
@@ -477,6 +481,10 @@ def main():
         storage_path = ROOT / "core/learning/frozen_state_store.py"
         implementation_paths.append(storage_path)
         implementation[str(storage_path.relative_to(ROOT))] = hashlib.sha256(storage_path.read_bytes()).hexdigest()
+    if args.reuse_prefix_from is not None:
+        reuse_path = ROOT / "tools/semantic_native_prefix_reuse.py"
+        implementation_paths.append(reuse_path)
+        implementation[str(reuse_path.relative_to(ROOT))] = hashlib.sha256(reuse_path.read_bytes()).hexdigest()
     plan = {"schema": "aura.semantic_native_fit_plan.v1", "steps": args.steps,
             "save_every": args.save_every, "rank": args.rank, "suffix_layers": args.layers,
             "prefix_batch_size": args.prefix_batch_size,
@@ -546,6 +554,12 @@ def main():
         plan["execution_contract"] = execution
         plan["prefix_equivalence_policy"] = "all_first_source_choices_then_first_choice_per_source"
         plan["plan_sha256"] = _digest(plan)
+    if args.reuse_prefix_from is not None:
+        from tools.semantic_native_prefix_reuse import prefix_reuse_contract
+
+        plan["reused_prefix_contract"] = prefix_reuse_contract(args.reuse_prefix_from, plan)
+        plan.pop("plan_sha256")
+        plan["plan_sha256"] = _digest(plan)
     _save_if_absent(args.directory / "plan.json", plan)
     if args.plan_only:
         print(json.dumps({"stage": "plan_only", "plan_sha256": plan["plan_sha256"],
@@ -567,6 +581,11 @@ def main():
     supervised_ids = tuple(sorted(set(captured_fit_ids) | set(calibration_ids)))
     sequences, groups, supervision = build_native_supervision(items, texts, tokenizer, supervised_ids,
         plan, tuple(peer_programs[key] for key in sorted(peer_programs)))
+    if args.reuse_prefix_from is not None:
+        from tools.semantic_native_prefix_reuse import open_reused_prefix
+
+        reused_states = open_reused_prefix(plan["reused_prefix_contract"], plan, supervision)
+        del reused_states
     _save_if_absent(args.directory / "supervision.json", supervision)
     preparation_seconds = time.monotonic() - started
     if args.supervision_only:
@@ -640,12 +659,24 @@ def main():
         captured = {}
         if args.prefix_storage == "source_shards":
             from core.learning.frozen_state_store import FrozenStateStore
-            captured = FrozenStateStore(args.directory / "prefix-states",
-                plan_sha256=plan["plan_sha256"],
-                max_resident_bytes=plan["prefix_storage_contract"]["max_resident_bytes"])
+            captured = (open_reused_prefix(plan["reused_prefix_contract"], plan, supervision)
+                if args.reuse_prefix_from is not None else
+                FrozenStateStore(args.directory / "prefix-states",
+                    plan_sha256=plan["plan_sha256"],
+                    max_resident_bytes=plan["prefix_storage_contract"]["max_resident_bytes"]))
         verified_batch_sizes = set()
         capture_receipts = []
-        batches = (source_sequence_groups(sequences) if args.prefix_strategy == "trie" else
+        if args.reuse_prefix_from is not None:
+            from tools.semantic_native_prefix_reuse import source_capture_receipts
+
+            prior = plan["reused_prefix_contract"]
+            capture_receipts = source_capture_receipts(
+                Path(prior["source_directory"]), sources=sorted(set(supervised_ids)),
+                plan_sha256=prior["source_plan_sha256"])
+            if _digest(capture_receipts) != prior["capture_inventory_sha256"]:
+                raise ValueError("reused prefix capture inventory changed")
+        batches = (() if args.reuse_prefix_from is not None else
+                   source_sequence_groups(sequences) if args.prefix_strategy == "trie" else
                    exact_length_batches(sequences, batch_size=args.prefix_batch_size))
         for batch in batches:
             check_bound()
@@ -921,6 +952,8 @@ def main():
                         prefix_capture_receipts=capture_receipts)
         if storage_receipt is not None:
             body.update(prefix_storage_receipt=storage_receipt)
+        if args.reuse_prefix_from is not None:
+            body.update(reused_prefix_contract=plan["reused_prefix_contract"])
         _save_if_absent(args.directory / "report.json", {**body, "receipt_sha256": _digest(body)})
         print(json.dumps({"stage": "complete", "native_correct": body["native_correct"],
                           "population": len(rows), "regressions": body["regressions"]}), flush=True)

@@ -128,3 +128,34 @@ def test_spilling_does_not_change_loss_or_gradients(tmp_path):
                 tree_flatten(direct_gradient), tree_flatten(disk_gradient), strict=True):
             assert left_name == right_name
             assert mx.array_equal(left, right).item()
+
+
+def test_existing_lossless_shards_reopen_without_rewriting(tmp_path):
+    with mx.stream(mx.cpu):
+        cache = store(tmp_path)
+        value = mx.arange(8, dtype=mx.float32)
+        write(cache, "a", value)
+        reopened = FrozenStateStore.open_existing(tmp_path, plan_sha256="a" * 64,
+            max_resident_bytes=64, sequence_digests={("a", 0, 1): "b" * 64})
+        assert reopened.receipt()["shards"] == cache.receipt()["shards"]
+        assert mx.array_equal(reopened[("a", 0, 1)], value).item()
+        with pytest.raises(ValueError, match="alternatives differ"):
+            FrozenStateStore.open_existing(tmp_path, plan_sha256="a" * 64,
+                max_resident_bytes=64, sequence_digests={("a", 0, 1): "c" * 64})
+        with pytest.raises(ValueError, match="manifest inventory"):
+            FrozenStateStore.open_existing(tmp_path, plan_sha256="a" * 64,
+                max_resident_bytes=64, sequence_digests={("b", 0, 1): "b" * 64})
+
+
+def test_reopened_shard_still_hashes_bytes_before_loading(tmp_path):
+    with mx.stream(mx.cpu):
+        write(store(tmp_path), "a", mx.arange(4))
+        reopened = FrozenStateStore.open_existing(tmp_path, plan_sha256="a" * 64,
+            max_resident_bytes=64, sequence_digests={("a", 0, 1): "b" * 64})
+        path = tmp_path / (hashlib.sha256(b"a").hexdigest() + ".safetensors")
+        path.chmod(0o600)
+        content = bytearray(path.read_bytes())
+        content[-1] ^= 1
+        path.write_bytes(content)
+        with pytest.raises(ValueError, match="digest differs"):
+            reopened[("a", 0, 1)]

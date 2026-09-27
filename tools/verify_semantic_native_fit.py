@@ -284,6 +284,31 @@ def verify_state_storage(directory, plan, report, supervision):
 
     contract = plan.get("prefix_storage_contract")
     receipt = report.get("prefix_storage_receipt")
+    reuse = plan.get("reused_prefix_contract")
+    if reuse is not None:
+        from tools.semantic_native_prefix_reuse import (
+            prefix_reuse_contract,
+            source_capture_receipts,
+        )
+
+        origin = Path(reuse["source_directory"])
+        if (report.get("reused_prefix_contract") != reuse
+                or prefix_reuse_contract(origin, plan) != reuse
+                or digest(supervision["rows"]) != reuse["source_supervision_rows_sha256"]):
+            raise ValueError("native frozen prefix reuse differs")
+        expected_captures = source_capture_receipts(
+            origin, sources=sorted({row["source"] for row in supervision["rows"]}),
+            plan_sha256=reuse["source_plan_sha256"])
+        if (digest(expected_captures) != reuse["capture_inventory_sha256"]
+                or report.get("prefix_capture_receipts") != expected_captures):
+            raise ValueError("native reused capture inventory differs")
+        shard_plan_sha = reuse["source_plan_sha256"]
+        shard_directory = origin
+    else:
+        if "reused_prefix_contract" in report:
+            raise ValueError("undeclared native frozen prefix reuse")
+        shard_plan_sha = plan["plan_sha256"]
+        shard_directory = directory
     if contract is None:
         if receipt is not None:
             raise ValueError("undeclared frozen state storage")
@@ -295,7 +320,7 @@ def verify_state_storage(directory, plan, report, supervision):
             or type(bound) is not int or not 0 < bound <= 4096 * 1024 * 1024
             or not isinstance(receipt, dict)
             or receipt.get("schema") != "aura.frozen_state_store.v1"
-            or receipt.get("plan_sha256") != plan["plan_sha256"]
+            or receipt.get("plan_sha256") != shard_plan_sha
             or receipt.get("max_resident_bytes") != bound
             or receipt.get("lossy_compression") is not False
             or type(receipt.get("peak_resident_bytes")) is not int
@@ -307,16 +332,16 @@ def verify_state_storage(directory, plan, report, supervision):
     for shard in receipt["shards"]:
         source = shard["source"]
         name = hashlib.sha256(source.encode()).hexdigest()
-        if (source in sources or shard["plan_sha256"] != plan["plan_sha256"]
+        if (source in sources or shard["plan_sha256"] != shard_plan_sha
                 or shard["schema"] != "aura.frozen_state_shard.v1"
                 or type(shard["array_bytes"]) is not int or not 0 < shard["array_bytes"] <= bound
                 or type(shard["file_bytes"]) is not int
                 or not shard["array_bytes"] <= shard["file_bytes"] <= shard["array_bytes"] + 1024 * 1024):
             raise ValueError("frozen state source shard differs")
         sources.add(source)
-        if verified_document(directory / "prefix-states" / f"{name}.json") != shard:
+        if verified_document(shard_directory / "prefix-states" / f"{name}.json") != shard:
             raise ValueError("frozen state manifest differs from report")
-        with open_stable_readonly_binary(directory / "prefix-states" / f"{name}.safetensors",
+        with open_stable_readonly_binary(shard_directory / "prefix-states" / f"{name}.safetensors",
                                         max_bytes=shard["file_bytes"]) as (handle, identity):
             content = hashlib.sha256()
             while chunk := handle.read(1024 * 1024):
