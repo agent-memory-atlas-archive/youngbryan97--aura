@@ -31,32 +31,35 @@ from interface.routes import chat_capability_inventory as _chat_capability_inven
 from interface.routes import chat_desktop_repair as _chat_desktop_repair
 from interface.routes import chat_preflight as _chat_preflight
 import re
+import time
 from core.runtime.errors import describe_error, record_degradation
 
 
-def _what_she_got_through(completed: int, requested: int) -> str:
+def _what_she_got_through(completed: int, requested: int, *, since: float = 0.0) -> str:
     """What she actually did, from her own record when no receipt arrived.
 
     A run cancelled by a deadline never reaches its own accounting, so the
     counts are zero however much happened. LIVE 2026-08-26: sixty-five
     narrated moves in a game of 2048, nine approaches held and revised, and
     the person was told "Completed 0/0 steps."
+
+    ``since`` is when this turn began: only work begun after that can be
+    reported as this turn's. LIVE 2026-09-27, the personality test: "I got
+    273 step(s) into it. What I was doing: now attack from a new axis ... to
+    merge the 16s or 32" — a game of 2048 from an earlier turn, reported
+    because it had the most steps.
     """
     if completed or requested:
         return f"Completed {completed}/{requested} steps."
     try:
-        from core.agency.what_she_is_doing import just_finished, right_now  # noqa: PLC0415
+        from core.agency.what_she_is_doing import work_begun_since  # noqa: PLC0415
 
-        # Whichever record did the work, not whichever is newest.
+        # Whichever record did the work, among the records of THIS turn.
         #
         # Something else takes on something of its own the moment a task
         # ends, which pushes the record of the work aside. Live: forty-one
         # narrated moves reported as none, from a record created after them.
-        held = max(
-            (record for record in (right_now(), just_finished()) if record is not None),
-            key=lambda record: record.steps,
-            default=None,
-        )
+        held = work_begun_since(since)
     except (ImportError, AttributeError, RuntimeError) as exc:
         logger.debug(
             "%s unavailable (%s: %s); no held desktop record, so narrated moves report none",
@@ -67,7 +70,7 @@ def _what_she_got_through(completed: int, requested: int) -> str:
         held = None
     if held is None or not held.steps:
         logger.info(
-            "nothing to report from her own record: held=%s steps=%s",
+            "nothing to report from her own record since this turn began: held=%s steps=%s",
             held is not None,
             getattr(held, "steps", None),
         )
@@ -227,6 +230,9 @@ async def _execute_desktop_objective_from_chat(
     if not _chat_preflight._looks_like_desktop_objective(user_message):
         return None
 
+    # When this turn's work begins, so a report can only draw on records this
+    # turn created (see _what_she_got_through).
+    turn_began_at = time.time()
     objective = str(user_message or "").strip()
     # The visible desktop lane is already consuming the foreground Cortex turn.
     # A second hidden model synthesis inside desktop_task can starve the
@@ -458,7 +464,8 @@ async def _execute_desktop_objective_from_chat(
         error = str(result.get("error") or result.get("status") or "desktop task failed").strip()
         response = (
             "I routed this through CognitiveEngine and the governed desktop task lane, "
-            f"but it did not complete: {error}. {_what_she_got_through(completed, requested)} "
+            f"but it did not complete: {error}. "
+            f"{_what_she_got_through(completed, requested, since=turn_began_at)} "
             "I am not claiming the desktop action finished."
         )
         # A partial task can still hold the answer, and withholding it is its
