@@ -6,13 +6,19 @@ operation spans. It neither parses answers nor observes validation targets.
 
 from __future__ import annotations
 
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from core.learning.procedure_induction import Program
 from core.learning.semantic_program_floor import semantic_program_structural_key
 from core.learning.semantic_span_pointer import _hidden_array
+
+if TYPE_CHECKING:
+    from core.learning.semantic_program_ir import TokenSpan
+    from core.learning.semantic_program_transducer import SemanticTransducerTrainingExample
 
 
 def _unit(vector: np.ndarray) -> np.ndarray:
@@ -22,7 +28,7 @@ def _unit(vector: np.ndarray) -> np.ndarray:
     return vector / norm
 
 
-def _span_vector(features: np.ndarray, span) -> np.ndarray:
+def _span_vector(features: np.ndarray, span: TokenSpan) -> np.ndarray:
     span.validate_bound(len(features))
     if features.ndim != 2 or span.start == span.end or not np.isfinite(features).all():
         raise ValueError("operation evidence requires a measured token span")
@@ -37,7 +43,8 @@ class OperationEvidence:
     positioned_prototypes: dict[tuple[int, str], np.ndarray] | None = None
 
     @classmethod
-    def fit(cls, examples, *, source_ids: set[str]) -> OperationEvidence:
+    def fit(cls, examples: Iterable[SemanticTransducerTrainingExample], *,
+            source_ids: set[str]) -> OperationEvidence:
         if not source_ids:
             raise ValueError("operation prototypes need source training examples")
         vectors: dict[str, list[np.ndarray]] = {}
@@ -66,7 +73,8 @@ class OperationEvidence:
                    {name: len(rows) for name, rows in vectors.items()}, width,
                    {key: _unit(np.mean(rows, axis=0)) for key, rows in positioned.items()})
 
-    def scores(self, features, programs: tuple[Program, ...], operation_spans,
+    def scores(self, features: np.ndarray, programs: tuple[Program, ...],
+               operation_spans: Sequence[Sequence[TokenSpan]],
                *, positioned: bool = False) -> np.ndarray:
         features = np.asarray(_hidden_array(features), dtype=np.float32)
         if (features.ndim != 2 or features.shape[1] != self.feature_width
@@ -90,7 +98,8 @@ class OperationEvidence:
             values.append(float(np.mean(evidence)))
         return np.asarray(values, dtype=np.float32)
 
-    def choose(self, features, programs: tuple[Program, ...], operation_spans,
+    def choose(self, features: np.ndarray, programs: tuple[Program, ...],
+               operation_spans: Sequence[Sequence[TokenSpan]],
                *, positioned: bool = False) -> int:
         return int(self.scores(features, programs, operation_spans,
                                positioned=positioned).argmax())

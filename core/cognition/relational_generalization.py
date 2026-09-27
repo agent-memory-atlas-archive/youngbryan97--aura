@@ -13,13 +13,19 @@ import json
 import math
 import re
 from collections import defaultdict
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
 from core.cognition.agent_model import AgentModel, Prediction
 from core.cognition.procedural_generalization import DecisionEpisode, ProceduralGeneralizer
-from core.cognition.structure_mapping import Graph, Relation, map_structures, shuffled_null
+from core.cognition.structure_mapping import (
+    Alignment,
+    Graph,
+    Relation,
+    map_structures,
+    shuffled_null,
+)
 
 _WORD = re.compile(r"\w+|[^\w\s]", re.UNICODE)
 
@@ -70,7 +76,9 @@ class RelationalCase:
             for kind in sorted(set(kinds.values()))
         )
 
-        def orders(index=0, prefix=()):
+        def orders(
+            index: int = 0, prefix: tuple[int, ...] = ()
+        ) -> Iterator[tuple[int, ...]]:
             if index == len(groups):
                 yield prefix
                 return
@@ -392,7 +400,9 @@ class RelationalGeneralizer:
             status = "world_change_supported"
         return RevisionAssessment(status, proposition, old_refs, new_refs)
 
-    def shared_structure(self, first: RelationalCase, second: RelationalCase):
+    def shared_structure(
+        self, first: RelationalCase, second: RelationalCase
+    ) -> Alignment | None:
         """Propose a partial analogy through the existing mapper, not equivalence.
 
         A relation alignment alone cannot establish matching goals or factual

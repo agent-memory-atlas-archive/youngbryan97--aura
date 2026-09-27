@@ -28,9 +28,12 @@ from __future__ import annotations
 import math
 import re
 from dataclasses import dataclass
-from typing import Mapping
+from typing import TYPE_CHECKING, Mapping
 
 from core.interiority.evidence import Reading, absent, measured
+
+if TYPE_CHECKING:
+    from core.interiority.event import InteriorEvent
 
 #: Closed-class grammar. Negation is a syntactic operation, not a mood.
 _NEGATIONS = frozenset(
@@ -170,7 +173,7 @@ def channels(message: str) -> dict[str, Reading]:
 __all__ = ["TextStatistics", "channels", "statistics"]
 
 
-def a_person_said(person: str, message: str, *, at: float):  # -> InteriorEvent
+def a_person_said(person: str, message: str, *, at: float) -> InteriorEvent:
     """The interior event a person's message is, as every incoming path builds it.
 
     One builder for the desktop runtime's incoming turn and the subject

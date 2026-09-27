@@ -5,8 +5,12 @@ chooses bindings within each interpretation. This is a hierarchical objective,
 not a claim of jointly normalized operation and argument probabilities.
 """
 
+from __future__ import annotations
+
 import math
 import time
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -26,9 +30,20 @@ from core.learning.semantic_program_transducer_fitting import (
     _OperationNode,
 )
 
+if TYPE_CHECKING:
+    from core.learning.procedure_induction import Program
+    from core.learning.semantic_program_compositional_transducer import (
+        CompositionalSemanticProgramTransducer,
+    )
+    from core.learning.semantic_program_ir import SemanticValue
+    from core.learning.semantic_program_transducer_fitting import _TypedArgumentAssignment
 
-def resolve_operation_scores(model, *, source_token_ids, hidden_states, public_inputs,
-                             scores, labels, time_limit_s=10., max_expansions=100_000):
+
+def resolve_operation_scores(
+    model: CompositionalSemanticProgramTransducer, *, source_token_ids: Sequence[int],
+    hidden_states: np.ndarray, public_inputs: Iterable[SemanticValue], scores: np.ndarray,
+    labels: Sequence[str], time_limit_s: float = 10., max_expansions: int = 100_000,
+) -> tuple[Program | None, str, dict[str, int | bool]]:
     """Retain every finite label/span, then select the best feasible operation set.
 
     The grammar uses the parent's declared public-input geometry and use
@@ -67,7 +82,7 @@ def resolve_operation_scores(model, *, source_token_ids, hidden_states, public_i
     relation_scores, relation_vectors = {}, {}
     definitions = model.definition_pointer.score_sequence(hidden)
 
-    def assign(selected):
+    def assign(selected: tuple[_OperationNode, ...]) -> _TypedArgumentAssignment | None:
         remaining = deadline - time.monotonic()
         if remaining <= 0:
             raise ArgumentOptimizationIncompleteError("context_decode_budget_exhausted")

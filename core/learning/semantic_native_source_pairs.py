@@ -3,13 +3,21 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Iterable
 from difflib import SequenceMatcher
+from typing import TYPE_CHECKING
 
 from core.learning.semantic_graph_counterexamples import (
     compare_program_meanings,
     counterfactual_inputs,
 )
 from core.learning.semantic_native_decision_supervision import native_teacher_decisions
+
+if TYPE_CHECKING:
+    import mlx.core as mx
+
+    from core.learning.semantic_program_ir import SemanticValue
+    from core.learning.semantic_program_transducer import SemanticTransducerTrainingExample
 
 SOURCE_PAIR_CONTRACT = {
     "basis": "fit_only_shared_contrast_lineage_and_witnessed_meaning_change",
@@ -21,12 +29,14 @@ SOURCE_PAIR_CONTRACT = {
 }
 
 
-def _input_types(values):
+def _input_types(values: Iterable[SemanticValue]) -> tuple[str, ...]:
     return tuple("integer_sequence" if isinstance(value, tuple) else "integer"
                  for value in values)
 
 
-def _first_divergence(left, right, register_encoding):
+def _first_divergence(left: SemanticTransducerTrainingExample,
+                      right: SemanticTransducerTrainingExample,
+                      register_encoding: str) -> dict[str, int | str] | None:
     if _input_types(left.public_inputs) != _input_types(right.public_inputs):
         return None
     left_decisions = native_teacher_decisions(left.ir.to_program(),
@@ -45,7 +55,9 @@ def _first_divergence(left, right, register_encoding):
     return None
 
 
-def native_source_pair_plan(examples, fit_ids, *, register_encoding):
+def native_source_pair_plan(examples: Iterable[SemanticTransducerTrainingExample],
+                            fit_ids: Iterable[str], *,
+                            register_encoding: str) -> dict[str, dict[str, int | str]]:
     """Select only fit-local contrasts whose denotations and next choices differ.
 
     Contrast lineage, type admission, and an execution witness establish the
@@ -86,7 +98,9 @@ def native_source_pair_plan(examples, fit_ids, *, register_encoding):
     return dict(sorted(pairs.items()))
 
 
-def native_source_interaction_loss(own_correct, own_rival, partner_correct, partner_rival):
+def native_source_interaction_loss(own_correct: mx.array, own_rival: mx.array,
+                                   partner_correct: mx.array,
+                                   partner_rival: mx.array) -> mx.array:
     """A logistic loss on the source-by-choice interaction, cancelling wire bias."""
     import mlx.core as mx
 

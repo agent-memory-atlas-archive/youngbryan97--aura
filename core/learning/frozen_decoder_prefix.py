@@ -21,7 +21,7 @@ class NativeDecoderSuffix(nn.Module):
     This object does not grant serving authority or modify the frozen prefix.
     """
 
-    def __init__(self, model: Any, *, split_at: int):
+    def __init__(self, model: Any, *, split_at: int) -> None:
         super().__init__()
         backbone = decoder_backbone(model)
         owner = decoder_backbone_owner(model)
@@ -33,7 +33,7 @@ class NativeDecoderSuffix(nn.Module):
         self.tied_output = bool(getattr(owner.args, "tie_word_embeddings", False))
         self.output = backbone.embed_tokens if self.tied_output else owner.lm_head
 
-    def normalized_states(self, hidden):
+    def normalized_states(self, hidden: mx.array) -> mx.array:
         """Expose causal suffix states before vocabulary projection."""
         if hidden.ndim != 3 or hidden.shape[1] < 1:
             raise ValueError("native suffix requires a complete hidden sequence")
@@ -42,7 +42,9 @@ class NativeDecoderSuffix(nn.Module):
             hidden = layer(hidden, mask=mask, cache=None)
         return self.norm(hidden)
 
-    def __call__(self, hidden, *, logit_positions=None):
+    def __call__(
+        self, hidden: mx.array, *, logit_positions: tuple[int, ...] | list[int] | None = None
+    ) -> mx.array:
         if hidden.ndim != 3 or hidden.shape[1] < 1:
             raise ValueError("native suffix requires a complete hidden sequence")
         if logit_positions is not None and (
@@ -67,7 +69,7 @@ class FrozenDecoderPrefix:
     Callers own checkpoint identity and any persistence of captured states.
     """
 
-    def __init__(self, model: Any, *, split_at: int):
+    def __init__(self, model: Any, *, split_at: int) -> None:
         self.backbone = decoder_backbone(model)
         if type(split_at) is not int or not 0 < split_at < len(self.backbone.layers):
             raise ValueError("frozen prefix requires a nonempty decoder split")
@@ -76,14 +78,14 @@ class FrozenDecoderPrefix:
         self.layers = tuple(self.backbone.layers[:split_at])
         self._assert_frozen()
 
-    def _assert_frozen(self):
+    def _assert_frozen(self) -> None:
         from mlx.utils import tree_flatten
 
         for module in (self.embedding, *self.layers):
             if module.training or tree_flatten(module.trainable_parameters()):
                 raise ValueError("captured prefix must be frozen and in evaluation mode")
 
-    def capture(self, token_ids):
+    def capture(self, token_ids: mx.array) -> mx.array:
         self._assert_frozen()
         if (token_ids.ndim != 2 or min(token_ids.shape) < 1
                 or token_ids.dtype not in (mx.int32, mx.int64, mx.uint32, mx.uint64)):

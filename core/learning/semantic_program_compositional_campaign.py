@@ -259,7 +259,9 @@ def fit_compositional_source_campaign(
     return CompositionalLeaveFamilyOutResult(model, {**body, "report_sha256": _sha(body)})
 
 
-def bind_compositional_source_input_order(model, *, source_order_inputs: bool):
+def bind_compositional_source_input_order(
+    model: CompositionalSemanticProgramTransducer, *, source_order_inputs: bool,
+) -> CompositionalSemanticProgramTransducer:
     """Give a fitted source-order model its own immutable decoder identity."""
     if type(source_order_inputs) is not bool:
         raise ValueError("source-order input policy must be explicit")

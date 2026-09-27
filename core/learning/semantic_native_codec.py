@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Any
 
+from core.learning.procedure_induction import Program
 from core.learning.semantic_native_program import (
+    NativeProgramSequence,
     native_program_sequence,
     native_program_surface,
     parse_native_program,
@@ -38,9 +41,11 @@ def register_encoding_from_plan(plan: Mapping) -> str:
     return validate_register_encoding(plan.get("register_encoding", "absolute_v1"))
 
 
-def native_sequence_for_encoding(source, program, tokenizer, *, register_encoding="absolute_v1",
-                                 max_tokens=1024,
-                                 decision_basis="program_atoms_and_graph_termination_v1"):
+def native_sequence_for_encoding(source: str, program: Program, tokenizer: Any, *,
+                                 register_encoding: str = "absolute_v1",
+                                 max_tokens: int = 1024,
+                                 decision_basis: str = "program_atoms_and_graph_termination_v1",
+                                 ) -> NativeProgramSequence:
     encoding = validate_register_encoding(register_encoding)
     if encoding == "absolute_v1":
         return native_program_sequence(source, program, tokenizer, max_tokens=max_tokens,
@@ -50,13 +55,14 @@ def native_sequence_for_encoding(source, program, tokenizer, *, register_encodin
     return relative_native_program_sequence(source, program, tokenizer, max_tokens=max_tokens)
 
 
-def native_surface_for_encoding(program, *, register_encoding="absolute_v1"):
+def native_surface_for_encoding(program: Program, *, register_encoding: str = "absolute_v1"
+                                ) -> tuple[str, tuple[tuple[int, int], ...]]:
     encoding = validate_register_encoding(register_encoding)
     surface = native_program_surface if encoding == "absolute_v1" else relative_native_program_surface
     return surface(program)
 
 
-def parse_native_for_encoding(text, *, register_encoding="absolute_v1"):
+def parse_native_for_encoding(text: str, *, register_encoding: str = "absolute_v1") -> Program:
     encoding = validate_register_encoding(register_encoding)
     parse = parse_native_program if encoding == "absolute_v1" else parse_relative_native_program
     return parse(text)

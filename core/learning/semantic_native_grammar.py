@@ -37,7 +37,7 @@ class NativeGrammarResult:
 class NativeGrammarIncompleteError(ValueError):
     """A finite search ended without a connected executable graph."""
 
-    def __init__(self, program: Program, trace: tuple[dict, ...]):
+    def __init__(self, program: Program, trace: tuple[dict, ...]) -> None:
         super().__init__("native grammar depth bound leaves disconnected branches")
         self.program = program
         self.trace = trace
@@ -70,7 +70,7 @@ def decode_native_grammar(input_types: tuple[str, ...],
             + (',"registers":"' + REGISTER_ENCODING + '"' if relative else "")
             + ',"steps":[')
 
-    def choose(choices: tuple[NativeGrammarDecision, ...], kind: str):
+    def choose(choices: tuple[NativeGrammarDecision, ...], kind: str) -> NativeGrammarDecision:
         if not choices:
             raise ValueError("native grammar has no admitted continuation")
         scores = scorer(choices)
@@ -83,7 +83,7 @@ def decode_native_grammar(input_types: tuple[str, ...],
                       "scores": scores, "chosen": choice.value})
         return choice
 
-    def extend(prefix: str, value: str | int, *, string: bool = False):
+    def extend(prefix: str, value: str | int, *, string: bool = False) -> NativeGrammarDecision:
         atom = str(value)
         rendered = ('"' + atom + '"') if string else atom
         left = len(prefix) + (1 if string else 0)

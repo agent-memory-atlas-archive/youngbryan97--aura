@@ -35,7 +35,7 @@ class AtomAlignedProgramRanker(nn.Module):
     argument_evidence = False
     retain_evidence_variants = True
 
-    def __init__(self, config: RequestContextConfig):
+    def __init__(self, config: RequestContextConfig) -> None:
         super().__init__()
         self.config = config
         self.context = SemanticRequestContext(config)
@@ -55,7 +55,8 @@ class AtomAlignedProgramRanker(nn.Module):
     @staticmethod
     def _validate(
         features: torch.Tensor, input_spans: Sequence[TokenSpan],
-        input_kinds: Sequence[str], programs: Sequence[Program], operation_spans,
+        input_kinds: Sequence[str], programs: Sequence[Program],
+        operation_spans: Sequence[Sequence[TokenSpan]] | None,
     ) -> None:
         if (features.ndim != 2 or features.shape[0] == 0
                 or len(input_spans) != len(input_kinds) or not input_spans or not programs
@@ -85,7 +86,10 @@ class AtomAlignedProgramRanker(nn.Module):
                 span.validate_bound(features.shape[0])
                 kinds.append(signature[1])
 
-    def _factors(self, tokens, input_spans, input_kinds, program, spans):
+    def _factors(
+        self, tokens: torch.Tensor, input_spans: Sequence[TokenSpan],
+        input_kinds: Sequence[str], program: Program, spans: Sequence[TokenSpan],
+    ) -> list[tuple[str, torch.Tensor, int]]:
         registers = [tokens[span.start:span.end].mean(dim=0) for span in input_spans]
         kinds = list(input_kinds)
         factors = []
@@ -110,7 +114,7 @@ class AtomAlignedProgramRanker(nn.Module):
             kinds.append(signature[1])
         return factors
 
-    def _encoded(self, features, *, cross_token):
+    def _encoded(self, features: torch.Tensor, *, cross_token: bool) -> torch.Tensor:
         valid = torch.ones((1, len(features)), dtype=torch.bool, device=features.device)
         return self.normalize(self.context.encode_tokens(
             features.unsqueeze(0), valid, cross_token=cross_token)[0])
@@ -118,7 +122,8 @@ class AtomAlignedProgramRanker(nn.Module):
     def forward(
         self, features: torch.Tensor, input_spans: Sequence[TokenSpan],
         input_kinds: Sequence[str], programs: Sequence[Program],
-        *, operation_spans=None, cross_token: bool = True,
+        *, operation_spans: Sequence[Sequence[TokenSpan]] | None = None,
+        cross_token: bool = True,
     ) -> torch.Tensor:
         """Score only supplied graphs; no target or result enters this interface."""
         self._validate(features, input_spans, input_kinds, programs, operation_spans)
@@ -134,7 +139,7 @@ class AtomAlignedProgramRanker(nn.Module):
 
     def source_atom_loss(
         self, features: torch.Tensor, input_spans: Sequence[TokenSpan],
-        input_kinds: Sequence[str], program: Program, *, operation_spans,
+        input_kinds: Sequence[str], program: Program, *, operation_spans: Sequence[TokenSpan],
         cross_token: bool = True,
     ) -> tuple[torch.Tensor, dict[str, int]]:
         """Teach the same factors from a source-labeled graph, never a held answer."""

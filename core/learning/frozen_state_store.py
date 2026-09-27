@@ -6,17 +6,24 @@ import hashlib
 import io
 import json
 from collections import OrderedDict
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from pathlib import Path
+from typing import TYPE_CHECKING, Any, Self
 
 from core.runtime.atomic_writer import atomic_write_bytes_if_absent
 from core.runtime.file_read_gateway import open_stable_readonly_binary
+
+if TYPE_CHECKING:
+    import mlx.core as mx
+
+#: (source, program sha) for a program fit; (source, decision, choice) for grammar choices.
+StateKey = tuple[str, str] | tuple[str, int, int]
 
 
 class FrozenStateStore(Mapping):
     """Keep all alternatives on disk; cache only whole, verified source shards."""
 
-    def __init__(self, directory: Path, *, plan_sha256: str, max_resident_bytes: int):
+    def __init__(self, directory: Path, *, plan_sha256: str, max_resident_bytes: int) -> None:
         if (len(plan_sha256) != 64 or any(c not in "0123456789abcdef" for c in plan_sha256)
                 or type(max_resident_bytes) is not int or max_resident_bytes <= 0):
             raise ValueError("invalid frozen state storage contract")
@@ -32,7 +39,7 @@ class FrozenStateStore(Mapping):
 
     @classmethod
     def open_existing(cls, directory: Path, *, plan_sha256: str,
-                      max_resident_bytes: int, sequence_digests: Mapping):
+                      max_resident_bytes: int, sequence_digests: Mapping[StateKey, str]) -> Self:
         """Bind complete immutable shards from a prior capture to fresh fitting."""
         from tools.evaluate_semantic_native_checkpoint import verified_document
 
@@ -73,7 +80,8 @@ class FrozenStateStore(Mapping):
             raise ValueError("reused frozen source coverage differs")
         return store
 
-    def write_source(self, source: str, states: Mapping, *, sequence_digests: Mapping):
+    def write_source(self, source: str, states: Mapping[StateKey, mx.array], *,
+                     sequence_digests: Mapping[StateKey, str]) -> dict[str, Any]:
         import mlx.core as mx
 
         keys = tuple(sorted(states))
@@ -116,7 +124,7 @@ class FrozenStateStore(Mapping):
             self._entries[key] = (source, str(index))
         return receipt
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: StateKey) -> mx.array:
         import mlx.core as mx
 
         source, tensor = self._entries[key]
@@ -149,13 +157,13 @@ class FrozenStateStore(Mapping):
         self._cache.move_to_end(source)
         return self._cache[source][tensor]
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[StateKey]:
         return iter(self._entries)
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self._entries)
 
-    def receipt(self):
+    def receipt(self) -> dict[str, Any]:
         return {"schema": "aura.frozen_state_store.v1", "plan_sha256": self.plan_sha256,
                 "sources": len(self._shards), "sequences": len(self),
                 "max_resident_bytes": self.max_resident_bytes,

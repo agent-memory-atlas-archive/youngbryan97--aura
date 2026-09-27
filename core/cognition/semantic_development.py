@@ -14,11 +14,11 @@ import math
 import random
 import time
 from collections import Counter, defaultdict
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from functools import wraps
 from pathlib import Path
-from typing import Any
+from typing import Any, Concatenate
 
 from core.brain.ontology_discovery import (
     CandidateLaw,
@@ -57,9 +57,11 @@ def _contains_sensitive_value(value: Any) -> bool:
     return False
 
 
-def _serialized(method):
+def _serialized[**P, R](
+    method: Callable[Concatenate[SemanticDevelopment, P], R],
+) -> Callable[Concatenate[SemanticDevelopment, P], R]:
     @wraps(method)
-    def call(self, *args, **kwargs):
+    def call(self: SemanticDevelopment, /, *args: P.args, **kwargs: P.kwargs) -> R:
         with self._lock:
             return method(self, *args, **kwargs)
     return call

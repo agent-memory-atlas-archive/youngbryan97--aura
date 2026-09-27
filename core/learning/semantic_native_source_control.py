@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from dataclasses import replace
+from typing import Any
 
 from core.learning.semantic_native_program import NativeProgramSequence
 
@@ -18,7 +20,7 @@ SOURCE_ERASURE_CONTRACT = {
 }
 
 
-def source_control_mode_from_plan(plan):
+def source_control_mode_from_plan(plan: Mapping[str, Any]) -> str:
     """Keep historical fits intact and require explicit authority for erasure."""
     schema = plan.get("schema")
     if schema in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4"}:
@@ -50,7 +52,8 @@ def source_control_mode_from_plan(plan):
     raise ValueError("native fit source-evidence control contract differs")
 
 
-def erase_native_source_tokens(sequence: NativeProgramSequence, source: str, tokenizer):
+def erase_native_source_tokens(sequence: NativeProgramSequence, source: str, tokenizer: Any
+                               ) -> tuple[NativeProgramSequence, dict[str, Any]]:
     """A training/lesion control, retaining length but no source-content tokens."""
     from core.learning.semantic_program_feature_materialization import (
         offset_tokenizer_for_worker,

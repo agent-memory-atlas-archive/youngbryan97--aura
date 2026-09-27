@@ -1,14 +1,14 @@
 """Differentiate the existing exact labeled span-set partition."""
 
 import torch
-from torch.autograd.function import once_differentiable
+from torch.autograd.function import FunctionCtx, once_differentiable
 
 from core.learning.semantic_labeled_span_learning import labeled_span_partition
 
 
 class _LabeledPartition(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, scores, max_spans):
+    def forward(ctx: FunctionCtx, scores: torch.Tensor, max_spans: int) -> torch.Tensor:
         partition, marginal = labeled_span_partition(
             scores.detach().cpu().double().numpy(), max_spans,
         )
@@ -17,7 +17,7 @@ class _LabeledPartition(torch.autograd.Function):
 
     @staticmethod
     @once_differentiable
-    def backward(ctx, upstream):
+    def backward(ctx: FunctionCtx, upstream: torch.Tensor) -> tuple[torch.Tensor, None]:
         (marginal,) = ctx.saved_tensors
         return upstream * marginal, None
 

@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from core.learning.procedure_induction import Program
-from core.learning.semantic_native_program import native_text_decision_sequence
+from core.learning.semantic_native_program import (
+    NativeProgramSequence,
+    native_text_decision_sequence,
+)
 from core.learning.semantic_register_identity import (
     RegisterIdentity,
     program_from_register_identities,
@@ -20,7 +24,7 @@ def relative_native_program_surface(program: Program) -> tuple[str, tuple[tuple[
     steps = program_register_identities(program)
     parts, spans, position = [], [], 0
 
-    def append(text: str, *, decision=False, quoted=False):
+    def append(text: str, *, decision: bool = False, quoted: bool = False) -> None:
         nonlocal position
         rendered = json.dumps(text, ensure_ascii=True) if quoted else text
         if decision:
@@ -48,7 +52,7 @@ def relative_native_program_surface(program: Program) -> tuple[str, tuple[tuple[
 
 def parse_relative_native_program(text: str) -> Program:
     """Resolve an explicit wire version without repairing missing or forward refs."""
-    def unique_fields(pairs):
+    def unique_fields(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         values = {}
         for key, value in pairs:
             if key in values:
@@ -69,6 +73,7 @@ def parse_relative_native_program(text: str) -> Program:
     return program_from_register_identities(payload["inputs"], steps)
 
 
-def relative_native_program_sequence(source: str, program: Program, tokenizer, *, max_tokens=1024):
+def relative_native_program_sequence(source: str, program: Program, tokenizer: Any, *,
+                                     max_tokens: int = 1024) -> NativeProgramSequence:
     target, spans = relative_native_program_surface(program)
     return native_text_decision_sequence(source, target, spans, tokenizer, max_tokens=max_tokens)

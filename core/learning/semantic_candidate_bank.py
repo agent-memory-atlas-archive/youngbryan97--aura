@@ -4,7 +4,7 @@ import hashlib
 import math
 import time
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.learning.procedure_induction import Program
 from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
@@ -21,6 +21,9 @@ from core.learning.semantic_program_ir import TokenSpan, normalize_semantic_valu
 from core.learning.semantic_program_transducer import SemanticTransductionOutcome, _hidden_array
 from core.learning.semantic_program_transducer_fitting import _assign_typed_arguments
 from core.verify.invariants import invariant
+
+if TYPE_CHECKING:
+    from core.learning.semantic_meaning_hypothesis import MeaningHypothesis
 
 
 @dataclass(frozen=True)
@@ -92,7 +95,7 @@ class SemanticCandidateBank:
     input_spans: tuple[TokenSpan, ...]
     receipt: dict
 
-    def meaning_hypotheses(self):
+    def meaning_hypotheses(self) -> tuple["MeaningHypothesis", ...]:
         """Expose source-bound proposal meanings without claiming a posterior."""
         from core.learning.semantic_meaning_hypothesis import meaning_hypotheses_from_bank
 
