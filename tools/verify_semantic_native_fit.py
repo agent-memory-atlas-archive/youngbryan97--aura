@@ -134,6 +134,34 @@ def verify_source_control_supervision(plan, supervision, items, tokenizer):
     from tools.evaluate_semantic_native_checkpoint import digest
 
     mode = source_control_mode_from_plan(plan)
+    if plan["schema"] == "aura.semantic_native_fit_plan.v3":
+        from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
+        from tools.train_semantic_native_program import native_grammar_supervision_sets
+
+        fit_ids, cal_ids = set(plan["captured_fit_ids"]), set(plan["calibration_ids"])
+        if (tokenizer is None or fit_ids & cal_ids or not fit_ids <= set(plan["fit_ids"])
+                or not (fit_ids | cal_ids) <= set(items)
+                or supervision.get("grammar_choice_contract") != GRAMMAR_CHOICE_CONTRACT):
+            raise ValueError("native grammar supervision scope or independent tokenizer differs")
+        controlled = mode == "source_token_erasure"
+        expected_control = {**SOURCE_ERASURE_CONTRACT, "erased_fit_ids": sorted(fit_ids),
+                            "unchanged_calibration_ids": sorted(cal_ids)}
+        if ((controlled and supervision.get("source_evidence_control") != expected_control)
+                or (not controlled and "source_evidence_control" in supervision)):
+            raise ValueError("native grammar source control scope differs")
+        texts = {identity: source_text_from_tokens(items[identity], tokenizer)
+                 for identity in fit_ids | cal_ids}
+        _sequences, groups, expected = native_grammar_supervision_sets(
+            items, texts, tokenizer, tuple(sorted(fit_ids | cal_ids)),
+            max_tokens=plan["max_sequence_tokens"], register_encoding=register_encoding_from_plan(plan),
+            source_erasure_ids=tuple(sorted(fit_ids)) if controlled else ())
+        if digest(supervision["rows"]) != digest(expected):
+            raise ValueError("native grammar decisions or source tokens differ from reconstruction")
+        return {"mode": mode, "source_control_verified": controlled,
+                "grammar_choices_verified": True, "supervision_sequences_verified": len(expected),
+                "supervised_decisions_verified": sum(len(value) for value in groups.values()),
+                "erased_fit_population": len(fit_ids) if controlled else 0,
+                "intact_calibration_population": len(cal_ids)}
     if mode == "source_text":
         if ("source_evidence_control" in supervision
                 or any("source_control_receipt" in row for row in supervision["rows"])):
@@ -187,7 +215,9 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
     report = verified_document(directory / "report.json")
     bank_plan, bank_report = _verified_pair(bank_directory)
     mode = source_control_mode_from_plan(plan)
-    expected_schema = "aura.semantic_native_fit.v2" if mode == "source_token_erasure" else "aura.semantic_native_fit.v1"
+    expected_schema = ("aura.semantic_native_fit.v3" if plan["schema"] == "aura.semantic_native_fit_plan.v3"
+                       else "aura.semantic_native_fit.v2" if mode == "source_token_erasure"
+                       else "aura.semantic_native_fit.v1")
     if (report.get("schema") != expected_schema
             or any(report.get(key) is not False for key in ("serving_authority", "qualification_evidence", "held_labels_used_for_fit_or_selection"))
             or plan["bank_plan_sha256"] != bank_plan["plan_sha256"]
@@ -264,7 +294,8 @@ def main():
     from core.learning.semantic_native_source_control import source_control_mode_from_plan
     plan = verified_document(args.directory / "plan.json", "plan_sha256")
     tokenizer = None
-    if source_control_mode_from_plan(plan) == "source_token_erasure":
+    if (source_control_mode_from_plan(plan) == "source_token_erasure"
+            or plan["schema"] == "aura.semantic_native_fit_plan.v3"):
         from mlx_lm.utils import load_tokenizer
         tokenizer = load_tokenizer(Path(plan["model_path"]))
     result = verify_fit(args.directory, args.bank, items, tokenizer=tokenizer)

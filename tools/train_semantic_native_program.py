@@ -230,6 +230,102 @@ def native_supervision_sets(items, texts, tokenizer, identities, *, peers=(),
     return sequences, groups
 
 
+def native_grammar_supervision_sets(items, texts, tokenizer, identities, *, max_tokens=1024,
+                                    register_encoding="absolute_v1", source_erasure_ids=()):
+    """Bind each source's exact inference competition to unchanged native tokens."""
+    from core.learning.semantic_native_decision_supervision import native_teacher_decisions
+    from core.learning.semantic_native_program import native_text_decision_sequence
+    from core.learning.semantic_public_inputs import semantic_public_character_inputs
+    from core.learning.semantic_native_source_control import erase_native_source_tokens
+
+    erased = set(source_erasure_ids)
+    if (not identities or len(set(identities)) != len(identities)
+            or not set(identities) <= set(items) or not set(identities) <= set(texts)
+            or len(erased) != len(source_erasure_ids) or not erased <= set(identities)):
+        raise ValueError("native grammar supervision source identities differ")
+    sequences, groups, receipts, rows = {}, {}, {}, []
+    for identity in sorted(identities):
+        item, source = items[identity], texts[identity]
+        public = semantic_public_character_inputs(source)
+        if (item.split != "train" or item.ir.source_text_sha256 != identity
+                or hashlib.sha256(source.encode()).hexdigest() != identity
+                or public.values != item.public_inputs):
+            raise ValueError("native grammar targets differ from their public source-order inputs")
+        kinds = tuple("integer_sequence" if isinstance(value, tuple) else "integer"
+                      for value in public.values)
+        decisions = native_teacher_decisions(item.ir.to_program(), kinds,
+                                            register_encoding=register_encoding)
+        groups[identity] = []
+        for ordinal, decision in enumerate(decisions):
+            keys = tuple((identity, ordinal, index) for index in range(len(decision.choices)))
+            groups[identity].append((keys, decision.correct_index))
+            for key, choice in zip(keys, decision.choices, strict=True):
+                sequence = native_text_decision_sequence(source, choice.text, (choice.span,),
+                                                        tokenizer, max_tokens=max_tokens)
+                if identity in erased:
+                    sequence, receipts[key] = erase_native_source_tokens(sequence, source, tokenizer)
+                sequences[key] = sequence
+                rows.append({"source": identity, "decision_index": ordinal, "choice_index": key[2],
+                    "kind": decision.kind, "choice": choice.value,
+                    "correct_index": decision.correct_index,
+                    "target_program_sha256": item.ir.to_program().sha(),
+                    "text": choice.text, "span": choice.span,
+                    "tokens": sequence.tokens, "continuation_start": sequence.continuation_start,
+                    "semantic_positions": sequence.semantic_positions,
+                    **({"source_control_receipt": receipts.get(key)} if erased else {})})
+        groups[identity] = tuple(groups[identity])
+    return sequences, groups, rows
+
+
+def native_grammar_source_loss(suffix, states, sequences, decisions):
+    """Optimize conditional likelihood for every choice the decoder will score."""
+    import mlx.core as mx
+
+    from core.learning.semantic_native_decision_supervision import native_decision_choice_loss
+
+    if not decisions:
+        raise ValueError("native grammar source lacks supervised decisions")
+    losses = []
+    for keys, correct in decisions:
+        scores = mx.stack([-native_loss(suffix, states[key], sequences[key], summed=True,
+                                       scope="semantic_decisions") for key in keys])
+        losses.append(native_decision_choice_loss(scores, correct))
+    return mx.mean(mx.stack(losses))
+
+
+def build_native_supervision(items, texts, tokenizer, identities, plan, peer_programs):
+    """Materialize the plan's supervision before allocating the frozen decoder."""
+    from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
+    from core.learning.semantic_native_source_control import SOURCE_ERASURE_CONTRACT, source_control_mode_from_plan
+    from tools.probe_semantic_proposer_crossfit import _digest
+
+    control = source_control_mode_from_plan(plan) == "source_token_erasure"
+    erased = plan["captured_fit_ids"] if control else ()
+    if plan["objective"] == "grammar_choices":
+        sequences, groups, rows = native_grammar_supervision_sets(items, texts, tokenizer, identities,
+            max_tokens=plan["max_sequence_tokens"], register_encoding=plan["register_encoding"],
+            source_erasure_ids=erased)
+    else:
+        receipts = {}
+        sequences, groups = native_supervision_sets(items, texts, tokenizer, identities,
+            peers=peer_programs, contrast_limit=plan["contrast_limit"] if plan["objective"] != "token" else None,
+            max_tokens=plan["max_sequence_tokens"], register_encoding=plan["register_encoding"],
+            source_erasure_ids=erased, source_control_receipts=receipts)
+        rows = [{"source": key[0], "program_sha256": key[1], "tokens": sequence.tokens,
+                 "continuation_start": sequence.continuation_start,
+                 "semantic_positions": sequence.semantic_positions,
+                 **({"source_control_receipt": receipts.get(key)} if control else {})}
+                for key, sequence in sorted(sequences.items())]
+    supervision = {"plan_sha256": plan["plan_sha256"], "rows": rows}
+    if plan["objective"] == "grammar_choices":
+        supervision["grammar_choice_contract"] = dict(GRAMMAR_CHOICE_CONTRACT)
+    if control:
+        supervision["source_evidence_control"] = {
+            **SOURCE_ERASURE_CONTRACT, "erased_fit_ids": sorted(plan["captured_fit_ids"]),
+            "unchanged_calibration_ids": sorted(plan["calibration_ids"])}
+    return sequences, groups, {**supervision, "receipt_sha256": _digest(supervision)}
+
+
 def main():
     from core.learning.semantic_native_codec import REGISTER_ENCODINGS
 
@@ -245,24 +341,35 @@ def main():
     parser.add_argument("--prefix-batch-size", type=int, default=1)
     parser.add_argument("--held-per-construction", type=int, default=1)
     parser.add_argument("--calibration-per-construction", type=int, default=1)
+    parser.add_argument("--calibration-source-limit", type=int,
+                        help="source-hash-only grammar-objective canary bound, never qualification evidence")
+    parser.add_argument("--held-source-limit", type=int,
+                        help="source-hash-only grammar-objective canary bound")
     parser.add_argument("--max-seconds", type=float, default=1800.)
     parser.add_argument("--max-sequence-tokens", type=int, default=1024)
     parser.add_argument("--loss-scope", choices=("continuation", "semantic_decisions"),
                         default="continuation")
-    parser.add_argument("--objective", choices=("token", "contrastive", "relational", "relational_metric"), default="token")
+    parser.add_argument("--objective", choices=("token", "contrastive", "relational", "relational_metric",
+                                               "grammar_choices"), default="token")
     parser.add_argument("--contrast-limit", type=int, default=4)
     parser.add_argument("--register-encoding", choices=REGISTER_ENCODINGS, default="absolute_v1")
     parser.add_argument("--source-evidence", choices=("source_text", "source_token_erasure"),
                         default="source_text")
     parser.add_argument("--plan-only", action="store_true")
+    parser.add_argument("--supervision-only", action="store_true",
+                        help="tokenize and audit the declared objective without loading model weights")
     args = parser.parse_args()
     if (any(type(value) is not int or value < 1 for value in (
             args.steps, args.save_every, args.rank, args.layers, args.max_sequence_tokens))
             or args.steps % args.save_every or not 0 < args.max_seconds <= 14400
             or not 1 <= args.prefix_batch_size <= 32 or not 2 <= args.contrast_limit <= 32
-            or args.objective in {"contrastive", "relational", "relational_metric"}
+            or args.objective in {"contrastive", "relational", "relational_metric", "grammar_choices"}
             and args.loss_scope != "semantic_decisions"):
         parser.error("positive sizes, complete checkpoint intervals and a finite time bound required")
+    if (args.plan_only and args.supervision_only
+            or any(value is not None and (value < 1 or args.objective != "grammar_choices")
+                   for value in (args.calibration_source_limit, args.held_source_limit))):
+        parser.error("supervision inventory and source-hash canary bounds need explicit independent modes")
 
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
@@ -277,6 +384,7 @@ def main():
     )
     from core.learning.semantic_native_codec import NATIVE_CODEC_IMPLEMENTATION_PATHS
     from core.learning.semantic_native_source_control import SOURCE_ERASURE_CONTRACT
+    from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
     from core.learning.semantic_program_compositional_transducer import (
         compositional_semantic_program_transducer_from_dict,
     )
@@ -300,6 +408,11 @@ def main():
                                     per_construction=args.held_per_construction)
     calibration_ids = construction_subset(examples, outer["calibration_ids"],
                                            per_construction=args.calibration_per_construction)
+    complete_held_subset, complete_calibration_subset = len(held_ids), len(calibration_ids)
+    if args.held_source_limit is not None:
+        held_ids = tuple(sorted(held_ids)[:args.held_source_limit])
+    if args.calibration_source_limit is not None:
+        calibration_ids = tuple(sorted(calibration_ids)[:args.calibration_source_limit])
     schedule = native_training_schedule(outer["fit_ids"], steps=args.steps, seed=20260925)
     relational_partners = (cross_construction_relation_partners(tuple(fit))
                            if args.objective == "relational" else {})
@@ -331,6 +444,8 @@ def main():
         "core/learning/semantic_candidate_contrasts.py",
         "core/learning/semantic_counterfactual_corpus.py",
         "core/learning/semantic_graph_counterexamples.py",
+        "core/learning/semantic_native_decision_supervision.py",
+        "core/learning/semantic_native_grammar.py",
         "core/learning/semantic_program_floor.py",
         "core/runtime/mlx_memory_guard.py", "tools/evaluate_semantic_candidate_ranker.py",
         "tools/train_semantic_atom_ranker.py", *NATIVE_CODEC_IMPLEMENTATION_PATHS)]
@@ -357,7 +472,7 @@ def main():
             "contrast_policy": "source_floor_typed_witnessed_difference_v1",
             "contrast_weight": 1.0 if args.objective != "token" else 0.0,
             "supervision_peer_program_sha256s": sorted(peer_programs)
-                if args.objective != "token" else [],
+                if args.objective not in {"token", "grammar_choices"} else [],
             "max_seconds": args.max_seconds, "max_sequence_tokens": args.max_sequence_tokens,
             "model_descriptor_sha256": spec.descriptor_sha256,
             "model_path": str(spec.model_path), "pointer_sha256": spec.pointer_sha256,
@@ -384,6 +499,16 @@ def main():
         plan.update(schema="aura.semantic_native_fit_plan.v2",
                     input="native_chat_template_fit_source_erased_calibration_and_held_source_unchanged",
                     source_evidence_control=dict(SOURCE_ERASURE_CONTRACT))
+    if args.objective == "grammar_choices":
+        plan.update(schema="aura.semantic_native_fit_plan.v3",
+                    grammar_choice_contract=dict(GRAMMAR_CHOICE_CONTRACT),
+                    contrast_policy="all_native_type_admitted_teacher_decisions_v1",
+                    selection="minimum_source_calibration_conditional_grammar_choice_loss",
+                    source_hash_canary_bounds={"calibration_limit": args.calibration_source_limit,
+                        "held_limit": args.held_source_limit,
+                        "eligible_calibration_subset": complete_calibration_subset,
+                        "eligible_held_subset": complete_held_subset,
+                        "selection_basis": "sorted_source_sha256_without_outcomes"})
     plan = {**plan, "plan_sha256": _digest(plan)}
     _save_if_absent(args.directory / "plan.json", plan)
     if args.plan_only:
@@ -395,6 +520,33 @@ def main():
     if any(args.directory.glob("checkpoint-*.json")):
         raise FileExistsError("native fit already has evidence; use a fresh experiment directory")
 
+    started = time.monotonic()
+    from mlx_lm.utils import load_tokenizer
+    from core.learning.semantic_native_program import source_text_from_tokens
+    tokenizer = load_tokenizer(Path(spec.model_path))
+    items = {item.ir.source_text_sha256: item for item in examples if item.split == "train"}
+    texts = {identity: source_text_from_tokens(item, tokenizer) for identity, item in items.items()}
+    public_by_id = {identity: item.public_inputs for identity, item in items.items()}
+    supervised_ids = tuple(sorted(set(captured_fit_ids) | set(calibration_ids)))
+    sequences, groups, supervision = build_native_supervision(items, texts, tokenizer, supervised_ids,
+        plan, tuple(peer_programs[key] for key in sorted(peer_programs)))
+    _save_if_absent(args.directory / "supervision.json", supervision)
+    preparation_seconds = time.monotonic() - started
+    if args.supervision_only:
+        from collections import Counter
+
+        print(json.dumps({"stage": "supervision_only", "plan_sha256": plan["plan_sha256"],
+            "supervision_receipt_sha256": supervision["receipt_sha256"],
+            "prefix_sequences": len(sequences),
+            "sequence_length_range": [min(len(row.tokens) for row in sequences.values()),
+                                      max(len(row.tokens) for row in sequences.values())],
+            "decision_counts": dict(Counter(kind for _source, _ordinal, kind in {
+                    (row["source"], row["decision_index"], row["kind"]) for row in supervision["rows"]}))
+                if args.objective == "grammar_choices" else {},
+            "preparation_seconds": preparation_seconds,
+            "model_weights_loaded": False}), flush=True)
+        return
+
     import mlx.core as mx
     import mlx.nn as nn
     import mlx.optimizers as optim
@@ -404,13 +556,11 @@ def main():
 
     from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
     from core.learning.semantic_native_codec import native_sequence_for_encoding
-    from core.learning.semantic_native_program import source_text_from_tokens
     from core.runtime.atomic_writer import atomic_write_bytes_if_absent
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
     from core.runtime.model_lane_control import standalone_model_lane
     from tools.evaluate_semantic_candidate_ranker import _rankable_or_none, _read_bank
 
-    started = time.monotonic()
     def check_bound():
         if time.monotonic() - started > args.max_seconds:
             raise TimeoutError("native fit bound reached; durable checkpoints remain research-only")
@@ -421,7 +571,10 @@ def main():
           mlx_memory_envelope(fraction=.80) as envelope):
         print(json.dumps({"stage": "load", "descriptor": spec.descriptor_sha256,
                           "memory_envelope": envelope.to_receipt()}), flush=True)
-        model, tokenizer = load(str(spec.model_path))
+        model, loaded_tokenizer = load(str(spec.model_path))
+        if any(loaded_tokenizer.encode(texts[identity], add_special_tokens=False)
+               != tokenizer.encode(texts[identity], add_special_tokens=False) for identity in supervised_ids):
+            raise ValueError("native model load changed the preflight tokenizer")
         model.freeze()
         model.eval()
         split = len(model.layers) - args.layers
@@ -439,33 +592,6 @@ def main():
         mx.eval(baseline_weights)
         for layer in suffix.layers:
             layer.train()
-        items = {item.ir.source_text_sha256: item for item in examples if item.split == "train"}
-        texts = {identity: source_text_from_tokens(item, tokenizer) for identity, item in items.items()}
-        public_by_id = {identity: item.public_inputs for identity, item in items.items()}
-        supervised_ids = tuple(sorted(set(captured_fit_ids) | set(calibration_ids)))
-        source_control_receipts = {}
-        sequences, groups = native_supervision_sets(
-            items, texts, tokenizer, supervised_ids,
-            peers=tuple(peer_programs[key] for key in sorted(peer_programs)),
-            contrast_limit=args.contrast_limit if args.objective != "token" else None,
-            max_tokens=args.max_sequence_tokens, register_encoding=args.register_encoding,
-            source_erasure_ids=(captured_fit_ids if args.source_evidence == "source_token_erasure" else ()),
-            source_control_receipts=source_control_receipts)
-        supervision = {"plan_sha256": plan["plan_sha256"],
-            "rows": [{"source": key[0], "program_sha256": key[1],
-                      "tokens": sequence.tokens, "continuation_start": sequence.continuation_start,
-                      "semantic_positions": sequence.semantic_positions,
-                      **({"source_control_receipt": source_control_receipts.get(key)}
-                         if args.source_evidence == "source_token_erasure" else {})}
-                     for key, sequence in sorted(sequences.items())]}
-        if args.source_evidence == "source_token_erasure":
-            supervision["source_evidence_control"] = {
-                **SOURCE_ERASURE_CONTRACT,
-                "erased_fit_ids": sorted(captured_fit_ids),
-                "unchanged_calibration_ids": sorted(calibration_ids),
-            }
-        supervision = {**supervision, "receipt_sha256": _digest(supervision)}
-        _save_if_absent(args.directory / "supervision.json", supervision)
         weights = construction_weights(fit)
         calibration_weights = construction_weights([items[identity] for identity in calibration_ids])
         construction_by_id = {identity: item.construction_id for identity, item in items.items()}
@@ -511,6 +637,8 @@ def main():
                                   "elapsed_seconds": time.monotonic() - started,
                                   "active_memory_bytes": mx.get_active_memory()}), flush=True)
         def source_objective(tail, identity, states):
+            if args.objective == "grammar_choices":
+                return native_grammar_source_loss(tail, states, sequences, groups[identity])
             keys = groups[identity]
             hidden = [states[key] for key in keys]
             rows = [sequences[key] for key in keys]
@@ -643,7 +771,8 @@ def main():
                 or any(path.read_bytes() != raw[name] for name, path in (
                     ("parent", args.parent), ("source", args.source_report), ("folds", args.folds)))):
             raise ValueError("native fit identity changed during measurement")
-        body = {"schema": ("aura.semantic_native_fit.v2" if args.source_evidence == "source_token_erasure"
+        body = {"schema": ("aura.semantic_native_fit.v3" if args.objective == "grammar_choices"
+                           else "aura.semantic_native_fit.v2" if args.source_evidence == "source_token_erasure"
                            else "aura.semantic_native_fit.v1"), "plan_sha256": plan["plan_sha256"],
                 "selected_step": best[1], "baseline_calibration_loss": baseline,
                 "supervision_receipt_sha256": supervision["receipt_sha256"],
@@ -665,6 +794,7 @@ def main():
                 "regressions": sum(row["incumbent_correct"] and row["selected_correct"] is False
                                    for row in rows),
                 "elapsed_seconds": time.monotonic() - started,
+                "preparation_seconds": preparation_seconds,
                 "serving_authority": False, "qualification_evidence": False,
                 "held_labels_used_for_fit_or_selection": False}
         _save_if_absent(args.directory / "report.json", {**body, "receipt_sha256": _digest(body)})

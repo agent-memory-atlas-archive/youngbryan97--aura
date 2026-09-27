@@ -21,6 +21,20 @@ SOURCE_ERASURE_CONTRACT = {
 def source_control_mode_from_plan(plan):
     """Keep historical fits intact and require explicit authority for erasure."""
     schema = plan.get("schema")
+    if schema == "aura.semantic_native_fit_plan.v3":
+        from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
+
+        if (plan.get("objective") != "grammar_choices"
+                or plan.get("loss_scope") != "semantic_decisions"
+                or plan.get("grammar_choice_contract") != GRAMMAR_CHOICE_CONTRACT):
+            raise ValueError("native fit grammar-choice contract differs")
+        if "source_evidence_control" not in plan:
+            return "source_text"
+        if plan["source_evidence_control"] == SOURCE_ERASURE_CONTRACT:
+            return "source_token_erasure"
+        raise ValueError("native fit source-evidence control contract differs")
+    if plan.get("objective") == "grammar_choices" or "grammar_choice_contract" in plan:
+        raise ValueError("historical native fit cannot acquire grammar-choice supervision")
     if schema == "aura.semantic_native_fit_plan.v1" and "source_evidence_control" not in plan:
         return "source_text"
     if (schema == "aura.semantic_native_fit_plan.v2"

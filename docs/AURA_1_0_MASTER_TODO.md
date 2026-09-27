@@ -1176,6 +1176,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Inference-choice objective](evidence/G_NATIVE_GRAMMAR_CHOICE_OBJECTIVE_2026-09-26.md)
+  trains operation, role, and explicit stop competitions through the existing
+  native grammar. Source-hash canary preflight materializes 519 sequences;
+  resident-checkpoint fitting and retained evaluation remain unmeasured here.
+  The implementation tests confer no promotion or G03 closure.
   [Retained native canary](evidence/G03_NATIVE_RETAINED_CANARY_2026-09-26.md)
   independently verifies 10/14 procedure matches and 11/14 proven equivalent
   answers across seven exposed cohorts. Two disconnected paths and an early
