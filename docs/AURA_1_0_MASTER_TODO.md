@@ -2094,6 +2094,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   focused tests passed; broad task-outcome learning remains open.
 - [ ] G10 Qualify runtime materialization or fusion on the current model;
   verify geometry, identity, rollback, canaries, and no-regression behavior.
+  [Contrastive development path](evidence/G10_CONTRASTIVE_DEVELOPMENT_PIPELINE_2026-09-27.md)
+  now builds paired train-only raw/purified/null vector candidates and a
+  disjoint development layer/alpha/control selection. CPU gates pass; no new
+  model-active result, sealed evaluation, or serving authority follows.
   [Current-generation channel](evidence/G10_CURRENT_CHANNEL_2026-09-14.md)
   passes the owned-layer probe at alpha 0.1: 7/8 changed answers and 10/10
   forced-choice accuracy retained. Exact model/basis certificate archived;

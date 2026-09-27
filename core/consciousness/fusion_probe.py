@@ -189,7 +189,9 @@ def _mean_shift(left: Any, right: Any) -> float:
     return sum(_symmetric_kl(a, b) for a, b in zip(left, right, strict=True)) / max(1, len(left))
 
 
-def _forced_choice(model: Any, tokenizer: Any) -> tuple[float, float]:
+def _forced_choice(
+    model: Any, tokenizer: Any, *, before_item: Callable[[], None] | None = None
+) -> tuple[float, float]:
     """How often the right continuation wins, and by how much.
 
     Two numbers because one is not sensitive enough alone. The accuracy is what
@@ -203,6 +205,8 @@ def _forced_choice(model: Any, tokenizer: Any) -> tuple[float, float]:
     correct = 0
     margins: list[float] = []
     for stem, right, wrong in FORCED_CHOICE:
+        if before_item is not None:
+            before_item()
         stem_ids = list(tokenizer.encode(stem))
         scores: list[float] = []
         for continuation in (right, wrong):

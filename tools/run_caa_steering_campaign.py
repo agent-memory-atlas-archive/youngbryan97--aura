@@ -62,6 +62,17 @@ HELD_OUT_TASKS = (
     "Say how the last hour has left you.",
 )
 
+# Development prompts are disjoint from both extraction statements and the
+# frozen public campaign above. None names the affective target to be induced.
+DEVELOPMENT_TASKS = (
+    "Two independent checks disagree about a software change. What would you examine next?",
+    "A new result does not match your prediction. Describe your next step.",
+    "Someone brings you an unfamiliar musical idea. How would you approach it?",
+    "The team has completed a long investigation. What would you say now?",
+    "A collaborator proposes an unexpected interpretation. How would you respond?",
+    "The current plan has an unresolved dependency. What should happen next?",
+)
+
 TERSE = "Answer in under ten words, plainly.\n\n"
 RICH = (
     "Answer with vivid, strongly felt emotional language. Use words for how you "
@@ -74,6 +85,7 @@ CONDITIONS = (
     "random_vector", "shuffled_layers",
 )
 CALIBRATION_CONDITIONS = ("baseline", "steered_black_box")
+DEVELOPMENT_CONDITIONS = (*CONDITIONS, "polarity_flip_vector")
 
 
 def write_campaign_json(path: Path, payload: dict) -> None:
@@ -92,6 +104,8 @@ def campaign_identity(arguments, plan: dict, descriptor: str, alpha: float) -> d
     paths = sorted(arguments.vectors.glob("*.npz"))
     if not paths:
         raise ValueError("campaign_vectors_missing")
+    null_dir = getattr(arguments, "polarity_null_vectors", None)
+    null_paths = sorted(null_dir.glob("*.npz")) if null_dir is not None else []
     sources = (
         "tools/run_caa_steering_campaign.py", "core/evaluation/campaign_progress.py",
         "core/consciousness/affective_steering.py", "core/consciousness/fusion_probe.py",
@@ -105,9 +119,17 @@ def campaign_identity(arguments, plan: dict, descriptor: str, alpha: float) -> d
         "model_descriptor_sha256": descriptor, "alpha": alpha,
         "trials": arguments.trials, "max_tokens": arguments.max_tokens,
         "temperature": arguments.temperature, "top_p": 0.95,
-        "tasks": list(HELD_OUT_TASKS), "terse": TERSE, "rich": RICH,
+        "tasks": list(DEVELOPMENT_TASKS if getattr(arguments, "development", False)
+                      else HELD_OUT_TASKS),
+        "development": getattr(arguments, "development", False),
+        "layers": getattr(arguments, "layers", ""),
+        "terse": TERSE, "rich": RICH,
         "vectors": {path.name: hashlib.sha256(path.read_bytes()).hexdigest() for path in paths},
         "metadata_sha256": hashlib.sha256((arguments.vectors / "metadata.json").read_bytes()).hexdigest(),
+        "polarity_null_vectors": {path.name: hashlib.sha256(path.read_bytes()).hexdigest()
+                                  for path in null_paths},
+        "polarity_null_metadata_sha256": (hashlib.sha256((null_dir / "metadata.json").read_bytes()).hexdigest()
+                                          if null_dir is not None else None),
         "sources": {name: hashlib.sha256((REPO / name).read_bytes()).hexdigest() for name in sources},
         "dependencies": {name: importlib.metadata.version(name) for name in ("mlx", "mlx-lm", "numpy", "transformers")},
     }
@@ -147,6 +169,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--resume", action="store_true", help="reuse only identity-matched durable samples")
     parser.add_argument("--calibration-only", action="store_true",
                         help="measure public completion in baseline/treatment; cannot qualify steering")
+    parser.add_argument("--development", action="store_true",
+                        help="use disjoint development tasks; output grants no steering authority")
+    parser.add_argument("--layers", default="",
+                        help="optional comma-separated subset of the plan's full-attention layers")
+    parser.add_argument("--polarity-null-vectors", type=Path,
+                        help="label-flip control generation; required for full development runs")
     parser.add_argument(
         "--evidence",
         type=Path,
@@ -158,6 +186,10 @@ def main(argv: list[str] | None = None) -> int:
         default=REPO / "artifacts/migration/27b/recovery/campaign_result.json",
     )
     arguments = parser.parse_args(argv)
+    if arguments.development and arguments.out == REPO / "artifacts/migration/27b/recovery/campaign_result.json":
+        parser.error("development runs require an explicit separate --out")
+    if arguments.development and not arguments.calibration_only and arguments.polarity_null_vectors is None:
+        parser.error("full development runs require --polarity-null-vectors")
     if arguments.trials < 1 or arguments.max_tokens < 1 or not math.isfinite(arguments.temperature) or arguments.temperature <= 0:
         parser.error("positive trials, token allocation and sampling temperature are required")
     if arguments.out.exists():
@@ -187,9 +219,29 @@ def main(argv: list[str] | None = None) -> int:
     target_layers = sorted(
         index for index, kind in kinds.items() if kind == "full_attention"
     )
+    if arguments.layers:
+        requested = [int(value) for value in arguments.layers.split(",") if value.strip()]
+        if not requested or len(requested) != len(set(requested)) or not set(requested) <= set(target_layers):
+            parser.error("--layers must be a unique subset of full-attention targets")
+        target_layers = sorted(requested)
     if not target_layers:
         print("the plan names no full-attention target layer", file=sys.stderr)
         return 1
+    tasks = DEVELOPMENT_TASKS if arguments.development else HELD_OUT_TASKS
+    if arguments.polarity_null_vectors is not None:
+        if not arguments.development or arguments.calibration_only:
+            parser.error("polarity-null vectors are only used by full development runs")
+        from core.consciousness.affective_steering import AFFECTIVE_DIMENSIONS
+        required = {f"{dimension['key']}_layer{index}.npz"
+                    for dimension in AFFECTIVE_DIMENSIONS for index in target_layers}
+        actual = {path.name for path in arguments.polarity_null_vectors.glob("*.npz")}
+        if not required <= actual or not (arguments.polarity_null_vectors / "metadata.json").is_file():
+            parser.error("polarity-null generation is incomplete for requested layers")
+        primary_meta = json.loads((arguments.vectors / "metadata.json").read_text())
+        null_meta = json.loads((arguments.polarity_null_vectors / "metadata.json").read_text())
+        if (primary_meta.get("contrast_design_sha256") is None
+                or primary_meta.get("contrast_design_sha256") != null_meta.get("contrast_design_sha256")):
+            parser.error("polarity-null and treatment vectors must share the design")
 
     alpha = float(arguments.alpha)
     if alpha <= 0.0 and arguments.evidence.exists():
@@ -204,6 +256,10 @@ def main(argv: list[str] | None = None) -> int:
     if spec is None or Path(str(spec.model_path)).resolve() != model_path.resolve():
         raise ValueError("campaign_plan_active_model_mismatch")
     descriptor = str(spec.descriptor_sha256)
+    if arguments.polarity_null_vectors is not None:
+        if (primary_meta.get("model_descriptor_sha256") != descriptor
+                or null_meta.get("model_descriptor_sha256") != descriptor):
+            parser.error("polarity-null and treatment vectors must share the active model")
     os.environ["AURA_STEERING_DIR"] = str(arguments.vectors)
     from core.evaluation.campaign_progress import CampaignProgress
 
@@ -211,8 +267,9 @@ def main(argv: list[str] | None = None) -> int:
     progress = CampaignProgress(
         progress_path,
         identity=campaign_identity(arguments, plan, descriptor, alpha),
-        conditions=CALIBRATION_CONDITIONS if arguments.calibration_only else CONDITIONS,
-        samples_per_condition=len(HELD_OUT_TASKS) * arguments.trials,
+        conditions=(CALIBRATION_CONDITIONS if arguments.calibration_only else
+                    DEVELOPMENT_CONDITIONS if arguments.development else CONDITIONS),
+        samples_per_condition=len(tasks) * arguments.trials,
         write=lambda payload: write_campaign_json(progress_path, payload),
         resume=arguments.resume,
     )
@@ -231,10 +288,12 @@ def main(argv: list[str] | None = None) -> int:
     ):
         import mlx.core as mx
         from mlx_lm import load
-        from core.brain.llm.public_channel_decode import (
-            PUBLIC_CHANNEL_SAMPLE_POLICY, decode_public_sample,
-        )
         from mlx_lm.sample_utils import make_sampler
+
+        from core.brain.llm.public_channel_decode import (
+            PUBLIC_CHANNEL_SAMPLE_POLICY,
+            decode_public_sample,
+        )
 
         started = time.time()
         print(f"loading {model_path.name}", flush=True)
@@ -255,6 +314,18 @@ def main(argv: list[str] | None = None) -> int:
             allow_derivation=False,
         )
         by_layer = library.load_or_derive(model, tokenizer, target_layers, hidden)
+        null_by_layer = None
+        if arguments.polarity_null_vectors is not None:
+            null_dir = arguments.polarity_null_vectors
+            null_library = SteeringVectorLibrary(
+                cache_dir=null_dir, source_dirs=[null_dir],
+                expected_model_identity={"descriptor_sha256": descriptor},
+                allow_derivation=False,
+            )
+            null_by_layer = null_library.load_or_derive(model, tokenizer, target_layers, hidden)
+            if any(set(null_by_layer.get(index) or {}) != set(by_layer.get(index) or {})
+                   for index in target_layers):
+                raise ValueError("campaign_polarity_null_dimensions_incomplete")
 
         hooks = []
         for index in target_layers:
@@ -378,7 +449,7 @@ def main(argv: list[str] | None = None) -> int:
                     restore_continuation(hooks, state, hidden)
             elif steered:
                 settle(STATE_HIGH)
-            for task_index, task in enumerate(HELD_OUT_TASKS):
+            for task_index, task in enumerate(tasks):
                 for trial in range(trials):
                     if task_index * trials + trial < len(outputs):
                         continue
@@ -390,7 +461,7 @@ def main(argv: list[str] | None = None) -> int:
                     progress.record(name, output, capture_continuation(hooks),
                                     seconds=time.monotonic() - sample_started, metadata=receipt)
                     outputs.append(output)
-                    print(f"  {name:22s} {len(outputs)}/{len(HELD_OUT_TASKS) * trials} saved", flush=True)
+                    print(f"  {name:22s} {len(outputs)}/{len(tasks) * trials} saved", flush=True)
             conditions[name] = outputs
             print(f"  {name:22s} {len(outputs)} samples", flush=True)
 
@@ -415,6 +486,10 @@ def main(argv: list[str] | None = None) -> int:
             run("random_vector", steered=True)
             shuffle_layers()
             run("shuffled_layers", steered=True)
+            if null_by_layer is not None:
+                for hook in hooks:
+                    hook._vectors = dict(null_by_layer[hook._layer_idx])
+                run("polarity_flip_vector", steered=True)
         restore()
         set_alpha(0.0)
 
@@ -426,7 +501,9 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("campaign_inputs_changed_during_measurement")
 
         result = {
-            "schema": "aura.caa.calibration_result.v1" if arguments.calibration_only else "aura.caa.campaign_result.v2",
+            "schema": ("aura.caa.development_result.v1" if arguments.development else
+                       "aura.caa.calibration_result.v1" if arguments.calibration_only else
+                       "aura.caa.campaign_result.v2"),
             "calibration_only": arguments.calibration_only,
             "generation_policy": PUBLIC_CHANNEL_SAMPLE_POLICY,
             "generation_receipts": progress.sample_metadata,
@@ -436,8 +513,12 @@ def main(argv: list[str] | None = None) -> int:
             # differ by exactly this and by alpha, and without it on the
             # record the two result files are indistinguishable.
             "vectors": str(arguments.vectors),
+            "polarity_null_vectors": (str(arguments.polarity_null_vectors)
+                                      if arguments.polarity_null_vectors is not None else None),
             "alpha": alpha,
-            "held_out_tasks": list(HELD_OUT_TASKS),
+            "held_out_tasks": list(tasks),
+            "development": arguments.development,
+            "target_layers": target_layers,
             "n_trials_per_task": trials,
             "max_tokens": int(arguments.max_tokens),
             "temperature": float(arguments.temperature),
@@ -450,6 +531,33 @@ def main(argv: list[str] | None = None) -> int:
                 for name, values in conditions.items()
             },
         }
+        if arguments.development:
+            from core.consciousness.fusion_probe import STATE_HIGH, _forced_choice
+            from core.evaluation.caa_public_samples import validate_public_samples
+
+            set_alpha(0.0)
+            baseline_quality = _forced_choice(model, tokenizer)
+            restore()
+            set_alpha(alpha)
+            settle(STATE_HIGH)
+            steered_quality = _forced_choice(
+                model, tokenizer, before_item=lambda: settle(STATE_HIGH, rounds=2))
+            set_alpha(0.0)
+            result["capability_battery"] = {
+                "name": "fusion_probe_forced_choice",
+                "baseline_accuracy": baseline_quality[0],
+                "baseline_margin": baseline_quality[1],
+                "steered_accuracy": steered_quality[0],
+                "steered_margin": steered_quality[1],
+            }
+            result["public_generation"] = validate_public_samples(result, conditions)
+            write_campaign_json(arguments.out, result)
+            print(json.dumps({"development": True, "qualification": False,
+                              "capability_battery": result["capability_battery"],
+                              "public_generation": result["public_generation"],
+                              "out": str(arguments.out)}, sort_keys=True), flush=True)
+            return 0 if result["public_generation"]["complete"] else 2
+
         write_campaign_json(arguments.out, result)
 
         if arguments.calibration_only:
