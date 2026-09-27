@@ -384,6 +384,7 @@ _WORTH_CHANNELS: tuple[str, ...] = (
     "ease",
     "spirit",
     "wonder",
+    "integrity",
 )
 
 #: The values she holds, in the choice engine's own order. Written out for the
