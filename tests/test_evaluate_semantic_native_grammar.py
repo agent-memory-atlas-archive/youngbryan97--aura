@@ -80,19 +80,25 @@ def test_source_pair_swap_requires_a_meaning_change_at_fixed_public_inputs():
 
     add = Program(2, (Instruction("add", (0, 1)),))
     sub = Program(2, (Instruction("sub", (0, 1)),))
-    left = SimpleNamespace(source_text="Add 8 and 3.", program=add)
-    right = SimpleNamespace(source_text="Subtract 8 from 3.", program=sub)
+    left = SimpleNamespace(source_text="Add 8 and 3.", inputs=(8, 3), program=add)
+    right = SimpleNamespace(source_text="Subtract 8 from 3.", inputs=(8, 3), program=sub)
     left_id = sha256(left.source_text.encode()).hexdigest()
     right_id = sha256(right.source_text.encode()).hexdigest()
     assert validated_source_pair_map((left, right), dataset="operation_intervention",
                                      require_contrast=True) == {left_id: right_id, right_id: left_id}
-    with pytest.raises(ValueError, match="matched inputs"):
+    with pytest.raises(ValueError, match="matched public inputs and types"):
         validated_source_pair_map((left, SimpleNamespace(source_text="Subtract 9 from 3.",
-                                                        program=sub)),
+                                                        inputs=(9, 3), program=sub)),
                                   dataset="operation_intervention", require_contrast=True)
     with pytest.raises(ValueError, match="distinct programs"):
         validated_source_pair_map((left, SimpleNamespace(source_text=right.source_text,
-                                                        program=add)),
+                                                        inputs=(8, 3), program=add)),
+                                  dataset="operation_intervention", require_contrast=True)
+    same_answer = Program(2, (Instruction("sub", (0, 0)),
+                              Instruction("add", (0, 1))))
+    with pytest.raises(ValueError, match="distinct public answers"):
+        validated_source_pair_map((left, SimpleNamespace(source_text=right.source_text,
+                                                        inputs=(8, 3), program=same_answer)),
                                   dataset="operation_intervention", require_contrast=True)
     with pytest.raises(ValueError, match="intervention dataset"):
         validated_source_pair_map((left, right), dataset="natural_request",

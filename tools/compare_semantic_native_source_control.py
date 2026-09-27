@@ -101,7 +101,10 @@ def matched_source_swap(full_plan: dict, swap_plan: dict,
             or any(pair_map.get(sources[index]) != sources[index ^ 1]
                    for index in range(len(sources)))
             or any(tuple(examples[index].inputs) != tuple(examples[index ^ 1].inputs)
-                   for index in range(len(sources)))):
+                   for index in range(len(sources)))
+            or any(examples[index].program.run(examples[index].inputs)
+                   == examples[index ^ 1].program.run(examples[index ^ 1].inputs)
+                   for index in range(0, len(sources), 2))):
         raise ValueError("source-control swap partner coverage differs")
     by_source = dict(zip(sources, examples, strict=True))
     partner_correct = []

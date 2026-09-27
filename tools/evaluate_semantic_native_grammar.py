@@ -101,10 +101,15 @@ def validated_source_pair_map(examples, *, dataset, require_contrast=False):
 
         for index in range(0, len(examples), 2):
             left, right = examples[index:index + 2]
-            if (source_input_types(left.source_text)[0].values
-                    != source_input_types(right.source_text)[0].values
-                    or semantic_programs_structurally_equivalent(left.program, right.program)):
-                raise ValueError("source-pair swap needs matched inputs and distinct programs")
+            left_public, left_types = source_input_types(left.source_text)
+            right_public, right_types = source_input_types(right.source_text)
+            if (left_public.values != right_public.values or left_types != right_types
+                    or tuple(left.inputs) != tuple(right.inputs)):
+                raise ValueError("source-pair swap needs matched public inputs and types")
+            if semantic_programs_structurally_equivalent(left.program, right.program):
+                raise ValueError("source-pair swap needs distinct programs")
+            if left.program.run(left.inputs) == right.program.run(right.inputs):
+                raise ValueError("source-pair swap needs distinct public answers")
     return {sources[index]: sources[index ^ 1] for index in range(len(sources))}
 
 
