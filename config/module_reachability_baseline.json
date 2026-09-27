@@ -1,6 +1,6 @@
 {
-  "orphan_count": 58,
-  "orphan_lines": 7177,
+  "orphan_count": 56,
+  "orphan_lines": 6897,
   "orphans": [
     "core.brain.affect_state",
     "core.brain.brain_integration",
@@ -38,8 +38,6 @@
     "core.resource.token_monitor",
     "core.runtime.metal_scheduler",
     "core.runtime.what_runs_before_what",
-    "core.security.audit_trail",
-    "core.security.permissions",
     "core.self_modification.meta_optimization",
     "core.senses.gps_interface",
     "core.senses.screen_observer",
@@ -61,7 +59,7 @@
     "core.world.source_reliability",
     "core.world.timeline_engine"
   ],
-  "test_only_count": 259,
+  "test_only_count": 257,
   "test_only": [
     "core.adaptation.meta_learner",
     "core.adaptation.safe_optimizer",
@@ -123,6 +121,7 @@
     "core.consciousness.entropy_fluency",
     "core.consciousness.executive_inhibitor",
     "core.consciousness.ganglion_node",
+    "core.consciousness.ontological_boundary",
     "core.consciousness.phenomenal_falsification",
     "core.consciousness.plasticity_monitor",
     "core.consciousness.structural_opacity",
@@ -249,9 +248,6 @@
     "core.science.reference_mind",
     "core.science.scientist",
     "core.security.consent_kernel",
-    "core.security.credential_broker",
-    "core.security.output_guardrails",
-    "core.security.workspace_jail",
     "core.self_improvement.artifact_grading",
     "core.self_improvement.reconstruction_evidence",
     "core.self_modification.coding_aci",
