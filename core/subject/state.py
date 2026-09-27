@@ -903,6 +903,7 @@ _SCHEMAS: dict[str, Schema] = {
             *((f"enacted_{name}", "organ:portrait.columns") for name in _VALUES),
             ("choice_narrowness", "organ:portrait.columns"),
             ("values_over_drive", "organ:portrait.columns"),
+            ("values_foretell_choice", "organ:portrait.columns"),
         ),
     ),
     "M": _sch(
@@ -1882,6 +1883,7 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
     head.extend(_f(portrait.get(f"enacted_{name}")) for name in _VALUES)
     head.append(_f(portrait.get("narrowness")))
     head.append(_f(portrait.get("values_over_drive")))
+    head.append(_f(portrait.get("values_foretell_choice")))
     return np.array(head, dtype=np.float64)
 
 

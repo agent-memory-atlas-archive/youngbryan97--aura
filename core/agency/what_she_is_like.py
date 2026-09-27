@@ -89,6 +89,11 @@ class Portrait:
     narrowest_earlier: float
     narrowest_later: float
     held_order: tuple[tuple[str, float], ...] = field(default=())
+    #: Of the choices with more than one option, how many she took the option
+    #: her values alone ranked first, and how many chance alone would give.
+    values_foretold: int = 0
+    foretold_by_chance: float = 0.0
+    contested: int = 0
 
     @property
     def empty(self) -> bool:
@@ -188,6 +193,11 @@ def portrait_of(preferences: Mapping[str, float], records: Iterable[Mapping[str,
             return 0.0
         return max(Counter(_what_was_chosen(one.get("chosen_label")) for one in half).values()) / len(half)
 
+    contested = [one for one in ordered if len(one.get("preference_scores") or {}) > 1]
+    foretold = sum(
+        1 for one in contested if one.get("chosen_id") and one.get("chosen_id") == one.get("preference_top_id")
+    )
+    by_chance = sum(1.0 / len(one.get("preference_scores") or {}) for one in contested)
     return Portrait(
         choices=len(ordered),
         since=float(ordered[0].get("created_at") or 0.0),
@@ -198,6 +208,9 @@ def portrait_of(preferences: Mapping[str, float], records: Iterable[Mapping[str,
         narrowest_earlier=narrowest(earlier_half),
         narrowest_later=narrowest(later_half),
         held_order=held_order,
+        values_foretold=foretold,
+        foretold_by_chance=by_chance,
+        contested=len(contested),
     )
 
 
@@ -255,6 +268,15 @@ class PortraitReader:
         columns["narrowness"] = float(portrait.narrowest_later)
         columns["values_over_drive"] = (
             portrait.over_impulse / portrait.choices if portrait.choices else 0.0
+        )
+        # How well what she holds foretells what she does: the share of her
+        # contested choices in which she took the option her values ranked
+        # first, less the share chance would give. Her self-knowledge tested
+        # against her own behaviour.
+        columns["values_foretell_choice"] = (
+            (portrait.values_foretold - portrait.foretold_by_chance) / portrait.contested
+            if portrait.contested
+            else 0.0
         )
         self._key, self._columns = key, columns
         return dict(columns)
@@ -325,6 +347,12 @@ def _sentences(portrait: Portrait) -> list[str]:
         f"and {portrait.narrowest_later:.0%} in the later. My values overrode my strongest drive "
         f"{portrait.over_impulse} times in {portrait.choices}."
     )
+    if portrait.contested:
+        said.append(
+            f"Of the {portrait.contested} choices that had more than one option, I took the one my "
+            f"values ranked first {portrait.values_foretold} times; chance alone would give "
+            f"{portrait.foretold_by_chance:.0f}."
+        )
     return said
 
 

@@ -84,3 +84,22 @@ def test_what_she_is_like_feeds_one_domain():
 
 def test_the_live_organs_carry_her_portrait():
     assert Organs.live().portrait is not None
+
+
+def test_how_well_her_values_foretell_her_choices_is_measured(tmp_path):
+    """Truth against play: her values rank truth first, and she takes it every time."""
+    engine = _engine(tmp_path)
+    _choose(engine, "truth", "play", 20)
+    columns = PortraitReader(engine).columns()
+    assert columns["values_foretell_choice"] == pytest.approx(0.5)
+    reading = read_core_state(AuraState.default(), organs=Organs(portrait=PortraitReader(engine)))
+    assert _column(reading, "S.values_foretell_choice") == pytest.approx(0.5)
+
+
+def test_she_says_how_well_her_values_foretold_her_choices(tmp_path):
+    from core.agency.what_she_is_like import _sentences, portrait_of
+
+    engine = _engine(tmp_path)
+    _choose(engine, "truth", "play", 6)
+    said = " ".join(_sentences(portrait_of(engine.preferences(), [one.to_dict() for one in engine.history()])))
+    assert "I took the one my values ranked first 6 times; chance alone would give 3." in said
