@@ -103,6 +103,7 @@ def her_substrate() -> Any:
     """Her substrate as the runtime registered it, or None."""
     try:
         from core.runtime.service_registry import get_runtime_service
+    # not a failure: with no registry there is no substrate registered in it.
     except ImportError:  # pragma: no cover - shipped together
         return None
     for name in _SUBSTRATE_SERVICES:

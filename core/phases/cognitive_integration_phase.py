@@ -107,6 +107,7 @@ def _modifier_delta(
             continue
         try:
             same = bool(before[key] == value)
+        # not a failure: see the docstring, a value no == can settle counts as changed.
         except (ValueError, TypeError):
             same = False
         if not same:

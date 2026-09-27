@@ -1012,6 +1012,8 @@ class SemanticDevelopment:
                     proposal.identity, source_id=situation.source_id,
                     context_id=situation.context_id, features=situation.features,
                     assumptions=assumptions)
+            # not a failure: a rival that cannot predict this situation makes
+            # no prediction in it, and None is how the comparison counts that.
             except ValueError:
                 return None
             return proposal.expected_outcome

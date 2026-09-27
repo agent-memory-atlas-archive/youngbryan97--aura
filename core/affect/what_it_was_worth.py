@@ -361,6 +361,8 @@ def read_turn(state: Any, ledger: WorthLedger | None = None) -> Worth:
     forces = getattr(getattr(state, "motivation", None), "forces", {}) or {}
     try:
         changes["warmth"] = float(forces.get("warmth_return", 0.0) or 0.0)
+    # not a failure: a warmth force that is not a number is no warmth to read,
+    # the same as a turn with no force at all.
     except (TypeError, ValueError):
         changes["warmth"] = 0.0
     reading = ledger.note(changes)

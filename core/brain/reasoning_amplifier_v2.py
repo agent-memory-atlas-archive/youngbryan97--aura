@@ -1801,7 +1801,8 @@ def is_action_request(objective: str) -> bool:
     # had its prelude run through the verifier while the page waited.
     try:
         from core.conversation.page_interaction import asks_to_act_on_a_page
-    except ImportError:
+    except ImportError as exc:
+        logger.warning("work on a page cannot be recognised as an action: %s", exc)
         return False
     return asks_to_act_on_a_page(q)
 

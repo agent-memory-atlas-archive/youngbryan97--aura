@@ -241,6 +241,7 @@ def _kernel_int(name: str) -> int | None:
         if libc.sysctlbyname(name.encode("utf-8"), ctypes.byref(value), ctypes.byref(size), None, 0) != 0:
             return None
         return int(value.value)
+    # not a failure: None sends the caller to the sysctl command instead.
     except (OSError, AttributeError, TypeError, ValueError):
         return None
 
