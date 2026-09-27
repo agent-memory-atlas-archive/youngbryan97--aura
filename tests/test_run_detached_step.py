@@ -1183,6 +1183,22 @@ def test_command_resolution_preserves_virtualenv_launcher(tmp_path: Path) -> Non
         detached._verify_launcher_binding(binding, launcher)
 
 
+def test_detached_training_environment_preserves_bound_arithmetic(monkeypatch):
+    required = {
+        "MLX_ENABLE_TF32": "0",
+        "AURA_CORTEX_AUTHORITY_KEY_FILE": "/private/key",
+        "AURA_MODEL_LANE_STATE_PATH": "/private/lane.json",
+        "AURA_LOG_DIR": "/tmp/aura-training-logs",
+        "AURA_STATE_ROOT": "/tmp/aura-training-state",
+    }
+    for key, value in required.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("AURA_UNDECLARED_SETTING", "unsafe")
+    frozen = detached._frozen_environment()
+    assert all(frozen[key] == value for key, value in required.items())
+    assert "AURA_UNDECLARED_SETTING" not in frozen
+
+
 def test_execution_manifest_detects_interpreted_script_mutation(tmp_path: Path) -> None:
     script = tmp_path / "target.py"
     script.write_text("print('first')\n", encoding="utf-8")
