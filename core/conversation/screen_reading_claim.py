@@ -169,12 +169,28 @@ _BARE_DESKTOP_SUBJECT_RE = re.compile(
     r"\bdesktops?\b[^.!?\n]{0,20}?\b" + _REFERENT_PREDICATE_RE + r"\b",
     re.IGNORECASE,
 )
+#: A gap within one clause. A sentence boundary already stops the binding; a
+#: clause boundary has to as well, because the thing that SAYS something is the
+#: subject of its own clause and not whatever noun came before the conjunction.
+#:
+#: LIVE 2026-09-27, in the personality-test turn: "I have screen perception
+#: registered but my somatic state says "comfortable and engaged" while energy
+#: is flat." — a true statement about a capability, and a quotation of her own
+#: somatic state — matched `screen ... says` across the "but", was called a
+#: fabricated screen reading, and took a 5,331-character answer to the repair
+#: path. The repair had no budget left, so the turn was served as a preserved
+#: draft and the gate's verdict stood in the record as a defect she had not
+#: committed.
+_WITHIN_ONE_CLAUSE = (
+    r"(?:(?!\b(?:but|while|whereas|though|although|however|because|so\s+that)\b)[^.!?\n;])"
+)
+
 _BOUND_READING_RE = re.compile(
-    r"(?:\b" + _PERCEPTION_VERB_RE + r"\b[^.!?\n]{0,60}?" + _DISPLAY_REFERENT_PATTERN + r")"
-    r"|(?:" + _DISPLAY_REFERENT_PATTERN + r"[^.!?\n]{0,60}?\b" + _REFERENT_PREDICATE_RE + r"\b)"
+    r"(?:\b" + _PERCEPTION_VERB_RE + r"\b" + _WITHIN_ONE_CLAUSE + r"{0,60}?" + _DISPLAY_REFERENT_PATTERN + r")"
+    r"|(?:" + _DISPLAY_REFERENT_PATTERN + _WITHIN_ONE_CLAUSE + r"{0,60}?\b" + _REFERENT_PREDICATE_RE + r"\b)"
     # A bare noun can be the display subject ("Desktop shows ...") without
     # making every compound beginning with `desktop` a display reference.
-    r"|(?:\bdesktops?\b[^.!?\n]{0,20}?\b" + _REFERENT_PREDICATE_RE + r"\b)",
+    r"|(?:\bdesktops?\b" + _WITHIN_ONE_CLAUSE + r"{0,20}?\b" + _REFERENT_PREDICATE_RE + r"\b)",
     re.IGNORECASE,
 )
 

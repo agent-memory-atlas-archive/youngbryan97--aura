@@ -451,3 +451,39 @@ def test_attributed_display_quotations_still_need_their_capture(reply):
         prompt, reply,
         ScreenReadingEvidence(captured=True, text="Access denied Private Account"),
     )
+
+
+def test_a_reading_predicate_belongs_to_its_own_clause() -> None:
+    """LIVE 2026-09-27, the personality-test turn.
+
+    "I have screen perception registered but my somatic state says
+    'comfortable and engaged' while energy is flat." — a true statement about a
+    capability, and a quotation of her own somatic state — matched
+    ``screen ... says`` across the "but" and was called a fabricated screen
+    reading. A 5,331-character answer went to the repair path, which had no
+    budget left, and the gate's verdict stood in the record as a defect she had
+    not committed.
+
+    The thing that SAYS something is the subject of its own clause. A sentence
+    boundary already stopped the binding; a clause boundary stops it too.
+    """
+    from core.conversation.screen_reading_claim import quotes_screen_content
+
+    assert not quotes_screen_content(
+        'I have screen perception registered but my somatic state says '
+        '"comfortable and engaged" while energy is flat.',
+        display_binding_required=True,
+    )
+    assert not quotes_screen_content(
+        'The screen is off, although my drives say "rested".',
+        display_binding_required=True,
+    )
+    # And what still counts: the display itself is what says it.
+    for claimed in (
+        'The tabs say "New Chat" and "Settings".',
+        'The screen: "Access denied"',
+        'On the screen it says "Access denied".',
+        'Chrome is in front, and the window title reads "Inbox".',
+        'I can see the text in the visible part of System Settings.',
+    ):
+        assert quotes_screen_content(claimed, display_binding_required=True), claimed
