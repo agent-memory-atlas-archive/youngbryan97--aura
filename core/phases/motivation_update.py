@@ -966,7 +966,19 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             # no reading means no exertion to spend energy on.
             exertion = 0.0
         rate = MotivationUpdatePhase._ENERGY_PER_DAY_AT_FULL_EXERTION / 86400.0
-        moved = level - (exertion - 0.5) * 2.0 * rate * capacity * dt / 100.0
+        spend = (exertion - 0.5) * 2.0 * rate * capacity * dt / 100.0
+        # What her good turns have left her pays for the work first. Resting,
+        # a negative spend, draws nothing. See core/soma/reserve.py.
+        if spend > 0.0:
+            try:
+                from core.soma.reserve import get_reserve_ledger
+
+                spend -= get_reserve_ledger().draw(spend, capacity=capacity)
+            # not a failure: no reserve is the life she had before it, every
+            # turn's spending paid from energy alone.
+            except (ImportError, AttributeError, TypeError, ValueError):
+                pass
+        moved = level - spend
         return max(0.0, min(capacity, moved))
 
     async def _integrate_drives(self, state: AuraState) -> AuraState:

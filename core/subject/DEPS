@@ -74,6 +74,7 @@ include_rules = [
     # kept beside a campaign's recording. See core/subject/named_readings.py.
     "+core.soma.fatigue",
     "+core.soma.good_news",
+    "+core.soma.reserve",
     # What she has come to feel about an act, one of the reasons her weighing
     # ranks acts by. See core/subject/choosing.py.
     "+core.affect.feelings_about",

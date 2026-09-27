@@ -177,6 +177,8 @@ class Organs:
     #: test found that copy predicting the core from outside it (0.002 on the
     #: 25 September run). See core/soma/good_news.py.
     good_news: Any = None
+    #: What her good turns have left her to work on. See core/soma/reserve.py.
+    reserve: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -224,17 +226,18 @@ class Organs:
         # below says in the same words.
         except Exception:  # noqa: BLE001
             agency = None
-        worth = credit = good_news = None
+        worth = credit = good_news = reserve = None
         try:
             from core.affect.what_it_was_worth import get_worth_ledger
             from core.affect.what_winning_earned import get_credit_ledger
             from core.soma.good_news import get_good_news_ledger
+            from core.soma.reserve import get_reserve_ledger
 
             worth, credit = get_worth_ledger(), get_credit_ledger()
-            good_news = get_good_news_ledger()
+            good_news, reserve = get_good_news_ledger(), get_reserve_ledger()
         # not a failure: absent ledgers are absent organs, as the agency ledger above.
         except ImportError:
-            worth = credit = good_news = None
+            worth = credit = good_news = reserve = None
         return cls(
             workspace=runtime("global_workspace"),
             substrate=runtime("conscious_substrate"),
@@ -254,6 +257,7 @@ class Organs:
             worth=worth,
             credit=credit,
             good_news=good_news,
+            reserve=reserve,
         )
 
 
@@ -1087,6 +1091,11 @@ _SCHEMAS: dict[str, Schema] = {
             # no column read it. See core/agency/habits_are_hers.py.
             ("habits_to_change", "cognition.habits.to_change"),
             ("habit_deficit", "cognition.habits.largest_deficit"),
+            # What her good turns have left her to work on, as a share of a full
+            # energy budget. It pays for her exertion before her energy does,
+            # so it decides how long she can keep at something. See
+            # core/soma/reserve.py.
+            ("energy_reserve", "organ:reserve.share"),
         ),
     ),
     "N": _sch(
@@ -2062,6 +2071,7 @@ def _read_D(state: Any, organs: Organs) -> np.ndarray:
     habits = _dig(state, "cognition.habits", {}) or {}
     head.append(_sat(_f(habits.get("to_change")), 4.0))
     head.append(_f(habits.get("largest_deficit")))
+    head.append(_f(_call(organs.reserve, "share", 0.0, source="organ:reserve.share")))
     return np.array(head, dtype=np.float64)
 
 
