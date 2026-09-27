@@ -89,8 +89,12 @@ def test_every_path_that_would_not_answer_asks_it_first():
     """
     import inspect
 
+    from interface.routes import chat_refusals
+
     source = inspect.getsource(chat)
-    assert source.count("_anything_better_than_giving_up(") == 4  # one def, three uses
+    assert source.count("_anything_better_than_giving_up(") == 3, "three uses"
+    # The definition moved out of the route with the other refusal helpers.
+    assert "async def _anything_better_than_giving_up(" in inspect.getsource(chat_refusals)
 
 
 def test_the_self_process_repair_is_the_second_choice():

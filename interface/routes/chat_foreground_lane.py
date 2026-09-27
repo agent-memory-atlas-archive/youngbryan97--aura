@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import re
 import time
 from typing import Any
 
@@ -315,6 +316,29 @@ async def _fallback_conversation_messages(text: str) -> list[dict[str, str]]:
     return list(snapshot) if snapshot is not None else delivered_exchange_messages(exchanges)
 
 
+def _mostly_an_earlier_reply(answer: str, dialogue: list[dict[str, str]]) -> bool:
+    """Whether most of this answer is sentences she already said, word for word.
+
+    A reply copied from an earlier turn answers that turn. Counted in
+    characters, so one repeated greeting does not condemn a new answer.
+    """
+    said_before = [
+        " ".join(str(message.get("content") or "").split())
+        for message in dialogue or []
+        if isinstance(message, dict) and message.get("role") == "assistant"
+    ]
+    if not said_before:
+        return False
+    sentences = [
+        " ".join(part.split())
+        for part in re.split(r"(?<=[.!?])\s+|\n+", str(answer or ""))
+        if part.strip()
+    ]
+    total = sum(len(one) for one in sentences)
+    repeated = sum(len(one) for one in sentences if any(one in earlier for earlier in said_before))
+    return total > 0 and 2 * repeated > total
+
+
 async def _answer_from_fallback_ladder(
     user_message: object, *, reason: str, budget_s: float | None = None
 ) -> str:
@@ -540,6 +564,29 @@ async def _answer_from_fallback_ladder(
             "declined rather than served."
         )
         return ""
+    # And not an earlier turn's reply. LIVE 26 Sep: the 2-bit stand-in on this
+    # ladder, given a history that held an old desktop failure, answered a
+    # personality-test request with "I routed this through CognitiveEngine
+    # and the governed desktop task lane ... I got 273 step(s) into it" —
+    # copied from a reply about a 2048 game, when no tool had run that turn.
+    if _mostly_an_earlier_reply(answer, dialogue):
+        logger.warning(
+            "🪜 Fallback ladder answer repeated an earlier reply of hers; declined rather than served."
+        )
+        return ""
+    # Nor work it did not do: the check the Cortex's replies meet, held
+    # against this turn's own receipts.
+    try:
+        from core.conversation.response_reliability import _has_unfounded_tool_execution_claim
+        from core.conversation.surface_disposition import turn_tool_receipts
+
+        if _has_unfounded_tool_execution_claim(answer, tool_receipts=turn_tool_receipts()):
+            logger.warning(
+                "🪜 Fallback ladder answer claimed work no tool did this turn; declined rather than served."
+            )
+            return ""
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.fallback_ladder", exc, severity="info", action="served without the tool-claim check")
     logger.info("🪜 Fallback ladder answered while the cortex was unavailable (%s).", reason[:80])
     ran_out = (
         " I had a fixed slice of time for this and used all of it, so there is "

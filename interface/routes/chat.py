@@ -10880,13 +10880,21 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
             # Deferring to cognition for better prose is right. Letting its
             # refusal end a turn she can perform is not: when the model
             # declines work the executor can do, the executor does it.
-            if _chat_preflight._looks_like_desktop_objective(
-                _semantic_user_message
-            ) and _looks_like_capability_refusal(salvaged_no_reply):
+            #
+            # Whatever made the reply unusable. LIVE 26 Sep: asked to take a
+            # personality test on a named site, her draft said "I can't
+            # actually click through 60 questions on a browser from this chat
+            # turn — the tool is registered but I haven't confirmed..." — a
+            # refusal no pattern for refusals matched — the gates rejected it,
+            # nothing ran, and a stand-in model reported a desktop task that
+            # never happened. The work the person asked for does not wait on
+            # a reply about it; the executor keeps its own guards for requests
+            # that ask only for a plan.
+            if _chat_preflight._looks_like_desktop_objective(_semantic_user_message):
                 logger.info(
-                    "Cognition declined a desktop objective it does not own; "
-                    "running the governed desktop lane instead of serving the "
-                    "refusal."
+                    "No servable reply on a desktop objective (%s); running the "
+                    "governed desktop lane rather than giving up on the work.",
+                    "a refusal" if _looks_like_capability_refusal(salvaged_no_reply) else "the reply failed its gates",
                 )
                 # The refusal itself is worthless as a document body, so the
                 # executor composes its own rather than inheriting it.

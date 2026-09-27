@@ -77,3 +77,16 @@ def test_the_executor_is_called_with_a_valid_signature():
     signature = inspect.signature(_execute_desktop_objective_from_chat)
     # Must bind exactly as the call site invokes it.
     signature.bind("open notes and write a note", cognitive_reply="")
+
+
+def test_any_unusable_reply_on_a_desktop_objective_runs_the_executor():
+    """LIVE 26 Sep: "I can't actually click through 60 questions on a browser
+    from this chat turn — the tool is registered but I haven't confirmed..."
+    matched no refusal pattern, the gates rejected it, and nothing ran. The
+    branch now turns on the objective, not on how the reply failed."""
+    source = chat_lane_source()
+    assert "if _chat_preflight._looks_like_desktop_objective(_semantic_user_message):" in source
+    assert (
+        "_looks_like_desktop_objective(\n                _semantic_user_message\n            ) and _looks_like_capability_refusal"
+        not in source
+    )
