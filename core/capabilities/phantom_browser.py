@@ -1146,7 +1146,7 @@ class PhantomBrowser(_ActsOnThePage):
         const out = [];
         const nodes = [];
         for (const el of document.querySelectorAll(selector)) {
-            if (out.length >= maxElements) break;
+            if (maxElements > 0 && out.length >= maxElements) break;
             if (!isVisible(el)) continue;
             if (el.disabled) continue;
             const path = cssPath(el);
@@ -1251,7 +1251,7 @@ class PhantomBrowser(_ActsOnThePage):
     """
 
     async def observe(
-        self, *, principal: str = "", max_elements: int = 120
+        self, *, principal: str = "", max_elements: int | None = None
     ) -> dict[str, Any]:
         """What is on this page and what can be done to it, as structured text.
 
@@ -1284,9 +1284,15 @@ class PhantomBrowser(_ActsOnThePage):
             return {}
         if not self.page:
             return {}
+        # Every control the page has, unless the caller names a number. A flat
+        # 120 cut a questionnaire off at its 24th question: LIVE-rehearsed on
+        # 27 Sep, OEJTS page one has 32 questions of five choices and a Next
+        # button, 161 controls, and the last eight questions and the button
+        # were never seen. What a decision is offered is ranked and bounded
+        # downstream; what the page holds is not a choice to make here.
         try:
             observation = await self.page.evaluate(
-                self._OBSERVE_SCRIPT, int(max(1, min(int(max_elements or 120), 300)))
+                self._OBSERVE_SCRIPT, int(max_elements) if max_elements else 0
             )
         except (
             OSError,

@@ -398,6 +398,18 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
         }.get(mode, cls.INTERACTION_TIMEOUT)
         return 30.0 + operation_timeout + 15.0
 
+    async def _look_again_once_loaded(self, browser: PhantomBrowser) -> dict[str, Any]:
+        """The page after it finishes loading, or {} when it does not in time."""
+        page = getattr(browser, "page", None)
+        if page is None:
+            return {}
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=self.BROWSE_TIMEOUT * 1000.0)
+        except Exception as exc:  # noqa: BLE001 - a page that will not load is the case below
+            record_degradation("sovereign_browser", exc, severity="info", action="looked at a page still loading")
+            return {}
+        return await browser.observe(principal="owner") or {}
+
     @staticmethod
     def _observed_url(browser: PhantomBrowser) -> str:
         try:
@@ -1160,6 +1172,12 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
             for _round in range(max(1, int(max_steps))):
                 still_going(f"pursuit round {_round + 1}")
                 observation = await browser.observe(principal="owner")
+                if not observation or not observation.get("elements"):
+                    # A page mid-load is waited for before it is left. Going back
+                    # to the last good page from a look taken during a load undoes
+                    # the step that started it: the Next of a finished screen,
+                    # rehearsed on 27 Sep, sent the run back to the screen before.
+                    observation = await self._look_again_once_loaded(browser) or observation
                 if (not observation or not observation.get("elements")) and last_good_url:
                     # A reload, a navigation, or a renderer that went away mid-run.
                     # The page being momentarily unreadable is not the end of the

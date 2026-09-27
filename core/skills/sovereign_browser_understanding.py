@@ -38,11 +38,17 @@ class _UnderstandsThePage:
 
     @staticmethod
     def _observation_signature(observation: Mapping[str, Any]) -> str:
-        """What would have to change for progress to have been made."""
+        """What would have to change for progress to have been made.
+
+        Every control, not the first sixty. Rehearsed on 27 Sep against OEJTS
+        page one (161 controls): answering questions 13 to 32 changed nothing
+        the signature read, the loop counted those rounds as stalled, and it
+        ended after two of them with the page answered and Next unpressed.
+        """
         elements = observation.get("elements") or []
         marks = "|".join(
             f"{element.get('role')}:{element.get('name')}:{element.get('checked')}"
-            for element in elements[:60]
+            for element in elements
         )
         return f"{observation.get('url')}#{marks}"
 
