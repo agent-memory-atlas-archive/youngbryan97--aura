@@ -15345,14 +15345,6 @@
       "scope": "<module>.PerceptionDaemon._check_clipboard"
     },
     {
-      "callee": "core.runtime.subprocess_gateway.get_subprocess_gateway().run_async",
-      "canonical_owner": false,
-      "category": "subprocess_gateway",
-      "count": 1,
-      "path": "core/perception/perception_daemon.py",
-      "scope": "<module>.PerceptionDaemon._main_perceptual_loop"
-    },
-    {
       "callee": "<subprocess_gateway>.run",
       "canonical_owner": false,
       "category": "subprocess_gateway",
@@ -16570,6 +16562,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "6e8b72a038bfe030572d5a02940a932c6c35dbc38c8cfce35c66b919dd83019b",
+  "inventory_sha256": "e4c6a8174c684497e8c998d1c9d3d4e36c0f93ecb526ce3bc2d5ec03d53a950b",
   "schema_version": 1
 }

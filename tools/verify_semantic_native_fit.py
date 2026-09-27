@@ -16,6 +16,70 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+def audit_grammar_identifiability(rows):
+    """Find contradictory teacher labels for identical causal scoring inputs.
+
+    This is a necessary-condition audit, not a proof that the model can learn
+    the task. Source identities and target-program metadata are deliberately
+    absent from the scoring fingerprint. Unscored future tokens cannot make
+    an otherwise identical causal decision distinguishable.
+    """
+    from collections import defaultdict
+
+    groups = defaultdict(list)
+    for row in rows:
+        if (not isinstance(row.get("source"), str) or not row["source"]
+                or type(row.get("decision_index")) is not int or row["decision_index"] < 0
+                or type(row.get("choice_index")) is not int or row["choice_index"] < 0):
+            raise ValueError("grammar identifiability needs explicit decision identities")
+        groups[row["source"], row["decision_index"]].append(row)
+    if not groups:
+        raise ValueError("grammar identifiability needs measured supervision")
+    fingerprints, kinds = defaultdict(list), Counter()
+    deterministic = 0
+    for identity, choices in sorted(groups.items()):
+        choices.sort(key=lambda row: row["choice_index"])
+        correct, kind = choices[0].get("correct_index"), choices[0].get("kind")
+        if (type(correct) is not int or not 0 <= correct < len(choices)
+                or kind not in {"operation", "reference", "termination"}
+                or [row["choice_index"] for row in choices] != list(range(len(choices)))
+                or any(row.get("correct_index") != correct or type(row.get("correct_index")) is not int
+                       or row.get("kind") != kind for row in choices)):
+            raise ValueError("grammar identifiability decision alternatives differ")
+        inputs = []
+        for row in choices:
+            tokens, positions, start = (row.get("tokens"), row.get("semantic_positions"),
+                                        row.get("continuation_start"))
+            if (not isinstance(tokens, list) or not tokens
+                    or any(type(token) is not int or token < 0 for token in tokens)
+                    or type(start) is not int or not 1 <= start < len(tokens)
+                    or not isinstance(positions, list) or not positions
+                    or any(type(index) is not int or not start <= index < len(tokens)
+                           for index in positions)
+                    or sorted(set(positions)) != positions):
+                raise ValueError("grammar identifiability lost causal scoring positions")
+            inputs.append((tokens[:positions[-1] + 1], positions))
+        key = hashlib.sha256(json.dumps(inputs, separators=(",", ":")).encode()).hexdigest()
+        fingerprints[key].append({"source": identity[0], "decision_index": identity[1],
+                                   "correct_index": correct})
+        kinds[kind] += 1
+        deterministic += len(choices) == 1
+    conflicts, maximum_correct = [], 0
+    for key, observations in sorted(fingerprints.items()):
+        labels = Counter(row["correct_index"] for row in observations)
+        maximum_correct += max(labels.values())
+        if len(labels) > 1:
+            conflicts.append({"scoring_input_sha256": key, "observations": observations})
+    return {"schema": "aura.native_grammar_identifiability.v1", "decision_groups": len(groups),
+            "unique_scoring_inputs": len(fingerprints), "by_kind": dict(sorted(kinds.items())),
+            "deterministic_decisions": deterministic,
+            "duplicate_scoring_input_groups": sum(len(values) > 1 for values in fingerprints.values()),
+            "contradictory_scoring_input_groups": len(conflicts), "conflicts": conflicts,
+            "maximum_exact_teacher_decisions": maximum_correct,
+            "basis": "ordered_causal_token_choices_and_scored_target_positions",
+            "learnability_proven": False, "semantic_transfer_proven": False}
+
+
 def verify_native_totals(report, rows):
     """Recompute reported counts without treating unknown labels as successes."""
     identities = [row["source"] for row in rows]
@@ -167,6 +231,7 @@ def verify_source_control_supervision(plan, supervision, items, tokenizer):
         return {"mode": mode, "source_control_verified": controlled,
                 "grammar_choices_verified": True, "supervision_sequences_verified": len(expected),
                 "supervised_decisions_verified": sum(len(value) for value in groups.values()),
+                "identifiability": audit_grammar_identifiability(supervision["rows"]),
                 "erased_fit_population": len(fit_ids) if controlled else 0,
                 "intact_calibration_population": len(cal_ids)}
     if mode == "source_text":
