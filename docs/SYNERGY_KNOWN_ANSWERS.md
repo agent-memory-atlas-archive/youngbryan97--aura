@@ -164,3 +164,14 @@ schedule, which the toy systems, driven by nothing in common, never had.
 that keeps it: sources permuted only among turns of the same condition, which
 holds each condition's structure and breaks only the turn-by-turn alignment.
 Nothing of hers is read with that null before its table is written here.
+
+### The cycle table, fixed before it ran
+
+The same toys through a shared schedule: eight conditions in a fixed order, each
+moving W, A and what D does by its own unit-normal offset
+(`tools/synergy_known_answers.py --cycle`). Product, separable sum and uncoupled,
+seeds 3, 7, 11, 19 and 23, the Kraskov line with each first null: the shift the
+amendment adopted, and the within-condition permutation. A first null qualifies
+when product passes at four of five and separable and uncoupled at no more than
+one. One that qualifies where the shift does not is proposed as an amendment for
+recordings whose conditions cycle, which hers do, before it reads any of them.
