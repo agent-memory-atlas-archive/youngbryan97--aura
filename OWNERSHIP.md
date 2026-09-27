@@ -49,9 +49,8 @@ Hierarchy: UnifiedWill > AuthorityGateway > ExecutiveCore > SubstrateAuthority (
 | Domain | Owner | File |
 |--------|-------|------|
 | Identity enforcement | `PersonaEnforcementGate` | `core/identity/identity_guard.py` |
-| Output safety | `OutputGuardrails` | `core/security/output_guardrails.py` |
+| Constitutional output check | `ConstitutionalGuard` | `core/security/constitutional_guard.py` |
 | Code execution safety | `ASTGuard` + `CodeGuardian` | `core/security/ast_guard.py` |
-| Constitutional values | `ConstitutionalGuard` | `core/security/constitutional_guard.py` |
 | Integrity monitoring | `IntegrityGuardian` | `core/security/integrity_guardian.py` |
 
 ## Action routing

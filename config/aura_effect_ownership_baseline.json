@@ -13225,14 +13225,6 @@
       "scope": "<module>.SearchArtifactStore.append"
     },
     {
-      "callee": "pathlib.Path().parent.mkdir",
-      "canonical_owner": false,
-      "category": "raw_file_mutation",
-      "count": 1,
-      "path": "core/security/audit_trail.py",
-      "scope": "<module>.AuditTrail.__init__"
-    },
-    {
       "callee": "self.values_path.parent.mkdir",
       "canonical_owner": false,
       "category": "raw_file_mutation",
@@ -16562,6 +16554,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "e4c6a8174c684497e8c998d1c9d3d4e36c0f93ecb526ce3bc2d5ec03d53a950b",
+  "inventory_sha256": "2118864bd2f6f07e475a87ebd144366bb91ad5c7e68cbb6738055b7649b41d8f",
   "schema_version": 1
 }
