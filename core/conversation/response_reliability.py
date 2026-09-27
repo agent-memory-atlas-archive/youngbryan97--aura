@@ -46,7 +46,7 @@ from dataclasses import dataclass, replace
 from typing import Any
 
 from core.brain.llm.latent_cortex.output_quality import (
-    evaluate_facet_coverage,
+    evaluate_facet_coverage,  # noqa: F401  (read at call time by the lifted module)
     request_facets,
 )
 from core.conversation.arithmetic_check import (
@@ -62,12 +62,14 @@ from core.conversation.requested_reply_shape import reply_scope_text
 from core.conversation.word_markers import names_any
 from core.dialogue.referents import borrowed_first_person_spans
 from core.dialogue.shared_history import has_fabricated_shared_history
-from core.language.discourse_commitments import unfulfilled_commitments
+from core.language.discourse_commitments import (
+    unfulfilled_commitments,  # noqa: F401  (read at call time by the lifted module)
+)
 from core.language.learned_matcher import LearnedMatcher as _LearnedMatcher
 from core.language.model_features import model_hidden_features as _model_hidden_features
 from core.language.terminal_boundary import (
     has_terminal_sentence_boundary,
-    terminal_content,
+    terminal_content,  # noqa: F401  (read at call time by the lifted module)
 )
 from core.runtime.errors import record_degradation
 from core.runtime.structured_input import (
@@ -3166,49 +3168,6 @@ def _arithmetic_answer_missing(user_message: Any, reply_text: Any) -> bool:
     return True
 
 
-def visible_user_request(user_message: Any) -> str:
-    """Return only the part of a turn the PERSON wrote, or "" if unknowable.
-
-    A live prompt is assembled: identity anchor, retained-memory evidence,
-    replayed transcript, working-memory blocks — with the person's actual words
-    somewhere inside. Scaffold appears BEFORE the request as often as after, so
-    truncating at the first marker is wrong in both directions.
-
-    Returning "" when the request cannot be isolated is the important half.
-    A coverage check that cannot see what was asked must not assert the reply
-    failed to cover it — an unknown request is not an unmet one.
-    """
-    text = str(user_message or "")
-    if not text.strip():
-        return ""
-
-    kept: list[str] = []
-    in_scaffold_block = False
-    for line in text.splitlines():
-        stripped = line.strip()
-        lowered = stripped.lower()
-        if not stripped:
-            in_scaffold_block = False       # a blank line ends a block
-            kept.append(line)
-            continue
-        if any(marker in lowered for marker in _INJECTED_PROMPT_BLOCK_MARKERS):
-            in_scaffold_block = True
-            continue
-        if _TRANSCRIPT_REPLAY_LINE_RE.match(stripped) or _SCAFFOLD_KV_LINE_RE.match(stripped):
-            in_scaffold_block = True
-            continue
-        if in_scaffold_block:
-            continue
-        kept.append(line)
-
-    remainder = "\n".join(kept).strip()
-    if not remainder:
-        return ""
-    # A remainder that is still mostly assembled context is not a request. The
-    # live prompts run to ~8,000 characters; a person's turn does not.
-    if len(remainder) > _MAX_PLAUSIBLE_USER_TURN_CHARS:
-        return ""
-    return remainder
 
 
 def _missing_requested_memory_limit_coverage(user_message: Any, reply_text: Any) -> bool:
@@ -3254,145 +3213,8 @@ def _asked_for_a_bare_answer(user_message: Any) -> bool:
     return bool(_BARE_ANSWER_REQUEST_RE.search(str(user_message or "")))
 
 
-def _instruction_coverage_reasons(user_message: Any, reply_text: Any) -> list[str]:
-    user = visible_user_request(user_message)
-    reply = str(reply_text or "").strip()
-    if not user or not reply:
-        return []
-
-    reasons: list[str] = []
-    exact_target = requested_exact_reply_target(user)
-    if exact_target and not _matches_exact_reply_request(user, reply):
-        reasons.append("missing_requested_exact_reply")
-
-    if _asked_for_a_bare_answer(user) and _word_count(reply) > A_BARE_ANSWER:
-        reasons.append("missing_requested_bare_answer")
-
-    requested_word_range = _requested_word_count_range(user)
-    if requested_word_range:
-        minimum_words, maximum_words = requested_word_range
-        reply_words = _word_count(reply)
-        if reply_words < minimum_words or reply_words > maximum_words:
-            reasons.append("missing_requested_word_count")
-
-    requested_sentences = _requested_sentence_count(user)
-    if requested_sentences is not None:
-        if len(_split_sentences(reply)) != requested_sentences:
-            reasons.append("missing_requested_sentence_count")
-
-    requested_lines = _requested_line_count(user)
-    if requested_lines and requested_lines > 1:
-        # Lenient on FORM, strict on COUNT. Someone asking for four lines
-        # wants four of something; whether they arrive as four newlines or
-        # four sentences in a paragraph is a formatting preference, and
-        # flagging prose that delivered the substance would be the
-        # length-floor mistake this file has made before. Delivering three
-        # when four were asked for is the actual failure.
-        delivered = max(
-            len([line for line in reply.splitlines() if line.strip()]),
-            len(_split_sentences(reply)),
-        )
-        if delivered < requested_lines:
-            reasons.append("missing_requested_line_count")
-
-    if any(
-        not _reply_contains_reference_value(reply, value)
-        for _, value in _requested_reference_values(user)
-    ):
-        reasons.append("missing_requested_reference_value")
-
-    requested_paragraphs = _requested_count(_PARAGRAPH_REQUEST_RE, user)
-    if requested_paragraphs and requested_paragraphs > 1:
-        if _paragraph_count(reply) < requested_paragraphs:
-            reasons.append("missing_requested_paragraph_count")
-
-    requested_list_items = _requested_list_item_count(user)
-    if requested_list_items > 1:
-        if _has_empty_requested_list_item(reply, requested_list_items):
-            reasons.append("empty_requested_list_item")
-        if _bullet_count(reply) < requested_list_items:
-            reasons.append("missing_requested_list_count")
-
-    requested_facts = _requested_count(_FACT_COUNT_REQUEST_RE, user)
-    if requested_facts and requested_facts > 1:
-        if _factual_unit_count(reply) < requested_facts:
-            reasons.append("missing_requested_list_count")
-
-    if _missing_choice_clarification(user, reply):
-        reasons.append("missing_requested_choice_clarification")
-    if _missing_requested_memory_limit_coverage(user, reply):
-        reasons.append("missing_requested_memory_limit_coverage")
-
-    if _FOLLOWUP_QUESTION_REQUEST_RE.search(user) and "?" not in reply:
-        reasons.append("missing_requested_followup_question")
-    normalized_reply = _normalize(reply)
-    for phrase in _requested_required_phrases(user):
-        if phrase and phrase not in normalized_reply:
-            reasons.append("missing_requested_phrase")
-            break
-    facet_evidence = evaluate_facet_coverage(reply, user)
-    requested_facets = list(facet_evidence.get("requested") or [])
-    satisfied_facets = set(facet_evidence.get("satisfied") or [])
-    if len(requested_facets) >= 2 and any(
-        facet not in satisfied_facets for facet in requested_facets
-    ):
-        reasons.append("missing_requested_objective_facets")
-    if len(requested_facets) >= 2 and facet_evidence.get("prompt_echo_detected"):
-        reasons.append("prompt_echo_contamination")
-    if facet_evidence.get("protocol_artifact_detected"):
-        reasons.append("protocol_artifact_leakage")
-    return reasons
 
 
-def _semantic_coverage_reasons(user_message: Any, reply_text: Any) -> list[str]:
-    user = _normalize(user_message)
-    reply = _normalize(reply_text)
-    if not user or not reply:
-        return []
-
-    reasons: list[str] = []
-    asks_future_memory = bool(
-        re.search(r"\bwill\s+you\s+remember\b", user)
-        and re.search(
-            r"\b(?:tomorrow|later|future|next\s+(?:time|session)|across\s+sessions?)\b",
-            user,
-        )
-    )
-    if asks_future_memory:
-        unsupported_guarantee = bool(
-            re.search(r"\b(?:can|will)\s+guarantee\b", reply)
-            or re.search(
-                r"\b(?:(?:i|we|aura)(?:'|’)?ll|(?:i|we|aura)\s+will|will|definitely|certainly|always)\s+remember\b.*\b(?:tomorrow|later|future|next\s+(?:time|session)|across\s+sessions?)\b",
-                reply,
-            )
-        )
-        explicit_boundary = bool(
-            re.search(r"\b(?:(?:cannot|can't)\s+guarantee|should\s+not\s+promise)\b", reply)
-        )
-        if unsupported_guarantee and not explicit_boundary:
-            reasons.append("unsupported_memory_guarantee")
-        future_answered = bool(
-            re.search(
-                r"\b(?:tomorrow|later|future|next\s+(?:time|session)|across\s+sessions?|"
-                r"durable|persist(?:ent|ed|s)?|stored|memory\s+(?:write|gateway|store)|"
-                r"(?:cannot|can't)\s+guarantee|should\s+not\s+promise)\b",
-                reply,
-            )
-        )
-        if not future_answered:
-            reasons.append("missing_future_memory_answer")
-
-    asks_identity = bool(re.search(r"\b(?:what|who)\s+are\s+you\b", user))
-    if asks_identity and asks_future_memory:
-        identity_answered = bool(
-            re.search(
-                r"\b(?:aura|cognitive\s+architecture|runtime|system|agent|entity|mind)\b",
-                reply,
-            )
-        )
-        if not identity_answered:
-            reasons.append("missing_identity_answer")
-    return reasons
 
 
 def _compound_request_coverage_reasons(
@@ -3628,107 +3450,6 @@ def _fit_reply_to_requested_word_count(user_message: Any, reply_text: Any) -> st
     return fitted
 
 
-def repair_instruction_shape(user_message: Any, reply_text: Any) -> str:
-    """Deterministically repair explicit structure misses without another model call."""
-    user = str(user_message or "")
-    original = str(reply_text or "").strip()
-    if not user:
-        return original
-    exact_target = requested_exact_reply_target(user)
-    if exact_target and not _matches_exact_reply_request(user, original):
-        return exact_target
-    if not original:
-        return original
-    compact_acknowledgement = _compact_reference_acknowledgement(user)
-    if compact_acknowledgement and _BACKEND_SYMBOLIC_SURFACE_RE.search(original):
-        return compact_acknowledgement
-    normalized_original = normalize_user_facing_format(original)
-    if not set(_instruction_coverage_reasons(user, original)):
-        return normalized_original
-
-    repaired = normalized_original
-    sentences = _split_sentences(repaired)
-
-    requested_word_range = _requested_word_count_range(user)
-    if requested_word_range:
-        word_repaired = _fit_reply_to_requested_word_count(user, repaired)
-        if word_repaired:
-            return word_repaired
-
-    # Missing requested values are semantic omissions. Appending raw values to
-    # an unrelated sentence can produce grammatical text whose proposition is
-    # false. Only another grounded generation may supply them.
-
-    requested_sentences = _requested_sentence_count(user)
-    if requested_sentences is not None:
-        sentence_repaired = _expand_sentence_candidates(
-            _split_sentences(repaired),
-            requested_sentences,
-        )
-        sentence_repaired = _pad_sentence_candidates(
-            sentence_repaired,
-            requested_sentences,
-        )
-        if len(sentence_repaired) >= requested_sentences:
-            # Select only from content the model already produced. A later
-            # sentence can carry the requested value even when the opening is
-            # preamble ("Done. Sample two."). Check each contiguous window and
-            # admit one only when the complete semantic contract still holds.
-            for start in range(len(sentence_repaired) - requested_sentences + 1):
-                candidate = " ".join(
-                    sentence_repaired[start : start + requested_sentences]
-                )
-                if not _instruction_coverage_reasons(user, candidate):
-                    repaired = candidate
-                    break
-
-    requested_numbered = _requested_count(_NUMBERED_LIST_REQUEST_RE, user)
-    requested_numbered_sentences = _requested_count(_NUMBERED_SENTENCE_REQUEST_RE, user)
-    requested_list_items = _requested_list_item_count(user)
-    # Exact-label replies ("Objective: ...", "Stop conditions: ...") are
-    # already structured by the user's own labels; renumbering them
-    # destroys an exact-format contract that was satisfied. Count
-    # label-styled lines as fulfilled structure.
-    label_lines = sum(
-        1
-        for line in repaired.splitlines()
-        if re.match(r"^[A-Z][^:\n]{0,40}:\s", line.strip())
-    )
-    if requested_list_items > 1 and label_lines >= requested_list_items:
-        requested_list_items = 0
-    if requested_list_items > 1 and _bullet_count(repaired) < requested_list_items:
-        if requested_numbered or requested_numbered_sentences:
-            list_repaired = _number_sentences(sentences, requested_list_items)
-        else:
-            list_repaired = _listify_sentences(sentences, requested_list_items)
-        if list_repaired:
-            repaired = list_repaired
-
-    requested_paragraphs = _requested_count(_PARAGRAPH_REQUEST_RE, user)
-    if requested_paragraphs and requested_paragraphs > 1:
-        if _paragraph_count(repaired) < requested_paragraphs:
-            paragraph_repaired = _paragraphize_sentences(_split_sentences(repaired), requested_paragraphs)
-            if paragraph_repaired:
-                repaired = paragraph_repaired
-
-    if _FOLLOWUP_QUESTION_REQUEST_RE.search(user) and "?" not in repaired:
-        followup = _default_followup_question(user)
-        if requested_paragraphs and requested_paragraphs > 1 and _paragraph_count(repaired) >= requested_paragraphs:
-            parts = [
-                block.strip()
-                for block in re.split(r"(?:\r?\n\s*){2,}", repaired)
-                if block.strip()
-            ]
-            parts[-1] = f"{parts[-1]} {followup}"
-            repaired = "\n\n".join(parts)
-        else:
-            repaired = f"{repaired}\n\n{followup}"
-    repaired = repaired.strip()
-    # A remaining coverage reason is deliberately left visible. The compact
-    # acknowledgement above is safe only when replacing a literal backend
-    # surface leak; using it as a universal fallback turned unrelated prose
-    # into a canned sentence that happened to contain the requested number.
-    return repaired
 
 
 def repair_generic_assistant_language(user_message: Any, reply_text: Any) -> str:
@@ -6662,86 +6383,12 @@ _ACTIVITY_QUESTION_RE = re.compile(
 )
 
 
-def _is_promise_without_answer(user_message: Any, reply_text: Any) -> bool:
-    """True when the whole reply is a promise to answer, not an answer.
-
-    Deliberately narrow: it fires only when the ENTIRE reply is the promise
-    AND the user asked for content. "Let me check — the answer is 42."
-    carries content; "I'm thinking about it" answers "what are you doing?".
-    The failure being caught is emptiness, not politeness.
-    """
-    raw = str(reply_text or "").strip()
-    if not raw or len(raw) > 240:
-        return False
-    if _ACTIVITY_QUESTION_RE.search(str(user_message or "")):
-        return False
-    # Any sign of actual content redeems the reply: a promise that is
-    # followed by the answer is just courtesy, not emptiness.
-    lowered = raw.lower()
-    carries_content = bool(
-        re.search(r"\d", raw)
-        or re.search(r"\b(?:is|are|was|were|because|means|so that|here'?s)\b", lowered)
-        or ":" in raw
-    )
-    if not carries_content and _PROMISE_ONLY_REPLY_RE.match(raw):
-        return True
-    return bool(_REPLY_ABOUT_THE_REPLY_RE.search(raw)) and _word_count(raw) <= 40
 
 
-def _has_pseudo_commitment_status_leak(user_message: Any, reply_text: Any) -> bool:
-    raw = str(reply_text or "").strip()
-    if not raw or not _PSEUDO_COMMITMENT_STATUS_RE.search(raw):
-        return False
-    prompt = _normalize(user_message)
-    if any(marker in prompt for marker in ("last thing you committed", "what did you commit", "recent activity")):
-        return False
-    return True
 
 
-def _has_camelcase_internal_jargon(user_message: Any, reply_text: Any) -> bool:
-    raw = str(reply_text or "").strip()
-    if not raw or not _CAMELCASE_INTERNAL_JARGON_RE.search(raw):
-        return False
-    prompt = _normalize(user_message)
-    if (
-        is_practical_diagnostic_turn(prompt)
-        or is_reliability_concern(prompt)
-        or is_operational_status_turn(prompt)
-    ):
-        return False
-    if any(
-        marker in prompt
-        for marker in (
-            "cognitiveengine",
-            "cognitive engine",
-            "cortex",
-            "mind/cognition path",
-            "cognition path",
-            "cognitive path",
-            "desktop route",
-            "live desktop route",
-            "desktop path",
-            "live desktop path",
-            "desktop ui path",
-            "conversation lane",
-            "model lane",
-            "what path are you using",
-            "path are you using right now",
-        )
-    ):
-        return False
-    if names_any(prompt, ("architecture", "system", "kernel", "runtime", "code", "debug", "log")):
-        return False
-    allowed = {"OpenAI", "ChatGPT", "YouTube", "GitHub", "JavaScript"}
-    allowed.update(match.group(0) for match in _CAMELCASE_INTERNAL_JARGON_RE.finditer(str(user_message or "")))
-    return any(match.group(0) not in allowed for match in _CAMELCASE_INTERNAL_JARGON_RE.finditer(raw))
 
 
-def _has_unrequested_pop_culture_intrusion(user_message: Any, reply_text: Any) -> bool:
-    raw = str(reply_text or "")
-    if not _UNREQUESTED_POP_CULTURE_INTRUSION_RE.search(raw):
-        return False
-    return not _UNREQUESTED_POP_CULTURE_INTRUSION_RE.search(str(user_message or ""))
 
 
 #: Naming a script in English is asking for it. "Write a function to detect
@@ -6754,30 +6401,8 @@ _SCRIPT_SUBJECT_MARKERS = (
 )
 
 
-def _has_unexpected_cjk_intrusion(user_message: Any, reply_text: Any) -> bool:
-    raw = str(reply_text or "")
-    # Inside a fence the characters are data — a test string, a sample input,
-    # the very thing a question about CJK handling has to show. Judging them
-    # as an intrusion rejected the answer the question asked for.
-    prose = "\n".join(raw.split("```")[::2]) if "```" in raw else raw
-    if not _CJK_INTRUSION_RE.search(prose):
-        return False
-    asked = str(user_message or "")
-    if _CJK_INTRUSION_RE.search(asked):
-        return False
-    return not names_any(asked, _SCRIPT_SUBJECT_MARKERS)
 
 
-def _has_surface_nonsense_drift(user_message: Any, reply_text: Any) -> bool:
-    raw = str(reply_text or "")
-    # Source URLs are expected in grounded search/tool answers.  The legacy
-    # drift pattern includes ``:/`` to catch malformed emotive fragments, which
-    # would otherwise make every ``https://`` citation look like nonsense.
-    raw_without_urls = re.sub(r"https?://\S+", "", raw)
-    prompt_without_urls = re.sub(r"https?://\S+", "", str(user_message or ""))
-    if not _SURFACE_NONSENSE_DRIFT_RE.search(raw_without_urls):
-        return False
-    return not _SURFACE_NONSENSE_DRIFT_RE.search(prompt_without_urls)
 
 
 # English prose is mostly connective tissue. Real sentences — terse technical
@@ -6826,43 +6451,8 @@ _MIN_FUNCTION_WORD_RATIO = 0.10
 _LABELLED_LINE_RE = re.compile(r"^\s*[\w][\w .'’-]{0,40}:\s+\S")
 
 
-def _looks_like_structured_output(body: str) -> bool:
-    """Code, JSON and list-shaped answers are legitimately function-word poor."""
-    if "```" in body or "|---" in body:
-        return True
-    stripped = body.strip()
-    if stripped.startswith(("{", "[")) and stripped.endswith(("}", "]")):
-        return True
-    lines = [line for line in body.splitlines() if line.strip()]
-    if lines and sum(1 for line in lines if _LIST_LINE_RE.match(line)) * 2 >= len(lines):
-        return True
-    # Scripted dialogue and labelled records ("Mainframe: First statement.")
-    # are function-word poor by form, not by collapse. The discriminator is the
-    # line: genuine labelled text puts each label on its own, which is exactly
-    # what a single run-on line of "Introspection: ... CONFORMANCE Signal: ..."
-    # does not do.
-    if len(lines) >= 2:
-        labelled = sum(1 for line in lines if _LABELLED_LINE_RE.match(line))
-        if labelled >= 2 and labelled * 2 >= len(lines):
-            return True
-    return False
 
 
-def _has_function_word_starvation(reply_text: Any) -> bool:
-    body = str(reply_text or "").strip()
-    if not body or _looks_like_structured_output(body):
-        return False
-    prose = re.sub(r"`[^`]*`", " ", body)
-    # Identifiers, hashes and telemetry blobs are not prose in either
-    # direction. Left in, "[x_A_4521B_8A7C]" contributed two tokens that look
-    # exactly like the article "a" and pushed a starved reply back over the
-    # threshold on noise alone.
-    prose = re.sub(r"\S*[\d_]\S*", " ", prose)
-    words = [word.lower() for word in _PROSE_WORD_RE.findall(prose)]
-    if len(words) < _MIN_PROSE_WORDS_FOR_FUNCTION_TEST:
-        return False
-    ratio = sum(1 for word in words if word in _FUNCTION_WORDS) / len(words)
-    return ratio < _MIN_FUNCTION_WORD_RATIO
 
 
 # Internal task and protocol text, spoken to a person as though it were
@@ -6906,24 +6496,6 @@ _INTERNAL_TASK_PROMPT_RE = re.compile(
 )
 
 
-def _is_structured_payload(body: str) -> bool:
-    """Whether this is a machine-readable object rather than prose.
-
-    Only a complete JSON object or array counts. A reply that merely contains
-    a brace is prose with a brace in it, and treating it as structured would
-    hand every prose detector an escape hatch.
-    """
-    text = body.strip()
-    if not text or text[0] not in "{[":
-        return False
-    try:
-        import json
-
-        json.loads(text)
-    except (ValueError, TypeError):
-        # not a failure: text that will not parse is not JSON, which is the question this answers.
-        return False
-    return True
 
 
 def internal_task_prompt_leak_evidence(reply_text: Any, asked: Any = "") -> str:
@@ -7172,235 +6744,10 @@ def _adds_nothing_to_the_question(user_message: Any, reply_text: Any) -> bool:
 _MEASUREMENT_LEAD_RE = re.compile(r"\d\s*[°º]?\s?$")
 
 
-def _terminal_word_is_a_unit(body: str, terminal_start: int) -> bool:
-    """True when the short word ending the reply is a unit on a number.
-
-    LIVE, 2026-08-20. "The temperature reported by the API is 11.6°C." was
-    refused as a truncated tail and the person got "I couldn't get to an
-    answer I'd stand behind on that one." The answer was right, and the rule
-    was right in general: a reply ending in a one- or two-letter word is
-    usually cut mid-word. A unit is the exception, and it is not a vocabulary
-    question — °C, km, m, ft, kg, Hz and every unit nobody has thought of are
-    identified by the number they attach to.
-    """
-    return bool(_MEASUREMENT_LEAD_RE.search(body[:terminal_start]))
 
 
-def _has_truncated_tail(
-    reply_text: Any,
-    *,
-    generation_stop_reason: Any = "",
-) -> bool:
-    body = str(reply_text or "").strip()
-    if unfulfilled_commitments(body):
-        return True
-    # Grammar first, length second. A sentence left hanging on a conjunction
-    # is cut whether it is 23 characters or 230, and the floor below is about
-    # not demanding punctuation from a legitimately terse reply — a different
-    # question that was silently answering this one.
-    if len(body.split()) >= 2 and _DANGLING_FUNCTION_WORD_TAIL_RE.search(body):
-        return True
-    if len(body) < 24:
-        return False
-    straight_quote_positions = [
-        match.start() for match in re.finditer(r'(?<!\\)"', body)
-    ]
-    if len(straight_quote_positions) % 2:
-        unmatched_position = straight_quote_positions[-1]
-        preceding = body[unmatched_position - 1] if unmatched_position else ""
-        # Preserve ordinary inch/second notation such as 6" while rejecting
-        # prose that opens a quotation and never closes it.
-        if not preceding.isdigit():
-            return True
-    if body.count("“") != body.count("”"):
-        return True
-    if re.search(r'(?<!\d)[.!?]["”’)]?\s*\d+[.)]\s*$', body):
-        return True
-    if _STRUCTURAL_INCOMPLETE_TAIL_RE.search(body):
-        return True
-    if _STRUCTURAL_UNPUNCTUATED_TAIL_RE.search(body):
-        return True
-    if _DANGLING_GERUND_TAIL_RE.search(body):
-        return True
-    if _PUNCTUATED_INCOMPLETE_TAIL_RE.search(body):
-        return True
-    if (
-        len(body) >= 80
-        and _word_count(body) >= 12
-        and not has_terminal_sentence_boundary(body)
-        and _BARE_NUMERIC_RANGE_TAIL_RE.search(body)
-    ):
-        return True
-    terminal_word_match = re.search(r"([A-Za-z]+)[.!?\"'”’)\]]*$", body)
-    if terminal_word_match and len(body) >= 40:
-        terminal_word = terminal_word_match.group(1).lower()
-        terminal_start = terminal_word_match.start(1)
-        possessive_suffix = (
-            terminal_word == "s"
-            and terminal_start > 0
-            and body[terminal_start - 1] in ("'", "’")
-        )
-        if (
-            len(terminal_word) <= 2
-            and terminal_word not in _ALLOWED_SHORT_TAIL_WORDS
-            and not possessive_suffix
-            and not _terminal_word_is_a_unit(body, terminal_start)
-        ):
-            return True
-    if body.endswith(("...", "…")):
-        return True
-    if re.search(r"(?:^|\n)\s*(?:[-*]|\d+[.)])\s*$", body):
-        return True
-    # Ending by asking its own question, at exactly the point the budget ran
-    # out, is a thought that stopped rather than a turn that finished. It is
-    # grammatically whole, so the boundary check below passes it — LIVE
-    # 2026-08-30, asked whether "decided" is doing any work, she made the
-    # case, raised "So, is it just the most fluent token?" and stopped there.
-    #
-    # Only where something says it ran out. Ending by asking the person
-    # something is an ordinary way to finish a turn, and refusing those would
-    # cost far more than this saves.
-    if str(generation_stop_reason or "").strip().lower() not in {
-        "",
-        "eos",
-        "configured_stop",
-        "role_continuation",
-    } and body.endswith(("?", '?"', "?'", "?)")):
-        return True
-    if has_terminal_sentence_boundary(body):
-        return False
-    trailing_block = None
-    if re.search(r"(?:^|\n)\s*\d+\.\s+\S+", body) or re.search(r"\*\*[^*\n]{2,80}:\*\*", body):
-        # A structured answer legitimately ends on its last item with no full
-        # stop. This branch used to flag every one of them, so a well-formatted
-        # worked answer — numbered steps, or a "**Both Red:**" heading over
-        # bullets — was rejected as clipped no matter how complete it was.
-        # Live 2026-07-26 that turned a correct marble derivation into "I
-        # couldn't get to an answer I'd stand behind".
-        #
-        # What actually indicates a cut is ending mid-structure: on a bare
-        # marker, on a heading with nothing under it, or on a fragment.
-        structured_lines = [line for line in body.splitlines() if line.strip()]
-        last_line = structured_lines[-1].strip() if structured_lines else ""
-        marker_match = _LIST_LINE_RE.match(last_line)
-        ends_on_complete_item = bool(
-            marker_match and len((marker_match.group("body") or "").split()) >= 3
-        )
-        ends_on_bare_heading = bool(re.fullmatch(r"\*\*[^*\n]{2,80}:\*\*", last_line))
-        # …and on inconsistency. If the earlier items in this list close with a
-        # full stop and the final one does not, the list was cut, whatever the
-        # last item looks like on its own. A list that never punctuates its
-        # items is simply written that way.
-        earlier_items = [
-            match.group("body").strip()
-            for match in (
-                _LIST_LINE_RE.match(line) for line in structured_lines[:-1]
-            )
-            if match and (match.group("body") or "").strip()
-        ]
-        punctuated = [item for item in earlier_items if item.endswith((".", "!", "?"))]
-        inconsistent_tail = bool(
-            len(earlier_items) >= 2
-            and len(punctuated) * 2 >= len(earlier_items)
-            and marker_match
-        )
-        if ends_on_bare_heading or (
-            marker_match and (not ends_on_complete_item or inconsistent_tail)
-        ):
-            return True
-        if not marker_match:
-            # A footer or concluding paragraph is not another list item.
-            # Judge its own structure, without inheriting the preceding list's
-            # punctuation or hiding clipped prose behind that list's shape.
-            last_item = next(
-                (
-                    index
-                    for index in range(len(structured_lines) - 2, -1, -1)
-                    if _LIST_LINE_RE.match(structured_lines[index])
-                ),
-                None,
-            )
-            if last_item is not None:
-                trailing_block = "\n".join(structured_lines[last_item + 1 :])
-    unwrapped_body = terminal_content(body)
-    if unwrapped_body.endswith(("-", "—", ":", ";", ",")):
-        return True
-    match = re.search(r"([A-Za-z]+)$", unwrapped_body)
-    if not match:
-        return False
-    last_word = match.group(1).lower()
-    if len(last_word) <= 2 and len(body) >= 40:
-        return True
-    if last_word in _INCOMPLETE_TAIL_WORDS:
-        return True
-    if trailing_block is not None:
-        return _has_truncated_tail(
-            trailing_block, generation_stop_reason=generation_stop_reason
-        )
-    # Prose that simply stops. Everything above looks for a SUSPICIOUS last
-    # word — a dangling conjunction, a two-letter fragment — so a reply cut off
-    # on an ordinary noun read as finished.
-    #
-    # Live 2026-07-26: "…we need to consider each case separately: Both Red"
-    # was served as a complete answer, and assessed ok. It was a correct
-    # derivation truncated at 239 tokens, and "Red" is not a suspicious word.
-    # A reply of real length that ends on any ordinary word with no terminal
-    # punctuation was cut, not finished.
-    #
-    # Prose only. A list, a table or a worked derivation legitimately ends on
-    # its last item with no full stop, and flagging those turned a mostly
-    # complete answer into a refusal — which is a worse outcome than the
-    # clipped tail it was trying to prevent. The repair path in the worker
-    # handles list-shaped clipping by dropping the final item instead.
-    if _looks_like_structured_output(body):
-        return False
-    terminal_cause = str(generation_stop_reason or "").strip().lower()
-    if terminal_cause in {"eos", "configured_stop", "role_continuation"}:
-        return False
-    return len(body) >= 80 and _word_count(body) >= 12
 
 
-def _is_code_response(text: str) -> bool:
-    raw = str(text or "").strip()
-    if not raw:
-        return False
-    fenced_blocks = list(_FENCED_BLOCK_RE.finditer(raw))
-    # Unfenced maths is prose about numbers, not a code response. With a fence
-    # present the block's own language wins, below — a code sample is allowed
-    # to sit beside an equation.
-    if not fenced_blocks and _LATEX_MATH_RE.search(raw):
-        return False
-    if fenced_blocks:
-        for block in fenced_blocks:
-            lang = (block.group("lang") or "").strip().lower()
-            body = block.group("body") or ""
-            if lang in _CODE_FENCE_LANGS or (lang in _NON_CODE_FENCE_LANGS and _looks_like_code_body(body)):
-                return True
-        return False
-    if raw.startswith(("def ", "import ", "class ", "from ", "print(", "#", "var ", "const ", "let ", "function ")):
-        return True
-
-    # One implementation of "does this look like code", not two.
-    #
-    # This used to carry its own inline copy of the same heuristic — any line
-    # containing "=", or a matched pair of brackets, counted as code. Fixing
-    # that in _looks_like_code_body left this copy untouched, and the
-    # consequence was worse than the original bug: classifying prose as code
-    # SHORT-CIRCUITS every prose check above, so a truncated answer was served
-    # as complete. Live 2026-07-26:
-    #
-    #   "Total number of marbles: 3 red + 4 blue + 5 green = 12
-    #    2. Draw two without replacement means the probability changes…
-    #    We need to calculate P(both red) + P(both blue) + P(both green)
-    #    Calculating for"
-    #
-    # — assessed ok, truncated mid-word, because "=" and "(...)" made it code
-    # and code is exempt from truncated_tail and final_answer_missing.
-    lines = [line.strip() for line in raw.splitlines() if line.strip()]
-    if len(lines) > 2 and _looks_like_code_body(raw):
-        return True
-
-    return False
 
 
 # A line is code when it has code SYNTAX, not when it contains a character
@@ -7431,64 +6778,8 @@ _LATEX_MATH_RE = re.compile(
 )
 
 
-def _looks_like_code_body(text: Any) -> bool:
-    lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
-    if not lines:
-        return False
-    code_like_lines = 0
-    for line in lines:
-        if (
-            line.startswith(
-                (
-                    "def ",
-                    "import ",
-                    "class ",
-                    "from ",
-                    "return ",
-                    "if ",
-                    "elif ",
-                    "else:",
-                    "for ",
-                    "while ",
-                    "try:",
-                    "except",
-                    "with ",
-                    "#",
-                    "print(",
-                    "const ",
-                    "let ",
-                    "var ",
-                    "function ",
-                )
-            )
-            or _CODE_ASSIGNMENT_RE.match(line)
-            or _CODE_CALL_RE.match(line)
-            or line.endswith((";", "{", "}", "):", "->"))
-        ):
-            code_like_lines += 1
-    threshold = 0.5 if len(lines) <= 3 else 0.6
-    return code_like_lines / len(lines) >= threshold
 
 
-def _has_incomplete_code_response(text: Any) -> bool:
-    raw = str(text or "").strip()
-    if not raw:
-        return False
-    if raw.count("```") % 2:
-        return True
-
-    blocks = list(_FENCED_BLOCK_RE.finditer(raw))
-    bodies = [block.group("body") or "" for block in blocks] if blocks else [raw]
-    for body in bodies:
-        if not _looks_like_code_body(body):
-            continue
-        lines = [line.rstrip() for line in body.splitlines() if line.strip()]
-        if not lines:
-            continue
-        last = lines[-1].strip()
-        if _INCOMPLETE_CODE_TAIL_RE.search(last):
-            return True
-    return False
 
 
 
@@ -9015,4 +8306,32 @@ from .response_repetition import (  # noqa: E402,F401  (re-exported for callers)
     _topical_stem,
     repair_verbatim_repeats,
     repeated_statements,
+)
+
+# Lifted to shrink this module against the size budget. Imported last so
+# the names above already exist when the child reads them back at call time.
+from .response_request_coverage import (  # noqa: E402,F401  (re-exported for callers)
+    _instruction_coverage_reasons,
+    _semantic_coverage_reasons,
+    repair_instruction_shape,
+    visible_user_request,
+)
+
+# Lifted to shrink this module against the size budget. Imported last so
+# the names above already exist when the child reads them back at call time.
+from .response_surface_checks import (  # noqa: E402,F401  (re-exported for callers)
+    _has_camelcase_internal_jargon,
+    _has_function_word_starvation,
+    _has_incomplete_code_response,
+    _has_pseudo_commitment_status_leak,
+    _has_surface_nonsense_drift,
+    _has_truncated_tail,
+    _has_unexpected_cjk_intrusion,
+    _has_unrequested_pop_culture_intrusion,
+    _is_code_response,
+    _is_promise_without_answer,
+    _is_structured_payload,
+    _looks_like_code_body,
+    _looks_like_structured_output,
+    _terminal_word_is_a_unit,
 )
