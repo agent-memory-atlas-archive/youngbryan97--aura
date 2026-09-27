@@ -507,3 +507,96 @@ nothing to her chemistry and teaches no organ. What is read is each cut's excess
 rate and bound in the two, side by side, beside the 4e1923da1 look above. Seed 7
 is the diagnostic seed; nothing here is read on 23 or any decisive seed, and no
 threshold is moved on the strength of it.
+
+## Addendum, 26 September 2026, late: the payoff look, read
+
+Both looks of the design above ran at 415f400c0 and finished at 21:13 and 21:16.
+Excess rate over the sham, with its lower bound, for each singleton cut at lag
+33; a star marks a decided cut.
+
+| cut | 4e1923da1 | payoff | no payoff |
+|---|---|---|---|
+| P \| rest | +0.035 [+0.010] * | +0.042 [+0.018] * | +0.034 [+0.008] * |
+| I \| rest | +0.013 [−0.044] | +0.010 [−0.034] | +0.009 [−0.044] |
+| A \| rest | +0.008 [−0.024] | +0.046 [+0.010] * | +0.035 [−0.010] |
+| G \| rest | −0.003 [−0.049] | −0.002 [−0.041] | +0.002 [−0.036] |
+| C \| rest | −0.006 [−0.039] | −0.005 [−0.027] | −0.000 [−0.028] |
+| S \| rest | +0.012 [−0.039] | +0.020 [−0.030] | +0.034 [−0.032] |
+| M \| rest | +0.002 [−0.033] | −0.015 [−0.021] | +0.011 [−0.019] |
+| W \| rest | +0.008 [−0.052] | +0.011 [−0.044] | −0.002 [−0.051] |
+| D \| rest | +0.014 [−0.004] | +0.067 [+0.018] * | +0.045 [+0.000] * |
+| N \| rest | +0.005 [−0.043] | −0.002 [−0.044] | +0.005 [−0.045] |
+
+Decided: 1 of 10 at 4e1923da1, 3 with the payoff, 2 without. Lag 66 decided
+nothing in any of the three, as the horizon section above says it cannot.
+
+Read side by side, the payoff moved one cut across its bound: A, where the
+worth of a turn is written, went from +0.035 [−0.010] without it to +0.046
+[+0.010] with it. D was decided in both and further from its bound with the
+payoff. Every cut decided without the payoff was decided with it. Most of the
+gain over 4e1923da1 is in both arms, so it came
+from the other changes between the two commits, not from the payoff.
+
+The closure differs more than the cuts do. With the payoff, the periphery
+predicted the core's future no better than shuffled (leak over shuffled
+−0.035, shuffled q95 +0.001). Without it, the periphery carried +0.045 over
+shuffled against a q95 of +0.003: something outside the core drove it that the
+core did not hold. One pair of runs on one seed cannot say whether that is the
+payoff, so it is reported and nothing is concluded from it.
+
+Two things weaken the comparison. The doses are calibrated per run, so the two
+arms were displaced by different amounts: A by 0.51 with the payoff and 0.18
+without, G by 0.18 and 2.92. And the run's own log showed the harness acting on
+her in both arms alike: a template reply read as her looping cleared her
+pending initiatives 240 times, and the self-review fired on the first turn of
+every arm. Both were fixed afterwards, in 7d6e04ece, so a look at that commit
+is not comparable with these.
+
+## Addendum, 26 September 2026, 22:40: what changed in her since the payoff look
+
+The payoff look ran at 415f400c0. These commits since then change what she does
+on a turn, and a decisive run on any commit that includes them is a run on a
+different organism from that look. Each was built without reading a decisive
+number.
+
+- **A reserve that good turns charge and effort draws on** (be76e35be). The
+  turn's dose charges `core/soma/reserve.py`, which leaks back at 1/256 a turn;
+  spending energy draws on it before the drive budget. D reads its share.
+- **One critic for her values** (8b3048919). Her habits and her choice engine
+  learn from the turn's worth, the same signal her connections learn from, in
+  place of a raw valence change. Truth and care are never taught by outcomes.
+- **What she holds more is what she takes** (2bc754d35). An option's score is
+  the chance that at least one of the values it serves holds for it
+  (noisy-OR), in place of a weighted mean that cancelled the weights out.
+- **The core reads what she is like** (b98f4085a). S carries how strongly she
+  holds each value, how much more often than chance she lives it, how narrow
+  her choosing is, and how often her values overrode her strongest drive.
+- **Living by her values pays** (ee5778604). A ninth payoff channel, integrity:
+  how far what she chose served her values over the average option on offer.
+- **Her self-knowledge is scored** (5bc71a491). How well her values alone
+  foretell her choices, less chance, read into S.
+- **A value held and not lived presses on her** (76bc6e26b). Among values held
+  at or above her median, the shortfall of one lived less than the median
+  lifts options that serve it on her next lived choices. Choices asked of her
+  to measure her are marked and no longer count as lived.
+- **An intention she acted on is closed** (3ccb6742a). The subject driver
+  declared, acted and observed, and never revised: 3,608 intentions were open
+  at the end of the seed-7 run at 27dc1dda9.
+
+Four fixes to how the harness treated her also land here (7d6e04ece,
+d969b5667). Both payoff arms carried them, so neither is a difference between
+those arms, but each changes what a run records. A repeated template reply no
+longer lowers her stability or clears her pending initiatives. A restore no
+longer rewinds a thread queue under its consumer. The kernel's memory verdict
+no longer reaches a run whose host is declared. The self-review and the
+metabolic monitor keep time on her clock, and the review files no intent that
+nothing reads.
+
+### The design for the next seed-7 look
+
+The singleton look of the design above, at the first commit that holds all of
+the above, seed 7, as built. What is read is each cut's excess rate and bound,
+and the closure, beside the payoff arm at 415f400c0. It is diagnostic: it
+moves no threshold, and nothing from it is read on seed 23 or any decisive
+seed. The reports ground's seed-7 check (`reports_alone.sh 351555bec 7`) runs
+first; it has waited since 25 September for the machine to be alone.

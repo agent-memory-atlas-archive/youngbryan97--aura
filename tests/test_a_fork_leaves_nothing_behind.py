@@ -118,10 +118,15 @@ def test_an_arm_that_ran_leaves_the_organism_where_it_found_it() -> None:
             for condition in CONDITIONS[:2]:
                 await runtime.turn_once(condition)
             # Act, so the world this arm leaves behind is not empty. A check
-            # against a world nothing wrote to cannot fail.
+            # against a world nothing wrote to cannot fail. The act is pinned
+            # to one that writes: her own weighing picks it otherwise, and when
+            # it picked reading a room twice the probe wrote nothing, in some
+            # runs of one commit and not others.
+            runtime.forced_action = "append_log"
             runtime._act("write the plan down", actor="self")
             runtime.turn += 1
             runtime._act("write the plan down again", actor="self")
+            runtime.forced_action = None
             assert _world(runtime) != before_world, "the probe wrote nothing to compare"
 
             runtime.restore(snapshot)

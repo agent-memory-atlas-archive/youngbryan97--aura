@@ -118,7 +118,8 @@ def time_this_question_needs(prompt: str, max_tokens: int, floor_s: float) -> fl
             int(max_tokens),
             private_tokens_included=True,
         )
-    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError):
+    except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("no measured allowance for her call (%s); the floor and the estimate stand", exc)
         measured = 0.0
     return max(float(floor_s), needed, float(measured or 0.0))
 

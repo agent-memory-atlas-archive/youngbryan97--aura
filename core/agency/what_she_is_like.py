@@ -33,8 +33,10 @@ from core.runtime.errors import record_degradation
 
 __all__ = [
     "Portrait",
+    "PortraitReader",
     "ValueLean",
     "asks_what_she_is_like",
+    "get_portrait_reader",
     "portrait_of",
     "what_she_is_like",
     "what_she_is_like_block",
@@ -87,6 +89,11 @@ class Portrait:
     narrowest_earlier: float
     narrowest_later: float
     held_order: tuple[tuple[str, float], ...] = field(default=())
+    #: Of the choices with more than one option, how many she took the option
+    #: her values alone ranked first, and how many chance alone would give.
+    values_foretold: int = 0
+    foretold_by_chance: float = 0.0
+    contested: int = 0
 
     @property
     def empty(self) -> bool:
@@ -151,8 +158,10 @@ def _what_was_chosen(label: Any) -> str:
 
 def portrait_of(preferences: Mapping[str, float], records: Iterable[Mapping[str, Any]]) -> Portrait:
     """What these values and this record of choices say about her."""
+    # What she chose when nobody asked: an answer to a question set to measure
+    # her (a tournament, a choice game) is not a choice she made in her life.
     ordered = sorted(
-        (dict(one) for one in records if isinstance(one, Mapping)),
+        (dict(one) for one in records if isinstance(one, Mapping) and one.get("lived", True)),
         key=lambda one: float(one.get("created_at") or 0.0),
     )
     held_order = tuple(sorted(((str(k), float(v)) for k, v in preferences.items()), key=lambda kv: -kv[1]))
@@ -186,6 +195,11 @@ def portrait_of(preferences: Mapping[str, float], records: Iterable[Mapping[str,
             return 0.0
         return max(Counter(_what_was_chosen(one.get("chosen_label")) for one in half).values()) / len(half)
 
+    contested = [one for one in ordered if len(one.get("preference_scores") or {}) > 1]
+    foretold = sum(
+        1 for one in contested if one.get("chosen_id") and one.get("chosen_id") == one.get("preference_top_id")
+    )
+    by_chance = sum(1.0 / len(one.get("preference_scores") or {}) for one in contested)
     return Portrait(
         choices=len(ordered),
         since=float(ordered[0].get("created_at") or 0.0),
@@ -196,6 +210,9 @@ def portrait_of(preferences: Mapping[str, float], records: Iterable[Mapping[str,
         narrowest_earlier=narrowest(earlier_half),
         narrowest_later=narrowest(later_half),
         held_order=held_order,
+        values_foretold=foretold,
+        foretold_by_chance=by_chance,
+        contested=len(contested),
     )
 
 
@@ -209,6 +226,72 @@ def what_she_is_like() -> Portrait | None:
     except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
         record_degradation("what_she_is_like", exc, severity="info", action="said nothing measured about what she is like")
         return None
+
+
+class PortraitReader:
+    """Her portrait as numbers the subject core records, recomputed only when she has chosen again.
+
+    The core is read after every phase of every turn and the record is five
+    hundred choices long, so the portrait is kept until the record or her
+    values change. Each value gives two numbers: how strongly she holds it, and
+    how much more often than chance she took the option serving it when one was
+    on offer (zero when none was). Then how much of her choosing the single act
+    she chooses most has taken, in the later half of the record, and the share
+    of her choices in which her values overrode her strongest drive.
+    """
+
+    def __init__(self, engine: Any | None = None) -> None:
+        self._engine = engine
+        self._key: tuple[Any, ...] | None = None
+        self._columns: dict[str, float] = {}
+
+    def _source(self) -> Any:
+        if self._engine is not None:
+            return self._engine
+        from core.agency.subjective_choice import get_subjective_choice_engine
+
+        return get_subjective_choice_engine()
+
+    def columns(self) -> dict[str, float]:
+        engine = self._source()
+        preferences = engine.preferences()
+        history = engine.history()
+        last = history[-1].choice_id if history else ""
+        key = (len(history), last, tuple(sorted(preferences.items())))
+        if key == self._key:
+            return dict(self._columns)
+        portrait = portrait_of(preferences, [one.to_dict() for one in history])
+        leans = {lean.value: lean for lean in portrait.values}
+        columns: dict[str, float] = {}
+        for name, held in preferences.items():
+            lean = leans.get(name)
+            columns[f"held_{name}"] = float(held)
+            columns[f"enacted_{name}"] = (lean.rate - lean.chance) if lean is not None else 0.0
+        columns["narrowness"] = float(portrait.narrowest_later)
+        columns["values_over_drive"] = (
+            portrait.over_impulse / portrait.choices if portrait.choices else 0.0
+        )
+        # How well what she holds foretells what she does: the share of her
+        # contested choices in which she took the option her values ranked
+        # first, less the share chance would give. Her self-knowledge tested
+        # against her own behaviour.
+        columns["values_foretell_choice"] = (
+            (portrait.values_foretold - portrait.foretold_by_chance) / portrait.contested
+            if portrait.contested
+            else 0.0
+        )
+        self._key, self._columns = key, columns
+        return dict(columns)
+
+
+_READER: PortraitReader | None = None
+
+
+def get_portrait_reader() -> PortraitReader:
+    global _READER
+    if _READER is None:
+        _READER = PortraitReader()
+    return _READER
 
 
 def _day(stamp: float) -> str:
@@ -266,6 +349,12 @@ def _sentences(portrait: Portrait) -> list[str]:
         f"and {portrait.narrowest_later:.0%} in the later. My values overrode my strongest drive "
         f"{portrait.over_impulse} times in {portrait.choices}."
     )
+    if portrait.contested:
+        said.append(
+            f"Of the {portrait.contested} choices that had more than one option, I took the one my "
+            f"values ranked first {portrait.values_foretold} times; chance alone would give "
+            f"{portrait.foretold_by_chance:.0f}."
+        )
     return said
 
 

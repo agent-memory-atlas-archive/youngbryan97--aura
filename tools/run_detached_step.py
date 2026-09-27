@@ -159,12 +159,15 @@ _REQUIRED_PRECONTAINED_PROFILE_MARKERS = (
 _SOURCE_SUFFIXES = frozenset({".json", ".py", ".pyi", ".sb", ".sh", ".toml", ".yaml", ".yml"})
 _EXECUTABLE_SOURCE_SUFFIXES = frozenset({".py", ".pyi", ".sh"})
 _SAFE_ENVIRONMENT_KEYS = (
+    "AURA_CORTEX_AUTHORITY_KEY_FILE",
     "AURA_DATA_DIR",
     "AURA_HOME",
     "AURA_LATENT_CORTEX",
+    "AURA_LOG_DIR",
     "AURA_MODEL_PATH",
     "AURA_MODEL_LANE_STATE_PATH",
     "AURA_RLC_FULL_SHA",
+    "AURA_STATE_ROOT",
     "COMMAND_MODE",
     "HF_HOME",
     "HOME",
@@ -174,6 +177,7 @@ _SAFE_ENVIRONMENT_KEYS = (
     "LC_CTYPE",
     "LOGNAME",
     "MallocNanoZone",
+    "MLX_ENABLE_TF32",
     "MLX_METAL_CACHE_DIR",
     "MLX_METAL_JIT",
     "PATH",

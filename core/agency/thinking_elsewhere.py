@@ -90,6 +90,7 @@ def _let_go() -> None:
     if child is not None:
         try:
             child.kill()
+        # not a failure: a child that has already gone needs no killing.
         except OSError:
             pass
 

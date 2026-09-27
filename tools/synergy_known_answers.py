@@ -85,13 +85,32 @@ def _switching(kind: str, push: np.ndarray, w: np.ndarray) -> np.ndarray:
     return push
 
 
-def build(kind: str, seed: int) -> Recording:
-    """One toy recording of the named kind."""
+#: Conditions in the cycle a shared schedule runs through, as her campaigns run
+#: eight conditions in a fixed order.
+CYCLE = 8
+
+
+def build(kind: str, seed: int, *, cycle: bool = False) -> Recording:
+    """One toy recording of the named kind.
+
+    ``cycle`` runs the toy through a shared schedule: eight conditions in a
+    fixed order, each moving W, A and what D does by its own offset, a unit
+    normal draw per condition. The sources then depend on the target through
+    the schedule, as hers do, whatever the coupling between them.
+    """
     rng = np.random.default_rng(seed)
     w, a = _slow(rng, 3), _slow(rng, 3)
+    labels = [f"c{t % CYCLE}" if cycle else "toy" for t in range(ROWS)]
+    if cycle:
+        offset_w, offset_a = rng.normal(size=(CYCLE, 3)), rng.normal(size=(CYCLE, 3))
+        offset_d = rng.normal(size=(CYCLE, len(PAIRS)))
+        w = w + offset_w[np.arange(ROWS) % CYCLE]
+        a = a + offset_a[np.arange(ROWS) % CYCLE]
     d = np.zeros((ROWS, 8))
     for t in range(1, ROWS):
         push = _drive(kind, w[t - 1], a[t - 1], rng)
+        if cycle:
+            push = push + offset_d[t % CYCLE]
         switch = _switching(kind, push, w[t - 1])
         d[t, int(np.argmax(switch + 0.5 * rng.normal(size=len(PAIRS))))] = 1.0
         d[t, 4:] = 0.7 * d[t - 1, 4:] + 0.5 * push + 0.3 * rng.normal(size=len(PAIRS))
@@ -100,7 +119,7 @@ def build(kind: str, seed: int) -> Recording:
         + [f"D.switch{i}" for i in range(4)] + [f"D.level{i}" for i in range(4)]
     )
     return Recording(
-        x=np.hstack([w, a, d]), conditions=tuple("toy" for _ in range(ROWS)),
+        x=np.hstack([w, a, d]), conditions=tuple(labels),
         tags=tuple("ontogeny" for _ in range(ROWS)), times=np.arange(ROWS, dtype=float),
         env=np.zeros((ROWS, 0)), env_names=(), columns=columns,
         slices=slices_from_columns(columns), notes={},
@@ -148,11 +167,53 @@ def qualifies(counts: dict[str, int], seeds: int) -> bool:
     )
 
 
+def read_cycle(kind: str, seed: int) -> dict[str, object]:
+    """One row of the cycle table: the Kraskov line under each first null, on a toy with a shared schedule."""
+    recording = build(kind, seed, cycle=True)
+    row: dict[str, object] = {"kind": kind, "seed": seed}
+    for first_null in ("shift", "condition"):
+        line = kraskov_synergy(
+            recording, "W", "A", "D", seed=seed, draws=KSG_DRAWS, clocks_out=False, first_null=first_null
+        )
+        row[first_null] = bool(line.passes)
+        row[f"{first_null}_bar"] = line.shift_bar
+        row["synergy"] = line.synergy
+        row["additive_bar"] = line.additive_bar
+    return row
+
+
+def main_cycle(seeds: tuple[int, ...]) -> int:
+    counts = {name: dict.fromkeys(CYCLE_KINDS, 0) for name in ("shift", "condition")}
+    for kind in CYCLE_KINDS:
+        for seed in seeds:
+            row = read_cycle(kind, seed)
+            for name in counts:
+                counts[name][kind] += int(row[name])
+            print(
+                f"cycle {kind:9s} seed {seed:2d}: syn {row['synergy']:+.4f} | shift bar {row['shift_bar']:+.4f} "
+                f"passes {row['shift']!s:5s} | condition bar {row['condition_bar']:+.4f} passes {row['condition']!s:5s} "
+                f"| additive bar {row['additive_bar']:+.4f}",
+                flush=True,
+            )
+    need = len(seeds) - 1
+    for name, row in counts.items():
+        ok = row["product"] >= need and row["separable"] <= 1 and row["none"] <= 1
+        print(f"{name}: {row} -> {'qualifies' if ok else 'does not qualify'}")
+    return 0
+
+
+#: The toys read with a shared schedule.
+CYCLE_KINDS = ("product", "separable", "none")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seeds", default=",".join(str(s) for s in SEEDS))
     parser.add_argument("--kinds", default=",".join(KINDS))
+    parser.add_argument("--cycle", action="store_true", help="the toys with a shared condition cycle, both first nulls")
     args = parser.parse_args()
+    if args.cycle:
+        return main_cycle(tuple(int(s) for s in args.seeds.split(",")))
     seeds = tuple(int(s) for s in args.seeds.split(","))
     kinds = tuple(args.kinds.split(","))
     counts = {name: dict.fromkeys(KINDS, 0) for name in ("v3", "ksg", "ksg+gain", "ksg-over-sum")}

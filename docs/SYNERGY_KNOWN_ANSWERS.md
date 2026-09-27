@@ -131,3 +131,80 @@ of its target alone would show, and it is the one adopted, as
 `core.subject.synergy.kraskov_synergy` (docs/ISC_V5_PREREGISTRATION.md, addendum
 of 26 September, evening). The study's tool reads it through the battery's own
 code, which reproduces the replication's logged rows to the digit.
+
+## On her recordings (seed 7, diagnostic)
+
+The line was first read on the two seed-7 validations and the seed-7 run at the
+full design (26 September), as the amendment allows.
+
+| triple | v3 (three runs) | Kraskov line (three runs) |
+|---|---|---|
+| A,S -> G | 1 of 3 | 3 of 3 |
+| P,M -> W | 3 of 3 | 0 of 3: below the additive surrogate's bar |
+| W,A -> D | 0 of 3 | 0 of 3: far below the shifted null's bar |
+| S,D -> C | 0 of 3 | 0 of 3 |
+
+A,S -> G carries synergy beyond what a sum of its sources explains in all three.
+P,M -> W, which v3 passes every time, does not clear what the additive part of
+its target alone produces (synergy 0.06 to 0.21 against 0.24 to 0.33), so v3's
+pass there reads additive structure.
+
+W,A -> D fails in a way the toys did not show. Its shifted null reached 0.40 to
+0.50 against a synergy of 0.07 to 0.15. Her conditions repeat in a fixed cycle of
+eight turns, and the first guess was that shifts by a multiple of eight realign
+the conditions. On validate c5f0ea5fe they do not explain it: shifts off the
+cycle gave a median of 0.42, shifts on it 0.26, and the recording as it is 0.10.
+MMI synergy is the joint information less the larger single-source information,
+and sliding the sources cuts what each alone says about the target's change more
+than it cuts what they say together, so the synergy term rises under the null.
+That happens when the sources depend on the target individually through a shared
+schedule, which the toy systems, driven by nothing in common, never had.
+
+**Open:** a known-answers table on toys with a shared condition cycle, and a null
+that keeps it: sources permuted only among turns of the same condition, which
+holds each condition's structure and breaks only the turn-by-turn alignment.
+Nothing of hers is read with that null before its table is written here.
+
+### The cycle table, fixed before it ran
+
+The same toys through a shared schedule: eight conditions in a fixed order, each
+moving W, A and what D does by its own unit-normal offset
+(`tools/synergy_known_answers.py --cycle`). Product, separable sum and uncoupled,
+seeds 3, 7, 11, 19 and 23, the Kraskov line with each first null: the shift the
+amendment adopted, and the within-condition permutation. A first null qualifies
+when product passes at four of five and separable and uncoupled at no more than
+one. One that qualifies where the shift does not is proposed as an amendment for
+recordings whose conditions cycle, which hers do, before it reads any of them.
+
+#### What it read (26 September)
+
+| toy | seed | synergy | shift bar | condition bar | additive bar |
+|---|---|---|---|---|---|
+| product | 3 | +0.420 | +0.099 | +0.136 | +0.097 |
+| product | 7 | +0.452 | +0.080 | +0.120 | +0.071 |
+| product | 11 | +0.338 | +0.037 | +0.042 | +0.059 |
+| product | 19 | +0.492 | +0.114 | +0.149 | +0.068 |
+| product | 23 | +0.352 | +0.134 | +0.178 | +0.089 |
+| separable | 3 | +0.163 | +0.070 | +0.091 | +0.147 |
+| separable | 7 | +0.117 | +0.061 | +0.082 | +0.129 |
+| separable | 11 | −0.164 | +0.032 | +0.018 | +0.071 |
+| separable | 19 | −0.187 | +0.046 | +0.042 | +0.059 |
+| separable | 23 | +0.067 | +0.111 | +0.132 | +0.072 |
+| none | 3 | +0.053 | +0.082 | +0.124 | +0.088 |
+| none | 7 | +0.096 | +0.097 | +0.147 | +0.079 |
+| none | 11 | +0.022 | +0.055 | +0.077 | +0.042 |
+| none | 19 | +0.054 | +0.089 | +0.106 | +0.049 |
+| none | 23 | +0.112 | +0.102 | +0.157 | +0.068 |
+
+Passes, product / separable / uncoupled: shift 5 / 1 / 1, condition 5 / 1 / 0.
+Both first nulls qualify under the rule above, so nothing is proposed: the shift
+stays. The condition bar was the higher of the two in 13 of 15 rows, and it is
+the only one that kept the uncoupled toy out at every seed.
+
+The schedule did not reproduce what it was built to explain. On her seed-7
+recording W,A→D failed against a shifted null of 0.40 to 0.50; here, with W, A
+and D all moved by one shared cycle, the shift bars ran 0.04 to 0.13. A shared
+schedule alone does not inflate the shift null that far, so the cause on her
+data is something the toy leaves out, and the next candidate is how long her
+conditions hold: here each lasts one row, and on the seed-7 look at 415f400c0
+each of hers held for 33 consecutive rows, one turn's frames, 192 times over.

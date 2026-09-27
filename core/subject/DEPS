@@ -62,6 +62,8 @@ include_rules = [
     # Her habits: the driver's acts go on the record as hers, and a habit
     # that has done worse than her weighing is discounted on drive alone.
     "+core.agency.habits_are_hers",
+    # What she is like, from her own record of choices, read into S. Read only.
+    "+core.agency.what_she_is_like",
     "+core.consciousness.consciousness_bridge",
     "+core.consciousness.system",
     "+core.container",
@@ -74,6 +76,7 @@ include_rules = [
     # kept beside a campaign's recording. See core/subject/named_readings.py.
     "+core.soma.fatigue",
     "+core.soma.good_news",
+    "+core.soma.reserve",
     # What she has come to feel about an act, one of the reasons her weighing
     # ranks acts by. See core/subject/choosing.py.
     "+core.affect.feelings_about",

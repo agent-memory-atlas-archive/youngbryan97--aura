@@ -177,6 +177,11 @@ class Organs:
     #: test found that copy predicting the core from outside it (0.002 on the
     #: 25 September run). See core/soma/good_news.py.
     good_news: Any = None
+    #: What her good turns have left her to work on. See core/soma/reserve.py.
+    reserve: Any = None
+    #: What she is like, read from her own record of choices. See
+    #: core/agency/what_she_is_like.py.
+    portrait: Any = None
 
     @classmethod
     def live(cls) -> Organs:
@@ -224,17 +229,20 @@ class Organs:
         # below says in the same words.
         except Exception:  # noqa: BLE001
             agency = None
-        worth = credit = good_news = None
+        worth = credit = good_news = reserve = portrait = None
         try:
             from core.affect.what_it_was_worth import get_worth_ledger
             from core.affect.what_winning_earned import get_credit_ledger
+            from core.agency.what_she_is_like import get_portrait_reader
             from core.soma.good_news import get_good_news_ledger
+            from core.soma.reserve import get_reserve_ledger
 
             worth, credit = get_worth_ledger(), get_credit_ledger()
-            good_news = get_good_news_ledger()
+            good_news, reserve = get_good_news_ledger(), get_reserve_ledger()
+            portrait = get_portrait_reader()
         # not a failure: absent ledgers are absent organs, as the agency ledger above.
         except ImportError:
-            worth = credit = good_news = None
+            worth = credit = good_news = reserve = portrait = None
         return cls(
             workspace=runtime("global_workspace"),
             substrate=runtime("conscious_substrate"),
@@ -254,6 +262,8 @@ class Organs:
             worth=worth,
             credit=credit,
             good_news=good_news,
+            reserve=reserve,
+            portrait=portrait,
         )
 
 
@@ -374,6 +384,23 @@ _WORTH_CHANNELS: tuple[str, ...] = (
     "ease",
     "spirit",
     "wonder",
+    "integrity",
+)
+
+#: The values she holds, in the choice engine's own order. Written out for the
+#: same reason as the channels above; a test holds this to
+#: `core.agency.subjective_choice.PREFERENCE_KEYS`.
+_VALUES: tuple[str, ...] = (
+    "truth",
+    "care",
+    "novelty",
+    "beauty",
+    "challenge",
+    "connection",
+    "autonomy",
+    "coherence",
+    "calm",
+    "play",
 )
 
 #: The sources of the unified field's input, in the order of its batched
@@ -866,6 +893,17 @@ _SCHEMAS: dict[str, Schema] = {
                 (f"self_model_weight_{part}", "organ:executive._predictive_self.weights")
                 for part in SKETCH_FIELDS
             ),
+            # What she is like, read from what she chose when nobody asked: how
+            # strongly she holds each value, how much more often than chance
+            # she took it when it was on offer, how narrow her choosing has
+            # become, and how often her values overrode her strongest drive.
+            # Her values score every choice she makes and learn from how the
+            # choices turned out. See core/agency/what_she_is_like.py.
+            *((f"held_{name}", "organ:portrait.columns") for name in _VALUES),
+            *((f"enacted_{name}", "organ:portrait.columns") for name in _VALUES),
+            ("choice_narrowness", "organ:portrait.columns"),
+            ("values_over_drive", "organ:portrait.columns"),
+            ("values_foretell_choice", "organ:portrait.columns"),
         ),
     ),
     "M": _sch(
@@ -1087,6 +1125,11 @@ _SCHEMAS: dict[str, Schema] = {
             # no column read it. See core/agency/habits_are_hers.py.
             ("habits_to_change", "cognition.habits.to_change"),
             ("habit_deficit", "cognition.habits.largest_deficit"),
+            # What her good turns have left her to work on, as a share of a full
+            # energy budget. It pays for her exertion before her energy does,
+            # so it decides how long she can keep at something. See
+            # core/soma/reserve.py.
+            ("energy_reserve", "organ:reserve.share"),
         ),
     ),
     "N": _sch(
@@ -1835,6 +1878,12 @@ def _read_S(state: Any, organs: Organs) -> np.ndarray:
             source="organ:executive._predictive_self.weights",
         )
     )
+    portrait = _call(organs.portrait, "columns", {}, source="organ:portrait.columns") or {}
+    head.extend(_f(portrait.get(f"held_{name}")) for name in _VALUES)
+    head.extend(_f(portrait.get(f"enacted_{name}")) for name in _VALUES)
+    head.append(_f(portrait.get("narrowness")))
+    head.append(_f(portrait.get("values_over_drive")))
+    head.append(_f(portrait.get("values_foretell_choice")))
     return np.array(head, dtype=np.float64)
 
 
@@ -2062,6 +2111,7 @@ def _read_D(state: Any, organs: Organs) -> np.ndarray:
     habits = _dig(state, "cognition.habits", {}) or {}
     head.append(_sat(_f(habits.get("to_change")), 4.0))
     head.append(_f(habits.get("largest_deficit")))
+    head.append(_f(_call(organs.reserve, "share", 0.0, source="organ:reserve.share")))
     return np.array(head, dtype=np.float64)
 
 

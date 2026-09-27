@@ -46,6 +46,7 @@ __all__ = ["ControlAllocation", "allocate_control", "at_stake", "current_state",
 def _clip(value: Any) -> float:
     try:
         number = float(value)
+    # not a failure: a value that is not a number carries no control.
     except (TypeError, ValueError):
         return 0.0
     return max(0.0, min(1.0, number)) if number == number else 0.0

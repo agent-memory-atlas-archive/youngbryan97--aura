@@ -35,6 +35,8 @@ def selected_checkpoint(directory):
     from core.learning.semantic_native_source_control import source_control_mode_from_plan
     register_encoding_from_plan(plan)
     source_control_mode_from_plan(plan)
+    from tools.semantic_native_execution import execution_from_plan
+    execution_from_plan(plan)
     if (plan.get("schema") not in {"aura.semantic_native_fit_plan.v1", "aura.semantic_native_fit_plan.v2",
                                    "aura.semantic_native_fit_plan.v3"}
             or plan.get("held_labels_used_for_fit_or_selection") is not False
@@ -216,6 +218,9 @@ def main():
         "core/learning/semantic_program_feature_materialization.py", *NATIVE_CODEC_IMPLEMENTATION_PATHS)]
     if args.source_calibration_bank is not None:
         paths.append(ROOT / "tools/probe_semantic_proposer_crossfit.py")
+    from tools.semantic_native_execution import EXECUTION_PATHS, execution_from_plan
+    paths.extend(ROOT / name for name in EXECUTION_PATHS)
+    execution_from_plan(training, check_installed=True)
     implementation = {str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
                       for path in paths}
     body = {"schema": "aura.semantic_native_replay_plan.v1",
@@ -281,6 +286,10 @@ def main():
         mx.eval(baseline)
         model.load_weights(str(args.training_directory / f"checkpoint-{selected['step']}.safetensors"),
                            strict=False)
+        from tools.semantic_native_execution import apply_execution
+        apply_execution(model, training)
+        if training.get("execution_contract") is not None:
+            baseline = tree_map(lambda value: value.astype(mx.float32), baseline)
         adapted = tree_map(lambda value: mx.array(value), suffix.trainable_parameters())
         mx.eval(adapted)
         items = {item.ir.source_text_sha256: item for item in examples if item.split == "train"}
@@ -368,6 +377,7 @@ def main():
                        str(path.relative_to(ROOT))] for path in paths)):
             raise ValueError("native replay implementation or model drifted")
         current_training, current_selected = selected_checkpoint(args.training_directory)
+        execution_from_plan(training, check_installed=True)
         if current_training != training or current_selected != selected:
             raise ValueError("native replay training basis changed")
         if args.source_calibration_bank is not None:

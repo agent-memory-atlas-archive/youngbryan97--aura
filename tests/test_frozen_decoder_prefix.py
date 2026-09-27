@@ -1,5 +1,8 @@
 """Cached frozen states must preserve the loaded decoder computation and gradients."""
 
+import os
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import mlx.core as mx
@@ -241,3 +244,54 @@ def test_anchor_only_result_cannot_mutate_the_retained_hidden_state():
     changed = branches.capture((1, 2))
     changed[0, 0, 0] = 100.
     assert mx.array_equal(branches.capture((1, 2)), original).item()
+
+
+@pytest.mark.parametrize("hybrid,quantized", [(False, False), (True, False), (True, True)])
+def test_token_trie_reuses_continuations_without_changing_complete_causal_states(hybrid, quantized):
+    from core.learning.frozen_prefix_branches import FrozenPrefixBranches
+
+    if not quantized and os.environ.get("MLX_ENABLE_TF32") != "0":
+        # Reduced-precision kernel selection belongs to the process basis.
+        node = f"{__file__}::{test_token_trie_reuses_continuations_without_changing_complete_causal_states.__name__}"
+        result = subprocess.run([sys.executable, "-m", "pytest", "-q", f"{node}[{hybrid}-{quantized}]"],
+            env={**os.environ, "MLX_ENABLE_TF32": "0"}, capture_output=True, text=True, timeout=120)
+        assert result.returncode == 0, result.stdout + result.stderr
+        return
+    model = _model(hybrid=hybrid, width=32 if quantized else 16, hybrid_layers=8)
+    if quantized:
+        nn.quantize(model, group_size=32, bits=4)
+        model.freeze()
+        model.eval()
+    split = len(model.layers) - 1
+    prefix = FrozenDecoderPrefix(model, split_at=split)
+    suffix = NativeDecoderSuffix(model, split_at=split)
+    branches = FrozenPrefixBranches(model, split_at=split, anchor_tokens=(1, 4, 2), max_tokens=32)
+    rows = ((1, 4, 2, 9, 5), (1, 4, 2, 9, 5, 6), (1, 4, 2, 9, 7),
+            (1, 4, 2, 9, 5), (1, 4, 2), (1, 4, 2, 8, 1, 3))
+    actual = branches.capture_many(rows)
+    for tokens, states in zip(rows, actual, strict=True):
+        full = prefix.capture(mx.array([tokens], dtype=mx.int32))
+        assert mx.allclose(states, full, atol=1e-5).item()
+        assert mx.allclose(suffix(states), suffix(full), atol=1e-5).item()
+    receipt = branches.receipt()
+    assert receipt["branches"] == len(rows)
+    assert receipt["executed_tokens"] == 10
+    assert receipt["uncached_tokens"] == sum(len(tokens) for tokens in rows)
+    assert receipt["continuation_tokens_reused"] == 5
+    assert receipt["trie_nodes"] == 5
+    assert receipt["peak_retained_cache_states"] < receipt["trie_nodes"]
+    assert receipt["suffix_computation_unchanged"] is True
+    owned_expected = mx.array(actual[0])
+    actual[0][0, 0, 0] = 100.
+    assert mx.array_equal(branches.capture_many(rows)[0], owned_expected).item()
+
+
+def test_trie_rejects_invalid_population_and_drift_before_advancing_any_branch():
+    from core.learning.frozen_prefix_branches import FrozenPrefixBranches
+
+    branches = FrozenPrefixBranches(_model(hybrid=True), split_at=3, anchor_tokens=(1, 2), max_tokens=8)
+    for rows in ((), [(1, 2)], ((1, 3),), ((1, 2), (1, 3)), ((1, 2),) * 1025):
+        with pytest.raises(ValueError, match="tuple|anchor"):
+            branches.capture_many(rows)
+    assert branches.receipt()["branches"] == 0
+    assert branches.receipt()["executed_tokens"] == 2

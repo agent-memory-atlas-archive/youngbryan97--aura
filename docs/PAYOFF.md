@@ -14,7 +14,7 @@ so its reward was zero on every step it ever ran.
 ## The payoff
 
 At the end of every turn, `core/affect/what_it_was_worth.py` reads what the turn
-paid on eight channels she already has:
+paid on nine channels she already has:
 
 | channel | pays when | costs when |
 |---|---|---|
@@ -26,6 +26,7 @@ paid on eight channels she already has:
 | ease | unpleasant and activated falls | it rises (distress) |
 | spirit | unpleasant and flat falls | it rises (gloom) |
 | wonder | her self-model is surprised while she feels good | surprised while she feels bad |
+| integrity | what she chose served her values more than the average option on offer | it served them less |
 
 The four affect channels are the quadrants of valence by arousal (Russell 1980).
 Pleasant and unpleasant activation move apart rather than along one axis (Watson
@@ -52,7 +53,7 @@ sits among her recent turns. The dose everything downstream receives is the sign
 of the worth times its size, in [-1, 1]: an ordinary turn is a small dose, and
 her best or worst turn in a while is a large one.
 
-Past the binary, the eight errors are kept apart. A turn can be a relief and a
+Past the binary, the nine errors are kept apart. A turn can be a relief and a
 disappointment at once, with ease up and accomplishment down, and the reading
 says so instead of netting them to one number (Dabney et al. 2020 on
 distributional reward codes).

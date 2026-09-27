@@ -57,14 +57,24 @@ def test_no_time_returns_nothing():
     assert MotivationUpdatePhase._warmth_returns_a_drive_to_rest(mot, "soon") == 0.0
 
 
-def test_the_forces_keep_their_digits():
-    """The deliberation domain reads this dict, so nothing in it is rounded."""
-    import inspect
+def test_the_forces_keep_their_digits(monkeypatch):
+    """The deliberation domain reads this dict, so nothing in it is rounded.
 
-    from core.phases import motivation_update
+    A turn where she is met and warmth returns about three ten-millionths of a
+    unit, run through the phase: the force it records is that number, not 0.0.
+    """
+    import asyncio
 
-    source = inspect.getsource(motivation_update)
-    block = source[source.index("mot.forces = {") : source.index("mot.forces = {") + 400]
-    assert "round(" not in block
-    for name in ("pressure", "social_hold", "warmth_return", "attended_credit", "resolve_hold"):
-        assert f'"{name}"' in block
+    from core.state.aura_state import AuraState
+
+    small = 3.2e-7
+    monkeypatch.setattr(MotivationUpdatePhase, "_met_this_turn", staticmethod(lambda state: True))
+    monkeypatch.setattr(
+        MotivationUpdatePhase,
+        "_warmth_returns_a_drive_to_rest",
+        staticmethod(lambda mot, dt: small),
+    )
+    state = asyncio.run(MotivationUpdatePhase(None).execute(AuraState.default(), objective="a turn"))
+    forces = state.motivation.forces
+    assert set(forces) == {"pressure", "social_hold", "warmth_return", "attended_credit", "resolve_hold"}
+    assert forces["warmth_return"] == small

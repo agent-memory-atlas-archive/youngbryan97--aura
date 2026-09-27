@@ -148,14 +148,19 @@ def test_plasticity_moves_the_field_columns():
     assert _column(after, "C.field_weight_sd") > _column(before, "C.field_weight_sd")
 
 
-def test_the_field_is_a_live_organ_not_a_declared_one():
+def test_the_field_is_a_live_organ_not_a_declared_one(monkeypatch):
     """`Organs.live()` must actually resolve it, the way it does the mesh."""
-    import inspect
+    from core.container import ServiceContainer
 
-    from core.subject import state as subject_state
+    field = object()
+    real_get = ServiceContainer.get
 
-    source = inspect.getsource(subject_state.Organs.live)
-    assert "field=" in source
+    def get(name, default=None):
+        return field if name == "unified_field" else real_get(name, default=default)
+
+    monkeypatch.setattr(ServiceContainer, "get", staticmethod(get))
+    monkeypatch.setattr("core.runtime.service_registry.get_runtime_service", lambda name, default=None: None)
+    assert Organs.live().field is field
 
 
 def test_every_organ_a_domain_reads_is_one_the_kit_holds():

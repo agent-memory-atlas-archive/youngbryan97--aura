@@ -44,7 +44,9 @@ def grammar_examples(*, dataset, seed, count):
                         (sample, sample + 24, sample + 48))
     elif dataset in INTERVENTION_DATASETS:
         if dataset == "operation_intervention":
-            from tools.semantic_native_operation_interventions import build_native_operation_interventions
+            from tools.semantic_native_operation_interventions import (
+                build_native_operation_interventions,
+            )
 
             pairs = build_native_operation_interventions(seed=seed)
         elif dataset in {"role_intervention", "dependency_intervention"}:
@@ -52,7 +54,9 @@ def grammar_examples(*, dataset, seed, count):
 
             pairs = build_native_graph_interventions(seed=seed, kind=dataset.removesuffix("_intervention"))
         else:
-            from tools.semantic_native_paraphrase_interventions import build_native_paraphrase_interventions
+            from tools.semantic_native_paraphrase_interventions import (
+                build_native_paraphrase_interventions,
+            )
 
             pairs = build_native_paraphrase_interventions(
                 seed=seed, style=dataset.removesuffix("_intervention"))
@@ -196,6 +200,9 @@ def main():
     if args.dataset in RETAINED_DATASETS:
         paths += ("tools/semantic_native_retained_sources.py",
                   "core/learning/semantic_program_feature_materialization.py")
+    from tools.semantic_native_execution import EXECUTION_PATHS, execution_from_plan
+    paths += EXECUTION_PATHS
+    execution_from_plan(training, check_installed=True)
     implementation = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in paths}
     schema_version = "v4" if args.dataset in {"definition_intervention", "equation_intervention"} else "v3"
     if args.dataset in {"role_intervention", "dependency_intervention"}:
@@ -259,6 +266,8 @@ def main():
                 "rank": training["rank"], "scale": 16., "dropout": 0., "keys": training["adapter_keys"]})
             model.load_weights(str(args.training_directory /
                                    f"checkpoint-{selected['step']}.safetensors"), strict=False)
+        from tools.semantic_native_execution import apply_execution
+        apply_execution(model, training)
         for example, identity in zip(examples, sources, strict=True):
             public_inputs, types = source_input_types(example.source_text)
             scored = 0
@@ -350,6 +359,7 @@ def main():
                               "program_equivalent": equivalent,
                               "depth": 0 if program is None else program.depth, "decode_status": status}), flush=True)
         current = get_active_cortex_spec(force_refresh=True)
+        execution_from_plan(training, check_installed=True)
         if (current is None or current.descriptor_sha256 != spec.descriptor_sha256
                 or current.pointer_sha256 != spec.pointer_sha256
                 or any(hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != sha
