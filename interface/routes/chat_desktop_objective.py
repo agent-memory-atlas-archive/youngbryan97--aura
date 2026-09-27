@@ -184,10 +184,34 @@ def _desktop_task_action_expectation(objective: str) -> dict[str, Any]:
     }
 
 
+def _say_before_working_a_page(objective: str, reply: str) -> None:
+    """Say her reply before the first click, when the work is a page.
+
+    LIVE 26 Sep: asked to say what a personality test would give her before
+    she started, she wrote her answer before any page opened, and the person
+    never saw it: the reply to a desktop objective is what the task produced,
+    and hers was kept only as a body the task might type. A forecast shown
+    after the result is not a forecast. A page does not type her reply, so on
+    a page it is said first, where it was written.
+    """
+    said = str(reply or "").strip()
+    if not said:
+        return
+    try:
+        from core.agency.narrator import Narrator
+        from core.conversation.page_interaction import page_interaction_target
+
+        if page_interaction_target(objective):
+            Narrator.say_everywhere(said)
+    except _CHAT_RECOVERABLE_ERRORS as exc:
+        record_degradation("chat.said_before_the_page", exc, severity="info", action="worked the page without saying it first")
+
+
 async def _execute_desktop_objective_from_chat(
     user_message: str,
     *,
     cognitive_reply: str,
+    her_reply_first: bool = False,
 ) -> dict[str, Any] | None:
     """Execute a desktop objective through the generic desktop_task skill.
 
@@ -227,6 +251,8 @@ async def _execute_desktop_objective_from_chat(
         "predicted_outcome": "The requested visible desktop/file effect is verified after execution.",
         "action_expectation": action_expectation,
     }
+    if her_reply_first:
+        _say_before_working_a_page(objective, cognitive_reply)
     result = await _chat_capability_inventory._execute_governed_live_skill(
         "desktop_task",
         desktop_params,
@@ -652,6 +678,10 @@ def _pursuit_account(result: dict) -> list[str]:
         # The tail, not the head: a result page repeats its navigation before
         # it says anything, and what a page concludes with is what it is for.
         lines.append("The page ends with:\n" + ending[-600:].strip())
+    concluded = str(result.get("concluded") or "").strip()
+    if concluded:
+        # Hers, last: what she made of the page once it was finished.
+        lines.append(concluded)
     return lines
 
 

@@ -21,6 +21,9 @@ from core.brain.reasoning_amplifier_v2 import is_action_request, is_amplifiable
     "turn off notifications",
     "please open the file manager",
     "can you click on the link",
+    "Take the Open Extended Jungian Type Scales personality test on openpsychometrics.org. "
+    "Before you start, tell me what type you think it will give you and why.",
+    "fill in the survey at example.org and tell me what it asks",
 ])
 def test_actions_are_not_amplified(text):
     assert is_action_request(text) is True

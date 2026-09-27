@@ -57,6 +57,28 @@ _IDLE_BACKOFF_AFTER_FLAG = declare(
     owner="core/perception/perception_daemon.py",
 )
 
+#: Process names that are a shell, as the kernel reports them.
+_SHELLS = frozenset({"sh", "bash", "zsh", "fish", "ksh", "tcsh", "csh", "dash"})
+
+
+def _running_shells() -> list[str]:
+    """Every running shell by name, read from the kernel without starting a process.
+
+    This was `ps -A -o comm` under a one-second bound. LIVE 26 Sep, load near
+    twenty: the process alone ran past the bound, and each tick recorded the
+    subsystem degraded. And "sh" anywhere in a path matched ssh, sshd and
+    everything else with those two letters in it.
+    """
+    import psutil
+
+    shells = []
+    for proc in psutil.process_iter(["name"]):
+        name = str((proc.info or {}).get("name") or "")
+        if name.lstrip("-") in _SHELLS:
+            shells.append(name)
+    return shells
+
+
 _PERCEPTION_DAEMON_RECOVERABLE_ERRORS = (
     AttributeError,
     ImportError,
@@ -402,25 +424,13 @@ class PerceptionDaemon:
 
                 # 4. Terminal / Process State Check
                 try:
-                    with local_internal_governed_scope("perception_daemon.terminal_process", domain="tool_execution"):
-                        proc = await get_subprocess_gateway().run_async(
-                            ["ps", "-A", "-o", "comm"],
-                            read_only=True,
-                            timeout=1.0,
-                            source="perception_daemon.terminal_process",
-                            accelerator_capability="none",
+                    running_shells = await asyncio.to_thread(_running_shells)
+                    if running_shells:
+                        self.register_moment(
+                            source="terminal",
+                            content=f"Active terminal shell processes: {len(running_shells)} running",
+                            metadata={"shells": running_shells}
                         )
-                    if proc.returncode == 0:
-                        lines = proc.stdout.splitlines()
-                        running_shells = [
-                            line for line in lines if any(shell in line for shell in ("zsh", "bash", "sh"))
-                        ]
-                        if running_shells:
-                            self.register_moment(
-                                source="terminal",
-                                content=f"Active terminal shell processes: {len(running_shells)} running",
-                                metadata={"shells": running_shells}
-                            )
                 except _PERCEPTION_DAEMON_RECOVERABLE_ERRORS as e:
                     record_degradation("perception_daemon.terminal_process", e)
                     logger.debug("Terminal process check failed: %s", e)

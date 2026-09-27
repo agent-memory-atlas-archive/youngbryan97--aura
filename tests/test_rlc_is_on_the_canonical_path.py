@@ -50,9 +50,26 @@ def test_the_canonical_response_phase_runs_a_foreground_latent_episode():
     )
 
 
+def _calls_in_the_phase() -> set[str]:
+    """Every call in the source the answering phase is built from, mixins included.
+
+    The phase takes some of its methods from mixins in their own files, so
+    one file is not the phase: the amplifier moved into one and this read
+    "not composed" of a phase that still composed it.
+    """
+    from core.phases.response_generation_unitary import UnitaryResponsePhase
+
+    files = {
+        Path(inspect.getsourcefile(klass))
+        for klass in UnitaryResponsePhase.__mro__
+        if klass.__module__.startswith("core.")
+    }
+    return set().union(*(_calls_in(path) for path in files))
+
+
 def test_the_canonical_response_phase_composes_the_reasoning_amplifier():
     """CP073's point: compose the cortex WITH the amplifier, not pick one."""
-    calls = _calls_in(UNITARY)
+    calls = _calls_in_the_phase()
     assert "amplify_turn" in calls
     assert "reasoning_amplifier_v2_enabled" in calls
 

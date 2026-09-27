@@ -166,6 +166,23 @@ def _on_a_running_loop() -> bool:
     return True
 
 
+def _lane_stamp() -> int | None:
+    """When the model lane's shared state last changed, or None if it cannot be read.
+
+    Every claim, release and heartbeat, from any process, rewrites that one
+    file, so an admission refused under one stamp can only be answered
+    differently under another.
+    """
+    try:
+        from core.runtime.model_lane_control import get_model_lane_controller
+
+        return get_model_lane_controller().state_path.stat().st_mtime_ns
+    except (ImportError, AttributeError, OSError, RuntimeError, ValueError):
+        # not a failure: an unreadable stamp is not a changed lane, and the
+        # refusal it would answer stands until one can be read.
+        return None
+
+
 def _first_frame_outside(this_file: str) -> str:
     """The nearest caller not in this module, as file:line function."""
     for frame in reversed(traceback.extract_stack()[:-2]):
@@ -232,6 +249,15 @@ class EmbeddingEngine:
         self._query_vectors: OrderedDict[tuple[str, str], np.ndarray] = OrderedDict()
         self._query_inflight: dict[tuple[str, str], Future] = {}
         self._loader: threading.Thread | None = None
+        #: The lane's stamp when it refused this engine, or None when it did not.
+        #:
+        #: LIVE 2026-09-26, boot at 18:57: a standalone probe held the lane
+        #: exclusively, the encoder was refused, and the engine settled on its
+        #: word-count fallback for the life of the process. The probe finished
+        #: before her own model loaded; the encoder never asked again, semantic
+        #: routing stayed "unavailable", and chat was held closed for twenty
+        #: minutes until the process was stopped.
+        self._refused_under: int | None = None
         self._said_loading = False
         self._closing = False
         #: Encodes running right now, outside the lifecycle lock. Eviction
@@ -322,8 +348,10 @@ class EmbeddingEngine:
             except ModelLaneControlError as exc:
                 logger.warning("Embedding model admission refused; using bounded fallback: %s", exc)
                 self._init_tfidf_fallback()
+                self._refused_under = _lane_stamp()
                 self._initialized = True
                 return
+            self._refused_under = None
             try:
                 # truncate_dim keeps the Matryoshka output at VECTOR_DIM, so
                 # the stored width never moves. assert_window_matches_model
@@ -398,6 +426,11 @@ class EmbeddingEngine:
         in-flight count tells eviction it is not idle — which is the question
         the old non-blocking acquire was really trying to ask.
         """
+        if self._ask_again_if_refused():
+            # Asked again on the loader thread, as the first load is: the
+            # answer may be another refusal, and nobody waits to hear it.
+            self.warm_in_background()
+            return None
         if not self._initialized and _on_a_running_loop():
             # The first checkout loads the sentence-transformer weights
             # on whichever thread asks. Asked from the loop
@@ -468,6 +501,7 @@ class EmbeddingEngine:
         """
         # Read before the lock: the load holds the lifecycle lock for the
         # whole of it, and asking under the lock is waiting on the load.
+        self._ask_again_if_refused()
         if self._initialized:
             return None
         loader = self._loader
@@ -481,6 +515,27 @@ class EmbeddingEngine:
                 return loader
             return self._start_loader()
 
+
+    def _ask_again_if_refused(self) -> bool:
+        """Return a refused engine to unloaded once the lane has changed since.
+
+        True when it did, and the next load asks for the lane again. A refusal
+        answers who held the lane then; kept for the life of the process, it
+        outlived the holder by as long as the process ran.
+        """
+        refused_under = self._refused_under
+        if refused_under is None or self._model is not None:
+            return False
+        now = _lane_stamp()
+        if now is None or now == refused_under:
+            return False
+        with self._lifecycle_lock:
+            if self._refused_under != refused_under or self._model is not None:
+                return False
+            self._refused_under = None
+            self._initialized = False
+        logger.info("🧠 EmbeddingEngine: the model lane has changed since it refused the encoder; asking again.")
+        return True
 
     def _return_model(self) -> None:
         with self._lifecycle_lock:

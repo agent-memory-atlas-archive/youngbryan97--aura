@@ -159,6 +159,17 @@ def _decode(value: Any) -> Any:
     if "~obj" in value:
         klass = _class_named(str(value["~obj"]))
         built = klass.__new__(klass)
+        try:
+            # The defaults first, then what was kept over them. A field added
+            # since the record was written is not in it, and a ledger built
+            # from the record alone had no such field at all: LIVE 26 Sep,
+            # "'HabitLedger' object has no attribute '_valence_last_read'"
+            # on every reflex, from a ledger kept before the field existed.
+            klass.__init__(built)
+        except (TypeError, ValueError):
+            # not a failure: a class that cannot be made without arguments
+            # has nothing to default, and the kept fields are all of it.
+            pass
         for name, item in (value.get("fields") or {}).items():
             object.__setattr__(built, name, _decode(item))
         return built

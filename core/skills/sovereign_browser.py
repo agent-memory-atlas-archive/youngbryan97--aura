@@ -23,6 +23,7 @@ from core.governance_context import get_active_governance
 from core.governance.will import ActionDomain
 from core.runtime.action_executor import ActionExecutor
 from core.runtime.errors import record_degradation
+from core.runtime.still_getting_somewhere import it_got_somewhere
 from core.runtime.skill_contract import ActionExpectation
 from core.search.research_pipeline import query_requires_source_reading
 from core.skills.base_skill import BaseSkill
@@ -89,6 +90,13 @@ class BrowserInput(BaseModel):
         description=(
             "For 'pursue' mode: what to accomplish on the page, in plain words. "
             "The loop decides each step from what the page actually shows."
+        ),
+    )
+    said_before: str | None = Field(
+        None,
+        description=(
+            "For 'pursue' mode: what she told the person before starting, so "
+            "that when the goal is met she can hold the outcome against it."
         ),
     )
     max_steps: int = Field(
@@ -311,7 +319,8 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
         why = self._why_it_would_not_load
         return f"Failed to load start URL: {url}" + (f" — {why}" if why else "")
 
-    def timeout_for(self, params: Any) -> float:
+    @classmethod
+    def timeout_for(cls, params: Any) -> float:
         """What THIS request will cost, not what browsing costs on average.
 
         The engine asks any skill that can size its own budget, and keeps the
@@ -335,18 +344,39 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
             mode = str(getattr(params, "mode", "") or "")
         # A little headroom over the internal wait, so the inner timeout is the
         # one that fires and can report which round it was on.
-        return self._execution_timeout(mode) + 30.0
+        return cls._execution_timeout(mode) + 30.0
 
     #: The step ceiling a pursuit gets when the caller names none — the same
     #: default `BrowserInput.max_steps` carries, so an unspecified pursuit is
     #: sized like a pursuit rather than like one interaction.
     PURSUE_DEFAULT_STEPS = 40
 
-    def _execution_timeout(self, mode: str, steps_allowed: int | None = None) -> float:
+    @classmethod
+    def _one_round_of_her_decisions(cls) -> float:
+        """Seconds her own model takes to decide the widest round, at measured rates.
+
+        A round that asks about her decides up to `PURSUE_PARALLEL_ITEMS`
+        questions, each on her own model and each up to `DECISION_MAX_TOKENS`
+        with the thinking the worker adds, and one model decides them in turn.
+        0.0 while the rate is unmeasured. LIVE 26 Sep her model wrote 7.2
+        tokens a second, and forty rounds at forty-five seconds each gave a
+        thirty-two-item test half an hour for decisions that take longer.
+        """
+        try:
+            from core.brain.llm.thinking_reserve import reserve_tokens, seconds_to_decode
+
+            one = cls.DECISION_MAX_TOKENS + int(reserve_tokens())
+            return float(seconds_to_decode(one * cls.PURSUE_PARALLEL_ITEMS))
+        except (ImportError, AttributeError, OSError, TypeError, ValueError) as exc:
+            record_degradation("sovereign_browser", exc, severity="info", action="sized the pursuit without its decision rate")
+            return 0.0
+
+    @classmethod
+    def _execution_timeout(cls, mode: str, steps_allowed: int | None = None) -> float:
         operation_timeout = {
-            "search": self.SEARCH_TIMEOUT,
-            "browse": self.BROWSE_TIMEOUT + self.READ_TIMEOUT,
-            "interact": self.INTERACTION_TIMEOUT,
+            "search": cls.SEARCH_TIMEOUT,
+            "browse": cls.BROWSE_TIMEOUT + cls.READ_TIMEOUT,
+            "interact": cls.INTERACTION_TIMEOUT,
             # A pursuit is many interactions plus a decision between each, and
             # how many is not knowable in advance — that is what makes it a
             # pursuit rather than a script. The envelope is therefore derived
@@ -356,9 +386,12 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
             # It is an outer bound against a wedged process, not a work budget.
             # The loop stops itself when progress stops; this only stops it
             # when nothing is happening at all.
-            "pursue": self.INTERACTION_TIMEOUT
-            * max(1, int(steps_allowed or self.PURSUE_DEFAULT_STEPS)),
-        }.get(mode, self.INTERACTION_TIMEOUT)
+            #
+            # A round is the page's interaction plus her decisions about it,
+            # and a decision takes as long as her model takes to write it.
+            "pursue": (cls.INTERACTION_TIMEOUT + (cls._one_round_of_her_decisions() if mode == "pursue" else 0.0))
+            * max(1, int(steps_allowed or cls.PURSUE_DEFAULT_STEPS)),
+        }.get(mode, cls.INTERACTION_TIMEOUT)
         return 30.0 + operation_timeout + 15.0
 
     @staticmethod
@@ -609,6 +642,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                         params.goal or "",
                         params.max_steps,
                         action_context=action_context,
+                        said_before=params.said_before or "",
                     )
                 else:
                     return {"ok": False, "error": f"Unsupported browser mode: {params.mode}"}
@@ -1038,6 +1072,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
         max_steps: int,
         *,
         action_context: Mapping[str, Any] | None = None,
+        said_before: str = "",
     ) -> dict[str, Any]:
         """Work a page toward a goal, deciding each round from what it shows.
 
@@ -1092,6 +1127,22 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
             if callable(candidate):
                 heartbeat = candidate
 
+        def moved(note: str) -> None:
+            """Tell every clock over this run that it is still getting somewhere.
+
+            The executor's silence clock, and the governor that holds the
+            whole budget: a round of eight questions decided one after
+            another on her own model is long, and it is progress all the way.
+            """
+            nonlocal heartbeat
+            if heartbeat is not None:
+                try:
+                    heartbeat(note)
+                except Exception as exc:  # a watchdog must never be the danger
+                    record_degradation("sovereign_browser", exc, action="heartbeat skipped")
+                    heartbeat = None
+            it_got_somewhere(note)
+
         # What she has already done survives however this ends.
         #
         # One slow decision used to destroy an entire run: a generation timed
@@ -1100,12 +1151,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
         # failed, so the loop ends and the work is reported.
         try:
             for _round in range(max(1, int(max_steps))):
-                if heartbeat is not None:
-                    try:
-                        heartbeat(f"pursuit round {_round + 1}")
-                    except Exception as exc:  # a watchdog must never be the danger
-                        record_degradation("sovereign_browser", exc, action="heartbeat skipped")
-                        heartbeat = None
+                moved(f"pursuit round {_round + 1}")
                 observation = await browser.observe(principal="owner")
                 if (not observation or not observation.get("elements")) and last_good_url:
                     # A reload, a navigation, or a renderer that went away mid-run.
@@ -1167,11 +1213,11 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                 decision = None
                 if self._asks_about_the_one_answering(observation):
                     decision = await self._answer_each_question(
-                        goal, observation, steps, understanding
+                        goal, observation, steps, understanding, on_progress=moved
                     )
                 if decision is None:
                     decision = await self._decide_next_actions(
-                        goal, observation, steps, understanding
+                        goal, observation, steps, understanding, said_before=said_before
                     )
                 if decision.get("error"):
                     # What she actually said, not just that it could not be read.

@@ -484,20 +484,21 @@ def semantic_routing_available() -> bool:
     if embedder is None:
         return False
     try:
-        embedder._checkout_model()  # noqa: SLF001 - availability probe
+        model = embedder._checkout_model()  # noqa: SLF001 - availability probe
     except (AttributeError, RuntimeError, OSError):
         # not a failure: a model that cannot be checked out is not available,
         # which is what this probe reports.
         return False
+    if model is None:
+        # Nothing was checked out, so nothing goes back: returning one here
+        # took a count from an encode still running elsewhere.
+        return False
     try:
-        model = getattr(embedder, "_model", None)
-    finally:
-        try:
-            embedder._return_model()  # noqa: SLF001
-        except (AttributeError, RuntimeError) as exc:
-            # A model checked out and not returned is a lease that leaks.
-            logger.warning("Probe did not return the embedding model: %s", exc)
-    return model is not None
+        embedder._return_model()  # noqa: SLF001
+    except (AttributeError, RuntimeError) as exc:
+        # A model checked out and not returned is a lease that leaks.
+        logger.warning("Probe did not return the embedding model: %s", exc)
+    return True
 
 
 def _embed(text: str, *, as_query: bool = False) -> Any | None:
@@ -793,6 +794,25 @@ def relevance(request: Any, kind: str) -> float:
     return score if stable else 0.0
 
 
+def _wait_for_the_encoder() -> None:
+    """Wait out an encoder load in flight, or start one and wait it out.
+
+    A live caller that finds the load in flight is answered "nothing yet" so
+    it does not queue behind it. A prewarm exists to pay for that load before
+    a turn does, and taking "nothing yet" as "unavailable" failed it: LIVE
+    2026-09-26 the encoder was still loading on a loaded host, and all three
+    warmup attempts reported semantic routing unavailable.
+    """
+    warm = getattr(_embedder(), "warm_in_background", None)
+    loading = warm() if callable(warm) else None
+    if loading is None:
+        return
+    from core.runtime.shutdown_coordinator import is_shutdown_requested
+
+    while loading.is_alive() and not is_shutdown_requested():
+        loading.join(1.0)
+
+
 def prewarm_evidence_relevance() -> dict[str, Any]:
     """Materialize every semantic routing surface before chat is advertised.
 
@@ -802,6 +822,7 @@ def prewarm_evidence_relevance() -> dict[str, Any]:
     """
 
     started = time.perf_counter()
+    _wait_for_the_encoder()
     if not semantic_routing_available():
         raise RuntimeError("semantic evidence routing is unavailable")
 

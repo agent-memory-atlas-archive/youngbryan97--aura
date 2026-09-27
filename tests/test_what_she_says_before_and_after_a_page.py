@@ -1,0 +1,178 @@
+"""What she says before she starts on a page, and what she makes of it at the end.
+
+LIVE 26 Sep, asked: "Before you start, tell me what type you think it will give
+you and why ... When you get your result, tell me whether it matches what you
+predicted." Three faults stood between that and an answer:
+
+- her reply, written before any page opened, was kept only as a body the task
+  might type, so the person never saw it;
+- the page loop was never told what she had said, so at the result she had
+  nothing to hold it against;
+- the round where she judged the goal met, reading the finished page, was
+  recorded and left out of the reply.
+"""
+
+from __future__ import annotations
+
+import asyncio
+
+from core.skills import sovereign_browser_understanding as understanding
+from core.skills.sovereign_browser import SovereignBrowserSkill
+
+SAID = "I expect INTJ: I plan, and I would rather think alone."
+
+
+def _decision_prompt(monkeypatch, page, said_before=SAID) -> str:
+    seen: list[str] = []
+
+    class Router:
+        async def think(self, prompt, **_kw):
+            seen.append(prompt)
+            return '{"actions": [{"index": 0, "type": "click"}], "why": "on", "done": false}'
+
+    monkeypatch.setattr(understanding, "optional_service", lambda name, default=None: Router())
+    skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+
+    async def mind():
+        return "her mind"
+
+    skill._assembled_mind = mind
+    asyncio.run(skill._decide_next_actions("take the test", page, [], None, said_before=said_before))
+    return seen[0]
+
+
+def test_a_page_of_mechanics_is_decided_with_what_she_said_in_view(monkeypatch):
+    results = {"url": "u", "title": "t", "text": "Your type: INTJ", "elements": [{"role": "button", "name": "Retake", "selector": "#r"}]}
+    assert SAID in _decision_prompt(monkeypatch, results)
+
+
+def test_a_question_about_her_is_never_answered_with_her_forecast_in_view(monkeypatch):
+    item = {
+        "url": "u",
+        "title": "t",
+        "text": "",
+        "elements": [
+            {"role": "radio", "name": f"Q{q}", "group": f"Q{q}", "value": str(v), "selector": f"#q{q}v{v}",
+             "asks": "quiet [1] [2] [3] [4] [5] talkative"}
+            for q in range(2)
+            for v in range(1, 6)
+        ],
+    }
+    assert SAID not in _decision_prompt(monkeypatch, item)
+
+
+def _delegated(monkeypatch, steps, context):
+    from core.skills.desktop_task import DesktopTaskParams, DesktopTaskSkill
+
+    sent: list[dict] = []
+
+    class _Engine:
+        async def execute(self, skill, params, context=None):
+            sent.append(dict(params))
+            return {"ok": True, "completed": True, "final_url": params["url"], "result_text": "Your type: INTJ", "steps": steps}
+
+    import core.container as container
+
+    monkeypatch.setattr(
+        container.ServiceContainer, "get",
+        staticmethod(lambda name, default=None: _Engine() if name == "capability_engine" else default),
+    )
+    result = asyncio.run(
+        DesktopTaskSkill()._delegate_page_objective(
+            DesktopTaskParams(objective="take the test at https://example.com/quiz"), context
+        )
+    )
+    return result, sent
+
+
+def test_the_page_loop_is_told_what_she_said_before(monkeypatch):
+    _result, sent = _delegated(monkeypatch, [], {"cognitive_reply": SAID})
+    assert sent[0]["said_before"] == SAID
+
+
+def test_what_she_concluded_at_the_finished_page_is_kept(monkeypatch):
+    steps = [
+        {"asked": "You plan ahead.", "chose": ["5"], "why": "I do", "ok": True, "landed": True},
+        {"why": "It says INTJ, as I said it would; I think it is right about the planning.", "done": True},
+    ]
+    result, _sent = _delegated(monkeypatch, steps, {})
+    assert result["concluded"].startswith("It says INTJ, as I said it would")
+
+    from interface.routes.chat_desktop_objective import _pursuit_account
+
+    account = _pursuit_account(result)
+    assert account[-1] == result["concluded"], "her judgement comes last, after the page's own words"
+
+
+def test_her_reply_is_said_before_a_page_is_worked_and_not_before_other_work(monkeypatch):
+    from core.agency.narrator import Narrator
+    from interface.routes.chat_desktop_objective import _say_before_working_a_page
+
+    said: list[str] = []
+    monkeypatch.setattr(Narrator, "say_everywhere", staticmethod(said.append))
+    _say_before_working_a_page("Take the personality test on openpsychometrics.org", SAID)
+    assert said == [SAID]
+    said.clear()
+    _say_before_working_a_page("open Notes and write a paragraph about yourself", SAID)
+    assert said == [], "a reply the task may type as its body is not said first"
+
+
+def test_a_pursuit_is_given_the_time_her_decisions_take(monkeypatch):
+    """Forty rounds at a flat forty-five seconds gave a thirty-two-item test
+    half an hour, at a decode rate that needed longer."""
+    from core.brain.llm import thinking_reserve
+
+    monkeypatch.setattr(thinking_reserve, "reserve_tokens", lambda model="": 0)
+    monkeypatch.setattr(thinking_reserve, "seconds_to_decode", lambda tokens, model="", typical=False: 0.0)
+    unmeasured = SovereignBrowserSkill.timeout_for({"mode": "pursue"})
+    monkeypatch.setattr(thinking_reserve, "seconds_to_decode", lambda tokens, model="", typical=False: tokens / 7.0)
+    measured = SovereignBrowserSkill.timeout_for({"mode": "pursue"})
+    widest = SovereignBrowserSkill.DECISION_MAX_TOKENS * SovereignBrowserSkill.PURSUE_PARALLEL_ITEMS / 7.0
+    assert measured - unmeasured == SovereignBrowserSkill.PURSUE_DEFAULT_STEPS * widest
+    assert SovereignBrowserSkill.timeout_for({"mode": "search"}) < unmeasured
+
+
+def test_page_work_is_given_what_the_browser_says_it_costs():
+    """The desktop task's flat 180 seconds would have cut the test off three minutes in."""
+    from core.skills.desktop_task import DesktopTaskSkill
+
+    page = DesktopTaskSkill.timeout_for({"objective": "Take the personality test on openpsychometrics.org"})
+    assert page >= SovereignBrowserSkill.timeout_for({"mode": "pursue"})
+    assert DesktopTaskSkill.timeout_for({"objective": "open Notes and write hello"}) == DesktopTaskSkill.timeout_seconds
+
+
+def test_each_question_decided_is_reported_as_progress(monkeypatch):
+    from core.runtime.still_getting_somewhere import a_place_to_report_it, when_it_last_got_somewhere
+
+    class Router:
+        async def think(self, prompt, **_kw):
+            return '{"actions": [{"index": 0, "type": "click"}], "why": "so", "done": false}'
+
+    monkeypatch.setattr(understanding, "optional_service", lambda name, default=None: Router())
+    skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+
+    async def mind():
+        return "her mind"
+
+    skill._assembled_mind = mind
+    page = {
+        "url": "u", "title": "t", "text": "",
+        "elements": [
+            {"role": "radio", "name": f"Q{q}", "group": f"Q{q}", "value": str(v), "selector": f"#q{q}v{v}",
+             "asks": "quiet [1] [2] [3] talkative"}
+            for q in range(3)
+            for v in range(1, 4)
+        ],
+    }
+    heard: list[str] = []
+    asyncio.run(skill._answer_each_question("take the test", page, [], None, on_progress=heard.append))
+    assert heard == ["a question decided"] * 3
+
+    async def in_a_run():
+        slot = a_place_to_report_it()
+        from core.runtime.still_getting_somewhere import it_got_somewhere
+
+        it_got_somewhere("a question decided")
+        return when_it_last_got_somewhere(slot)
+
+    assert asyncio.run(in_a_run()) < 1.0

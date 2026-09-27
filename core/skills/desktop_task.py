@@ -422,6 +422,20 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
         watched = read_watched_goal(objective)
         if watched is not None:
             return max(cls.timeout_seconds, float(watched.max_seconds) + cls._WATCHED_GOAL_GRACE_S)
+        # Work on a page goes to the browser whole, so it costs what the
+        # browser says a pursuit costs. The flat budget here would have cut a
+        # thirty-two-item test off three minutes in, however well it was going.
+        try:
+            from core.conversation.page_interaction import page_interaction_target
+            from core.skills.sovereign_browser import SovereignBrowserSkill
+
+            if page_interaction_target(objective):
+                return max(
+                    cls.timeout_seconds,
+                    SovereignBrowserSkill.timeout_for({"mode": "pursue"}) + cls._WATCHED_GOAL_GRACE_S,
+                )
+        except (ImportError, AttributeError, TypeError, ValueError) as exc:
+            record_degradation("desktop_task.page_budget", exc, severity="info", action="kept the flat budget")
         if not cls._objective_requests_research_document(objective):
             return cls.timeout_seconds
         sources = cls._requested_research_source_count(objective)
@@ -4662,7 +4676,15 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
             # keys was written for it; the delegation simply was not using it.
             report = await capability_engine.execute(
                 "sovereign_browser",
-                {"mode": "pursue", "url": url, "goal": objective},
+                {
+                    "mode": "pursue",
+                    "url": url,
+                    "goal": objective,
+                    # What she told them before starting. At the end of the
+                    # page she can hold the outcome against it, which is what
+                    # "does it match what you said" asks of her.
+                    "said_before": str((context or {}).get("cognitive_reply") or "").strip(),
+                },
                 context=self._child_step_context(context),
             )
             report = report if isinstance(report, dict) else {}
@@ -4793,6 +4815,14 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
                 if step.get("chose")
             ],
             "result_text": report.get("result_text", ""),
+            # What she said when she judged the goal met, with the finished
+            # page in front of her. It was recorded and never reached the
+            # reply, which is why a run that ended on a result said nothing
+            # about it.
+            "concluded": next(
+                (str(step.get("why") or "").strip() for step in reversed(steps) if step.get("done")),
+                "",
+            ),
         }
 
     async def _execute_receipt(self, failures, index, objective, planner, receipts, reference_error, step, steps):

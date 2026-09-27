@@ -8684,11 +8684,14 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 record_degradation("chat.answer_provenance", provenance_exc)
             return metadata or None
 
-        async def _run_desktop_objective_tracked(message: str, *, cognitive_reply: str) -> dict[str, Any] | None:
+        async def _run_desktop_objective_tracked(
+            message: str, *, cognitive_reply: str, her_reply_first: bool = False
+        ) -> dict[str, Any] | None:
             """Forwards to the lifted _lifted_run_desktop_objective_tracked."""
             return await _lifted_run_desktop_objective_tracked(
                 message=message,
                 cognitive_reply=cognitive_reply,
+                her_reply_first=her_reply_first,
                 _desktop_exec_state=_desktop_exec_state,
                 conversation_only_surface=conversation_only_surface,
                 pending_exchange_id=pending_exchange_id,
@@ -11044,6 +11047,9 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                 desktop_objective = await _run_desktop_objective_tracked(
                     _semantic_user_message,
                     cognitive_reply=reply_text,
+                    # Her cognitive engine wrote this; a failure reply
+                    # returned above and never reaches here.
+                    her_reply_first=True,
                 )
                 if desktop_objective:
                     return await _finalize_fastpath(

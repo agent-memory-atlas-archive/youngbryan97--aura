@@ -36,6 +36,7 @@ __all__ = [
 
 async def _lifted_run_desktop_objective_tracked(
     message: str, *, cognitive_reply: str,
+    her_reply_first: bool = False,
     _desktop_exec_state: Any,
     conversation_only_surface: Any,
     pending_exchange_id: Any,
@@ -61,7 +62,7 @@ async def _lifted_run_desktop_objective_tracked(
         }
     _desktop_exec_state["attempted"] = True
     executed = await _chat_desktop_objective._execute_desktop_objective_from_chat(
-        message, cognitive_reply=cognitive_reply
+        message, cognitive_reply=cognitive_reply, her_reply_first=her_reply_first
     )
     if isinstance(executed, dict):
         _desktop_exec_state["result"] = executed.get("result")

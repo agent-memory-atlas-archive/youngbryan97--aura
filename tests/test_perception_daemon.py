@@ -274,3 +274,24 @@ async def test_perception_daemon_backs_off_when_user_idle(monkeypatch):
     daemon.last_user_activity = _time.time()
     await daemon._main_perceptual_loop()
     assert slept == [2.0], f"active loop should poll at check_interval, got {slept}"
+
+
+def test_shells_are_read_from_the_kernel_without_starting_a_process(monkeypatch):
+    """LIVE 26 Sep: `ps` under a one-second bound ran past it on a loaded host every tick."""
+    import psutil
+
+    from core.perception import perception_daemon
+    from core.runtime import subprocess_gateway
+
+    def no_process(*_args, **_kwargs):
+        raise AssertionError("a process was started to list the processes")
+
+    monkeypatch.setattr(subprocess_gateway.get_subprocess_gateway(), "run", no_process)
+
+    class Proc:
+        def __init__(self, name):
+            self.info = {"name": name}
+
+    running = [Proc(name) for name in ("zsh", "-zsh", "bash", "ssh", "sshd", "Finder", None)]
+    monkeypatch.setattr(psutil, "process_iter", lambda attrs=None: iter(running))
+    assert perception_daemon._running_shells() == ["zsh", "-zsh", "bash"], "ssh and sshd are not shells"
