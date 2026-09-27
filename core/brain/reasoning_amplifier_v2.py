@@ -1795,7 +1795,15 @@ def is_action_request(objective: str) -> bool:
             return False
     if _GO_TO_RE.match(q) or _ACTION_RE.match(q):
         return True
-    return False
+    # Work on a page is an action wherever the verb sits. The router already
+    # reads it that way and sends it to the browser; this check did not, and
+    # LIVE 26 Sep "Take the ... personality test on openpsychometrics.org"
+    # had its prelude run through the verifier while the page waited.
+    try:
+        from core.conversation.page_interaction import asks_to_act_on_a_page
+    except ImportError:
+        return False
+    return asks_to_act_on_a_page(q)
 
 
 def is_amplifiable(objective: str) -> str | None:
