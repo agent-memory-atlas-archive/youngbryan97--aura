@@ -1127,7 +1127,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
             if callable(candidate):
                 heartbeat = candidate
 
-        def moved(note: str) -> None:
+        def still_going(note: str) -> None:
             """Tell every clock over this run that it is still getting somewhere.
 
             The executor's silence clock, and the governor that holds the
@@ -1151,7 +1151,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
         # failed, so the loop ends and the work is reported.
         try:
             for _round in range(max(1, int(max_steps))):
-                moved(f"pursuit round {_round + 1}")
+                still_going(f"pursuit round {_round + 1}")
                 observation = await browser.observe(principal="owner")
                 if (not observation or not observation.get("elements")) and last_good_url:
                     # A reload, a navigation, or a renderer that went away mid-run.
@@ -1213,7 +1213,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                 decision = None
                 if self._asks_about_the_one_answering(observation):
                     decision = await self._answer_each_question(
-                        goal, observation, steps, understanding, on_progress=moved
+                        goal, observation, steps, understanding, on_progress=still_going
                     )
                 if decision is None:
                     decision = await self._decide_next_actions(
