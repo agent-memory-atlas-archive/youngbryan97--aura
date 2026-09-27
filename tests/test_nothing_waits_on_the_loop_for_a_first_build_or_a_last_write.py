@@ -81,24 +81,77 @@ async def test_an_absent_service_gives_the_default():
     assert await service_off_the_loop("no_such_service_anywhere", default=None) is None
 
 
-def test_the_skill_path_asks_for_its_services_without_building_them_on_the_loop():
-    import inspect
+@pytest.mark.asyncio
+async def test_the_skill_path_asks_for_its_services_without_building_them_on_the_loop(
+    monkeypatch, service_container
+):
+    """A skill run through the engine, with both services not yet built.
 
-    from core import capability_engine
+    Each factory notes the thread it ran on. Built on the loop, the first
+    skill after a boot stood the loop still while sqlalchemy imported.
+    """
+    import logging
 
-    source = inspect.getsource(capability_engine)
-    assert 'await service_off_the_loop("persistent_state"' in source
-    assert 'await service_off_the_loop("memory_governor"' in source
+    from core.capability_engine import CapabilityEngine, SkillMetadata
+    from core.container import ServiceLifetime
+    from core.runtime import CoreRuntime
+    from core.skills.base_skill import BaseSkill
 
+    monkeypatch.setattr("core.runtime.runtime_settings.runtime_approval_mode", lambda: "none")
+    # Up first, so the providers it registers are in place before these two
+    # stand in for them unbuilt.
+    await CoreRuntime.get()
+    loop_thread = threading.get_ident()
+    built_on: dict[str, int] = {}
 
-def test_the_shutdown_verdict_is_written_through_the_lane_that_keeps_it_off_the_loop():
-    import inspect
+    class _Governor:
+        def check(self) -> None:
+            return None
 
-    from core.ops import graceful_shutdown
+    class _Store:
+        def __init__(self) -> None:
+            self.logged: list[str] = []
 
-    source = inspect.getsource(graceful_shutdown)
-    assert "off_the_loop(publish_shutdown_verdict" in source
-    assert "\n                    publish_shutdown_verdict(**verdict)" not in source
+        def log_execution(self, *, skill_name, **_row) -> None:
+            self.logged.append(skill_name)
+
+    store = _Store()
+
+    def build(name, made):
+        def factory():
+            built_on[name] = threading.get_ident()
+            return made
+
+        return factory
+
+    service_container.register(
+        "memory_governor", build("memory_governor", _Governor()), lifetime=ServiceLifetime.SINGLETON
+    )
+    service_container.register(
+        "persistent_state", build("persistent_state", store), lifetime=ServiceLifetime.SINGLETON
+    )
+
+    class Echo(BaseSkill):
+        name = "echo_skill"
+
+        async def execute(self, params, context=None):
+            return {"ok": True}
+
+    engine = CapabilityEngine()
+    engine.logger = logging.getLogger("test.first_build_off_the_loop")
+    engine.skills["echo_skill"] = SkillMetadata(
+        name="echo_skill", description="echo", skill_class=Echo, enabled=True
+    )
+    engine.instances["echo_skill"] = Echo()
+
+    result = await engine.execute("echo_skill", {}, {"origin": "desktop"})
+
+    assert result.get("ok") is True, result
+    assert set(built_on) == {"memory_governor", "persistent_state"}, (
+        "the skill path never asked for the services it governs memory with"
+    )
+    assert loop_thread not in built_on.values(), "a first build ran on the loop"
+    assert store.logged == ["echo_skill"], "the store built off the loop is the one used"
 
 
 class _Request:

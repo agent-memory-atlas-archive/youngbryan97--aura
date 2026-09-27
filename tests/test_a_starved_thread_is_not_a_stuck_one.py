@@ -123,42 +123,108 @@ def test_the_watchdog_tells_a_starved_loop_from_a_stuck_one(monkeypatch, caplog)
     assert watchdog._loop_cpu_share_since_heartbeat(10.0) is None
 
 
-def test_the_watchdog_loop_skips_dump_and_recovery_for_a_starved_stall():
-    """The loop and the helpers it calls, not the loop's own lines.
+class _AQuietLoop:
+    """A loop that is running and never runs the heartbeat it is handed."""
 
-    The comparison this reads for was lifted into ``_was_starved`` on
-    2026-09-21, because a second caller needed it and had been reporting
-    starved stalls as on-loop work. Reading the method alone made that a
-    test failure rather than the fix it was.
+    def is_closed(self) -> bool:
+        return False
+
+    def is_running(self) -> bool:
+        return True
+
+    def call_soon_threadsafe(self, *_args) -> None:
+        return None
+
+
+def _a_watchdog(monkeypatch, *, share: float):
+    """A watchdog whose every look finds a stall on `share` of a core.
+
+    What it did is recorded rather than done: a report, a dump, a recovery.
+    Recovery is made due at once, so a stall that reaches it gets one.
     """
     from core.resilience import stall_watchdog as sw
 
-    from tests.source_contract import function_with_its_helpers
+    monkeypatch.setattr(sw.StallWatchdog, "_resolve_heartbeat_file", staticmethod(lambda: None))
+    monkeypatch.setattr(sw, "_WATCHDOG_TICK_S", 0.02)
+    monkeypatch.setattr(sw, "_ACTIVE_RECOVERY_THRESHOLD", 0.0)
+    watchdog = sw.StallWatchdog(_AQuietLoop(), threshold=0.01)
+    did: list[str] = []
+    looks = {"n": 0}
 
-    loop = function_with_its_helpers(sw, "StallWatchdog.run")
-    assert "share = self._loop_cpu_share_since_heartbeat(elapsed)" in loop
-    assert "LOOP_BLOCKED_CEILING_FRACTION <= share < LOOP_HOLD_STARVED_FRACTION" in loop
-    starved = loop[loop.index("self._report_starvation(elapsed, float(share))") :]
-    starved = starved[: starved.index("continue")]
-    assert "_attempt_active_recovery" not in starved
-    assert "_report_stall" not in starved
+    def starved(elapsed, share_):
+        did.append("starvation")
+        looks["n"] += 1
+        if looks["n"] >= 2:
+            watchdog.stop()
+
+    def stalled(elapsed, share_=None):
+        did.append("stall")
+        looks["n"] += 1
+        if looks["n"] >= 2:
+            watchdog.stop()
+
+    monkeypatch.setattr(watchdog, "_write_liveness_heartbeat", lambda **_k: None)
+    monkeypatch.setattr(watchdog, "_drain_stall_dump_backlog", lambda *_a, **_k: None)
+    monkeypatch.setattr(watchdog, "_should_force_exit", lambda _silence: False)
+    monkeypatch.setattr(watchdog, "_should_suppress_stall", lambda _elapsed: False)
+    monkeypatch.setattr(watchdog, "_loop_cpu_share_since_heartbeat", lambda _elapsed: share)
+    monkeypatch.setattr(watchdog, "_report_starvation", starved)
+    monkeypatch.setattr(watchdog, "_report_stall", stalled)
+    monkeypatch.setattr(
+        watchdog, "_attempt_active_recovery", lambda _elapsed: did.append("recovery")
+    )
+    return watchdog, did
 
 
-def test_a_lateness_streak_is_classified_the_same_way():
+def _run_until_stopped(watchdog) -> None:
+    runner = threading.Thread(target=watchdog.run, daemon=True)
+    runner.start()
+    runner.join(timeout=5.0)
+    watchdog.stop()
+    assert not runner.is_alive(), "the watchdog loop never stopped"
+
+
+def test_the_watchdog_loop_skips_dump_and_recovery_for_a_starved_stall(monkeypatch):
+    """The watchdog loop, run over two stalls on 8% of a core.
+
+    8% sits inside the starved band, so each stall is reported as the host's
+    and nothing is dumped or recovered. The comparison was lifted into
+    ``_was_starved`` on 2026-09-21, because a second caller needed it.
+    """
+    from core.resilience import stall_watchdog as sw
+
+    assert sw.LOOP_BLOCKED_CEILING_FRACTION <= 0.08 < sw.LOOP_HOLD_STARVED_FRACTION
+    watchdog, did = _a_watchdog(monkeypatch, share=0.08)
+    _run_until_stopped(watchdog)
+    assert did == ["starvation", "starvation"]
+
+
+def test_a_blocked_loop_still_gets_its_dump_and_its_recovery(monkeypatch):
+    """No CPU at all is a loop that is stuck, and the carve-out leaves it alone."""
+    watchdog, did = _a_watchdog(monkeypatch, share=0.0)
+    _run_until_stopped(watchdog)
+    assert did[:2] == ["stall", "recovery"]
+
+
+@pytest.mark.parametrize(("share", "reported"), [(0.03, "starvation"), (0.9, "stall")])
+def test_a_lateness_streak_is_classified_the_same_way(monkeypatch, share, reported):
     """Both callers of ``_report_stall`` ask the same question first.
 
     LIVE 2026-09-21: three `EVENT LOOP STALL DETECTED! ... on 3% of a core:
     on-loop work` lines, each with a dump of every stack. Three percent is
     inside the starved band. The streak reporter was added that morning and
-    called ``_report_stall`` directly.
+    called ``_report_stall`` directly. Here two late looks add up past the
+    line, on 3% of a core and then on 90%.
     """
     from core.resilience import stall_watchdog as sw
 
-    from tests.source_contract import function_with_its_helpers
-
-    for method in ("StallWatchdog.run", "StallWatchdog._note_lateness"):
-        text = function_with_its_helpers(sw, method)
-        assert "_was_starved" in text, f"{method} does not classify the share"
+    watchdog, did = _a_watchdog(monkeypatch, share=share)
+    # The streak's window is the recovery interval, so it goes back to its own.
+    monkeypatch.setattr(sw, "_ACTIVE_RECOVERY_THRESHOLD", 30.0)
+    watchdog.threshold = 5.0
+    watchdog._note_lateness(4.0, now=100.0)
+    watchdog._note_lateness(4.0, now=101.0)
+    assert did == [reported]
 
 
 @pytest.mark.asyncio

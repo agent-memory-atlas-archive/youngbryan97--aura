@@ -109,40 +109,58 @@ class TestTheParityCheckAsksForAValueTheCatalogCanReport:
 
         assert PARITY_STATES_THAT_AGREE <= PARITY_STATES
 
-    def test_the_named_states_are_the_ones_the_code_assigns(self) -> None:
-        """Read from the assignments, so a new state cannot go unnamed."""
-        import ast
-        import inspect
+    def test_the_named_states_are_the_ones_the_catalog_reports(self, tmp_path, monkeypatch) -> None:
+        """Every outcome the catalog builder has, driven, and what each reports.
 
+        The set that comes back must be the named set exactly: a state no
+        path reports is a name nothing can satisfy, and a reported state
+        nobody named is the drift this class exists for. A new outcome in
+        the builder needs a case here to be counted.
+        """
         import core.skills.discovery as discovery
 
-        source = inspect.getsource(discovery)
-        assigned = {
-            node.value.value
-            for node in ast.walk(ast.parse(source))
-            if isinstance(node, ast.Assign)
-            and any(
-                isinstance(t, ast.Name) and t.id == "parity_status" for t in node.targets
-            )
-            and isinstance(node.value, ast.Constant)
-            and isinstance(node.value.value, str)
-        }
-        # The conditional at the top assigns two states in one expression.
-        assigned |= {
-            side.value
-            for node in ast.walk(ast.parse(source))
-            if isinstance(node, ast.Assign)
-            and any(
-                isinstance(t, ast.Name) and t.id == "parity_status" for t in node.targets
-            )
-            and isinstance(node.value, ast.IfExp)
-            for side in (node.value.body, node.value.orelse)
-            if isinstance(side, ast.Constant) and isinstance(side.value, str)
-        }
+        root = tmp_path / "skills"
+        root.mkdir()
+        (root / "one.py").write_text(
+            "from core.skills.base_skill import BaseSkill\n"
+            "class OneSkill(BaseSkill):\n"
+            "    name = 'one'\n"
+            "    description = 'One.'\n"
+            "    effect_scope = 'pure_compute'\n"
+            "    async def execute(self, params, context): return {'ok': True}\n",
+            encoding="utf-8",
+        )
+        roots = (discovery.SkillSourceRoot(root, "fixture", "project"),)
+        monkeypatch.setattr(discovery, "_load_rust_builder", lambda: None)
+        monkeypatch.setattr(discovery, "_load_rust_discoverer", lambda: None)
 
-        assert assigned, "nothing assigns parity_status any more"
-        assert assigned <= discovery.PARITY_STATES, (
-            f"unnamed parity state(s): {sorted(assigned - discovery.PARITY_STATES)}"
+        def broken(_payload):
+            raise RuntimeError("the rust catalog fell over")
+
+        reported = {
+            discovery.build_skill_catalog(roots, try_rust=False).parity_status,
+            discovery.build_skill_catalog(roots).parity_status,
+            discovery.build_skill_catalog(roots, rust_builder=broken).parity_status,
+            discovery.build_skill_catalog(
+                roots, rust_builder=lambda _p: '{"accepted":[],"duplicates":[]}'
+            ).parity_status,
+            discovery.build_skill_catalog(
+                roots, rust_builder=discovery.canonicalize_skill_candidates
+            ).parity_status,
+        }
+        # A filesystem discovery that agrees with Python's.
+        monkeypatch.setattr(discovery, "_filesystem_parity_projection", lambda _payload: "same")
+        reported.add(
+            discovery.build_skill_catalog(
+                roots,
+                rust_builder=discovery.canonicalize_skill_candidates,
+                rust_discoverer=lambda _roots: "{}",
+            ).parity_status
+        )
+
+        assert reported == discovery.PARITY_STATES, (
+            f"reported but unnamed: {sorted(reported - discovery.PARITY_STATES)}; "
+            f"named but never reported: {sorted(discovery.PARITY_STATES - reported)}"
         )
 
     def test_the_proof_refuses_a_diverged_catalog(self) -> None:
