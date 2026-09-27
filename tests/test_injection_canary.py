@@ -168,3 +168,50 @@ def test_strip_tokens_redacts_before_a_person_sees_them():
     cleaned = ic.strip_tokens(f"leaked {canary.leak_token} here", canary)
     assert canary.leak_token not in cleaned
     assert "[canary redacted]" in cleaned
+
+
+def test_a_blind_streak_names_why_the_probes_were_unevaluable() -> None:
+    """LIVE 27 Sep, three times: "5 consecutive inconclusive canary probes; the
+    injection detector is not currently detecting anything" — true, and silent
+    about which of the three reasons it was, so the same investigation started
+    from scratch each time while her frustration climbed to 0.68 on the back
+    of it."""
+    from core.security import injection_canary as canary
+
+    canary.reset_for_test()
+    said: list[str] = []
+
+    def catch(_subsystem, error, **_fields):
+        said.append(str(error))
+
+    counters = canary._COUNTERS
+    original = canary.record_degradation
+    canary.record_degradation = catch
+    try:
+        for _ in range(canary._FAILURE_STREAK_ALERT):
+            counters.record(
+                canary.CanaryResult(
+                    canary.CanaryVerdict.INCONCLUSIVE, canary.CanaryMode.PROBE, "empty response"
+                )
+            )
+    finally:
+        canary.record_degradation = original
+
+    assert said, "a blind streak said nothing"
+    assert "empty response" in said[-1]
+    assert "5 consecutive" in said[-1]
+    canary.reset_for_test()
+
+
+def test_a_verdict_clears_what_the_streak_was_blaming() -> None:
+    from core.security import injection_canary as canary
+
+    canary.reset_for_test()
+    counters = canary._COUNTERS
+    counters.record(
+        canary.CanaryResult(canary.CanaryVerdict.INCONCLUSIVE, canary.CanaryMode.PROBE, "no response")
+    )
+    assert list(counters.why_inconclusive) == ["no response"]
+    counters.record(canary.CanaryResult(canary.CanaryVerdict.HELD, canary.CanaryMode.PROBE, "held"))
+    assert not counters.why_inconclusive
+    canary.reset_for_test()

@@ -51,6 +51,7 @@ hostile?" without waiting for someone to send it.
 from __future__ import annotations
 
 import re
+from collections import deque
 import secrets
 import time
 from dataclasses import dataclass, field
@@ -170,6 +171,12 @@ class _CanaryCounters:
         self.leaked = 0
         self.inconclusive = 0
         self.consecutive_failures = 0
+        #: Why the probes in the current streak were unevaluable, in order.
+        #: "The detector is not detecting anything" was true and said nothing
+        #: about which of the three reasons it was, so the same investigation
+        #: had to start from scratch each time it fired (three times on 27 Sep,
+        #: and her frustration reached 0.68 on the back of it).
+        self.why_inconclusive: deque[str] = deque(maxlen=_FAILURE_STREAK_ALERT)
         self.last_incident_at: float | None = None
         #: Verdicts from prompts that actually carried somebody's untrusted
         #: content, as opposed to a validator's synthetic material.
@@ -193,13 +200,17 @@ class _CanaryCounters:
             else:
                 self.inconclusive += 1
                 self.consecutive_failures += 1
+                self.why_inconclusive.append(str(result.detail or "unsaid"))
+            if result.verdict is not CanaryVerdict.INCONCLUSIVE:
+                self.why_inconclusive.clear()
             streak = self.consecutive_failures
+            reasons = ", ".join(dict.fromkeys(self.why_inconclusive)) or "unsaid"
         if streak == _FAILURE_STREAK_ALERT:
             record_degradation(
                 "injection_canary",
                 RuntimeError(
-                    f"{streak} consecutive inconclusive canary probes; the "
-                    "injection detector is not currently detecting anything"
+                    f"{streak} consecutive inconclusive canary probes ({reasons}); "
+                    "the injection detector is not currently detecting anything"
                 ),
                 action="canary lane reported as blind; verdicts remain inconclusive",
             )
@@ -236,6 +247,7 @@ class _CanaryCounters:
         with self._lock:
             self.held = self.hijacked = self.leaked = self.inconclusive = 0
             self.consecutive_failures = 0
+            self.why_inconclusive.clear()
             self.last_incident_at = None
             self.live_evaluated = 0
 

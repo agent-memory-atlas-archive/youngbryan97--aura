@@ -442,8 +442,12 @@ class GoalHierarchy:
         try:
             os.makedirs(os.path.dirname(self._persist_path), exist_ok=True)
             data = {gid: asdict(g) for gid, g in self.goals.items()}
-            from core.runtime.atomic_writer import atomic_write_text
-            atomic_write_text(self._persist_path, json.dumps(data, indent=2))
+            # Behind the loop: goals are saved as they change, and they change
+            # from the presence loop's coroutines. LIVE 2026-09-27, an fsync on
+            # the event loop thread from here, reached from
+            # `proactive_presence._goal_update`.
+            from core.runtime.atomic_writer import atomic_write_text_behind
+            atomic_write_text_behind(self._persist_path, json.dumps(data, indent=2))
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('goal_hierarchy', e)
             logger.error("Failed to save goals: %s", e)
