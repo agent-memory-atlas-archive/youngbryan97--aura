@@ -502,6 +502,15 @@ def close_leaked_sqlite_connections(leaked_files: set[str]) -> list[str]:
     return holders
 
 
+#: The process id as the interpreter reports it, taken before any test runs.
+#: Tests patch `os.getpid` to stage a controller lineage (41, 42, 4242), and
+#: the leak sandbox's teardown ran while that patch was still armed, asked
+#: psutil for process 4242, and failed the test with "host leak observation
+#: unavailable". The sandbox already reads psutil as shipped for the same
+#: reason; it reads its own pid as shipped too.
+_REAL_GETPID = os.getpid
+
+
 class HermeticResourceSandbox:
     """Per-test host leak detector; never used as resource-policy evidence."""
 
@@ -579,7 +588,7 @@ class HermeticResourceSandbox:
 
     def _snapshot(self) -> _ResourceLeakSnapshot:
         try:
-            process = self._native_process(os.getpid())
+            process = self._native_process(_REAL_GETPID())
             children = frozenset(
                 (child.pid, float(child.create_time()))
                 for child in process.children(recursive=True)
@@ -592,7 +601,7 @@ class HermeticResourceSandbox:
             raise RuntimeError(f"host leak observation unavailable: {exc}") from exc
         listeners = frozenset(
             (
-                os.getpid(),
+                _REAL_GETPID(),
                 int(connection.fd),
                 str(getattr(connection.laddr, "ip", "") or ""),
                 int(getattr(connection.laddr, "port", 0) or 0),
@@ -729,7 +738,7 @@ class HermeticResourceSandbox:
 
         listener_leaks = list(leaks["listeners"])
         for pid, fd, _host, _port in listener_leaks:
-            if int(pid) == os.getpid() and int(fd) >= 0:
+            if int(pid) == _REAL_GETPID() and int(fd) >= 0:
                 with contextlib.suppress(OSError):
                     os.close(int(fd))
 
