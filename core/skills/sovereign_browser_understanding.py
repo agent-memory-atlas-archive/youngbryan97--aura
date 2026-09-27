@@ -405,6 +405,7 @@ class _UnderstandsThePage:
             if callable(think) and mind:
                 raw = self._the_text_of(await think(
                     prompt, system_prompt=mind, schema=self._UNDERSTANDING_SCHEMA, output_shape="json_object",
+                    origin=self._PAGE_ORIGIN, purpose="page_understanding",
                     max_tokens=420, temperature=0.2, _non_chat_inference=True,
                 ))
             else:
@@ -507,6 +508,8 @@ class _UnderstandsThePage:
                 max_tokens=_UnderstandsThePage.DECISION_MAX_TOKENS,
                 temperature=0.2,
                 output_shape="json_object",
+                origin=_UnderstandsThePage._PAGE_ORIGIN,
+                purpose="page_decision",
             )
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.fast_lane", exc, severity="debug")
@@ -578,6 +581,14 @@ class _UnderstandsThePage:
 
     #: The most one decision about a page may write.
     DECISION_MAX_TOKENS = 900
+
+    #: Who is asking, for every model call a page makes. With no origin, a call
+    #: from the owner's turn was served as a reply to the owner: LIVE 27 Sep
+    #: 04:15 the decisions went down the user-facing path, which rebuilt the
+    #: request without its output shape and capped it at 400 tokens, so each
+    #: came back as prose, cut off. A named origin that is not a reply is
+    #: what keeps a decision a decision.
+    _PAGE_ORIGIN = "sovereign_browser"
 
     #: The fields a decision about a page comes back with.
     #:
@@ -950,6 +961,7 @@ class _UnderstandsThePage:
                     # would be a different mind's answer submitted as hers.
                     reply = await think(
                         prompt, system_prompt=mind, prefer_tier="primary", schema=self._DECISION_SCHEMA, output_shape="json_object",
+                        origin=self._PAGE_ORIGIN, purpose="page_decision",
                         max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
                     )
                     answered_by = self._who_answered(reply)
@@ -961,6 +973,7 @@ class _UnderstandsThePage:
                     if not self._decision_is_usable(raw, observation):
                         raw = self._the_text_of(await think(
                             prompt, system_prompt=mind, schema=self._DECISION_SCHEMA, output_shape="json_object",
+                            origin=_UnderstandsThePage._PAGE_ORIGIN, purpose="page_decision",
                             max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
                         ))
             else:
