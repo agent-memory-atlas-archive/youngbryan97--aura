@@ -5,6 +5,39 @@ what broke, what fixed it, and where the evidence is. Runs live in
 `~/subject-core-runs/`; the order runs are read in is
 `~/.aura/subject_core/scratch/AFTER_THE_DECISIVE_RUN.md`.
 
+## 27 September
+
+### Why the reports ground read nothing, twice
+
+The seed-7 check of the reports ground ran twice and read a number in every arm
+of 0 of 24 anchors both times. Neither is a verdict on her reports.
+
+The first (351555bec) lost her cortex in the baseline, and every respawn died
+at start: the parent stamped each worker's launch challenge with `time.time()`,
+which in a measurement run is the run's own clock, and the worker checked it on
+the machine's, by then hours ahead. Fixed in a520cbb09.
+
+The second (a520cbb09) got her cortex's answers, and three things lost them on
+the way to the instrument: the prose formatter spaced a line-leading "0.3" into
+"0. 3"; the final cleanup took a reply under four characters for broken output
+and put a canned sentence in its place; and an arm that committed nothing was
+read as having said what the anchor's snapshot last held, a sentence about
+persistent memory from an hour earlier. Fixed in 53be6279b. It also met the
+router refusing her reply behind a lease the router read as background work,
+the same defect that cost a live reply at 18:10 (b3607058e).
+
+It ran from 11:10 to 14:23 with a second copy of her 27B loaded, and Bryan
+launched her at 13:48; the runner looked for a live instance only when it
+started. It now stops, workers and all, the moment one appears, and waits for
+any other process holding a model's worth of memory before it starts.
+
+### A say for the substrate
+
+`core/consciousness/substrate_gates.py` (5df224ed1): recall's affect gain, the
+two initiative urges and each drive's growth are scaled by multipliers her
+substrate learns from each turn's worth. Aimed at the C|rest weakness; the next
+look reads it with and without `AURA_DISABLE_SUBSTRATE_GATES=1`.
+
 ## 26 September
 
 ### The payoff look, and what its log showed the harness doing
