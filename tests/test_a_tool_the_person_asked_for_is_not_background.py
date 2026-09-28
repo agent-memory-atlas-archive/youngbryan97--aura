@@ -46,3 +46,23 @@ def test_the_router_reads_it_where_it_decides_foreground():
         "every place the router decides foreground must read it, including the "
         "one the queueing reads"
     )
+
+
+def test_the_gate_takes_a_bound_ledger_as_a_turn_in_flight():
+    """The third account of an open turn, and the one a tool can always see."""
+    from core.brain.inference_gate import _a_turn_ledger_is_bound
+
+    assert _a_turn_ledger_is_bound() is False
+    with bind_turn(TurnOutcome(origin="test")):
+        assert _a_turn_ledger_is_bound() is True
+
+
+def test_the_gate_reads_it_beside_its_own_accounts():
+    import inspect
+
+    from core.brain import inference_gate
+
+    body = inspect.getsource(inference_gate)
+    claim = body.split('context.get("serves_current_turn")', 1)[1][:1200]
+    assert "_a_user_turn_is_in_flight()" in claim
+    assert "_a_turn_ledger_is_bound()" in claim
