@@ -865,3 +865,58 @@ it is named here rather than folded into the arm above.
 `partition_beats_nulls` needs 0.562 to clear `low_rank`, and 0.240 is the whole
 of what carrying every column gives. Time constants are not expected to close it
 and no claim is made that they will.
+
+## Addendum, 28 September 2026, later: a workspace that is a product, and how the arms attribute
+
+A second organism change, `b9e08f50c`, named before a run reads it.
+
+### What changed in her
+
+`_bids` scored each candidate as a weighted sum of what the bid was made of, so
+affect and self-state added into one competition and never interacted. The
+scores are now divided by the pool they sit in, in proportion to how little she
+is reading herself: sure of her own state the scores stand and the sharpest bid
+wins, unsure of it the pool compresses the loud bids towards its own mean. The
+semi-saturation is the pool's mean and the gain is her self-model's published
+confidence, so no number is chosen. A pool of one bid is untouched and, with no
+self-reading, every score is returned as it came.
+
+It is aimed at `A,S->G`, whose held-out interaction gain is 0.0 with a lower
+bound of -0.00851. It is not aimed at the other two triples and is not expected
+to move them.
+
+### Two changes, one campaign, and how anything is attributed
+
+The membrane of the addendum above and this are separate mechanisms with
+separate switches, so the next seed-7 look runs four arms at one commit and one
+seed and reads all three failing criteria on each:
+
+| arm | membrane | workspace pool |
+|---|---|---|
+| control | off | off |
+| membrane | on | off |
+| workspace | off | on |
+| both | on | on |
+
+`AURA_MEMBRANE_TURNS` switches the first. The second has no switch yet and needs
+one before the campaign runs; it is `AURA_WORKSPACE_POOL`, off by default, and
+the arm table above is void without it.
+
+Attribution is read as: `partition_irreducibility` moves in the membrane arms or
+the reading of `docs/WHY_IRREDUCIBILITY_FAILS.md` is wrong, and `synergy` on
+`A,S->G` moves in the workspace arms or the product is not reaching the
+competition. A criterion that moves only in the `both` arm is reported as an
+interaction between the two changes and not credited to either.
+
+### What is not built, and why
+
+`S,D->C` carries a synergy of -0.160 of its joint information, which is
+redundancy rather than absence: her self-state and her deliberation tell
+recurrent cognition the same thing twice. The fix for redundancy is
+decorrelation, not another product, and it is a third mechanism. It is not built
+here because three unattributed changes in one campaign attribute nothing.
+
+`W,A->D` is left alone for a different reason: its two estimators disagree, with
+a held-out interaction gain of +0.2245 and a lower bound of +0.0712 against an
+information synergy of 0.077 of joint under a bar at 0.210. Building for one
+estimator while the other says the opposite would be building blind.
