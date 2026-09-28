@@ -7,6 +7,7 @@ import pytest
 from core.brain import llm_health_router as router
 from core.runtime import turn_progress as progress
 from core.runtime.turn_outcome import TurnOutcome, bind_turn
+from tests.clock_patch import patch_module_clock
 
 
 @pytest.mark.asyncio
@@ -109,7 +110,7 @@ async def test_endpoint_timeout_is_not_misread_as_wait_expiry():
 
 def test_watchdog_thread_has_no_cancellation_authority_over_owned_turn(monkeypatch):
     now = [100.0]
-    monkeypatch.setattr(progress.time, "monotonic", lambda: now[0])
+    patch_module_clock(monkeypatch, progress, monotonic=lambda: now[0])
     callbacks = []
     aborts = []
 

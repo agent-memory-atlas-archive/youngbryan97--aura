@@ -11,6 +11,7 @@ import pytest
 
 from core.health.read_model import HealthReadModelConfig, HealthSnapshotReadModel
 from core.runtime.subprocess_gateway import get_subprocess_gateway
+from tests.clock_patch import patch_module_clock
 
 
 def _wait_until(predicate, *, timeout_s: float = 1.0) -> None:
@@ -1447,7 +1448,7 @@ def test_runtime_revision_retries_unverified_collection_after_worker_ttl(monkeyp
     monkeypatch.setattr(system_routes, "_RUNTIME_REVISION_CACHE_COLLECTED_AT", 0.0)
     monkeypatch.setattr(system_routes, "_RUNTIME_REVISION_UNVERIFIED_TTL_S", 2.0)
     monkeypatch.setattr(system_routes, "_collect_runtime_revision_uncached", collect)
-    monkeypatch.setattr(system_routes.time, "monotonic", lambda: clock["now"])
+    patch_module_clock(monkeypatch, system_routes, monotonic=lambda: clock["now"])
 
     first = system_routes._runtime_revision_contract()
     clock["now"] = 101.0
@@ -1487,7 +1488,7 @@ def test_runtime_revision_refreshes_verified_identity_after_ttl(monkeypatch):
     monkeypatch.setattr(system_routes, "_RUNTIME_REVISION_CACHE_COLLECTED_AT", 0.0)
     monkeypatch.setattr(system_routes, "_RUNTIME_REVISION_VERIFIED_TTL_S", 30.0)
     monkeypatch.setattr(system_routes, "_collect_runtime_revision_uncached", collect)
-    monkeypatch.setattr(system_routes.time, "monotonic", lambda: clock["now"])
+    patch_module_clock(monkeypatch, system_routes, monotonic=lambda: clock["now"])
 
     first = system_routes._runtime_revision_contract()
     clock["now"] = 110.0

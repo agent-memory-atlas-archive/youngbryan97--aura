@@ -23,6 +23,7 @@ from the page and the record comes from her.
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -30,6 +31,8 @@ from typing import Any
 
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import optional_service
+
+logger = logging.getLogger(__name__)
 
 __all__ = [
     "Lean",
@@ -164,7 +167,9 @@ def _cosine(left: Any, right: Any) -> float:
         if denominator <= 1e-9:
             return 0.0
         return float(np.dot(a, b) / denominator)
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("the two vectors could not be compared, so their agreement reads 0.0 (%s: %s)",
+                     type(exc).__name__, exc)
         return 0.0
 
 

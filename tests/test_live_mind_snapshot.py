@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from tests.chat_lane_support import patch_chat_lane
-import interface.routes.chat_conversation_repair as _chat_conversation_repair
+
 import interface.routes.chat_protected_prompt as _chat_protected_prompt
+from tests.chat_lane_support import patch_chat_lane
+from tests.clock_patch import patch_module_clock
 
 
 class GroundedAffectReadout:
@@ -390,7 +391,7 @@ def test_live_desktop_context_payload_carries_recent_voice_perception(monkeypatc
         live_mind_snapshot, "get_runtime_service", RuntimeServices.get
     )
         patch_chat_lane(monkeypatch, "ServiceContainer", RuntimeServices)
-        monkeypatch.setattr(chat_routes.time, "time", lambda: 1030.0)
+        patch_module_clock(monkeypatch, chat_routes, time=lambda: 1030.0)
         patch_chat_lane(monkeypatch, "_resolve_live_voice_state", lambda *args, **kwargs: {})
         for name in (
             "_runtime_kernel_available",
@@ -436,7 +437,7 @@ def test_protected_foreground_prompt_reports_voice_activity_without_transcript(m
     RuntimeServices.services["world_state"] = AcousticWorldState()
     try:
         patch_chat_lane(monkeypatch, "ServiceContainer", RuntimeServices)
-        monkeypatch.setattr(chat_routes.time, "time", lambda: 2012.0)
+        patch_module_clock(monkeypatch, chat_routes, time=lambda: 2012.0)
         monkeypatch.setattr(_chat_protected_prompt, "_resolve_protected_foreground_snapshot", lambda: {})
         patch_chat_lane(monkeypatch, "_resolve_live_voice_state", lambda *args, **kwargs: {})
 

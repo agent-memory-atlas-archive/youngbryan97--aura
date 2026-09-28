@@ -27,6 +27,7 @@ from core.brain.llm.latent_cortex.worker_origin import (
     ZERO_SHA256,
     verify_worker_result_origin,
 )
+from tests.clock_patch import patch_module_clock
 from tools import run_detached_step as detached
 
 pytestmark = pytest.mark.skipif(sys.platform != "darwin", reason="strong containment requires macOS")
@@ -836,8 +837,8 @@ def test_terminal_duration_uses_monotonic_clock(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     plan = detached._build_plan("clock", [sys.executable, "-c", "pass"], tmp_path, 5.0, "none")
-    monkeypatch.setattr(detached.time, "time", lambda: 10.0)
-    monkeypatch.setattr(detached.time, "monotonic_ns", lambda: 9_000_000_000)
+    patch_module_clock(monkeypatch, detached, time=lambda: 10.0)
+    patch_module_clock(monkeypatch, detached, monotonic_ns=lambda: 9_000_000_000)
     receipt = detached._terminal_receipt(
         plan=plan,
         attempt=1,

@@ -40,7 +40,7 @@ import pytest
 
 from core.conversation.chat_preflight import _reference_corpus_summary
 from core.knowledge.local_corpus import CONVERSATION_SEARCH_DEADLINE_S
-
+from tests.clock_patch import patch_module_clock
 
 #: A real corpus, built here rather than borrowed from the host.
 #:
@@ -190,8 +190,7 @@ def test_an_expired_deadline_never_raises(corpus, monkeypatch):
     from core.knowledge import local_corpus
 
     real_monotonic = time.monotonic
-    monkeypatch.setattr(
-        local_corpus.time, "monotonic", lambda: real_monotonic() + 3600.0
+    patch_module_clock(monkeypatch, local_corpus, monotonic=lambda: real_monotonic() + 3600.0
     )
 
     assert isinstance(corpus.search("grace hopper", limit=2), list)

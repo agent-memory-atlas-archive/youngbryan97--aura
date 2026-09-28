@@ -1156,7 +1156,7 @@ def _install_worker_fakes(monkeypatch, mlx_worker, *, load_impl, steering_engine
     return FakeQueue
 
 
-def test_worker_init_failure_exits_before_accepting_jobs(monkeypatch):
+def test_worker_init_failure_exits_before_accepting_jobs(monkeypatch, tmp_path):
     from core.brain.llm import mlx_worker
     from core.runtime.errors import get_degradation_tracker
 
@@ -1173,7 +1173,9 @@ def test_worker_init_failure_exits_before_accepting_jobs(monkeypatch):
     requests = queue_factory([{"action": "generate", "prompt": "must not be read"}])
     responses = queue_factory()
 
-    mlx_worker._mlx_worker_loop("fake-model", requests, responses)
+    # A local directory: a bare name is refused as a download before the
+    # loader is reached (768afe36f), and this test is about the loader failing.
+    mlx_worker._mlx_worker_loop(str(tmp_path), requests, responses)
 
     assert len(load_failures) == 1
     assert requests.items == [{"action": "generate", "prompt": "must not be read"}]
@@ -1185,7 +1187,7 @@ def test_worker_init_failure_exits_before_accepting_jobs(monkeypatch):
     assert recent[0].action == "reported initialization error and exited worker loop before accepting jobs"
 
 
-def test_cpu_worker_boot_installs_the_process_local_generation_contract(monkeypatch):
+def test_cpu_worker_boot_installs_the_process_local_generation_contract(monkeypatch, tmp_path):
     from core.brain.llm import mlx_worker
 
     def load_failure(*_args, **_kwargs):
@@ -1200,7 +1202,7 @@ def test_cpu_worker_boot_installs_the_process_local_generation_contract(monkeypa
     responses = queue_factory()
 
     mlx_worker._mlx_worker_loop(
-        "fake-model",
+        str(tmp_path),
         requests,
         responses,
         device="cpu",

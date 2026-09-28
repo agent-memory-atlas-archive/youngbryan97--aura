@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.clock_patch import patch_module_clock
 from tools import run_rlc_reconciliation_controller as controller
 
 
@@ -556,7 +557,7 @@ def test_lineage_waits_for_caffeinate_startup_race(
     monkeypatch.setattr(os, "getpid", lambda: 41)
     monkeypatch.setattr(controller, "_process_record", lambda _pid: (1, controller_command))
     monkeypatch.setattr(controller, "_process_table", lambda: next(observations))
-    monkeypatch.setattr(controller.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, controller, sleep=lambda _seconds: None)
     assert controller._verify_launchd_lineage(config) == {
         "launchd_pid": 1,
         "caffeinate_pid": 42,

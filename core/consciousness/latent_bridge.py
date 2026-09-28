@@ -42,7 +42,6 @@ substrate and a running event loop both exist.
 
 import logging
 import threading
-import time
 from collections import deque
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
@@ -249,6 +248,7 @@ class SubstrateInjectionThread:
         self._channel = channel
         self._thread: Optional[threading.Thread] = None
         self._running = False
+        self._stop_event = threading.Event()
         self._total_published = 0
         self._total_magnitude_published = 0.0
 
@@ -260,8 +260,13 @@ class SubstrateInjectionThread:
             )
             return
         self._running = True
+        # Each run gets its own stop event. With one shared `_running` flag a
+        # stop() and a quick start() set it back to True before the old loop
+        # looked, so the old thread never left and two loops ran from then on.
+        self._stop_event = threading.Event()
         self._thread = threading.Thread(
             target=self._loop,
+            args=(self._stop_event,),
             name="LatentBridge.ReadoutPublisher",
             daemon=True,
         )
@@ -272,11 +277,15 @@ class SubstrateInjectionThread:
 
     def stop(self):
         self._running = False
+        self._stop_event.set()
 
-    def _loop(self):
+    def _loop(self, stop: Optional[threading.Event] = None):
         from core.consciousness.latent_readout_channel import publish_deltas
 
-        while self._running:
+        stop = stop if stop is not None else self._stop_event
+        # The event is what a restart cannot undo. `_running` is still the
+        # status every reader sees, so clearing it stops the loop too.
+        while self._running and not stop.is_set():
             try:
                 combined: Dict[int, float] = {}
                 for hook in self._hooks:
@@ -297,7 +306,8 @@ class SubstrateInjectionThread:
                     enforce_failure_policy=False,
                 )
 
-            time.sleep(INJECTION_INTERVAL_S)
+            # Wakes at once on stop rather than sleeping out the interval.
+            stop.wait(INJECTION_INTERVAL_S)
 
     def get_diagnostics(self) -> Dict[str, Any]:
         return {

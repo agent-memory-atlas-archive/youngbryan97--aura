@@ -10,11 +10,12 @@ from core.ops import hypervisor as hypervisor_module
 from core.ops.hypervisor import Hypervisor
 from core.resilience.resource_governor import ResourceGovernor
 from core.runtime import background_policy
+from tests.clock_patch import patch_module_clock
 
 
 def test_background_uptime_uses_current_process_incarnation(monkeypatch) -> None:
     monkeypatch.setattr(background_policy, "_PROCESS_STARTED_AT", 990.0)
-    monkeypatch.setattr(background_policy.time, "time", lambda: 1_000.0)
+    patch_module_clock(monkeypatch, background_policy, time=lambda: 1_000.0)
     restored = SimpleNamespace(start_time=100.0, status=SimpleNamespace(start_time=100.0))
 
     assert background_policy._runtime_uptime_seconds(restored) == 10.0
@@ -56,7 +57,7 @@ async def test_hypervisor_uses_monotonic_clock_across_wall_clock_jump(monkeypatc
 
     monkeypatch.setattr(hypervisor_module.asyncio, "sleep", one_sleep)
     monkeypatch.setattr(hypervisor_module, "_monotonic_now", lambda: next(monotonic_values))
-    monkeypatch.setattr(hypervisor_module.time, "time", lambda: 1_000.0)
+    patch_module_clock(monkeypatch, hypervisor_module, time=lambda: 1_000.0)
     monkeypatch.setattr(hypervisor, "_active_runtime_reason", lambda: "")
 
     await hypervisor._watchdog_loop()
@@ -79,7 +80,7 @@ async def test_hypervisor_classifies_boot_grace_lag_as_startup_telemetry(
 
     monkeypatch.setattr(hypervisor_module.asyncio, "sleep", one_sleep)
     monkeypatch.setattr(hypervisor_module, "_monotonic_now", lambda: next(monotonic_values))
-    monkeypatch.setattr(hypervisor_module.time, "time", lambda: 1_000.0)
+    patch_module_clock(monkeypatch, hypervisor_module, time=lambda: 1_000.0)
     monkeypatch.setattr(hypervisor, "_active_runtime_reason", lambda: "")
 
     with caplog.at_level("INFO", logger="Aura.Hypervisor"):

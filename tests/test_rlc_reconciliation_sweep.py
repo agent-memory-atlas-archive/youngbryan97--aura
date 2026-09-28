@@ -23,6 +23,8 @@ if str(TOOLS) not in sys.path:
 
 import run_rlc_reconciliation_sweep as sweep  # noqa: E402
 
+from tests.clock_patch import patch_module_clock  # noqa: E402
+
 
 def test_script_and_package_imports_share_typed_fault_identity() -> None:
     from tools import run_rlc_reconciliation_sweep as packaged
@@ -94,7 +96,7 @@ def test_complete_system_phase_tracker_times_work_and_is_observer_safe(
     from tools import rlc_complete_system_closed_book as complete_system
 
     ticks = iter([10.0, 11.0, 12.0, 15.0, 16.0, 20.0])
-    monkeypatch.setattr(complete_system.time, "monotonic", lambda: next(ticks))
+    patch_module_clock(monkeypatch, complete_system, monotonic=lambda: next(ticks))
     observed = []
     tracker = complete_system._CompleteSystemPhaseTracker(observed.append)
     tracker.begin("amplifier_generation", generation_index=1)
@@ -107,7 +109,7 @@ def test_complete_system_phase_tracker_times_work_and_is_observer_safe(
     ]
     assert observed[-1]["phase_duration_s"] == 4.0
 
-    monkeypatch.setattr(complete_system.time, "monotonic", lambda: 21.0)
+    patch_module_clock(monkeypatch, complete_system, monotonic=lambda: 21.0)
     failing = complete_system._CompleteSystemPhaseTracker(
         lambda _payload: (_ for _ in ()).throw(RuntimeError("observer failed"))
     )

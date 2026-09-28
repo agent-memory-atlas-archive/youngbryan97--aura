@@ -29,6 +29,15 @@ class VerificationResult:
     #: ("this candidate contains no code"), and only one of the two should
     #: stop an admission.
     infrastructure_failed: bool = False
+    #: The engine did not finish inside the deadline it was given. Not the
+    #: same as crashing: the check may well have been right, it just did not
+    #: say so in time, and a reader deciding whether to retry needs to know.
+    timed_out: bool = False
+    #: No engine applies to this task at all. "Nothing here was checkable"
+    #: and "there is nothing that could check this" are different facts: the
+    #: first says the answer made no claim a verifier could reach, the second
+    #: says the task has no verifier.
+    not_applicable: bool = False
     detail: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -46,11 +55,39 @@ class VerificationResult:
         Three states, so the unchecked one has to be handled rather than
         collapsed into the passing one.
         """
-        if self.infrastructure_failed:
+        if self.infrastructure_failed or self.timed_out:
             return "UNVERIFIABLE"
         if not self.checked:
             return "UNCHECKED"
         return "PASSED" if self.ok else "FAILED"
+
+    @property
+    def outcome(self) -> str:
+        """Which of six things happened. Only ``verified`` is correctness.
+
+        ``verdict`` folds four of these into two names, and the two it folds
+        hardest are the ones a reader acts on differently: an engine that
+        crashed and one that ran out of time are both UNVERIFIABLE there, and
+        a task no engine covers reads the same as an answer with nothing in it
+        to check. The release requirement names all six, and so does this.
+
+        A contradiction outranks everything: a provable failure is final even
+        when another engine could not run. After that, an engine that could
+        not finish outranks one that passed, the same order ``verdict`` uses,
+        because a pass beside a crash is a pass from fewer checks than were
+        asked for.
+        """
+        if self.checked and not self.ok:
+            return "contradicted"
+        if self.timed_out:
+            return "timed_out"
+        if self.infrastructure_failed:
+            return "verifier_failed"
+        if self.checked:
+            return "verified"
+        if self.not_applicable:
+            return "not_applicable"
+        return "unsupported"
 
     @property
     def verification_was_possible(self) -> bool:
@@ -61,7 +98,7 @@ class VerificationResult:
         could not RUN is a different decision, and it was indistinguishable
         from the first.
         """
-        return not self.infrastructure_failed
+        return not (self.infrastructure_failed or self.timed_out)
 
     @property
     def conclusively_ok(self) -> bool:
@@ -77,7 +114,10 @@ class VerificationResult:
             "ok": self.ok,
             "checked": self.checked,
             "verdict": self.verdict,
+            "outcome": self.outcome,
             "infrastructure_failed": self.infrastructure_failed,
+            "timed_out": self.timed_out,
+            "not_applicable": self.not_applicable,
             "score": round(float(self.score), 3),
             "engine": self.engine,
             "issues": self.issues[:8],
@@ -127,6 +167,10 @@ def combine_results(
         if r.engine:
             engines.append(r.engine)
     infrastructure_failed = any(r.infrastructure_failed for r in results)
+    timed_out = any(r.timed_out for r in results)
+    # An empty verifier set is not a pass and not an unchecked answer: it is a
+    # task nothing covers. Only when every engine says so does the fold.
+    not_applicable = all(r.not_applicable for r in results) if results else True
     ok = all(r.ok for r in checked) if checked else True
     if checked and weights:
         wsum = sum(max(0.0, float(weights.get(r.engine or "?", 1.0))) for r in checked)
@@ -142,6 +186,8 @@ def combine_results(
         ok=ok,
         checked=bool(checked),
         infrastructure_failed=infrastructure_failed,
+        timed_out=timed_out,
+        not_applicable=not_applicable,
         score=round(score, 4),
         engine="+".join(engines),
         issues=issues[:12],

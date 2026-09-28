@@ -30,6 +30,7 @@ from core.reality_reach.attachment_authority import (
     build_attachment_authority_intent,
     build_manifest_migration_authority_intent,
 )
+from tests.clock_patch import patch_module_clock
 
 
 class Decision:
@@ -617,10 +618,7 @@ def test_manifest_migration_persisted_expiry_is_checked_at_verification_time(
         "capability_expires_at_ns"
     ]
     _rehash_evidence(evidence)
-    monkeypatch.setattr(
-        authority_module.time,
-        "time_ns",
-        lambda: int(evidence["verified_at_ns"]),
+    patch_module_clock(monkeypatch, authority_module, time_ns=lambda: int(evidence["verified_at_ns"]),
     )
 
     with pytest.raises(AttachmentAuthorityError, match="persisted_capability_invalid"):

@@ -52,6 +52,7 @@ from core.brain.llm.unified_recurrent_shadow_contract import (
 )
 from core.runtime.model_runtime_assignment import ModelRuntimeAssignment
 from core.utils.deadlines import get_deadline
+from tests.clock_patch import patch_module_clock
 from tests.fixtures.rlc_runtime_integrity import complete_serving_stack
 
 TMP_ROOT = Path(tempfile.gettempdir())
@@ -3110,7 +3111,7 @@ class TestMLXRuntimeProbeFailure(unittest.IsolatedAsyncioTestCase):
 def test_probe_reuses_fresh_positive_disk_cache(monkeypatch):
     import core.brain.llm.mlx_client as mlx_module
 
-    monkeypatch.setattr(mlx_module.time, "time", lambda: 1000.0)
+    patch_module_clock(monkeypatch, mlx_module, time=lambda: 1000.0)
     monkeypatch.setattr(mlx_module, "_load_probe_cache_from_disk", lambda: (True, "mlx_runtime_ok", 950.0))
     monkeypatch.setattr(
         mlx_module.subprocess,
@@ -3139,7 +3140,7 @@ def test_probe_does_not_trust_stale_negative_disk_cache(monkeypatch):
 
     calls = []
 
-    monkeypatch.setattr(mlx_module.time, "time", lambda: 1000.0)
+    patch_module_clock(monkeypatch, mlx_module, time=lambda: 1000.0)
     monkeypatch.setattr(
         mlx_module,
         "_load_probe_cache_from_disk",

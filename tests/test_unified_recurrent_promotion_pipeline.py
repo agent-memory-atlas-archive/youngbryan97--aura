@@ -12,6 +12,7 @@ import pytest
 from core.brain.llm.unified_recurrent_shadow_battery import (
     seal_shadow_canary_battery,
 )
+from tests.clock_patch import patch_module_clock
 from tools import run_unified_recurrent_promotion_pipeline as pipeline
 from tools.unified_intrinsic_resident_identity import canonical_bytes, canonical_sha256
 
@@ -1233,7 +1234,7 @@ def test_stage_parent_monitor_terminates_its_own_group_on_parent_loss(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     signals: list[tuple[int, int]] = []
-    monkeypatch.setattr(pipeline.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, pipeline, sleep=lambda _seconds: None)
     monkeypatch.setattr(
         pipeline.replication.launcher.detached,
         "_identity_state",
@@ -1262,7 +1263,7 @@ def test_stage_parent_monitor_does_not_signal_on_unknown_liveness(
 ) -> None:
     signals: list[tuple[int, int]] = []
     states = iter(["unknown", "dead"])
-    monkeypatch.setattr(pipeline.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, pipeline, sleep=lambda _seconds: None)
     monkeypatch.setattr(
         pipeline.replication.launcher.detached,
         "_identity_state",

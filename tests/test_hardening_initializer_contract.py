@@ -13,6 +13,7 @@ from core.runtime.control_plane import reset_runtime_control_plane
 from core.runtime.errors import get_degradation_tracker
 from core.runtime.health_contract import RUNTIME_CONTRACT, ServiceTier
 from core.runtime.resource_observation import ProcessObservation
+from tests.clock_patch import patch_module_clock
 
 
 class _Validator:
@@ -280,7 +281,7 @@ def test_lymphatic_reaper_retains_long_lived_children_without_opt_in(
         ]
     )
     monkeypatch.setattr(reaper_module.psutil, "Process", lambda _pid: child)
-    monkeypatch.setattr(reaper_module.time, "time", lambda: reaper_module.LONG_CHILD_AGE_S + 60.0)
+    patch_module_clock(monkeypatch, reaper_module, time=lambda: reaper_module.LONG_CHILD_AGE_S + 60.0)
 
     reaper = reaper_module.LymphaticReaper(data_dir=tmp_path)
 
@@ -328,7 +329,7 @@ def test_lymphatic_reaper_unlinks_stale_symlink_without_touching_target(monkeypa
     link_path = tmp_dir / "old-target-link"
     link_path.symlink_to(target_dir, target_is_directory=True)
     os.utime(link_path, (1.0, 1.0), follow_symlinks=False)
-    monkeypatch.setattr(reaper_module.time, "time", lambda: reaper_module.STALE_TMP_AGE_S + 2.0)
+    patch_module_clock(monkeypatch, reaper_module, time=lambda: reaper_module.STALE_TMP_AGE_S + 2.0)
 
     reaper = reaper_module.LymphaticReaper(data_dir=tmp_path)
 

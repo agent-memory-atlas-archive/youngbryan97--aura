@@ -16,6 +16,7 @@ from core.learning.verified_token_trace import (
     observable_completion_receipt_sha256,
 )
 from tests import detached_resume_harness as harness
+from tests.clock_patch import patch_module_clock
 from tools import prepare_resident_recurrent_grpo_campaign as prereg
 from tools import run_detached_step
 
@@ -1044,7 +1045,7 @@ def test_training_watchdog_rotates_process_after_durable_progress(
     monkeypatch.setattr(prereg, "validate_contract", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(runner, "main", run)
     monkeypatch.setattr(prereg, "_release_failed_training_runtime", lambda: None)
-    monkeypatch.setattr(prereg.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, prereg, sleep=lambda _seconds: None)
 
     assert prereg._run_training(contract, expected_launch_bundle_sha256="a" * 64) == 75
     assert calls == 1
@@ -1218,7 +1219,7 @@ def test_training_watchdog_resumes_zero_exit_wall_clock_until_full_dose(
     monkeypatch.setattr(prereg, "validate_contract", lambda *_args, **_kwargs: {})
     monkeypatch.setattr(runner, "main", run)
     monkeypatch.setattr(prereg, "_release_failed_training_runtime", lambda: None)
-    monkeypatch.setattr(prereg.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, prereg, sleep=lambda _seconds: None)
 
     assert (
         prereg._run_training(
@@ -1333,7 +1334,7 @@ def test_training_watchdog_pause_releases_runtime_and_waits_for_resume(
     monkeypatch.setattr(runner, "main", run)
     monkeypatch.setattr(prereg, "_release_failed_training_runtime", release)
     monkeypatch.setattr(prereg, "_wait_for_training_resume", resume)
-    monkeypatch.setattr(prereg.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, prereg, sleep=lambda _seconds: None)
 
     assert prereg._run_training(contract, expected_launch_bundle_sha256="a" * 64) == 0
     assert calls == 2

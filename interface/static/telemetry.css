@@ -1,0 +1,111 @@
+/* The telemetry page's own layout. The page linked `telemetry.css` from the
+   day it was written and the file was never in the tree, so the page served
+   at /telemetry rendered as unstyled black text on white. Colours come from
+   design_tokens.css so its text meets the same contrast as every other page. */
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: var(--aura-bg);
+    color: var(--aura-fg);
+    font-family: var(--aura-font-ui);
+    font-size: 14px;
+}
+
+.hud-container {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.4fr) minmax(240px, 1fr);
+    gap: 16px;
+    padding: 16px;
+    box-sizing: border-box;
+    min-height: 100vh;
+}
+
+.panel {
+    background: var(--aura-card);
+    border: 1px solid var(--aura-card-border);
+    border-radius: 12px;
+    padding: 14px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.panel-header {
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--aura-fg-dim);
+    border-bottom: 1px solid var(--aura-card-border);
+    padding-bottom: 6px;
+}
+
+.panel-header.sub-header { margin-top: 10px; }
+
+.terminal-feed {
+    font-family: var(--aura-font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    max-height: 45vh;
+    overflow-y: auto;
+}
+
+.log-entry { color: var(--aura-fg-dim); padding: 2px 0; }
+.log-entry.system { color: var(--aura-accent); }
+
+.badge-container { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.skill-badge {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: var(--aura-radius-pill, 999px);
+    background: var(--aura-accent-soft);
+    color: var(--aura-fg);
+}
+
+.skill-badge.idle { background: transparent; color: var(--aura-fg-dim); }
+
+.center-panel { align-items: center; justify-content: center; }
+
+.orb-container { display: flex; justify-content: center; padding: 24px 0; }
+
+.voice-orb {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, var(--aura-accent), transparent 70%);
+    opacity: 0.85;
+}
+
+.subtitle-container { min-height: 3em; text-align: center; }
+.subtitle-text { color: var(--aura-fg); font-size: 16px; }
+
+.telemetry-gauges { display: flex; flex-direction: column; gap: 10px; }
+
+.gauge-row {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    align-items: center;
+    gap: 8px;
+    color: var(--aura-fg-dim);
+    font-size: 13px;
+}
+
+.progress-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: var(--aura-card-border);
+    overflow: hidden;
+}
+
+.fill { height: 100%; border-radius: 4px; }
+.fill-cyan { background: #5fd4e8; }
+.fill-purple { background: var(--aura-accent); }
+.fill-red { background: var(--aura-error); }
+
+#belief-graph-container { flex: 1; min-height: 200px; }
+
+@media (max-width: 900px) {
+    .hud-container { grid-template-columns: 1fr; }
+    .terminal-feed { max-height: 30vh; }
+}

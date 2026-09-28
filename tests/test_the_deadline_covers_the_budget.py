@@ -14,6 +14,7 @@ from pathlib import Path
 import pytest
 
 from core.brain.llm import thinking_reserve
+from tests.clock_patch import patch_module_clock
 from tests.source_contract import family_text_at
 
 _GATE = Path("core/brain/inference_gate.py")
@@ -217,7 +218,7 @@ def test_resettling_a_deadline_preserves_time_already_spent(monkeypatch) -> None
     from core.utils import deadlines
 
     now = 100.0
-    monkeypatch.setattr(deadlines.time, "monotonic", lambda: now)
+    patch_module_clock(monkeypatch, deadlines, monotonic=lambda: now)
     original = deadlines.Deadline(10.0)
 
     now = 104.0

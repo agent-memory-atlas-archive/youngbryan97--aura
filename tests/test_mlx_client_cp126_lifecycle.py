@@ -18,6 +18,7 @@ from core.brain.llm.mlx_client import (
 )
 from core.runtime.response_policy import USER_FACING_COMPLETION_DEADLINE_MAX_S
 from core.utils.deadlines import get_deadline
+from tests.clock_patch import patch_module_clock
 
 
 def _new_future():
@@ -69,7 +70,7 @@ class TestWorkerProgressIsBounded:
         from core.runtime import turn_progress
 
         now = [100.0]
-        monkeypatch.setattr(turn_progress.time, "monotonic", lambda: now[0])
+        patch_module_clock(monkeypatch, turn_progress, monotonic=lambda: now[0])
         owner = turn_progress.TurnProgress()
         client._current_request_id = "req-1"
         client._latent_delivery_progress = ("req-1", None)

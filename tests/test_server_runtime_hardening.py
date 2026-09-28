@@ -45,6 +45,7 @@ from core.state.aura_state import AuraState
 from core.state.state_repository import StateRepository, get_state_shm_size_bytes
 from core.utils.concurrency import RobustLock
 from core.utils.task_tracker import TaskTracker
+from tests.clock_patch import patch_module_clock
 
 
 class _RecordedCall:
@@ -6075,7 +6076,7 @@ def test_actor_health_gate_records_heartbeat_resets_misses(monkeypatch):
     def _fake_monotonic():
         return fake_now[0]
 
-    monkeypatch.setattr(tree_module.time, "monotonic", _fake_monotonic)
+    patch_module_clock(monkeypatch, tree_module, monotonic=_fake_monotonic)
 
     gate = ActorHealthGate(grace_period=0.0, timeout=1.0)
     fake_now[0] += 5.0  # past grace, no heartbeat

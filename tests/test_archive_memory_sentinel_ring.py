@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from tests.clock_patch import patch_module_clock
 from tools import archive_memory_sentinel_ring as archiver
 from tools.archive_memory_sentinel_ring import RingArchiveError, select_new_records
 
@@ -70,7 +71,7 @@ def test_archiver_writes_self_hashed_terminal_receipt(tmp_path, monkeypatch):
     source.write_bytes(_ring(1.0, 2.0))
     states = iter(("current", "gone"))
     monkeypatch.setattr(archiver, "_target_state", lambda *_args: next(states))
-    monkeypatch.setattr(archiver.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, archiver, sleep=lambda _seconds: None)
     # Identity is confirmed through the canonical resource observer, not psutil
     # directly — observe the target pid with the expected create_time.
     monkeypatch.setattr(

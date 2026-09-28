@@ -6,6 +6,7 @@ import time
 
 import core.runtime.integrity_audit as ia
 from core.health.read_model import HealthReadModelConfig, HealthSnapshotReadModel
+from tests.clock_patch import patch_module_clock
 
 
 def test_audit_aggregates_signals_and_reports_structure():
@@ -514,7 +515,7 @@ def test_integrity_session_epoch_advances_only_after_lifespan_restart(monkeypatc
     assert ia._ACTIVE_CONCERN_COUNTS
 
     ia.stop_integrity_read_model()
-    monkeypatch.setattr(ia.time, "time", lambda: 250.0)
+    patch_module_clock(monkeypatch, ia, time=lambda: 250.0)
     assert ia.start_integrity_read_model() is True
     assert ia._runtime_epoch_started_at() == 250.0
     assert ia._ACTIVE_CONCERN_COUNTS == {}
