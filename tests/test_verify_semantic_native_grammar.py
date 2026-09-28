@@ -284,9 +284,10 @@ def test_independent_intervention_pair_metrics_reject_wrong_registers():
     assert verified_pair_totals((before, wrong), dataset="operation_intervention")["source_responsive"] == 0
 
 
-def test_retained_development_protocol_cannot_be_relabelled_fresh():
+@pytest.mark.parametrize("version", ["v6", "v8"])
+def test_retained_development_protocol_cannot_be_relabelled_fresh(version):
     basis = {"split": "test", "exposure": "previously_exposed_development"}
-    plan = {"schema": "aura.semantic_native_grammar_plan.v6", "dataset": "retained_test",
+    plan = {"schema": f"aura.semantic_native_grammar_plan.{version}", "dataset": "retained_test",
             "seed": 0, "source_cohort_basis": basis}
     report = {"dataset": "retained_test", "seed": 0, "source_cohort_basis": basis}
     assert verified_dataset(plan, report) == ("retained_test", 0)

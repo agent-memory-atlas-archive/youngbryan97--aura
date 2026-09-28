@@ -81,7 +81,7 @@ def verify_guided(directory, training_directory, guide_directory):
     from tools.verify_semantic_native_grammar import verified_examples
 
     training, selected, guide_plan, guide_report, guide_rows = guide_basis(
-        training_directory, guide_directory)
+        training_directory, guide_directory, require_current=False)
     plan = verified_document(directory / "plan.json", "plan_sha256")
     report = verified_document(directory / "report.json")
     pinned = {"training_plan_sha256": training["plan_sha256"],

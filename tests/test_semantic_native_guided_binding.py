@@ -77,8 +77,10 @@ def fixture_row():
     return row, guide, example, plan, tokenizer
 
 
-def test_replay_counts_base_disagreement_despite_exact_guided_graph():
+@pytest.mark.parametrize("version", ["v7", "v8"])
+def test_replay_counts_base_disagreement_despite_exact_guided_graph(version):
     row, guide, example, plan, tokenizer = fixture_row()
+    plan["schema"] = f"aura.semantic_native_grammar_plan.{version}"
     totals = replay_guided_row(row, guide, example=example, guide_plan=plan,
                               tokenizer=tokenizer, max_tokens=1024)
     assert totals["operation"] == {"matched": 0, "total": 1}
@@ -122,7 +124,7 @@ def test_document_replay_pins_guide_population_and_report(tmp_path, monkeypatch,
                 "pointer_sha256": "pointer", "model_path": "/unused/model", "max_sequence_tokens": 1024}
     selected = {"receipt_sha256": "checkpoint"}
     monkeypatch.setattr("tools.probe_semantic_native_guided_binding.guide_basis",
-                        lambda *_: (training, selected, guide_plan, guide_report, (guide,)))
+                        lambda *_, **__: (training, selected, guide_plan, guide_report, (guide,)))
     monkeypatch.setattr("tools.verify_semantic_native_grammar.verified_examples", lambda *_, **__: (example,))
     monkeypatch.setattr("mlx_lm.utils.load_tokenizer", lambda *_: tokenizer)
     body = {"schema": "aura.native_guided_binding_plan.v1",

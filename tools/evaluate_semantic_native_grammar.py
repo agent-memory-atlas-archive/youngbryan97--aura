@@ -201,9 +201,9 @@ def main():
             parser.error("retained development sources need their report and bundles, without a new seed")
     elif args.source_report is not None or args.bundle is not None:
         parser.error("source report and bundles belong to retained development evaluation")
-    if args.prefix_strategy == "trie" and (args.dataset not in INTERVENTION_DATASETS
+    if args.prefix_strategy == "trie" and (args.dataset not in INTERVENTION_DATASETS | RETAINED_DATASETS
             or args.search_completions):
-        parser.error("native grammar trie requires intervention sources and greedy decode")
+        parser.error("native grammar trie requires intervention or retained sources and greedy decode")
     seed = 0 if args.dataset in RETAINED_DATASETS else (3141592 if args.seed is None else args.seed)
     if seed < 0:
         parser.error("native grammar seed must be nonnegative")
@@ -276,7 +276,7 @@ def main():
     if args.dataset in RETAINED_DATASETS:
         schema_version = "v6"
     if args.prefix_strategy == "trie":
-        schema_version = "v7"
+        schema_version = "v8" if args.dataset in RETAINED_DATASETS else "v7"
     body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
@@ -329,6 +329,8 @@ def main():
     started, rows = time.monotonic(), []
     with (standalone_model_lane(owner_id=f"semantic-native-grammar:{args.directory.name}",
                                 model_path=str(spec.model_path), purpose="evaluation",
+                                require_exclusive=schema_version == "v8",
+                                allow_owner_eviction=schema_version != "v8",
                                 preemptible=False, metadata={"production_effect": False}),
           mlx_memory_envelope(fraction=.80)):
         model, tokenizer = load(str(spec.model_path))

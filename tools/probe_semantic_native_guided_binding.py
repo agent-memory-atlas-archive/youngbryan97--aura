@@ -28,7 +28,7 @@ def guided_choice_scores(choices, guide_entry, measured_scores):
     return tuple(float(index == chosen) for index in range(len(values)))
 
 
-def guide_basis(training_directory, guide_directory):
+def guide_basis(training_directory, guide_directory, *, require_current=True):
     from tools.evaluate_semantic_native_checkpoint import selected_checkpoint, verified_document
     from tools.verify_semantic_native_grammar import verify_grammar
 
@@ -36,7 +36,7 @@ def guide_basis(training_directory, guide_directory):
     verified = verify_grammar(guide_directory, training_directory)
     plan = verified_document(guide_directory / "plan.json", "plan_sha256")
     report = verified_document(guide_directory / "report.json")
-    if (verified["current_implementation_drift"]
+    if (require_current and verified["current_implementation_drift"]
             or plan["schema"] != "aura.semantic_native_grammar_plan.v7"
             or plan["weight_mode"] != "fitted" or plan["source_evidence"] != "source_text"
             or plan["search_mode"] != "greedy" or plan["prefix_strategy"] != "trie"
