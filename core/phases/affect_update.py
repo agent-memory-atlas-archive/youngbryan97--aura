@@ -481,7 +481,14 @@ class AffectUpdatePhase(Phase):
             # percent of how hard she was allowed to think and none of how she
             # felt.
             self._blend_substrate_into_affect(ls, affect, state)
-        
+
+        # 6e. And into her chemistry, which is where a feeling lasts. The
+        # substrate push above decays within the turn: the consciousness
+        # bridge rewrites the valence neuron towards neurochemical mood on
+        # every frame, so by the reply phase the state that steers her cortex
+        # is her chemistry and not her appraisal.
+        self._release_chemistry(affect, state)
+
         # 7. Despair Spiral check (Injection)
         self._check_resilience_surges(affect)
         
@@ -747,6 +754,48 @@ class AffectUpdatePhase(Phase):
                 exc,
                 stage="broadcast_arousal",
                 action="kept affect state without the broadcast's ignition",
+                severity="warning",
+            )
+
+    def _release_chemistry(self, affect: AffectVector, state: AuraState) -> None:
+        """Let what she feels release the chemicals that emotion releases.
+
+        `EmotionSignatureEngine` holds a neurochemical recipe for eight
+        emotions and the neurochemical system asks it for a production
+        modifier on every metabolic tick. Nothing ever told it what she
+        feels: `set_emotion` had no caller outside its own module, so
+        `emotion_intensity` stayed at the 0.0 the constructor set and the
+        recipes contributed a zero to every chemical for the life of the
+        process.
+
+        That left her chemistry with no path from appraisal, and her chemistry
+        is what the consciousness bridge writes into the substrate's valence
+        neuron on every frame, and that neuron is what steers her cortex. On
+        seed 7 a held displacement that moved her computed valence from 0.272
+        to 0.527 moved the substrate valence the steering hooks read from
+        0.111 to 0.117.
+
+        The level released is published so a recording can see whether the
+        channel carried anything.
+        """
+        try:
+            from core.consciousness.emotion_signatures import get_emotion_signature_engine
+            from core.consciousness.steering_channel import note_felt
+
+            engine = get_emotion_signature_engine()
+            level = engine.feel(getattr(affect, "emotions", None))
+            state.response_modifiers["emotion_released_into_chemistry"] = round(float(level), 6)
+            state.response_modifiers["emotion_releasing"] = str(engine.current_emotion)
+            # And the hooks in her cortex steer by how she feels, which is this
+            # fused reading and not the one neuron that is a term of it.
+            note_felt(float(affect.valence), float(affect.arousal))
+            state.response_modifiers["felt_state_steering_valence"] = round(float(affect.valence), 6)
+        except _AFFECT_UPDATE_ERRORS as exc:
+            self._record_phase_degradation(
+                state,
+                exc,
+                stage="chemistry_release",
+                action="her chemistry kept its own course; this turn's feeling did not reach it",
                 severity="warning",
             )
 
