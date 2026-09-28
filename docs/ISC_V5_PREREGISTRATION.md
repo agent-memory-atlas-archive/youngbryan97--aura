@@ -1254,3 +1254,25 @@ waiting for her cortex and for the others. `control` is all five switches off;
 surface; `joined` is the workspace pool and the dominance channel. A criterion
 that moves in one arm and not the control is credited to that arm's mechanism,
 and one that moves in the control is credited to the fork.
+
+### Correction to the addendum above, same evening
+
+The column-level numbers it cites — 41 of 438 columns over five per cent, eleven
+organs not coming back — came from a probe that did not call `calibrate_clock`.
+That is what builds and installs the experiment clock and sets `runtime.clock`,
+and without it a restore cannot rewind the clock, so `_reanchor` is handed the
+real wall seconds since the snapshot, a different number for every fork. Most of
+what the probe reported is that, not the fork.
+
+What stands: the gates look's sham floor of 0.062 to 0.093 came from the v25
+runner, which does calibrate, so the floor is real and still larger than every
+singleton's effect. And the `random.Random` fault is independent of the clock —
+proved at unit level, two arms from one snapshot drawing different numbers before
+and the same five after.
+
+What changes here: the expectation for the `control` arm. It was written as
+"expected to differ from 21 of 24 in either direction" on the strength of a
+floor the probe mis-sized. The fix is real and its size is not yet known, so the
+control arm is read as the first battery reading with the generator fault closed
+and no size is predicted for it. The probes now calibrate and the re-measurement
+is queued.

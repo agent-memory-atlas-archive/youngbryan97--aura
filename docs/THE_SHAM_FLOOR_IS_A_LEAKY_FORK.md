@@ -10,11 +10,32 @@ A sham arm is one snapshot forked twice and run forward with nothing done to
 either. Whatever differs between them is the fork's own noise, so the floor is
 measurable directly, without a cut sweep.
 
-## What differs, measured
+## Correction, 28 September, evening: the column numbers below were my own probe
+
+The fork probe did not call `calibrate_clock`, which is what builds and installs
+the `ExperimentClock` and sets `runtime.clock`. Without it `runtime.clock` is
+None, so `snapshot.clock_at` is None, so a restore cannot rewind the clock — and
+`_reanchor` is then handed `time.time() - snapshot.taken_at`, a real and
+different number of wall seconds for every fork. Every quantity derived from
+elapsed time differs between two arms for that reason alone, which is most of
+what the table below reports: the drive budgets, the attended credit, the
+constancy reading, and the substrate and mesh, which age by the span.
+
+So the column counts and the eleven-organ list are not a reading of the fork.
+They are a reading of a probe that left out the clock the campaign installs. The
+probes now calibrate, and the re-measurement is queued.
+
+**What survives the correction.** The gates look's sham floor of 0.062 to 0.093
+came from the v25 runner, which does calibrate, so that floor is real and it is
+still larger than every singleton cut's effect. And the `random.Random` fault
+below is independent of the clock: it was proved at unit level, with no clock
+involved, by two arms from one snapshot drawing different numbers.
+
+## What differed under a probe with no clock installed
 
 Four forks of one anchor, the same condition, thirty-three frames each, on the
-438-column schema. Per column, the spread across forks against that column's own
-spread over an ordinary run:
+438-column schema, and — see the correction above — with no experiment clock
+installed, so read these as an upper bound that mostly measures elapsed time:
 
 - 156 of 438 columns differ at all.
 - 41 differ by more than five per cent of their own spread: **C 31, D 9, S 1.**
@@ -28,6 +49,9 @@ C is the domain the cheapest cut runs through. C and D are the two domains in
 every synergy triple that fails.
 
 ## What it is not
+
+These hold whatever the column table turns out to be, because each was checked
+on its own.
 
 **Not the organs' randomness.** Twelve numpy generators are reachable on her
 organs and not one of them advances over a whole turn, so none can be a source of
@@ -75,6 +99,18 @@ identity. It returns False, and the caller writes a copy instead, when the type
 has changed, when the object guards its own writes, or when it is furniture. A
 field that fails both paths stays as the last arm left it, which is the
 restore's stated contract — and is also a floor.
+
+## What is actually established
+
+One fault, named and fixed, and it does not depend on the probe: `random.Random`
+passed `_state_is_its_dict` because CPython converted the standard library's C
+types to heap types, so a field-by-field restore wrote `gauss_next`, reported
+success, and left the Mersenne state where the last arm had it. Two arms from one
+snapshot drew different numbers; after the fix they draw the same five. The
+workspace's somatic noise comes from one of these.
+
+Whether that closes the gates look's floor is the open question, and the
+re-measurement with the clock installed is what answers it.
 
 ## What closing it would be worth
 
