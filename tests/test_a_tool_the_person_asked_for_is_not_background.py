@@ -42,6 +42,7 @@ def test_the_router_reads_it_where_it_decides_foreground():
     from core.brain import llm_health_router as router
 
     source = inspect.getsource(router)
-    assert source.count("_the_turn_is_waiting_on_this(kwargs)") == 2, (
-        "both places the router decides foreground must read it"
+    assert source.count("_the_turn_is_waiting_on_this(kwargs)") == 3, (
+        "every place the router decides foreground must read it, including the "
+        "one the queueing reads"
     )

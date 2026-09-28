@@ -2042,6 +2042,11 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             or kwargs.get("health_probe", False)
             or kwargs.get("protected_foreground_lane", False)
             or kwargs.get("proof_primary_lane_required", False)
+            # The third place this is decided, and the one the queueing reads.
+            # The other two were given the rule and this one kept sending a
+            # tool's calls to the back of the queue behind the turn waiting on
+            # them.
+            or _the_turn_is_waiting_on_this(kwargs)
         )
         # Default-purpose normalization must happen BEFORE classification:
         # the gated implementation stamps unlabelled chat calls with
