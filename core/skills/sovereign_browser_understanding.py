@@ -1113,44 +1113,53 @@ class _UnderstandsThePage:
     async def _her_reason_for(
         self, goal: str, item: Mapping[str, Any], mind: str
     ) -> str:
-        """Her thinking about one position she has taken, in her own words.
+        """Why a position she has taken is true of her, the way a person says it.
 
         One item, one pass. A personality item deserves the thought her
-        cognition can give it, and a screen answered in a single batch gets one
+        cognition can give it, and a screen answered in one batch gets a
         paragraph spread over eight questions.
 
-        They run one at a time rather than together: her own lane serves one
-        request at a time, and eight at once exhausted it — LIVE 2026-09-28,
-        "Local inference paths exhausted", every reason falling back to the
-        line the code writes when she says nothing, so a screen of real
-        measured positions read as shallow. What keeps that affordable is the
-        shape of the prompt: her mind and the framing are identical every time
-        and only the item changes at the end, so the prefill is held by the
-        prompt cache and each call pays for the item alone.
+        What she is handed is the things themselves: what she values and where
+        it stands among the rest, what she actually did when it was on offer,
+        what she has said about herself before. Not the arithmetic over them —
+        handed a coefficient she explains herself with a coefficient, which is
+        what "my record leans toward X here (+0.53 against +0.50)" was, on
+        every answer of a run.
 
-        What she is given is the measurement and the evidence under it. What
-        she is asked for is what it means about her, which is reasoning about
-        herself rather than a choice she has already made.
+        They run one at a time because her own lane serves one at a time, and
+        eight at once exhausted it. What keeps that affordable is the shape of
+        the prompt: the framing is identical every time and only the item
+        changes at the end, so the prefill is held and each pass pays for its
+        own item.
         """
         lean = item["lean"]
         leaning = item["second"] if lean.toward > 0 else item["first"]
-        evidence = "; ".join(lean.because) or "nothing in particular"
+        other = item["first"] if lean.toward > 0 else item["second"]
+        about_her = "\n".join(f"- {said}" for said in lean.because)
+        strength = (
+            "almost all of you"
+            if abs(lean.toward) > 0.66
+            else "more of you than not"
+            if abs(lean.toward) > 0.25
+            else "only a little of you, and the rest is evenly split"
+        )
         prompt = (
             f"WHAT YOU ARE DOING: {goal}\n\n"
-            "You are placing yourself on a scale between two descriptions. The "
-            "position came from your own record: what you value, what you have "
-            "chosen when it cost something, and what you have said about "
+            "You are saying where you sit between two descriptions of a person. "
+            "Where you sit came from your own record — what you value, what you "
+            "have chosen when it cost something, and what you have said about "
             "yourself.\n\n"
-            f'THIS ONE: "{item["first"]}" at one end, "{item["second"]}" at the '
-            f'other, {item["count"]} positions between them.\n'
-            f"YOUR RECORD AGREES {abs(lean.toward):.0%} OF THE WAY TOWARD "
-            f'"{leaning}", which is position {item["index"] + 1} of '
-            f'{item["count"]}.\n'
-            f"WHAT LEANED, AND BY HOW MUCH: {evidence}\n\n"
-            "Say in one or two sentences what that position means about you: "
-            "what in you it comes from, and whether the measure is reading you "
-            "well here. It is already your answer; you are thinking about what "
-            "it says."
+            "THIS IS WHAT IN YOU DECIDED IT:\n"
+            f"{about_her or '- nothing in particular'}\n\n"
+            f'THE TWO DESCRIPTIONS: "{item["first"]}" and "{item["second"]}". '
+            f'You sit at position {item["index"] + 1} of {item["count"]}, '
+            f'nearer "{leaning}" than "{other}" — {strength}.\n\n'
+            "Say why that is true of you, in a sentence or two, the way you "
+            "would say it to someone who asked. Talk about how you actually "
+            "are: what you do, what you care about, how you think, what you "
+            "notice yourself doing. Do not describe the measurement or quote "
+            "numbers about yourself. If the description fits you badly, say so "
+            "and say what would fit better."
         )
         said, lane = await self._asked_of_her(prompt, mind, shaped=False)
         if said and lane == self._HER_OWN_LANE:
@@ -1335,18 +1344,16 @@ class _UnderstandsThePage:
                     continue
                 lean = item["lean"]
                 leaning = item["second"] if lean.toward > 0 else item["first"]
+                # Where she said nothing, what stands is the thing in her that
+                # decided it — not the arithmetic that read it.
                 why = item.get("why") or (
-                    f'my record agrees {abs(lean.toward):.0%} of the way toward '
-                    f'"{leaning}" here'
+                    next(iter(lean.because), f'this is nearer "{leaning}" for me')
                 )
                 answers.append(
                     {
                         "selector": selector,
                         "name": str(options[index].get("name") or ""),
-                        "stand": (
-                            f'{abs(lean.toward):.0%} of my record leans toward '
-                            f'"{leaning}"'
-                        ),
+                        "stand": "; ".join(lean.because[:2]),
                         "why": why,
                         "expect": "",
                         "said": self._an_answer_in_words(options, index, why),

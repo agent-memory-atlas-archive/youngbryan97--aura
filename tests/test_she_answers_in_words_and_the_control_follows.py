@@ -39,7 +39,7 @@ def _row(group: str = "Q1", count: int = 5, left: str = "makes lists",
 def _lean(toward: float) -> Lean:
     return Lean(
         toward=toward, first=0.5, second=0.5,
-        because=("truth (value) leans makes lists by 0.031",), measured=True,
+        because=("truth is the value I hold above every other",), measured=True,
     )
 
 
@@ -142,23 +142,24 @@ def test_only_the_item_changes_between_passes(monkeypatch):
         if one != other:
             break
         shared += 1
-    framing = first.index("THIS ONE:")
+    framing = first.index("THIS IS WHAT IN YOU DECIDED IT:")
     assert shared >= framing, (
         "everything before the item must be identical so the prefill is held "
         f"(shared {shared}, framing ends at {framing})"
     )
 
 
-def test_the_measurement_and_its_evidence_are_what_she_reasons_over(monkeypatch):
+def test_what_she_reasons_over_is_the_things_not_the_arithmetic(monkeypatch):
+    """Handed a coefficient, she explains herself with a coefficient."""
     skill, handed = _screen(monkeypatch, "a reason")
     _run(skill, {"url": "u", "title": "t", "text": "x", "elements": _row("Q1") + _row("Q2")})
     prompt = handed["prompts"][0]
     assert "position 1 of 5" in prompt
-    assert "truth (value) leans makes lists" in prompt
-    assert "already your answer" in prompt, (
-        "she must be thinking about her position, not choosing it"
-    )
+    assert "truth is the value I hold above every other" in prompt
     assert "what you value" in prompt and "chosen when it cost something" in prompt
+    assert "Do not describe the measurement or quote numbers" in prompt
+    for arithmetic in ("+0.", "0.031", "%"):
+        assert arithmetic not in prompt, f"the prompt hands her {arithmetic!r}"
 
 
 def test_a_silent_model_does_not_lose_the_measured_answers(monkeypatch):

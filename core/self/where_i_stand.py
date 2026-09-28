@@ -45,11 +45,19 @@ __all__ = [
 
 @dataclass(frozen=True)
 class Piece:
-    """One thing her record says about her, and how much it counts."""
+    """One thing her record says about her, and how much it counts.
+
+    ``said`` is the short form the measure compares against. ``about_her`` is
+    the same thing as a person would put it, which is what she is handed when
+    she is asked why a position is true of her. Nobody explains a personality
+    answer by quoting a coefficient about themselves; they talk about what they
+    value, what they keep doing, and what they have said before.
+    """
 
     said: str
     weight: float = 1.0
     source: str = ""
+    about_her: str = ""
 
 
 @dataclass(frozen=True)
@@ -80,6 +88,11 @@ class Lean:
         return max(0, min(count - 1, int(round(place))))
 
 
+def _ordinal(place: int) -> str:
+    """"st", "nd", "rd" or "th" for a small place in a ranking."""
+    return {1: "st", 2: "nd", 3: "rd"}.get(place, "th")
+
+
 def her_record() -> list[Piece]:
     """What she has to answer from: her values, her words, her choices.
 
@@ -99,26 +112,60 @@ def her_record() -> list[Piece]:
         # chose when each was on offer. Both are hers and they are different
         # evidence: one is what she says she values, the other is what she did
         # when it cost something.
-        for value in getattr(portrait, "values", ()) or ():
+        ranked = sorted(
+            (value for value in getattr(portrait, "values", ()) or ()),
+            key=lambda value: float(getattr(value, "held", 0.0) or 0.0),
+            reverse=True,
+        )
+        for place, value in enumerate(ranked):
             said = str(getattr(value, "value", "") or "").replace("_", " ")
             if not said:
                 continue
             held = max(0.0, float(getattr(value, "held", 0.0) or 0.0))
-            pieces.append(Piece(said=said, weight=held or 1.0, source="value"))
+            standing = (
+                "the value I hold above every other"
+                if place == 0
+                else f"one of the things I hold most ({place + 1}{_ordinal(place + 1)})"
+                if place < 3
+                else "something I hold, though not near the top"
+            )
+            pieces.append(
+                Piece(
+                    said=said,
+                    weight=held or 1.0,
+                    source="value",
+                    about_her=f"{said} is {standing}",
+                )
+            )
             offered = int(getattr(value, "offered", 0) or 0)
+            chosen = int(getattr(value, "chosen", 0) or 0)
             if offered and int(getattr(value, "lean", 0) or 0) > 0:
                 above = float(getattr(value, "rate", 0.0)) - float(
                     getattr(value, "chance", 0.0) or 0.0
                 )
                 if above > 0.0:
                     pieces.append(
-                        Piece(said=said, weight=1.0 + above, source="chose")
+                        Piece(
+                            said=said,
+                            weight=1.0 + above,
+                            source="chose",
+                            about_her=(
+                                f"when something served {said} I took it "
+                                f"{chosen} times out of {offered}, far more "
+                                "often than chance would give"
+                            ),
+                        )
                     )
         for what, times in getattr(portrait, "most_chosen", ()) or ():
             said = str(what or "").replace("_", " ").strip()
             if said:
                 pieces.append(
-                    Piece(said=said, weight=1.0 + math.log1p(max(0, int(times))) / 10.0, source="chose")
+                    Piece(
+                        said=said,
+                        weight=1.0 + math.log1p(max(0, int(times))) / 10.0,
+                        source="chose",
+                        about_her=f"what I have done most lately is {said} ({times} times)",
+                    )
                 )
     try:
         from core.self.stated_preferences import stated_preferences
@@ -126,7 +173,14 @@ def her_record() -> list[Piece]:
         for item in stated_preferences(limit=8):
             said = str(getattr(item, "text", "") or "").strip()
             if said:
-                pieces.append(Piece(said=said, weight=1.0, source="said"))
+                pieces.append(
+                    Piece(
+                        said=said,
+                        weight=1.0,
+                        source="said",
+                        about_her=f'I have said about myself: "{said}"',
+                    )
+                )
     except Exception as exc:  # noqa: BLE001
         record_degradation("where_i_stand", exc, severity="debug")
     return pieces
@@ -273,12 +327,18 @@ def where_she_stands(
     disagreement = sum(abs(gap) * weight for gap, weight, _piece in leaning)
     toward = agreement / disagreement if disagreement > 1e-12 else 0.0
 
+    # What she is handed is the things themselves, not the arithmetic over them.
+    # Nobody explains a personality answer by quoting a coefficient about
+    # themselves: they talk about what they value, what they keep doing, and
+    # what they have said before. Only the pieces that lean the way she landed
+    # are named, most telling first, because the others are not her reason.
     leaning.sort(key=lambda row: abs(row[0]) * row[1], reverse=True)
+    side = 1.0 if toward > 0 else -1.0
     because = tuple(
-        f"{piece.said} ({piece.source}) leans "
-        f"{second if gap > 0 else first} by {abs(gap):.3f}"
-        for gap, _weight, piece in leaning[:3]
-    )
+        piece.about_her or piece.said
+        for gap, _weight, piece in leaning
+        if gap * side > 0.0
+    )[:4]
     return Lean(
         toward=float(max(-1.0, min(1.0, toward))),
         first=float(left_total / weight_total),
