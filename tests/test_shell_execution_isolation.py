@@ -374,3 +374,42 @@ def test_the_kernel_refuses_a_write_outside_the_workdir(tmp_path):
     )
     assert not target.exists(), "the sandbox let a write land outside the workdir"
     assert result.exit_code != 0
+
+
+@pytest.mark.macos
+@pytest.mark.skipif(sys.platform != "darwin", reason="seatbelt is macOS-only")
+def test_the_kernel_refuses_a_connection_the_profile_denies(tmp_path):
+    """The profile says `(deny network*)`, and a string is not a refusal.
+
+    `test_the_profile_denies_the_network_and_defaults` reads the profile text.
+    This one listens on a loopback port and asks a sandboxed process to
+    connect to it. The same binary connects when it is not sandboxed, so a
+    refusal here is the kernel's and not a broken rig — and the listener must
+    not have accepted anything.
+    """
+    import socket
+    import subprocess
+
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(4)
+    listener.settimeout(0.5)
+    port = listener.getsockname()[1]
+    probe = ["/usr/bin/nc", "-z", "-G", "2", "127.0.0.1", str(port)]
+    try:
+        unsandboxed = subprocess.run(probe, capture_output=True, timeout=20.0)
+        assert unsandboxed.returncode == 0, "the rig cannot connect even unsandboxed"
+        accepted, _ = listener.accept()
+        accepted.close()
+
+        workdir = tmp_path / "work"
+        workdir.mkdir()
+        sandbox = SecureSandbox(
+            security_level=SecurityLevel.CONFINED, workdir=workdir, allowed_paths=[workdir]
+        )
+        refused = sandbox.execute_command(probe, timeout=20.0)
+        assert refused.exit_code != 0, "the sandboxed process reached the network"
+        with pytest.raises(socket.timeout):
+            listener.accept()
+    finally:
+        listener.close()

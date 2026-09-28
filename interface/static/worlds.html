@@ -22,10 +22,11 @@
 </style>
 </head>
 <body>
+<h1 style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">Worlds</h1>
 <div id="scene"></div>
 <div id="hud">
   <div>
-    <select id="world-select"></select>
+    <select id="world-select" aria-label="Which world"></select>
     <button id="step-btn" title="Advance 120 physics ticks">Step 1s</button>
     <button id="live-btn">Live: off</button>
   </div>
@@ -49,10 +50,22 @@
   renderer.setSize(innerWidth, innerHeight);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   document.getElementById("scene").appendChild(renderer.domElement);
+
+  // Drawn when something changes, not sixty times a second. The scene moves
+  // only when a person drags it or a refresh moves its bodies, and the loop
+  // that redrew it every frame held a GPU busy over a picture that was still.
+  let renderPending = false;
+  const requestRender = () => {
+    if (renderPending) return;
+    renderPending = true;
+    requestAnimationFrame(() => { renderPending = false; renderer.render(scene, camera); });
+  };
+
   addEventListener("resize", () => {
     camera.aspect = innerWidth/innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(innerWidth, innerHeight);
+    requestRender();
   });
 
   scene.add(new THREE.AmbientLight(0x8899bb, 0.7));
@@ -68,6 +81,7 @@
       dist * Math.cos(phi) * Math.sin(theta),
       dist * Math.sin(phi));
     camera.lookAt(0, 0, 0);
+    requestRender();
   };
   applyCam();
   const el = renderer.domElement;
@@ -115,6 +129,7 @@
     for (const [id, mesh] of meshes) {
       if (!seen.has(id)) { scene.remove(mesh); meshes.delete(id); }
     }
+    requestRender();
   }
 
   const meta = document.getElementById("meta");
@@ -162,6 +177,7 @@
     current = select.value;
     for (const [, mesh] of meshes) scene.remove(mesh);
     meshes.clear();
+    requestRender();
     refreshWorld();
   });
   document.getElementById("step-btn").addEventListener("click", async () => {
@@ -182,7 +198,7 @@
     else clearInterval(liveTimer);
   });
 
-  (function animate() { requestAnimationFrame(animate); renderer.render(scene, camera); })();
+  requestRender();
   refreshList().then(refreshWorld);
 })();
 </script>

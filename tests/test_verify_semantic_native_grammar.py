@@ -205,6 +205,14 @@ def test_weight_mode_verification_keeps_base_and_fitted_arms_distinct():
     next_plan["schema"] = "aura.semantic_native_grammar_plan.v4"
     next_report["schema"] = "aura.semantic_native_grammar.v4"
     assert verified_weight_mode(next_plan, next_report) == "fitted"
+    residual_plan = {"schema": "aura.semantic_native_grammar_plan.v9", "weight_mode": "residual"}
+    residual_report = {"schema": "aura.semantic_native_grammar.v9", "weight_mode": "residual"}
+    assert verified_weight_mode(residual_plan, residual_report) == "residual"
+    with pytest.raises(ValueError, match="weight mode differs"):
+        verified_weight_mode({**residual_plan, "weight_mode": "fitted"}, residual_report)
+    with pytest.raises(ValueError, match="weight mode differs"):
+        verified_weight_mode({**plan, "weight_mode": "residual"},
+                             {**report, "weight_mode": "residual"})
 
 
 def test_public_values_recovered_from_source_not_assumed_from_annotation():
@@ -284,7 +292,7 @@ def test_independent_intervention_pair_metrics_reject_wrong_registers():
     assert verified_pair_totals((before, wrong), dataset="operation_intervention")["source_responsive"] == 0
 
 
-@pytest.mark.parametrize("version", ["v6", "v8"])
+@pytest.mark.parametrize("version", ["v6", "v8", "v9"])
 def test_retained_development_protocol_cannot_be_relabelled_fresh(version):
     basis = {"split": "test", "exposure": "previously_exposed_development"}
     plan = {"schema": f"aura.semantic_native_grammar_plan.{version}", "dataset": "retained_test",

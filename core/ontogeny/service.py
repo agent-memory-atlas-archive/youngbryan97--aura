@@ -99,6 +99,9 @@ TRAIN_COOPERATIVE_YIELD_S = 0.0001
 #: How often the state checkpoint is written. The state is small; losing an
 #: hour of it to a crash would be a needless amputation.
 CHECKPOINT_INTERVAL_S = 300.0
+#: How often the maintenance loop wakes, and so how long stop() waits for
+#: a pass already running: one longer than the gap between passes is a fault.
+_MAINTENANCE_INTERVAL_S = 60.0
 
 
 
@@ -823,7 +826,7 @@ class OntogenyCore(_KeepsItsHeadsOnDisk, AuthorityObservationMixin):
 
     def _maintenance_loop(self) -> None:
         cycles = 0
-        while not self._stopped.wait(60.0):
+        while not self._stopped.wait(_MAINTENANCE_INTERVAL_S):
             now = time.time()
             cycles += 1
             try:
@@ -860,6 +863,23 @@ class OntogenyCore(_KeepsItsHeadsOnDisk, AuthorityObservationMixin):
         self._stopped.set()
         if self._sweeper is not None:
             self._sweeper.stop()
+        # The maintenance pass saves this same state. Saving here while it might
+        # still be inside one wrote the state twice, concurrently, and a pass
+        # finishing after stop() wrote it again once the organ was down.
+        maintenance = self._maintenance
+        if (
+            maintenance is not None
+            and maintenance.is_alive()
+            and maintenance is not threading.current_thread()
+        ):
+            maintenance.join(timeout=_MAINTENANCE_INTERVAL_S)
+            if maintenance.is_alive():
+                record_degradation(
+                    "ontogeny",
+                    TimeoutError("a maintenance pass outlived its own interval"),
+                    severity="warning",
+                    action="saved state with a maintenance pass still running",
+                )
         if self._state is not None:
             self._state.save()
         self._spine.off_resolve(self._note_resolution)

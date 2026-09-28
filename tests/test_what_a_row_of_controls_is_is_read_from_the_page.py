@@ -113,3 +113,54 @@ def test_how_the_page_wants_to_be_answered_is_part_of_her_understanding():
     )
     assert "How this page wants to be answered" in rendered
     assert "pick where I sit" in rendered
+
+
+def test_each_control_says_where_it_sits_in_the_run():
+    """Picking item k from a list is not saying where in a range you are.
+
+    A control whose only name is its group's reads as one nameless thing among
+    five. Its place in the run is a fact of the layout; what being there means
+    is hers.
+    """
+    observation = {
+        "url": "https://example.test",
+        "title": "t",
+        "text": "x",
+        "elements": [
+            {**option, "selector": f"#Q1V{n}"}
+            for n, option in enumerate(_row(), start=1)
+        ],
+    }
+    rendered = S._render_observation(observation, "take the test")
+    assert "position 1 of 5" in rendered
+    assert "position 5 of 5" in rendered
+
+
+def test_labelled_options_are_not_given_positions():
+    """Their labels say what they are; a place in a run would say less."""
+    observation = {
+        "url": "https://example.test",
+        "title": "t",
+        "text": "x",
+        "elements": [
+            {**option, "selector": f"#q{n}"}
+            for n, option in enumerate(
+                _row(count=3, labels=["agree", "neutral", "disagree"]), start=1
+            )
+        ],
+    }
+    rendered = S._render_observation(observation, "take the test")
+    assert "position 1 of 3" not in rendered
+
+
+def test_a_pair_is_a_choice_and_gets_no_positions():
+    observation = {
+        "url": "https://example.test",
+        "title": "t",
+        "text": "x",
+        "elements": [
+            {**option, "selector": f"#q{n}"}
+            for n, option in enumerate(_row(count=2), start=1)
+        ],
+    }
+    assert "position 1 of 2" not in S._render_observation(observation, "take it")

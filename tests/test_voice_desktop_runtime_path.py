@@ -6,6 +6,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.clock_patch import patch_module_clock
+
 
 def test_voice_stt_automatic_initialization_is_local_only(monkeypatch, tmp_path) -> None:
     import core.senses.voice_engine as voice_module
@@ -625,7 +627,7 @@ def test_voice_threshold_signal_only_on_change_or_heartbeat(monkeypatch, tmp_pat
         "_signal_mycelium",
         lambda source, target, payload: calls.append((source, target, dict(payload))),
     )
-    monkeypatch.setattr(voice_module.time, "time", lambda: now[0])
+    patch_module_clock(monkeypatch, voice_module, time=lambda: now[0])
 
     engine._get_sensory_thresholds()
     engine._get_sensory_thresholds()

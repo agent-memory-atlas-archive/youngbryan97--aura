@@ -1355,7 +1355,14 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                     )
 
                 decision = None
-                if self._asks_about_the_one_answering(observation):
+                shaped_like_a_scale = self._asks_about_the_one_answering(observation)
+                logger.info(
+                    "🌐 %s: %d control(s), asks about her: %s",
+                    str(observation.get("url") or "")[:80],
+                    len(list(observation.get("elements") or [])),
+                    shaped_like_a_scale,
+                )
+                if shaped_like_a_scale:
                     # Before the first item, what she expects it to say about
                     # her. A forecast made before arriving is made from
                     # nothing: she did not yet know what the thing measures.

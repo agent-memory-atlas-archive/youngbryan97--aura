@@ -4,6 +4,7 @@ import pytest
 
 import core.brain.llm.model_paths as model_paths
 import core.brain.llm.model_registry as model_registry
+from tests.clock_patch import patch_module_clock
 
 
 def test_default_deep_reasoning_role_uses_the_resident_cortex():
@@ -265,7 +266,7 @@ def test_specialist_admission_cache_invalidates_on_evidence_or_source_change(
         frozenset({"source.py"}),
     )
     wall_clock = [1000.0]
-    monkeypatch.setattr(model_registry.time, "time", lambda: wall_clock[0])
+    patch_module_clock(monkeypatch, model_registry, time=lambda: wall_clock[0])
     calls = []
 
     def _verify(*_args, **_kwargs):

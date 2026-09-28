@@ -43,10 +43,36 @@ class NativeGrammarIncompleteError(ValueError):
         self.trace = trace
 
 
+class NativeGrammarUnreachableError(NativeGrammarIncompleteError):
+    """A partial graph cannot become connected within the remaining depth."""
+
+    def __init__(self, program: Program, trace: tuple[dict, ...],
+                 minimum_additional_steps: int, remaining_steps: int) -> None:
+        super().__init__(program, trace)
+        self.args = ("native grammar graph cannot connect within remaining depth",)
+        self.minimum_additional_steps = minimum_additional_steps
+        self.remaining_steps = remaining_steps
+
+
+def minimum_graph_completion_steps(program: Program) -> int | float:
+    """Lower-bound the steps needed to join all unconsumed instruction results."""
+    if not isinstance(program, Program) or not program.instructions:
+        raise ValueError("graph completion needs a partial typed program")
+    sinks = {program.n_inputs + index for index in range(len(program.instructions))}
+    for instruction in program.instructions:
+        sinks.difference_update(instruction.args)
+    max_arity = max(len(signature[0]) for name in PRIMITIVES_BY_NAME
+                    if (signature := semantic_primitive_type_signature(name)) is not None)
+    if max_arity < 2:
+        return 0 if len(sinks) == 1 else math.inf
+    return (len(sinks) - 1 + max_arity - 2) // (max_arity - 1)
+
+
 def decode_native_grammar(input_types: tuple[str, ...],
                           scorer: Callable[[tuple[NativeGrammarDecision, ...]], tuple[float, ...]],
                           *, max_steps: int = 8,
-                          register_encoding: str = "absolute_v1") -> NativeGrammarResult:
+                          register_encoding: str = "absolute_v1",
+                          viability_pruning: bool = False) -> NativeGrammarResult:
     """Choose semantic atoms; scaffolding never supplies meaning or a target.
 
     The scorer receives alternative text prefixes and their decision spans.
@@ -62,6 +88,8 @@ def decode_native_grammar(input_types: tuple[str, ...],
         raise ValueError("native grammar needs declared input types and finite depth")
     if register_encoding not in {"absolute_v1", REGISTER_ENCODING}:
         raise ValueError("native grammar register encoding is not declared")
+    if type(viability_pruning) is not bool:
+        raise ValueError("native grammar viability policy is not declared")
     relative = register_encoding == REGISTER_ENCODING
     types = list(input_types)
     instructions = []
@@ -116,6 +144,11 @@ def decode_native_grammar(input_types: tuple[str, ...],
         types.append(signature[1])
         program = Program(len(input_types), tuple(instructions))
         connected = semantic_program_structural_key(program) is not None
+        remaining = max_steps - len(instructions)
+        if viability_pruning and remaining and not connected:
+            lower_bound = minimum_graph_completion_steps(program)
+            if lower_bound > remaining:
+                raise NativeGrammarUnreachableError(program, tuple(trace), lower_bound, remaining)
         if ordinal + 1 == max_steps:
             if not connected:
                 raise NativeGrammarIncompleteError(program, tuple(trace))

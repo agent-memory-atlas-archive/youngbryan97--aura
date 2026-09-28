@@ -48,7 +48,7 @@ from typing import Any
 
 from core.runtime.service_access import optional_service
 
-__all__ = ["Organism", "bring_up", "quiesce", "wind_down"]
+__all__ = ["Organism", "bring_up", "quiesce", "stepped_loops", "wind_down"]
 
 logger = logging.getLogger("Aura.Subject.Organism")
 
@@ -210,13 +210,34 @@ KEPT_TASKS: tuple[str, ...] = (
 )
 
 
-async def quiesce() -> list[str]:
+def stepped_loops() -> tuple[str, ...]:
+    """The loops whose bodies the harness steps once a frame, by task name.
+
+    Each is a layer in `core.subject.steppable.LAYERS`, and its task carries the
+    layer's name or the layer's name and a suffix (`StreamOfBeing.existence`).
+    """
+    from core.subject.steppable import LAYERS
+
+    return tuple(layer.name for layer in LAYERS)
+
+
+def _is_stepped(name: str, only: tuple[str, ...]) -> bool:
+    return any(name == loop or name.startswith(f"{loop}.") for loop in only)
+
+
+async def quiesce(*, only: tuple[str, ...] | None = None) -> list[str]:
     """Cancel every free-running cognitive loop, and say which.
 
     Cancellation is a request, not an event: the task does not end until the
     loop it is suspended in gets to run and raise. So this waits for them,
     briefly, and whatever is still alive afterwards appears in `still_running`
     where it can be argued with rather than in nothing.
+
+    `only` names the loops to stop, by task name, and leaves every other task
+    running. A run with her cortex needs it: the language organ keeps tasks of
+    its own, the inference gate's maintenance among them, and stopping those
+    stops her answering. Her organism's threads are stopped either way,
+    because none of them is the language organ's.
     """
     import asyncio
 
@@ -228,6 +249,8 @@ async def quiesce() -> list[str]:
         for task in asyncio.all_tasks():
             name = task.get_name()
             if task is current or task.done() or name in KEPT_TASKS:
+                continue
+            if only is not None and not _is_stepped(name, only):
                 continue
             task.cancel()
             doomed.append(task)
@@ -270,6 +293,7 @@ def _stop_threads() -> list[str]:
         return stopped
     stopped.extend(_stop_the_self_field())
     stopped.extend(_stop_ontogeny_loops())
+    stopped.extend(_the_mesh_on_the_run_clock())
     return stopped
 
 
@@ -291,6 +315,23 @@ def _stop_the_self_field() -> list[str]:
     # Looked up on each call, so it reads the experiment clock once it is installed.
     field.use_clock(lambda: time.time())
     return ["being_runtime.self_field"]
+
+
+def _the_mesh_on_the_run_clock() -> list[str]:
+    """The mesh stamps spikes and times its plasticity by a clock, the machine's until now.
+
+    Once its loop stops, the harness steps it once a frame, and the time
+    between two spikes has to be the run's rather than however long each arm
+    took. Looked up on each call, so it reads the experiment clock once that is
+    installed, as the self field does.
+    """
+    import time
+
+    mesh = optional_service("neural_mesh", default=None)
+    if mesh is None or not hasattr(mesh, "use_clock"):
+        return []
+    mesh.use_clock(lambda: time.time())
+    return ["NeuralMesh.spike_clock"]
 
 
 def _stop_ontogeny_loops() -> list[str]:

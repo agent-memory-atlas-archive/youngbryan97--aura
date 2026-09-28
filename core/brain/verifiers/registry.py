@@ -9,6 +9,7 @@ the mean of the engines that actually checked.
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Any
 
 from core.runtime.errors import record_degradation
@@ -27,6 +28,8 @@ from .math_engine import MathTruthEngine
 from .planning_engine import PlanningEngine
 from .repo_engine import RepoEvidenceEngine
 from .state_trace_engine import StateTraceTruthEngine
+
+logger = logging.getLogger(__name__)
 
 # Map a coarse task_type to the engines that should run. The logic engine is
 # always added on top (deductive sanity applies to any prose).
@@ -87,16 +90,55 @@ class VerifierRegistry:
         normalized = self.normalize_task(task_type)
         verifiers = self.select(normalized)
         if not verifiers:
-            return VerificationResult(domain=normalized, ok=True, checked=False, engine="none")
+            return VerificationResult(
+                domain=normalized, ok=True, checked=False, engine="none", not_applicable=True
+            )
+        # The logic engine is always added, so "no engine for this task" has to
+        # be read from the others. Without this, not_applicable could never be
+        # returned and a task nothing covers read as an answer with nothing in it.
+        no_domain_engine = all(getattr(v, "name", "") == "logic" for v in verifiers)
+        # A deadline only when the caller gives one. The registry has no way to
+        # know how long a check deserves; the request does.
+        deadline = (context or {}).get("verifier_deadline_s")
+        try:
+            deadline = float(deadline) if deadline is not None else None
+        except (TypeError, ValueError) as exc:
+            logger.debug("verifier_deadline_s is not a number (%s: %s); no deadline is kept",
+                         type(exc).__name__, exc)
+            deadline = None
 
         async def _run(v: Verifier) -> VerificationResult:
+            name = getattr(v, "name", "?")
             try:
+                if deadline is not None and deadline > 0:
+                    return await asyncio.wait_for(v.verify(candidate, context=context), deadline)
                 return await v.verify(candidate, context=context)
-            except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
-                record_degradation(f"verifier:{getattr(v, 'name', '?')}", exc)
-                return VerificationResult(domain=normalized, ok=True, checked=False, engine=getattr(v, "name", "?"))
+            except TimeoutError as exc:
+                # Caught before OSError, which it subclasses. It escaped the
+                # old handler altogether and took the whole gather down with it.
+                record_degradation(f"verifier:{name}", exc, severity="warning",
+                                   action="the check did not finish; reported as timed_out")
+                return VerificationResult(
+                    domain=normalized, ok=True, checked=False, engine=name, timed_out=True,
+                    issues=[f"verifier_timed_out: {name}"],
+                )
+            except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
+                # A crashed engine verified nothing, and this used to say so in
+                # the same words as an answer with nothing to check: ok=True,
+                # checked=False, and the flag this type defines for exactly this
+                # left unset.
+                record_degradation(f"verifier:{name}", exc)
+                return VerificationResult(
+                    domain=normalized, ok=True, checked=False, engine=name,
+                    infrastructure_failed=True,
+                    issues=[f"verifier_failed: {name}: {type(exc).__name__}"],
+                )
 
         results = await asyncio.gather(*[_run(v) for v in verifiers])
+        if no_domain_engine:
+            for one in results:
+                if not one.checked and not one.infrastructure_failed and not one.timed_out:
+                    one.not_applicable = True
 
         # Verifier Foundry (frontier-general P1): record every checked verdict
         # so reality can grade it later, and weight the SOFT fold by measured

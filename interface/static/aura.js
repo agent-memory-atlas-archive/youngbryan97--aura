@@ -3524,7 +3524,8 @@ async function processThoughtQueue() {
     state.thoughtDrainTimer = setTimeout(processThoughtQueue, delay);
 }
 
-//: The page ground every mood colour is read against.
+//: The dark theme's page ground, which a mood colour is read against when
+//: the page cannot say what its own ground is.
 const THE_GROUND = [5, 3, 10];
 
 //: What WCAG asks of ordinary text.
@@ -3559,31 +3560,48 @@ function contrastBetween(a, b) {
 // ordinary text wants 4.5 — so hand-picking a second hex per mood would be
 // five guesses that go stale the moment a sixth mood is added.
 //
-// This lightens toward white until the ratio is met, which keeps the hue and
-// cannot be wrong for a mood nobody has thought of yet.
+// This moves the colour toward white on a dark ground, and toward black on a
+// light one, until the ratio is met. That keeps the hue and cannot be wrong
+// for a mood nobody has thought of yet.
 function readableVersionOf(hex, ground = THE_GROUND, want = READABLE_AGAINST_IT) {
     const channels = channelsOf(hex);
     if (!channels) return hex;
     if (contrastBetween(channels, ground) >= want) return hex;
+    // 0.179 is the luminance at which black and white read equally well.
+    const toward = relativeLuminance(ground) > 0.179 ? 0 : 255;
     let lifted = channels;
     for (let step = 1; step <= 20; step++) {
         const mix = step / 20;
-        lifted = channels.map((v) => Math.round(v + (255 - v) * mix));
+        lifted = channels.map((v) => Math.round(v + (toward - v) * mix));
         if (contrastBetween(lifted, ground) >= want) break;
     }
     return '#' + lifted.map((v) => v.toString(16).padStart(2, '0')).join('');
 }
 
+// The mood colours are painted on <body>, where the theme and accent classes
+// declare --bg, --primary and --accent. Written on <html> they were resolved
+// against the dark defaults, so the Light theme drew the brand in a violet
+// made readable for a black page (3.8:1 on white) and no accent setting
+// reached it at all. A neutral mood shows the person's own accent.
+function paintMood() {
+    const body = document.body;
+    if (!body) return;
+    const style = getComputedStyle(body);
+    const own = (name) => style.getPropertyValue(name).trim();
+    const mood = MOODS[state.currentMood];
+    const neutral = !mood || state.currentMood === 'neutral';
+    const primary = neutral ? own('--primary') : mood.primary;
+    const accent = neutral ? own('--accent') : mood.accent;
+    const ground = channelsOf(own('--bg')) || THE_GROUND;
+    body.style.setProperty('--mood-primary', primary);
+    body.style.setProperty('--mood-primary-bright', readableVersionOf(primary, ground));
+    body.style.setProperty('--mood-accent', accent);
+}
+
 function updateMood(mood) {
     if (state.currentMood === mood || !MOODS[mood]) return;
     state.currentMood = mood;
-    const colors = MOODS[mood];
-    document.documentElement.style.setProperty('--mood-primary', colors.primary);
-    document.documentElement.style.setProperty(
-        '--mood-primary-bright', readableVersionOf(colors.primary)
-    );
-    document.documentElement.style.setProperty('--mood-accent', colors.accent);
-    // Mood shift applied
+    paintMood();
 }
 
 function updateSkillUI(skill, state) {
@@ -9541,6 +9559,10 @@ function applySettings(s) {
         .replace(/\s+/g, ' ')
         .trim();
     if (s.theme !== 'dark') document.body.classList.add(`theme-${s.theme}`);
+    // design_tokens.css follows this rather than the system appearance, so
+    // the tokens and the shell's own variables cannot disagree.
+    document.documentElement.dataset.auraScheme = s.theme === 'light' ? 'light' : 'dark';
+    paintMood();
     if (s.accent !== 'violet') document.body.classList.add(`accent-${s.accent}`);
     document.body.classList.add(`chat-text-${s.chatTextSize || 'standard'}`);
     document.body.classList.add(`neural-text-${s.neuralTextSize || 'standard'}`);

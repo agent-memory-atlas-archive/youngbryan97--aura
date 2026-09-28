@@ -15,6 +15,7 @@ import time
 import pytest
 
 from core.runtime.thread_cpu import thread_cpu_seconds, thread_cpu_share
+from tests.clock_patch import patch_module_clock
 
 pytestmark = pytest.mark.skipif(
     not (sys.platform == "darwin" or sys.platform.startswith("linux")),
@@ -85,7 +86,7 @@ def test_the_watchdog_tells_a_starved_loop_from_a_stuck_one(monkeypatch, caplog)
     watchdog._loop_cpu_at_last_look = None
     # each look is ten seconds after the last, on a scripted clock
     clock = {"wall": 1010.0}
-    monkeypatch.setattr(sw.time, "time", lambda: clock["wall"])
+    patch_module_clock(monkeypatch, sw, time=lambda: clock["wall"])
     watchdog._starved_stalls = 0
     watchdog._last_starvation_log_at = 0.0
     watchdog._last_stall_dump_at = 0.0
@@ -245,7 +246,7 @@ async def test_the_loop_monitor_files_no_breach_for_a_starved_sample(monkeypatch
     cpus = iter([100.0, 100.3])
     # cc.time is the time module itself; the fakes stay total so nothing that
     # runs after the sample (fixture teardown included) meets an exhausted one.
-    monkeypatch.setattr(cc.time, "perf_counter", lambda: next(walls, 6.0))
+    patch_module_clock(monkeypatch, cc, perf_counter=lambda: next(walls, 6.0))
     monkeypatch.setattr(cc.time, "thread_time", lambda: next(cpus, 100.3))
     monkeypatch.setattr(monitor, "_lag_threshold_for_context", lambda: (0.75, "idle"))
 
@@ -316,7 +317,7 @@ def test_a_stall_that_outlives_one_check_is_measured_per_look(monkeypatch):
     dog._loop_cpu_sampled_at = 100.0
     dog._loop_cpu_at_last_look = None
     clock = {"wall": 105.0, "cpu": 4.0}
-    monkeypatch.setattr(sw.time, "time", lambda: clock["wall"])
+    patch_module_clock(monkeypatch, sw, time=lambda: clock["wall"])
     monkeypatch.setattr(sw, "thread_cpu_seconds", lambda ident: clock["cpu"])
 
     first = dog._loop_cpu_share_since_heartbeat(5.0)

@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import threading
 import types
 from collections import deque
 
@@ -999,11 +1000,16 @@ def test_affective_steering_live_source_annotation_failures_are_visible(monkeypa
     )
     thread._running = True
 
-    def stop_after_one_sleep(_seconds):
-        thread._running = False
+    # Stopped through the loop's own event after one pass. This used to patch
+    # `time.sleep` on the time module, which every sleeping thread in the
+    # process shares, and it stopped working when the loop began waiting on
+    # its stop event instead of sleeping.
+    class _StopAfterOnePass(threading.Event):
+        def wait(self, timeout=None):
+            self.set()
+            return True
 
-    monkeypatch.setattr(affective_steering.time, "sleep", stop_after_one_sleep)
-
+    thread._stop_event = _StopAfterOnePass()
     thread._loop()
 
     assert hook.moods == {"arousal": 0.4, "coherence": 0.8}

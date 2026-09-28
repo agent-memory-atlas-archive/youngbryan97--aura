@@ -202,7 +202,24 @@ class OutcomeSweeper:
                 )
 
     def stop(self) -> None:
+        """Stop, and wait out a pass already in flight.
+
+        Returning on the flag alone let a sweep that had started write its
+        resolutions after the owner had flushed the spine, so they sat in a
+        queue nothing would write. A pass longer than the gap between passes
+        is a fault in its own right, so that gap bounds the wait.
+        """
         self._stopped.set()
+        thread = self._thread
+        if thread is not None and thread.is_alive() and thread is not threading.current_thread():
+            thread.join(timeout=self._interval)
+            if thread.is_alive():
+                record_degradation(
+                    "ontogeny_sweeper",
+                    TimeoutError(f"a sweep pass outlived the {self._interval:.0f}s interval"),
+                    severity="warning",
+                    action="stopped with a sweep pass still running",
+                )
 
     def report(self) -> dict[str, object]:
         return {

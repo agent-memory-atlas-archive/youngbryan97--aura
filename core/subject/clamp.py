@@ -304,6 +304,16 @@ def organs_read_by(domains: Sequence[str]) -> tuple[str, ...]:
     return tuple(sorted(names))
 
 
+def _held_by_their_own_name(runtime: Any) -> frozenset[int]:
+    """Every organ and every service the container has built, by identity."""
+    from core.subject.snapshot import _built_services, _organ_ids
+
+    ids = {id(service) for service in _built_services().values()}
+    if hasattr(runtime, "ORGAN_FIELDS") and getattr(runtime, "organs", None) is not None:
+        ids |= set(_organ_ids(runtime))
+    return frozenset(ids)
+
+
 class Clamp:
     """Captured values for a set of domains, and the way to put them back."""
 
@@ -339,12 +349,24 @@ class Clamp:
         # and C saw the winner columns move by more than a whole unit, because
         # they are read off the workspace and not off the state. Each organ
         # feeds one domain, so holding it holds nothing on the other side.
+        #
+        # Only each organ's own numbers. An organ holding another service as a
+        # field is holding something with an owner of its own, often on the
+        # other side of the cut: homeostasis holds the substrate, the substrate
+        # holds the body, the field holds the binding layer. Captured whole,
+        # holding the rest put C's substrate back after every phase through
+        # `homeostasis._substrate`, so C was frozen in the arm where it was meant
+        # to run free (seed 7, 28 September), and every apply deep-copied those
+        # services as well: 0.6 s of every clamped rollout. The fork skips the
+        # same references for the same reason (`_carried_by_name`).
         self.organs.clear()
         kit = getattr(self.holder, "organs", None)
+        owned_elsewhere = _held_by_their_own_name(self.holder)
         for name in organs_read_by(self.domains):
             organ = getattr(kit, name, None)
             if organ is not None:
-                self.organs[name] = (organ, _organ_state(organ))
+                skip = owned_elsewhere - {id(organ)}
+                self.organs[name] = (organ, _organ_state(organ, skip=skip))
 
     def apply(self) -> None:
         state = self.holder.state

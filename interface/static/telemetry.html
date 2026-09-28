@@ -5,7 +5,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Aura Luna | Telemetry HUD</title>
-    <link rel="stylesheet" href="telemetry.css">
+    <link rel="stylesheet" href="/static/design_tokens.css">
+    <link rel="stylesheet" href="/static/telemetry.css">
     <script type="text/javascript" src="/static/vendor/vis-network.min.js"></script>
     <style>
         .consciousness-grid {
@@ -16,8 +17,8 @@
         }
 
         .stat-box {
-            background: rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(0, 255, 255, 0.1);
+            background: var(--aura-card);
+            border: 1px solid var(--aura-card-border);
             padding: 8px;
             text-align: center;
         }
@@ -25,23 +26,23 @@
         .stat-label {
             display: block;
             font-size: 0.7em;
-            color: #888;
+            color: var(--aura-fg-dim);
             text-transform: uppercase;
         }
 
         .stat-value {
             display: block;
             font-size: 1.1em;
-            color: #00ffaa;
+            color: var(--aura-ok);
             font-weight: bold;
         }
 
         .narrative-box {
             font-size: 0.8em;
-            color: #ccc;
-            background: rgba(0, 0, 0, 0.4);
+            color: var(--aura-fg);
+            background: var(--aura-card);
             padding: 10px;
-            border-left: 2px solid #b537f2;
+            border-left: 2px solid var(--aura-accent);
             height: 80px;
             overflow-y: auto;
             margin-bottom: 15px;
@@ -51,6 +52,7 @@
 </head>
 
 <body>
+<h1 style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">Telemetry</h1>
     <div class="hud-container">
 
         <aside class="panel left-panel">
@@ -129,7 +131,7 @@
 
     </div>
 
-    <script src="telemetry.js"></script>
+    <script src="/static/telemetry.js"></script>
 </body>
 
 </html>

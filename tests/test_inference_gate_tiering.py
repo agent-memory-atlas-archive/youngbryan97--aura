@@ -13,6 +13,7 @@ from core.brain.inference_gate import InferenceGate
 from core.container import ServiceContainer
 from core.state.aura_state import AuraState
 from core.utils.deadlines import get_deadline
+from tests.clock_patch import patch_module_clock
 
 
 @pytest.fixture(autouse=True)
@@ -4740,8 +4741,7 @@ def test_cold_cortex_policy_deferred_log_is_rate_limited(monkeypatch):
     # surfaced as "RuntimeError: generator raised StopIteration" in a fixture
     # that has nothing to do with clocks.
     ticks = iter([400.0, 420.0, 701.0])
-    monkeypatch.setattr(
-        inference_gate_module.time, "monotonic", lambda: next(ticks, 701.0)
+    patch_module_clock(monkeypatch, inference_gate_module, monotonic=lambda: next(ticks, 701.0)
     )
 
     gate._log_cold_cortex_policy_deferred()
@@ -4837,8 +4837,7 @@ def test_explicit_deferred_cortex_prewarm_refusal_is_rate_limited(monkeypatch, c
     # exhausted iterator takes down whatever calls time.monotonic() next,
     # anywhere in the process.
     ticks = iter([100.0, 101.0, 161.0])
-    monkeypatch.setattr(
-        inference_gate_module.time, "monotonic", lambda: next(ticks, 161.0)
+    patch_module_clock(monkeypatch, inference_gate_module, monotonic=lambda: next(ticks, 161.0)
     )
     monkeypatch.setattr(inference_gate_module, "_LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_AT", 0.0)
     monkeypatch.setattr(inference_gate_module, "_LAST_EXPLICIT_DEFERRED_PREWARM_REFUSAL_REASON", "")

@@ -20,6 +20,7 @@ from core.runtime.governance_policy import (
 from core.skills.train_self import TrainSelfSkill as CoreTrainSelfSkill
 from skills.train_self import TrainSelfSkill as LegacyTrainSelfSkill
 from tests.chat_lane_support import patch_chat_lane
+from tests.clock_patch import patch_module_clock
 
 
 @pytest.mark.parametrize("skill_name", ["omni_log_error", "omni_log_critical"])
@@ -564,7 +565,7 @@ def test_substrate_voice_engine_demo_override_holds_then_expires(monkeypatch):
     engine = voice_mod.SubstrateVoiceEngine()
     fake_now = [100.0]
 
-    monkeypatch.setattr(voice_mod.time, "time", lambda: fake_now[0])
+    patch_module_clock(monkeypatch, voice_mod, time=lambda: fake_now[0])
     monkeypatch.setattr(voice_mod, "_extract_neurochemicals", lambda: {})
     monkeypatch.setattr(voice_mod, "_extract_homeostasis", lambda: {})
     monkeypatch.setattr(voice_mod, "_extract_unified_field", lambda: {})

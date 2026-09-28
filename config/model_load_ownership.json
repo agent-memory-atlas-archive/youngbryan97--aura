@@ -244,6 +244,17 @@
    "purpose": "evaluation"
   },
   {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/audit_semantic_native_path_calibration.py",
+   "purpose": "evaluation"
+  },
+  {
    "expected_load_references": 2,
    "guard_symbol": "standalone_model_lane",
    "min_guard_sites": 1,
@@ -252,6 +263,17 @@
    ],
    "ownership_mode": "standalone_process",
    "path": "tools/bench_speculative_decoding.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/calibrate_semantic_native_residual.py",
+   "purpose": "evaluation"
   },
   {
    "expected_load_references": 1,
@@ -328,6 +350,50 @@
    ],
    "ownership_mode": "standalone_process",
    "path": "tools/evaluate_recurrent_sft_falsification.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/evaluate_semantic_native_checkpoint.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/evaluate_semantic_native_fresh_generation.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/evaluate_semantic_native_fresh_schema.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/evaluate_semantic_native_grammar.py",
    "purpose": "evaluation"
   },
   {
@@ -509,6 +575,39 @@
    ],
    "ownership_mode": "standalone_process",
    "path": "tools/nonparametric_proof.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/probe_semantic_native_guided_binding.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/probe_semantic_native_prefix_branches.py",
+   "purpose": "evaluation"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/probe_semantic_native_prefix_grouping.py",
+   "purpose": "evaluation"
   },
   {
    "expected_load_references": 1,
@@ -921,6 +1020,17 @@
    ],
    "ownership_mode": "standalone_process",
    "path": "tools/train_resident_recurrent_sft_bootstrap.py"
+  },
+  {
+   "expected_load_references": 1,
+   "guard_symbol": "standalone_model_lane",
+   "min_guard_sites": 1,
+   "modules": [
+    "mlx_lm"
+   ],
+   "ownership_mode": "standalone_process",
+   "path": "tools/train_semantic_native_program.py",
+   "purpose": "training"
   },
   {
    "expected_load_references": 1,

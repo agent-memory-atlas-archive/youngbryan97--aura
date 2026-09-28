@@ -1,25 +1,23 @@
-"""What she senses of her own organs, which is filtered because every afferent signal is.
+"""A low-pass reading of her organs, for the instrument. Nothing of hers reads it.
 
 A hundred and fifty-seven of the three hundred and seventy-five columns of K_t
 are read straight off a live organ: the workspace's own count of candidates, the
-substrate's own weights, the self model's own ledger. No part of her can read an
-organ's internal value without a channel, and every channel in a body is a low
-pass filter — a receptor adapts, an afferent fibre integrates, and what arrives
-centrally is the recent history of the signal rather than its instantaneous
-truth. A state vector that records the organ's own number records something she
-does not have.
+substrate's own weights, the self model's own ledger. This surface keeps a
+leaky trace of each and hands the state reading the trace instead of the
+organ's number.
 
-`core/runtime/state_membrane.py` gives a trace to the 218 columns that are a
-plain number at a writable path on `AuraState`. An organ reading cannot take a
-write-back, so it needs a sensed copy instead: this surface. The runtime holds
-it, her own subsystems read it through `of`, and the state reading takes the
-sensed array rather than the organ's.
+It was written as her afferent channel, with her subsystems reading it through
+`of`. None do: outside core/subject nothing calls it, so switched on it changes
+the recording and leaves her untouched. That is rescoring on a filtered
+recording, which the 28 September analysis of her time constants ruled out
+unless the filter is hers (P0.17), so it lives with the instrument and no arm
+of a campaign switches it on. Made hers, it would be a channel her own readers
+of an organ go through; that is not built.
 
 At the cheapest cut of `whole-s7-27dc1dda9`, carrying the columns after the
 fact: nothing +0.015 with a lower bound of -0.057, the 218 alone +0.136 with
-+0.042, the 157 alone +0.027 with -0.034, every column +0.240 with +0.074. So
-neither half reaches the bar by itself and together they pass it, which is what
-a coupling that runs across both halves looks like.
++0.042, the 157 alone +0.027 with -0.034, every column +0.240 with +0.074. Those
+are readings of a filtered recording, not of her.
 
 Off unless `AURA_AFFERENT_TURNS` asks for it.
 """

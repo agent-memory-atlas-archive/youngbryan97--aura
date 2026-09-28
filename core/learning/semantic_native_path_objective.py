@@ -43,7 +43,8 @@ def native_path_risk_loss(losses: mx.array) -> mx.array:
 
 
 def native_grammar_path_objective(scorer, decisions, *, partner_decisions=None,
-                                  pair=None, measured_scores=None) -> mx.array:
+                                  pair=None, typed_pairs=None, partners=None,
+                                  measured_scores=None) -> mx.array:
     """Compete all weak choices and the source contrast on one loss scale.
 
     An operation-only source interaction must not receive the weight of an
@@ -55,22 +56,32 @@ def native_grammar_path_objective(scorer, decisions, *, partner_decisions=None,
     from core.learning.semantic_native_decision_supervision import native_decision_choice_loss
     from core.learning.semantic_native_source_pairs import native_source_interaction_loss
 
-    if not decisions or (pair is None) != (partner_decisions is None):
+    if (not decisions or (pair is None) != (partner_decisions is None)
+            or (typed_pairs is None) != (partners is None)
+            or (pair is not None and typed_pairs is not None)):
         raise ValueError("native path objective source/partner decisions differ")
     losses, scores = [], []
     for keys, correct in decisions:
         values = mx.stack([scorer(key) for key in keys])
         scores.append(values)
         losses.append(native_decision_choice_loss(values, correct))
-    if pair is not None:
-        ordinal, own, rival = (pair[key] for key in ("decision_index", "own_index", "partner_index"))
-        if (type(ordinal) is not int or not 0 <= ordinal < min(len(decisions), len(partner_decisions))
+    contrasts = [] if pair is None else [(pair, partner_decisions)]
+    if typed_pairs is not None:
+        kinds = [row["kind"] for row in typed_pairs]
+        if (not typed_pairs or len(kinds) != len(set(kinds))
+                or not set(kinds) <= {"operation", "reference", "termination"}
+                or any(row["partner"] not in partners for row in typed_pairs)):
+            raise ValueError("native path objective typed contrast inventory differs")
+        contrasts = [(row, partners[row["partner"]]) for row in typed_pairs]
+    for contrast, peer_decisions in contrasts:
+        ordinal, own, rival = (contrast[key] for key in ("decision_index", "own_index", "partner_index"))
+        if (type(ordinal) is not int or not 0 <= ordinal < min(len(decisions), len(peer_decisions))
                 or type(own) is not int or type(rival) is not int or own == rival
                 or not 0 <= min(own, rival) <= max(own, rival) < scores[ordinal].shape[0]
-                or len(partner_decisions[ordinal][0]) != scores[ordinal].shape[0]
-                or decisions[ordinal][1] != own or partner_decisions[ordinal][1] != rival):
+                or len(peer_decisions[ordinal][0]) != scores[ordinal].shape[0]
+                or decisions[ordinal][1] != own or peer_decisions[ordinal][1] != rival):
             raise ValueError("native path objective contrast labels differ")
-        partner_keys = partner_decisions[ordinal][0]
+        partner_keys = peer_decisions[ordinal][0]
         losses.append(native_source_interaction_loss(scores[ordinal][own], scores[ordinal][rival],
             scorer(partner_keys[own]), scorer(partner_keys[rival])))
     if measured_scores is not None:

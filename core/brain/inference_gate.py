@@ -2486,6 +2486,22 @@ def _named_blockers(lane: Any) -> str:
     blockers = lane.get("readiness_blockers") if isinstance(lane, dict) else None
     return ",".join(str(item) for item in (blockers or ())) or "nothing named"
 
+def _a_turn_ledger_is_bound() -> bool:
+    """Whether a turn outcome is bound right now.
+
+    Runtime state, not a claim: a tool called inside a turn inherits its
+    binding, and nothing outside a turn has one.
+    """
+    try:
+        from core.runtime.turn_outcome import current_turn
+
+        return current_turn() is not None
+    except (ImportError, RuntimeError, AttributeError) as exc:
+        logger.debug("turn binding could not be read, so no turn counts as bound (%s: %s)",
+                     type(exc).__name__, exc)
+        return False
+
+
 class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
     """Isolated inference gateway for Aura's managed local runtime."""
 
@@ -8667,7 +8683,24 @@ class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _Wa
         # foreground turn is actually running. Outside a turn it means
         # nothing and the request stays background.
         if not explicit_foreground and context.get("serves_current_turn"):
-            explicit_foreground = self._a_user_turn_is_in_flight()
+            # Either account of a turn being open. `_a_user_turn_is_in_flight`
+            # reads the orchestrator and the session scope; a bound turn ledger
+            # is the third, and it is the one a tool running inside the turn
+            # can always see. LIVE 2026-09-28: the browser's decisions were
+            # still classified background inside an open chat turn and refused
+            # with `foreground_quiet_window`, so the run stopped on the first
+            # page without clicking anything.
+            #
+            # Still not assertable by a caller: every one of the three is
+            # runtime state.
+            explicit_foreground = (
+                self._a_user_turn_is_in_flight() or _a_turn_ledger_is_bound()
+            )
+            logger.info(
+                "🫱 Serves-current-turn claim %s for origin=%s",
+                "honoured" if explicit_foreground else "unsupported",
+                origin,
+            )
         protected_foreground_lane = bool(context.get("protected_foreground_lane", False))
         deep_probe_request = False
         try:

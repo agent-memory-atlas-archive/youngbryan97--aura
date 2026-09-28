@@ -1571,7 +1571,7 @@ def read_core_state(
     names every source that could not be read and why, so a failed reader and a
     genuine zero are two states rather than one number.
     """
-    from core.runtime.afferent import sensed
+    from core.subject.afferent import sensed
 
     moment = time.time() if now is None else now
     kit = organs or Organs()
@@ -1583,7 +1583,7 @@ def read_core_state(
             # As she senses it. An organ's own number is not something any part
             # of her can read without a channel, and every channel in a body is
             # a filter; with no surface attached this is the organ's array
-            # unchanged. See core/runtime/afferent.py.
+            # unchanged. See core/subject/afferent.py.
             values[key] = sensed(state, key, organ_reader(state, kit), _SCHEMAS[key].features)
     for key in DOMAINS:
         width = domain_width(key)

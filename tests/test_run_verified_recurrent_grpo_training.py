@@ -17,6 +17,7 @@ from core.learning.verified_recurrent_transition_repository import (
     PRODUCTION_EVIDENCE_PRODUCER_ID,
     TOKEN_CODEC_ID,
 )
+from tests.clock_patch import patch_module_clock
 from tools import run_verified_recurrent_grpo_training as runner
 
 
@@ -88,7 +89,7 @@ def test_main_loads_pinned_bundle_and_forwards_only_training_arguments(
 
     monkeypatch.setattr(runner, "load_verified_transition_provider_factory", fake_loader)
     monkeypatch.setattr("tools.train_grpo.main", fake_training_main)
-    monkeypatch.setattr(runner.time, "time", lambda: 1_900_000_000.9)
+    patch_module_clock(monkeypatch, runner, time=lambda: 1_900_000_000.9)
     original_argv = list(sys.argv)
 
     result = runner.main(

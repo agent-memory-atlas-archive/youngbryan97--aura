@@ -336,6 +336,16 @@ async def main(argv: list[str] | None = None) -> int:
         if not all(value > 0.0 for value in doses.values()):
             raise SystemExit(f"refusing: a domain did not move over the baseline, so it has no dose of its own: {doses}")
 
+        # The arms are paired, so the loops the harness steps each frame stop
+        # before any anchor is taken, as run_subject_core.py stops them before
+        # its interventions: an anchor is a state the arms will start from, and
+        # it is taken under the regime they run in. Left running, each loop
+        # ticked its layer on the machine's clock on top of the harness's own
+        # step, and two arms from one anchor parted within a frame or three
+        # (28 September, seed 7: 65 to 109 of 438 columns apart by the end of a
+        # turn, and 8 once they stopped). Her cortex's own tasks are not among
+        # them and keep running.
+        evidence["stopped_loops"] = await quiesce_organism(runtime, stepped_only=True)
         _log(f"collecting {args.anchors} anchors")
         anchors = await collect_anchor_bank(
             runtime, CONDITIONS, rounds=max(1, math.ceil(args.anchors / len(CONDITIONS))), history_turns=1, every=1

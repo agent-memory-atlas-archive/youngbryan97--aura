@@ -27,10 +27,14 @@ thing gone.
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import logging
 import math
+import os
 from collections.abc import Sequence
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -208,6 +212,11 @@ class SweepReport:
     #: False for a horizon reported beside the deciding one. It is scored on the
     #: anchors the deciding horizon drew and decides nothing.
     deciding: bool = True
+    #: The cut that ended its last look undecided, after which a fail-fast
+    #: sweep stopped: one such cut refuses the conjunction, so every cut after
+    #: it could only have been scored for a verdict already given. Empty when
+    #: the sweep ran to the end. "another shard" when a sibling shard stopped.
+    stopped_after: str = ""
 
     @property
     def weakest(self) -> CutVerdict | None:
@@ -224,7 +233,7 @@ class SweepReport:
         one cut compatible with zero refuses it and no amount of margin
         elsewhere buys it back.
         """
-        if self.screened or self.shard or not self.deciding:
+        if self.screened or self.shard or not self.deciding or self.stopped_after:
             return False
         return bool(self.verdicts) and not self.undecided and all(
             v.decided and v.lower_bound > 0.0 for v in self.verdicts
@@ -255,6 +264,7 @@ class SweepReport:
             "alpha_per_look": self.alpha_per_look,
             "draws": self.draws,
             "deciding": self.deciding,
+            "stopped_after": self.stopped_after,
             "irreducible": self.irreducible,
             "weakest_cut": None if weakest is None else weakest.name,
             "weakest_lower_bound": None if weakest is None else round(weakest.lower_bound, 6),
@@ -291,7 +301,13 @@ def merge_sweeps(shards: Sequence[dict[str, Any]], *, cuts_in_full: int) -> Swee
                 raise ValueError(f"cut {row['cut']} was scored by more than one shard")
             seen.add(row["cut"])
             verdicts.append(CutVerdict.from_dict(row))
-    if len(seen) != cuts_in_full:
+    stopped = sorted({str(s.get("stopped_after") or "") for s in shards} - {"", "another shard"})
+    if not stopped and any(s.get("stopped_after") for s in shards):
+        stopped = ["another shard"]
+    # A fail-fast shard that found an undecided cut stopped, and so did its
+    # siblings: the claim is refused, so the cuts nobody reached are not a gap
+    # in the sweep but work the verdict no longer needed.
+    if len(seen) != cuts_in_full and not stopped:
         raise ValueError(f"shards scored {len(seen)} of {cuts_in_full} cuts")
     designs = {
         (tuple(s.get("looks", ())), float(s.get("alpha_per_look", 0.05)), int(s.get("draws", 200)), bool(s.get("deciding", True)))
@@ -311,6 +327,7 @@ def merge_sweeps(shards: Sequence[dict[str, Any]], *, cuts_in_full: int) -> Swee
         alpha_per_look=alpha_per_look,
         draws=draws,
         deciding=deciding,
+        stopped_after=", ".join(stopped),
     )
 
 
@@ -574,6 +591,17 @@ async def sweep_cuts(
     return report
 
 
+def _refused_elsewhere(stop_file: str) -> bool:
+    return os.path.exists(stop_file)
+
+
+def _mark_refused(stop_file: str, name: str) -> None:
+    """Tell sibling shards which cut refused the claim, so they stop too."""
+    with contextlib.suppress(OSError):
+        Path(stop_file).parent.mkdir(parents=True, exist_ok=True)
+        Path(stop_file).write_text(name + "\n", encoding="utf-8")
+
+
 async def sweep_cuts_over_lags(
     runtime: Any,
     anchors: Sequence[Any],
@@ -593,6 +621,8 @@ async def sweep_cuts_over_lags(
     whiten: bool = False,
     deciding: Sequence[int] | None = None,
     only: Sequence[str] = (),
+    fail_fast: bool = False,
+    stop_file: str = "",
 ) -> dict[int, SweepReport]:
     """Every bipartition at every horizon, from one set of rollouts per cut.
 
@@ -616,6 +646,16 @@ async def sweep_cuts_over_lags(
     decide nothing. Without it every horizon decides, and a horizon that
     cannot decide anything, as one step cannot for a system that updates once
     a step, kept every cut drawing to the last look.
+
+    `fail_fast` takes the cuts one at a time, the most lopsided first, each to
+    its decision or its last look, and stops at the first that ends undecided.
+    The claim is a conjunction, so that cut refuses it whatever the rest would
+    have read, and a run that is going to fail says so after one cut's worth of
+    rollouts instead of after all of them: the whole sweep was a machine-week.
+    A cut's samples and seed depend on its place in the full list, not on when
+    it is taken, so every cut it does score reads what the breadth-first sweep
+    would have read. `stop_file` is how shards stop each other: a shard that
+    finds an undecided cut writes it, and each checks it before the next cut.
     """
     if len(anchors) < MINIMUM_ANCHORS:
         raise ValueError(
@@ -669,80 +709,110 @@ async def sweep_cuts_over_lags(
 
     untouched: dict = {}
     gathered: dict[str, _Gathered] = {}
-    for take in schedule:
-        pending = [name for name in names if any(open_at(name, lag) for lag in decides)]
-        if not pending:
-            break
-        for name in pending:
-            # Seeded by the cut's place in the full list rather than its place
-            # in this round's queue, which shrinks as cuts are decided and is
-            # different in every shard.
-            position = place_of[name]
-            cut = verdicts[ladder[0]][name]
-            store = gathered.setdefault(name, _Gathered())
-            fresh = (
-                await collect_partition_samples(
-                    runtime,
-                    list(anchors[store.have:take]),
-                    conditions,
-                    left=cut.left,
-                    right=cut.right,
-                    turns=turns,
-                    lags=tuple(ladder),
-                    offset=store.have,
-                    untouched=untouched,
-                )
-                if take > store.have
-                else {}
+
+    async def advance(name: str, take: int) -> None:
+        # Seeded by the cut's place in the full list rather than its place
+        # in this round's queue, which shrinks as cuts are decided and is
+        # different in every shard.
+        position = place_of[name]
+        cut = verdicts[ladder[0]][name]
+        store = gathered.setdefault(name, _Gathered())
+        fresh = (
+            await collect_partition_samples(
+                runtime,
+                list(anchors[store.have:take]),
+                conditions,
+                left=cut.left,
+                right=cut.right,
+                turns=turns,
+                lags=tuple(ladder),
+                offset=store.have,
+                untouched=untouched,
             )
-            samples = store.add(fresh, take)
-            for lag in ladder:
-                # A reported horizon is rescored on every anchor drawn, so it
-                # ends on the same anchors as the horizon that decided.
-                if lag in decides and not open_at(name, lag):
-                    continue
-                if name in unreached[lag]:
-                    continue
-                verdict = verdicts[lag][name]
-                slot = samples[lag]
-                reached = slot.get("reached")
-                if reached is not None and float(np.min(reached)) < 1.0:
-                    unreached[lag].add(name)
-                    verdict.note = (
-                        f"the rollouts ended before frame {lag}, so this horizon was not reached"
-                    )
-                    continue
-                reports[lag].anchors_spent += take
-                verdict.anchors_used = take
-                try:
-                    estimate, excess, lower, p_value = decide_cut(
-                        slot,
-                        tau_seconds=reports[lag].tau_seconds,
-                        seed=seed + lag + position,
-                        alpha=per_look,
-                        draws=draws,
-                        whiten=whiten,
-                    )
-                except ValueError as exc:
-                    verdict.note = f"not enough matched contexts: {exc}"
-                    unscorable[lag] += 1
-                    continue
-                verdict.estimate = estimate
-                verdict.excess = excess
-                verdict.lower_bound = lower
-                verdict.p_value = p_value
-                verdict.decided = lower > 0.0
-                if lag in decides and (verdict.decided or take == schedule[-1]):
-                    verdict.playback_decided = playback_decided(
-                        slot,
-                        tau_seconds=reports[lag].tau_seconds,
-                        seed=seed + lag + position + 3,
-                        alpha=per_look,
-                        draws=draws,
-                    )
+            if take > store.have
+            else {}
+        )
+        samples = store.add(fresh, take)
+        for lag in ladder:
+            # A reported horizon is rescored on every anchor drawn, so it
+            # ends on the same anchors as the horizon that decided.
+            if lag in decides and not open_at(name, lag):
+                continue
+            if name in unreached[lag]:
+                continue
+            verdict = verdicts[lag][name]
+            slot = samples[lag]
+            reached = slot.get("reached")
+            if reached is not None and float(np.min(reached)) < 1.0:
+                unreached[lag].add(name)
+                verdict.note = (
+                    f"the rollouts ended before frame {lag}, so this horizon was not reached"
+                )
+                continue
+            reports[lag].anchors_spent += take
+            verdict.anchors_used = take
+            try:
+                estimate, excess, lower, p_value = decide_cut(
+                    slot,
+                    tau_seconds=reports[lag].tau_seconds,
+                    seed=seed + lag + position,
+                    alpha=per_look,
+                    draws=draws,
+                    whiten=whiten,
+                )
+            except ValueError as exc:
+                verdict.note = f"not enough matched contexts: {exc}"
+                unscorable[lag] += 1
+                continue
+            verdict.estimate = estimate
+            verdict.excess = excess
+            verdict.lower_bound = lower
+            verdict.p_value = p_value
+            verdict.decided = lower > 0.0
+            if lag in decides and (verdict.decided or take == schedule[-1]):
+                verdict.playback_decided = playback_decided(
+                    slot,
+                    tau_seconds=reports[lag].tau_seconds,
+                    seed=seed + lag + position + 3,
+                    alpha=per_look,
+                    draws=draws,
+                )
+
+    stopped_after = ""
+    if fail_fast:
+        first_lag = ladder[0]
+
+        def lopsided(name: str) -> tuple[int, int]:
+            cut = verdicts[first_lag][name]
+            return (min(len(cut.left), len(cut.right)), place_of[name])
+
+        for name in sorted(names, key=lopsided):
+            if stop_file and await asyncio.to_thread(_refused_elsewhere, stop_file):
+                stopped_after = "another shard"
+                break
+            for take in schedule:
+                if not any(open_at(name, lag) for lag in decides):
+                    break
+                await advance(name, take)
+            if any(not verdicts[lag][name].decided for lag in decides):
+                stopped_after = name
+                if stop_file:
+                    await asyncio.to_thread(_mark_refused, stop_file, name)
+                break
+        visited = {name for name in names if gathered.get(name) is not None}
+        for lag in ladder:
+            verdicts[lag] = {name: v for name, v in verdicts[lag].items() if name in visited}
+    else:
+        for take in schedule:
+            pending = [name for name in names if any(open_at(name, lag) for lag in decides)]
+            if not pending:
+                break
+            for name in pending:
+                await advance(name, take)
 
     for lag in ladder:
         report = reports[lag]
+        report.stopped_after = stopped_after
         report.verdicts = list(verdicts[lag].values())
         report.undecided = sorted(v.name for v in report.verdicts if not v.decided) if lag in decides else []
         report.unscorable = unscorable[lag]

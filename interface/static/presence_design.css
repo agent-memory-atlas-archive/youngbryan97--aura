@@ -213,6 +213,9 @@ header {
 .conn-toast {
   bottom: 132px; /* clear of the composer row — it overlapped SEND */
   background: var(--aura-surface-3);
+  /* The surface is a translucent tint of whatever is behind it, so the ink
+     follows the theme; aura.css's white was 1.45:1 on the Light theme. */
+  color: var(--text);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   box-shadow: var(--aura-shadow-3);

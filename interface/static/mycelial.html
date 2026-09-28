@@ -45,7 +45,7 @@
         }
 
         .zenith-tag {
-            color: #8a2be2;
+            color: #a86ef0;
             font-size: 10px;
             letter-spacing: 2px;
             text-transform: uppercase;
@@ -64,7 +64,7 @@
         }
 
         .telemetry-row { display: flex; gap: 15px; }
-        .telemetry-label { color: rgba(255, 255, 255, 0.3); width: 80px; }
+        .telemetry-label { color: rgba(255, 255, 255, 0.55); width: 80px; }
         .telemetry-value { color: #fff; }
         .telemetry-highlight { color: #00e5ff; font-weight: bold; }
 
@@ -85,7 +85,7 @@
         }
 
         .stat-row { display: flex; justify-content: space-between; gap: 60px; margin-bottom: 8px; }
-        .stat-label { color: rgba(255, 255, 255, 0.4); letter-spacing: 1px; }
+        .stat-label { color: rgba(255, 255, 255, 0.55); letter-spacing: 1px; }
         .stat-value { color: #00e5ff; font-weight: bold; text-shadow: 0 0 10px rgba(0, 229, 255, 0.5); }
 
         .graph-controls {
@@ -124,7 +124,7 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            color: #8a2be2;
+            color: #a86ef0;
             font-family: 'Syne', sans-serif;
             font-size: 16px;
             font-weight: 800;
@@ -290,9 +290,14 @@
             height: 100%;
             background: #00e5ff;
         }
-    </style>
+
+  /* Reduced motion: every animation runs once, at once, and ends where it
+     would have come to rest. The drift and pulses stop; nothing is hidden. */
+  @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.01ms!important}}
+</style>
 </head>
 <body>
+<h1 style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">Soul map</h1>
     <div class="overlay">
         <div class="title">AURA: INFINITY</div>
         <!-- The app is Aura; "Zenith" is the release label, and saying it in the

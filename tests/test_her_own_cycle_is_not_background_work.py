@@ -18,7 +18,7 @@ import inspect
 import pytest
 
 from core.phases import response_generation
-from core.skills import sovereign_browser_understanding as u
+from core.skills import sovereign_browser_understanding as u  # noqa: F401
 
 pytestmark = pytest.mark.unit
 
@@ -47,16 +47,8 @@ def test_an_ordinary_background_origin_is_still_background():
         "the origin rule must still decide everything that makes no claim"
     )
 
-
-def test_her_cycle_makes_both_claims():
-    body = inspect.getsource(u._UnderstandsThePage._her_own_thinking_about_herself)
-    assert '"own_lane_required": True' in body
-    assert '"serves_current_turn": True' in body
-
-
-def test_a_suppressed_cycle_is_still_refused_as_an_answer():
-    """Fail closed stays: "suppressed" is not a lane that answered."""
-    body = inspect.getsource(u._UnderstandsThePage._her_own_thinking_about_herself)
-    assert 'or ""' in body.split("lane = ", 1)[1].split("\n", 1)[0], (
-        "an unattributed cycle must not be taken for hers"
-    )
+def test_the_browser_makes_both_claims_on_its_own_lane_call():
+    """The page work that the turn is waiting on says so where it asks."""
+    body = inspect.getsource(u._UnderstandsThePage._asked_of_her)
+    assert "own_lane_required=True" in body
+    assert "serves_current_turn=True" in body

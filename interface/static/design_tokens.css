@@ -6,11 +6,14 @@
   --aura-bg:           #0d0c0f;
   --aura-fg:           #f4ede4;
   --aura-fg-dim:       rgba(244, 237, 228, 0.62);
-  --aura-fg-mute:      rgba(244, 237, 228, 0.42);
+  --aura-fg-mute:      rgba(244, 237, 228, 0.52);  /* 5.05:1 on --aura-bg; 0.42 was 3.67 */
   --aura-accent:       #b1a4ff;
   --aura-accent-soft:  rgba(177, 164, 255, 0.18);
   --aura-warn:         #f0a06a;
   --aura-error:        #f17a7a;
+  --aura-ok:           #62e6ad;
+  /* A surface lifted off the page: a dialog, a strip. */
+  --aura-raised:       #16141c;
   --aura-card:         rgba(255, 255, 255, 0.04);
   --aura-card-border:  rgba(255, 255, 255, 0.08);
 
@@ -42,14 +45,38 @@
   --aura-affect-curiosity: 0.5;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
+/* The light ground. A page that owns its theme names it on <html> with
+ * data-aura-scheme, and the tokens follow that; a page that names nothing
+ * follows the system. The shell's theme is a setting and the tokens used to
+ * follow the system regardless, so with macOS set to light the shell drew
+ * dark ink from these tokens onto its own dark panels at 1.06:1. */
+:root[data-aura-scheme="light"] {
     --aura-bg:          #f4ede4;
     --aura-fg:          #14111c;
     --aura-fg-dim:      rgba(20, 17, 28, 0.62);
-    --aura-fg-mute:     rgba(20, 17, 28, 0.42);
+    --aura-fg-mute:     rgba(20, 17, 28, 0.60);  /* 4.6:1 on the light ground; 0.42 was 2.69 */
+    --aura-accent:      #5a3fd0;  /* 5.4:1 on a card; the dark theme's #b1a4ff was 1.88 */
+    --aura-warn:        #9a4b12;
+    --aura-error:       #b42323;
+    --aura-ok:          #08704a;
+    --aura-raised:      #ffffff;
     --aura-card:        rgba(0, 0, 0, 0.04);
     --aura-card-border: rgba(0, 0, 0, 0.08);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-aura-scheme]) {
+      --aura-bg:          #f4ede4;
+      --aura-fg:          #14111c;
+      --aura-fg-dim:      rgba(20, 17, 28, 0.62);
+      --aura-fg-mute:     rgba(20, 17, 28, 0.60);  /* 4.6:1 on the light ground; 0.42 was 2.69 */
+      --aura-accent:      #5a3fd0;  /* 5.4:1 on a card; the dark theme's #b1a4ff was 1.88 */
+      --aura-warn:        #9a4b12;
+      --aura-error:       #b42323;
+      --aura-ok:          #08704a;
+      --aura-raised:      #ffffff;
+      --aura-card:        rgba(0, 0, 0, 0.04);
+      --aura-card-border: rgba(0, 0, 0, 0.08);
   }
 }
 

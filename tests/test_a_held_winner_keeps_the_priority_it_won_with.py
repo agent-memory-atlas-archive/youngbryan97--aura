@@ -14,6 +14,7 @@ import pytest
 
 import core.consciousness.global_workspace as workspace_module
 from core.consciousness.global_workspace import CognitiveCandidate, ContentType, GlobalWorkspace
+from tests.clock_patch import patch_module_clock
 
 
 @pytest.mark.asyncio
@@ -32,7 +33,7 @@ async def test_the_reported_priority_does_not_age_after_the_win(monkeypatch) -> 
     reported = workspace.get_snapshot()["last_priority"]
 
     now = workspace_module.time.time()
-    monkeypatch.setattr(workspace_module.time, "time", lambda: now + 2.0)
+    patch_module_clock(monkeypatch, workspace_module, time=lambda: now + 2.0)
 
     # The winner itself has aged, so a snapshot that re-scored it would move.
     assert round(winner.effective_priority, 3) != reported

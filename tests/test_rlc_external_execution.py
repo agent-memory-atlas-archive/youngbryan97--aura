@@ -44,6 +44,7 @@ from core.brain.llm.latent_cortex.value_of_computation import (
     build_evidence_snapshot,
     transition_reward,
 )
+from tests.clock_patch import patch_module_clock
 
 
 def _offer(
@@ -1120,10 +1121,7 @@ def test_abandoned_dispatch_cache_is_bounded_and_expires(
     assert len(coordinator._abandoned_attempt_ids) <= 2048
 
     now = coordinator_module.time.monotonic()
-    monkeypatch.setattr(
-        coordinator_module.time,
-        "monotonic",
-        lambda: now + 901.0,
+    patch_module_clock(monkeypatch, coordinator_module, monotonic=lambda: now + 901.0,
     )
     coordinator._prune_abandoned_attempts()
     assert coordinator._abandoned_attempt_ids == {}
@@ -1975,10 +1973,7 @@ def test_expired_dispatch_lease_forces_reconciliation_while_process_is_alive(
         task_id="still-live-task",
     )
     owner = dispatch["dispatch_owner"]
-    monkeypatch.setattr(
-        coordinator_module.time,
-        "time",
-        lambda: float(owner["lease_renewed_at"])
+    patch_module_clock(monkeypatch, coordinator_module, time=lambda: float(owner["lease_renewed_at"])
         + float(owner["lease_duration_s"])
         + 1.0,
     )

@@ -14,6 +14,14 @@ other modules already ask it for.
 """
 from __future__ import annotations
 
+from .snapshot_services import (  # noqa: F401  (re-exported: they were defined here)
+    _is_published_value,
+    _layer_state,
+    _republish,
+    _restore_layers,
+    _restore_services,
+    _service_state,
+)
 import contextlib
 import copy
 import enum
@@ -1153,79 +1161,6 @@ def _differs(left: Any, right: Any) -> bool:
         return True
 
 
-def _service_state(
-    only: set[str] | None = None,
-    skip: frozenset[int] = frozenset(),
-    organs: frozenset[int] = frozenset(),
-) -> dict[str, dict[str, Any]]:
-    """The mutable state of everything the container has already built.
-
-    Each object once. A service registered under two names is one object, and
-    a service holding another service as a field (the authority keeps the
-    somatic gate, the gate keeps interoception, three of them keep the
-    neurochemical system) is holding something `skip` says is carried under
-    its own name. Copying it again under every owner made one snapshot 230 MB,
-    and a worker holding 128 of them held 29 GB: six workers restarted the
-    machine on 22 September. A service that is one of the organs (`organs`)
-    is carried with them and not again here.
-    """
-    out: dict[str, dict[str, Any]] = {}
-    captured_ids: set[int] = set(organs)
-    for name, instance in _built_services().items():
-        if name in _UNFORKED_SERVICES:
-            continue
-        if only is not None and name not in only:
-            continue
-        if id(instance) in captured_ids:
-            continue
-        captured_ids.add(id(instance))
-        try:
-            captured = _organ_state(instance, skip=skip)
-        except (
-            ArithmeticError,
-            AttributeError,
-            ImportError,
-            LookupError,
-            OSError,
-            RuntimeError,
-            TypeError,
-            ValueError,
-        ):
-            # A service that cannot be read is skipped, by kind rather than by
-            # catching everything.
-            continue
-        if captured:
-            out[name] = captured
-    return out
-
-
-def _restore_services(saved: Mapping[str, dict[str, Any]]) -> None:
-    if not saved:
-        return
-    built = _built_services()
-    for name, fields in saved.items():
-        instance = built.get(name)
-        if instance is None:
-            continue
-        if _is_published_value(instance):
-            _republish(name, instance, fields)
-        else:
-            _restore_organ(instance, fields)
-
-
-def _is_published_value(instance: Any) -> bool:
-    """A frozen dataclass the container holds: a value published each tick, not an organ.
-
-    `mind_moment`, `aura_now`, `ghost_snapshot` and `continuous_experience_frame`
-    are replaced every tick rather than changed, and a frozen dataclass refuses
-    field writes. The in-place restore skips anything that guards its own
-    writes, so all four came back from a restore holding whatever the arm had
-    published last, and the fork check found them there.
-    """
-    params = getattr(type(instance), "__dataclass_params__", None)
-    return bool(is_dataclass(instance) and params is not None and params.frozen)
-
-
 def _organ_ids(runtime: Any) -> frozenset[int]:
     return frozenset(
         id(organ)
@@ -1253,32 +1188,6 @@ def _carried_by_name(runtime: Any) -> frozenset[int]:
         and not _is_published_value(obj)
     }
     return frozenset({*forked, *_organ_ids(runtime)})
-
-
-def _republish(name: str, current: Any, saved: Mapping[str, Any]) -> None:
-    """Publish the saved value under its name again, as a new object.
-
-    The object the arm published is left alone: anything else holding it holds
-    a value, and a value is rewound by replacing it, not by writing into it.
-    """
-    rebuilt = copy.copy(current)
-    for field_name, value in saved.items():
-        if isinstance(value, tuple) and len(value) == 2 and value[0] == _NESTED:
-            _restore_organ(getattr(rebuilt, field_name, None), value[1])
-            continue
-        # A new object nothing else holds yet, so its frozen guard has no one
-        # to protect.
-        object.__setattr__(rebuilt, field_name, _place(value))
-    try:
-        from core.container import ServiceContainer
-
-        ServiceContainer.set(name, rebuilt, required=False)
-    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
-        record_degradation(
-            "subject_snapshot",
-            exc,
-            action=f"left {name} holding the value the arm published",
-        )
 
 
 def _effort_state() -> dict[str, Any] | None:
@@ -1890,6 +1799,9 @@ class Snapshot:
     #: next, and what she learned from writing it is not either.
     world: dict[str, Any] | None = None
     intentions: dict[str, Any] | None = None
+    #: Each stepped layer's object that no service or organ carries, by layer
+    #: name. See `_layer_state`.
+    layers: dict[str, dict[str, Any]] | None = None
     #: Private module slots that were empty when the snapshot was taken, so a
     #: restore can empty again whatever an arm made in them.
     empty_module_slots: frozenset[str] = frozenset()

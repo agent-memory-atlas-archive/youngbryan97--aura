@@ -1552,11 +1552,17 @@ class SubstrateSyncThread:
         self._shared_state = shared_state
         self._thread: threading.Thread | None = None
         self._running = False
+        self._stop_event = threading.Event()
 
     def start(self):
         self._running = True
+        # Each run gets its own stop event. With one shared `_running` flag a
+        # stop() and a quick start() set it back to True before the old loop
+        # looked, so the old thread never left and two loops ran from then on.
+        self._stop_event = threading.Event()
         self._thread = threading.Thread(
             target=self._loop,
+            args=(self._stop_event,),
             name="SubstrateSyncThread",
             daemon=True,
         )
@@ -1569,6 +1575,7 @@ class SubstrateSyncThread:
 
     def stop(self):
         self._running = False
+        self._stop_event.set()
 
     @staticmethod
     def _coerce_state_vector(value: Any) -> np.ndarray | None:
@@ -1651,8 +1658,12 @@ class SubstrateSyncThread:
                 )
         return None, ""
 
-    def _loop(self):
-        while self._running:
+    def _loop(self, stop: threading.Event | None = None):
+        stop = stop if stop is not None else self._stop_event
+        # The event is what a restart cannot undo. `_running` is still the
+        # status every reader sees, so clearing it stops the loop too: a loop
+        # that ignored it ran forever for a caller that stopped it that way.
+        while self._running and not stop.is_set():
             self._engine._state_control_lock.acquire()
             try:
                 moods = {}
@@ -1741,7 +1752,8 @@ class SubstrateSyncThread:
             finally:
                 self._engine._state_control_lock.release()
 
-            time.sleep(SUBSTRATE_SYNC_INTERVAL_S)
+            # Wakes at once on stop rather than sleeping out the interval.
+            stop.wait(SUBSTRATE_SYNC_INTERVAL_S)
 
 
 # ── Main Engine ────────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-aura-scheme="dark">
 
 <head>
     <meta charset="UTF-8">
@@ -365,11 +365,14 @@
                     a: Math.random() * 0.4 + 0.1
                 });
             }
+            // Someone who asked for less motion gets the field drawn once, still.
+            const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
             function draw() {
                 if (c.offsetParent === null) return;
+                const still = reduced.matches;
                 ctx.clearRect(0, 0, w, h);
                 particles.forEach(p => {
-                    p.x += p.vx; p.y += p.vy;
+                    if (!still) { p.x += p.vx; p.y += p.vy; }
                     if (p.x < 0) p.x = w; if (p.x > w) p.x = 0;
                     if (p.y < 0) p.y = h; if (p.y > h) p.y = 0;
                     ctx.beginPath();
@@ -393,9 +396,12 @@
                         }
                     }
                 }
-                requestAnimationFrame(draw);
+                if (!still) requestAnimationFrame(draw);
             }
             draw();
+            reduced.addEventListener('change', () => { if (!reduced.matches) draw(); });
+            // Resizing clears a canvas, and a still one is not drawn again on its own.
+            window.addEventListener('resize', () => { if (reduced.matches) draw(); });
         })();
         </script>
     </div>

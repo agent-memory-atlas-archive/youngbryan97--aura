@@ -56,7 +56,14 @@ def test_close_waits_for_a_holder_that_is_still_inside(tmp_path):
 
 
 def test_the_flusher_thread_is_gone_after_close(tmp_path):
+    """This spine's flusher, not every thread with that name.
+
+    Counting by name read the process: in a batch, a shared spine another
+    test built has its own flusher running, and this test failed on it.
+    """
     spine = _spine(tmp_path)
+    flusher = spine._flusher
     spine.close()
-    alive = [one for one in threading.enumerate() if one.name == "ontogeny-experience-flush"]
-    assert alive == [], f"the flusher outlived close: {alive}"
+    assert spine._flusher is None
+    if flusher is not None:
+        assert not flusher.is_alive(), "the flusher outlived close"

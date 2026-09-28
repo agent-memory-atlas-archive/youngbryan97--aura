@@ -27,11 +27,14 @@ behaviour spread through the writers.
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Iterable, Mapping
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["Membrane", "carry_rows", "keep_for", "ONE_TURN_IS_THE_UNIT"]
 
@@ -50,7 +53,9 @@ def keep_for(tau_frames: float) -> float:
     """
     try:
         tau = float(tau_frames)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("time constant %r is not a number, so the trace keeps nothing (%s: %s)",
+                     tau_frames, type(exc).__name__, exc)
         return 0.0
     if not math.isfinite(tau) or tau <= 0.0:
         return 0.0

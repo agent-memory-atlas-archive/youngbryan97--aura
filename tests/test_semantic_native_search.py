@@ -4,6 +4,12 @@ import math
 
 import pytest
 
+from core.learning.procedure_induction import Instruction, Program
+from core.learning.semantic_native_grammar import (
+    NativeGrammarUnreachableError,
+    decode_native_grammar,
+    minimum_graph_completion_steps,
+)
 from core.learning.semantic_native_search import _native_search_bound_truth, search_native_grammar
 
 
@@ -91,6 +97,52 @@ def test_disconnected_leaf_does_not_erase_a_connected_alternative():
     assert search.disconnected_leaves > 0
     assert search.candidates
     assert any(row.result.program.instructions[-1].args == (2,) for row in search.candidates)
+
+
+def test_completion_lower_bound_counts_independent_outputs_not_inputs():
+    independent = Program(2, (Instruction("neg", (0,)), Instruction("neg", (1,)),
+                              Instruction("neg", (0,))))
+    joined = Program(2, (Instruction("neg", (0,)), Instruction("neg", (1,)),
+                         Instruction("add", (2, 3))))
+    assert minimum_graph_completion_steps(independent) == 2
+    assert minimum_graph_completion_steps(joined) == 0
+
+
+def test_native_decoder_prunes_only_after_a_partial_graph_becomes_unreachable():
+    def independent(choices):
+        return tuple(10. if choice.value in {"neg", "continue", 0} else 0. for choice in choices)
+
+    with pytest.raises(NativeGrammarUnreachableError) as failure:
+        decode_native_grammar(("integer", "integer"), independent, max_steps=4,
+                              viability_pruning=True)
+    assert failure.value.remaining_steps == 1
+    assert failure.value.minimum_additional_steps == 2
+    assert len(failure.value.program.instructions) == 3
+
+
+def test_native_search_keeps_connected_graphs_with_viability_pruning():
+    def prefer_independent(choices):
+        return tuple(10. if choice.value in {"neg", "continue", 0} else 0. for choice in choices)
+
+    search = search_native_grammar(("integer", "integer"), prefer_independent,
+                                   max_steps=4, max_nodes=1000, completions=1)
+    assert search.pruned_prefixes > 0
+    assert search.candidates
+    assert all(minimum_graph_completion_steps(row.result.program) == 0
+               for row in search.candidates)
+
+
+def test_viability_pruning_preserves_unbounded_top_graph_order():
+    def score(choices):
+        return tuple(2. if choice.value in {"neg", "continue", 0} else 0. for choice in choices)
+
+    options = {"max_steps": 2, "max_nodes": 10000, "completions": 6}
+    pruned = search_native_grammar(("integer", "integer"), score, **options)
+    full = search_native_grammar(("integer", "integer"), score,
+                                 viability_pruning=False, **options)
+    assert pruned.requested_top_k_proven and full.requested_top_k_proven
+    assert [(row.result.program, row.log_probability) for row in pruned.candidates] == [
+        (row.result.program, row.log_probability) for row in full.candidates]
 
 
 def test_native_scores_keep_their_likelihood_scale_without_local_renormalization():

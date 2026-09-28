@@ -8,6 +8,7 @@ sovereign_browser.py; this is the half that thinks about what came back.
 """
 from __future__ import annotations
 
+from .sovereign_browser_understanding_scale import _PlacesHerself
 import asyncio
 import json
 import logging
@@ -36,7 +37,7 @@ _BROWSER_DECISION_ERRORS = (
 _ADVANCING_BUTTON_WORDS = ("next", "continue", "submit", "finish", "start")
 
 
-class _UnderstandsThePage:
+class _UnderstandsThePage(_PlacesHerself):
     """Lifted whole from SovereignBrowserSkill; see sovereign_browser.py."""
 
     @staticmethod
@@ -211,6 +212,24 @@ class _UnderstandsThePage:
                 # what lets a whole screen be answered in a single round
                 # instead of one control at a time.
                 state.append(f"question {element['group']}")
+                # And where this one sits in the run, where the run is all this
+                # question has. A control whose only name is its group's reads
+                # as one nameless thing among five, and picking item k from a
+                # list is not the same act as saying where in a range you are.
+                # The place is a fact of the layout; what being there means is
+                # hers.
+                kin = [
+                    option
+                    for option in elements
+                    if isinstance(option, Mapping)
+                    and str(option.get("group") or "") == str(element["group"])
+                ]
+                named = {str(option.get("name") or "").strip() for option in kin}
+                named.discard("")
+                if len(kin) > 2 and (
+                    len(named) != len(kin) or named == {str(element["group"])}
+                ):
+                    state.append(f"position {kin.index(element) + 1} of {len(kin)}")
             if element.get("checked") is True:
                 state.append("already answered")
             if element.get("value"):
@@ -357,13 +376,26 @@ class _UnderstandsThePage:
         try:
             from core.brain.llm.context_assembler import ContextAssembler
 
+            # Her live state, from the repository that holds it.
+            #
+            # `aura_state` is registered by nothing: this asked for a key that
+            # does not exist, got None, and returned an empty mind on every
+            # call — 49 times in one boot, each recorded and none read. The
+            # inference gate builds the same prompt from the state repository's
+            # current state, which is where it actually lives.
             state = optional_service("aura_state", default=None)
             if state is None:
-                # Said, because an empty mind changed which branch the whole
-                # decision took and nothing recorded that it had happened.
+                repo = optional_service("state_repository", "state_repo", default=None)
+                state = (
+                    getattr(repo, "_current", None)
+                    or getattr(repo, "_current_state", None)
+                    if repo is not None
+                    else None
+                )
+            if state is None:
                 record_degradation(
                     "sovereign_browser.mind_context",
-                    RuntimeError("aura_state_unavailable"),
+                    RuntimeError("no_current_state"),
                     severity="warning",
                     action="decided without her assembled self-context",
                 )
@@ -475,96 +507,86 @@ class _UnderstandsThePage:
             "predict them. If it does not, say what it is likely to say about "
             "you from what it measures. Answer in your own words."
         )
-        said, lane = await self._her_own_thinking_about_herself(
-            prompt, shaped=False
-        )
+        said, lane = await self._asked_of_her(prompt, mind, shaped=False)
         if said and lane == self._HER_OWN_LANE:
             return said
+        if said:
+            record_degradation(
+                "sovereign_browser.forecast",
+                RuntimeError(f"not_her_own_reasoning:{lane or 'unattributed'}"),
+                severity="warning",
+                action="did not say what she expected; it did not come from her",
+            )
         return ""
 
-    async def _her_own_thinking_about_herself(
-        self, prompt: str, *, shaped: bool = True
+    async def _asked_of_her(
+        self, prompt: str, mind: str = "", *, shaped: bool = True
     ) -> tuple[str, str]:
-        """Put a question about her through her cognition, not a completion.
+        """One way to ask her something about herself, used by everything that does.
 
-        `router.think` is a model call with her self-context in front of it.
-        The context says who she is and the model still answers from its priors
-        about what an AI is; nothing about it reasons, recalls, or consults the
-        organs that hold what she is actually like. A question addressed to her
-        should be answered by the faculties that answer one when a person asks
-        it out loud — a cognitive cycle, with its reasoning pass, its recall,
-        its self-model and its workspace — because who and what answers is part
-        of what a self-report is.
+        Her own lane, and only there, with her self-model, her values and her own
+        earlier words about herself in front of it.
 
-        The cycle gets its own turn ledger. It is a question of its own and the
-        pursuit may ask eight at once; adopting the caller's turn would have
-        thirty-two answers marking one chat turn served, each with the last
-        one's record.
+        Her full conversational cycle was tried here first and is the wrong
+        instrument: it exists to produce a reply to the person, and that is what
+        it produced. LIVE 2026-09-28 18:13, on the index page before a single
+        click: "The user wants me to take the Open Extended Jungian Type Scales
+        personality test... Before I start, they want me to tell them what type
+        I think I'll get and why. Let me first think about..." — the turn's own
+        answer, returned as a page decision and reported unparsable, twice in a
+        row, with the run stopping before it opened anything.
 
-        Returns the text and the lane that produced it, or ("", "") when there
-        is no cognition to ask, in which case the caller falls back.
+        What her faculties have to contribute reaches this as context, which is
+        assembled by the caller: what she is like from her record of choices,
+        what she has said about herself in her own words, and what her
+        instruments say about her right now.
+
+        Built once because three things ask her: what she expects an instrument
+        to say before she answers it, how she answers each of its questions, and
+        what she makes of the result. Two of them had only one half of this and
+        the forecast had no fallback at all, so a cycle that returned nothing
+        meant she simply never said what she expected — which is the part of the
+        request that kept going missing.
+
+        Returns the text and the lane that produced it; the caller decides what
+        an answer from somewhere else is worth.
         """
-        engine = optional_service("cognitive_engine", default=None)
-        cycle = getattr(engine, "think", None)
-        if not callable(cycle):
+        router = optional_service("llm_router", default=None)
+        think = getattr(router, "think", None)
+        if not callable(think):
             return "", ""
+        who: dict[str, Any] = {}
         try:
-            from core.brain.types import ThinkingMode
-            from core.runtime.turn_outcome import TurnOutcome, bind_turn, finalize_turn
-        except ImportError as exc:
-            record_degradation("sovereign_browser.her_cognition", exc, severity="debug")
-            return "", ""
-
-        outcome = TurnOutcome(origin=self._PAGE_ORIGIN)
-        try:
-            with bind_turn(outcome):
-                thought = await cycle(
-                    prompt,
-                    context={
-                        # A decision is a structured choice and a forecast is
-                        # a sentence; holding the second to an object shape
-                        # would make her say it in JSON.
-                        **({"output_shape": "json_object"} if shaped else {}),
-                        "origin": self._PAGE_ORIGIN,
-                        "purpose": "page_decision" if shaped else "page_forecast",
-                        "own_lane_required": True,
-                        # The turn that asked for this is waiting on it, so it
-                        # is not background work to be stood down while a
-                        # foreground turn runs — it IS the foreground turn's
-                        # work, reached through a tool.
-                        "serves_current_turn": True,
-                    },
-                    # Short chain of thought. A self-report item is not a
-                    # lookup: "you regularly make new friends" is a question
-                    # she has to reason about from what she knows of herself,
-                    # and FAST is by definition the gear that does not.
-                    mode=ThinkingMode.SLOW,
-                    origin=self._PAGE_ORIGIN,
-                )
+            reply = await think(
+                prompt,
+                system_prompt=mind,
+                prefer_tier="primary",
+                origin=self._PAGE_ORIGIN,
+                purpose="page_decision" if shaped else "page_forecast",
+                own_lane_required=True,
+                serves_current_turn=True,
+                _generation_metadata_sink=who,
+                max_tokens=self.DECISION_MAX_TOKENS,
+                temperature=0.2 if shaped else 0.4,
+                _non_chat_inference=True,
+                **(
+                    {"schema": self._DECISION_SCHEMA, "output_shape": "json_object"}
+                    if shaped
+                    else {}
+                ),
+            )
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation(
-                "sovereign_browser.her_cognition",
+                "sovereign_browser.asked_of_her",
                 exc,
                 severity="warning",
-                action="fell back to a direct model call for a question about her",
+                action="asked her something about herself and got nothing back",
             )
             return "", ""
-        finally:
-            try:
-                finalize_turn(outcome, subsystem="sovereign_browser")
-            except _BROWSER_DECISION_ERRORS as exc:
-                record_degradation(
-                    "sovereign_browser.her_cognition", exc, severity="debug"
-                )
-        said = str(getattr(thought, "content", "") or "").strip()
-        if not said:
-            return "", ""
-        # Who actually generated it, and nothing assumed. Defaulting to her
-        # own lane here would be the same fail-open the guard below exists to
-        # close: a cycle that answered on a smaller model would have been
-        # taken for her.
-        lane = str((getattr(thought, "metadata", None) or {}).get("endpoint") or "")
-        return said, lane
+        return (
+            self._the_text_of(reply),
+            self._who_answered(reply) or str(who.get("endpoint") or ""),
+        )
 
     async def _hold_the_outcome_against_what_she_said(
         self,
@@ -590,10 +612,6 @@ class _UnderstandsThePage:
         said = " ".join(str(said_before or "").split())
         if not said:
             return ""
-        router = optional_service("llm_router", default=None)
-        think = getattr(router, "think", None)
-        if not callable(think) or not mind:
-            return ""
         prompt = (
             f"WHAT YOU WERE DOING: {goal}\n\n"
             f"WHAT YOU SAID BEFORE YOU BEGAN: {said}\n\n"
@@ -604,23 +622,19 @@ class _UnderstandsThePage:
             "one instrument's reading, made from the placements it let you "
             "make, so say what it gets right and what it has no way to see."
         )
-        try:
-            # Her own lane. This is a judgement about her own earlier claim and
-            # about a result that describes her; a stand-in answering it would
-            # be a different mind grading her forecast.
-            reply = await think(
-                prompt, system_prompt=mind, prefer_tier="primary",
-                origin=self._PAGE_ORIGIN, purpose="page_conclusion",
-                max_tokens=self.DECISION_MAX_TOKENS, temperature=0.4,
-                _non_chat_inference=True,
-            )
-        except _BROWSER_DECISION_ERRORS as exc:
+        # Her own lane. This is a judgement about her own earlier claim and
+        # about a result that describes her; a stand-in answering it would be a
+        # different mind grading her forecast.
+        verdict, lane = await self._asked_of_her(prompt, mind, shaped=False)
+        if verdict and lane != self._HER_OWN_LANE:
             record_degradation(
-                "sovereign_browser.conclusion", exc, severity="warning",
-                action="finished without holding the outcome against her forecast",
+                "sovereign_browser.conclusion",
+                RuntimeError(f"not_her_own_reasoning:{lane or 'unattributed'}"),
+                severity="warning",
+                action="finished without a verdict that came from her",
             )
             return ""
-        return " ".join(self._the_text_of(reply).split())
+        return " ".join(verdict.split())
 
     async def _understand_page(
         self,
@@ -686,6 +700,7 @@ class _UnderstandsThePage:
             if callable(think) and mind:
                 raw = self._the_text_of(await think(
                     prompt, system_prompt=mind, schema=self._UNDERSTANDING_SCHEMA, output_shape="json_object",
+                    serves_current_turn=True,
                     origin=self._PAGE_ORIGIN, purpose="page_understanding",
                     max_tokens=420, temperature=0.2, _non_chat_inference=True,
                 ))
@@ -791,6 +806,7 @@ class _UnderstandsThePage:
                 system_prompt=mind,
                 timeout=45.0,
                 prefer_tier="local_fast",
+                serves_current_turn=True,
                 max_tokens=_UnderstandsThePage.DECISION_MAX_TOKENS,
                 temperature=0.2,
                 output_shape="json_object",
@@ -1022,135 +1038,6 @@ class _UnderstandsThePage:
         return f"{said}. {why}" if why else said
 
     @staticmethod
-    def _how_the_options_are_laid_out(
-        options: list[Mapping[str, Any]],
-    ) -> str:
-        """What is on screen for one question, as layout rather than meaning.
-
-        A row of unlabelled controls can be a scale between two opposites, a
-        set of choices, a "more like me / less like me" ranking, or something
-        the page explains in its own instructions. Deciding here that it is any
-        one of those would put a rule of mine where her reading of the page
-        belongs — and the rule would be wrong on the next site.
-
-        So this states only what can be seen: how many controls there are,
-        whether they carry labels of their own, whether one or several may be
-        chosen, and the words the page puts on either side of the run. What
-        that MEANS, and what choosing a position says, is hers to work out from
-        the page, and it is carried in her understanding of it.
-        """
-        if len(options) < 2:
-            return ""
-        roles = {str(option.get("role") or "").strip().lower() for option in options}
-        named = {str(option.get("name") or "").strip() for option in options}
-        named.discard("")
-        group = str(options[0].get("group") or "")
-        labelled = len(named) == len(options) and named != {group}
-        facts = [f"{len(options)} controls"]
-        facts.append(
-            "each with its own label" if labelled else "none of them labelled"
-        )
-        facts.append(
-            "several may be chosen"
-            if roles & {"checkbox", "switch"}
-            else "one may be chosen"
-        )
-        asks = str(options[0].get("asks") or "")
-        run = re.search(r"(?:\s*\[[^\]]*\])+", asks) if asks else None
-        if run is not None:
-            left = " ".join(asks[: run.start()].split()).strip()
-            right = " ".join(asks[run.end() :].split()).strip()
-            if left and right:
-                facts.append(f"laid out between \"{left}\" and \"{right}\"")
-            elif left:
-                facts.append(f"laid out after \"{left}\"")
-            elif right:
-                facts.append(f"laid out before \"{right}\"")
-        return ", ".join(facts)
-
-    @classmethod
-    def _first_disagreement(
-        cls, decision: Mapping[str, Any], options: list[Mapping[str, Any]]
-    ) -> str:
-        """The first action in this decision whose choice fights its reason.
-
-        Read against her stance where she took one, because that is the thing
-        the position is supposed to express; the reason for the place is read
-        alongside it.
-        """
-        why = " ".join(
-            f"{decision.get('stand') or ''} {decision.get('why') or ''}".split()
-        )
-        for item in decision.get("actions") or []:
-            if not isinstance(item, dict):
-                continue
-            try:
-                index = int(item.get("index"))
-            except (TypeError, ValueError):
-                continue
-            if not 0 <= index < len(options):
-                continue
-            said = cls._the_choice_disagrees_with_its_reason(options, index, why)
-            if said:
-                return said
-        return ""
-
-    @classmethod
-    def _the_choice_disagrees_with_its_reason(
-        cls, options: list[Mapping[str, Any]], index: int, why: str
-    ) -> str:
-        """Where her own reason points, against where her answer landed.
-
-        LIVE 2026-09-28: "3 of 5, between 'makes lists' and 'relies on memory'.
-        I am choosing the middle option because I genuinely hold a strong
-        preference for externalized structure over relying on internal memory."
-        A reason that names one side and an answer that commits to neither is
-        an answer that contradicts itself, and nothing noticed.
-
-        Measured from the page's own words, not a vocabulary: the run of
-        controls sits between two phrases, and her reason is compared against
-        each of them by how many of their words it uses. Where it leans clearly
-        one way and the answer does not lie on that side, this says so. Where
-        the options carry their own labels, where the reason names neither side
-        or both equally, it says nothing — a check that guesses is worse than
-        no check.
-
-        Returns what disagrees, or "".
-        """
-        named = {str(option.get("name") or "").strip() for option in options}
-        named.discard("")
-        group = str(options[0].get("group") or "") if options else ""
-        if len(named) == len(options) and named != {group}:
-            return ""
-        laid_out = cls._how_the_options_are_laid_out(options)
-        between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
-        if between is None or not str(why or "").strip():
-            return ""
-        left, right = between.group(1), between.group(2)
-        said = cls._words_of(why)
-        toward_left = len(said & cls._words_of(left))
-        toward_right = len(said & cls._words_of(right))
-        if toward_left == toward_right:
-            return ""
-        middle = (len(options) + 1) / 2.0
-        place = index + 1
-        leaning, other = (
-            (left, right) if toward_left > toward_right else (right, left)
-        )
-        on_that_side = place < middle if toward_left > toward_right else place > middle
-        if on_that_side:
-            return ""
-        if place == middle:
-            return (
-                f'what you said is about "{leaning}" and the position you '
-                "chose is the midpoint, which says the two are equally you"
-            )
-        return (
-            f'what you said is about "{leaning}" and the position you chose '
-            f'leans toward "{other}"'
-        )
-
-    @staticmethod
     def _unanswered_questions(
         observation: Mapping[str, Any]
     ) -> list[tuple[str, list[Mapping[str, Any]]]]:
@@ -1201,6 +1088,21 @@ class _UnderstandsThePage:
             # observation is unchanged, so what she sees is this item in its
             # real context — the same URL, the same page text.
             single = {**observation, "elements": list(options)}
+            # Asked of her in words first, because a cognitive cycle produces
+            # speech: run one to decide a structured action and what comes back
+            # is a sentence about the task, reported as unparsable. LIVE
+            # 2026-09-28 18:06, two Cortex calls and "The user wants me to take
+            # the Open Extended Jungian Type Scales test..." in place of a
+            # decision. She is asked for the thing she is actually being asked
+            # for — where she puts herself — and the control follows from the
+            # position she named.
+            placed = await self._where_she_puts_herself(
+                goal, single, options, understanding
+            )
+            if placed is not None:
+                if on_progress is not None:
+                    on_progress("a question answered")
+                return placed
             decision = await self._decide_next_actions(goal, single, history, understanding, about_her=True)
             if on_progress is not None:
                 # Each question decided is the run moving, however long the
@@ -1336,9 +1238,23 @@ class _UnderstandsThePage:
         # question's five options, read alone, are not a scale; every item of
         # the test went to the fast lane, without her record and without the
         # check that the answer is hers.
-        asks_about_her = (
-            self._asks_about_the_one_answering(observation) if about_her is None else bool(about_her)
-        )
+        # Only the caller says a decision is about her.
+        #
+        # This used to infer it from the page, so on a page that reads as a
+        # scale instrument EVERY decision became a question about her —
+        # including the whole-page one, whose job is to find the control that
+        # advances the task. LIVE 2026-09-28 18:03: the test's own front page
+        # carries a few radio groups, the whole-page decision was sent to her
+        # cognition, and what came back was "The user wants me to take the Open
+        # Extended Jungian Type Scales test on openpsychometrics.org. Before
+        # starting, I need..." — reported as unparsable, one round, and the run
+        # stopped without ever pressing Start.
+        #
+        # Which items are about her is decided by the page's shape, in the loop
+        # that routes them to `_answer_each_question`. Pressing Next is
+        # mechanics wherever it sits.
+        asks_about_her = bool(about_her)
+        answered_by = ""
 
         # Her whole mind, not a subset assembled here.
         #
@@ -1464,18 +1380,20 @@ class _UnderstandsThePage:
         )
         try:
             think = getattr(router, "think", None)
-            # A question about her never falls through to a bare model call.
+            # No decision falls through to a bare model call.
             #
             # This branch was gated on her assembled mind being present, and
-            # when it was not — the state service absent, the assembler
-            # unavailable — every self-report item fell to `generate(prompt)`
-            # at the bottom of this function: no identity, no self-knowledge,
-            # no record of what she is like, and no lane requirement either.
-            # LIVE 2026-09-28, that is exactly what answered thirty-two
-            # questions about her, and it answered the midpoint every time
-            # because it had nothing to prefer with. Her cognition needs no
-            # assembled prompt; it assembles its own.
-            if callable(think) and (mind or asks_about_her):
+            # when it is not — the state service absent, the assembler
+            # unavailable — every decision fell to `generate(prompt)` at the
+            # bottom of this function: no schema, no shape held by the decoder,
+            # no self-knowledge and no lane requirement. LIVE 2026-09-28 18:26,
+            # with the receipt that now says so: "Decision by the mechanics
+            # lane on bare_generate: unparsable_decision", on the index page,
+            # before a single click, so no test was taken and nothing was
+            # narrated. A decision is structured work; the persona string in
+            # front of it is a bonus, and losing the shape because the bonus is
+            # missing is the wrong trade.
+            if callable(think):
                 # The fast lane, for the repetitive part.
                 #
                 # Working a sixty-item form is one rich judgement — what this
@@ -1536,36 +1454,7 @@ class _UnderstandsThePage:
                     # recalling, or consulting the organs that hold what she is
                     # actually like. A question addressed to her goes to the
                     # faculties that answer one when a person asks it out loud.
-                    raw, answered_by = await self._her_own_thinking_about_herself(prompt)
-                    if not raw:
-                        # No cognition to ask. The direct call is the fallback,
-                        # and `prefer_tier` alone is not enough for it: LIVE
-                        # 2026-09-28, morphogenesis advised a downgrade at 0.92
-                        # resource pressure and thirty-two questions about her
-                        # were answered by the brainstem, which chose the middle
-                        # option every time. `own_lane_required` says the answer
-                        # is only valid from her own lane, so load makes the
-                        # request wait or fail rather than quietly changing who
-                        # answers.
-                        #
-                        # And the receipt, into a dict this call owns. The guard
-                        # below used to read provenance off the reply, and the
-                        # router returns a plain string — so `answered_by` was
-                        # "" on every call and the guard could never fire. A
-                        # check that cannot see is a check that always passes.
-                        who: dict[str, Any] = {}
-                        reply = await think(
-                            prompt, system_prompt=mind, prefer_tier="primary",
-                            schema=self._DECISION_SCHEMA, output_shape="json_object",
-                            origin=self._PAGE_ORIGIN, purpose="page_decision",
-                            own_lane_required=True, _generation_metadata_sink=who,
-                            max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2,
-                            _non_chat_inference=True,
-                        )
-                        answered_by = self._who_answered(reply) or str(
-                            who.get("endpoint") or ""
-                        )
-                        raw = self._the_text_of(reply)
+                    raw, answered_by = await self._asked_of_her(prompt, mind)
                     if answered_by != self._HER_OWN_LANE:
                         # Fail closed. An unattributed answer to a question
                         # about her is not evidence that she answered it.
@@ -1573,11 +1462,21 @@ class _UnderstandsThePage:
                             "error": f"not_her_own_reasoning:{answered_by or 'unattributed'}"
                         }
                 else:
+                    answered_by = "fast_lane"
                     raw = await self._decide_on_the_fast_lane(router, prompt, mind)
                     if not self._decision_is_usable(raw, observation, goal):
+                        answered_by = "whole_page_think"
+                        # The turn is waiting on this one too. Without saying
+                        # so it is classified background, deferred under
+                        # headroom pressure and comes back empty: LIVE
+                        # 2026-09-28 18:29, "Decision by the mechanics lane on
+                        # fast_lane: empty_decision" on the index page, nothing
+                        # clicked. The claim is checked against whether a user
+                        # turn is actually in flight.
                         raw = self._the_text_of(await think(
                             prompt, system_prompt=mind, schema=self._DECISION_SCHEMA, output_shape="json_object",
                             origin=_UnderstandsThePage._PAGE_ORIGIN, purpose="page_decision",
+                            serves_current_turn=True,
                             max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
                         ))
             elif asks_about_her:
@@ -1589,11 +1488,23 @@ class _UnderstandsThePage:
                 generate = getattr(router, "generate", None)
                 if not callable(generate):
                     return {"error": "llm_router_unavailable"}
+                answered_by = "bare_generate"
                 raw = await generate(prompt, max_tokens=400, temperature=0.2)
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.decide", exc)
             return {"error": f"decision_failed:{type(exc).__name__}"}
-        return self._parse_decision(str(raw or ""))
+        parsed = self._parse_decision(str(raw or ""))
+        # Which path answered, and on which lane, said once per decision.
+        # Three of these run and a failed decision named none of them, so
+        # "unparsable_decision" was a sentence about a parser and not about
+        # where the answer came from.
+        logger.info(
+            "🌐 Decision by %s on %s: %s",
+            "her own lane" if asks_about_her else "the mechanics lane",
+            answered_by or "unattributed",
+            parsed.get("error") or "usable",
+        )
+        return parsed
 
     @staticmethod
     def _balanced_objects(text: str) -> list[str]:

@@ -42,6 +42,7 @@ from core.brain.llm.latent_cortex.resource_accounting import (
     build_information_receipt,
 )
 from core.learning.recurrent_grpo import attach_recurrent_policy_adapters
+from tests.clock_patch import patch_module_clock
 from tools import run_latent_cortex_paired_campaign as runner
 
 
@@ -1337,7 +1338,7 @@ def test_claim_worker_waits_for_external_authorization_without_consuming_slot(
 
     monkeypatch.setattr(runner, "broker_available", lambda: True)
     monkeypatch.setattr(runner, "run_brokered_process", broker)
-    monkeypatch.setattr(runner.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, runner, sleep=lambda _seconds: None)
 
     outcome = runner._run_child(
         args,

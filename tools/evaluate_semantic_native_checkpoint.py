@@ -39,7 +39,7 @@ def selected_checkpoint(directory):
     execution_from_plan(plan)
     if (plan.get("schema") not in {"aura.semantic_native_fit_plan.v1", "aura.semantic_native_fit_plan.v2",
                                    "aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4",
-                                   "aura.semantic_native_fit_plan.v5"}
+                                   "aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}
             or plan.get("held_labels_used_for_fit_or_selection") is not False
             or plan.get("serving_authority") is not False
             or plan.get("qualification_evidence") is not False):
@@ -64,7 +64,7 @@ def selected_checkpoint(directory):
     if not fit or not cal or not held or fit & cal or fit & held or cal & held:
         raise ValueError("native fit source partitions overlap or are empty")
     selected = min(rows, key=lambda row: (row["calibration_loss"], row["step"]))
-    if plan["schema"] == "aura.semantic_native_fit_plan.v5":
+    if plan["schema"] in {"aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}:
         selected = selected_path_checkpoint(directory, plan, rows)
     report_path = directory / "report.json"
     if report_path.exists():

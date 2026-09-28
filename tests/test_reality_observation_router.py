@@ -43,6 +43,7 @@ from core.reality_reach.observation_router import (
 )
 from core.runtime.audit_chain import canonical_json, sha256_hex
 from core.runtime.lockdep import assert_no_locks_held
+from tests.clock_patch import patch_module_clock
 
 
 class _MemoryKeychainBackend:
@@ -222,7 +223,7 @@ async def test_router_is_bounded_and_evicts_lower_salience_for_alarm() -> None:
 async def test_router_applies_deadband_and_temporary_focus(monkeypatch) -> None:
     import core.reality_reach.observation_router as router_module
     clock = {"value": 100.0}
-    monkeypatch.setattr(router_module.time, "monotonic", lambda: clock["value"])
+    patch_module_clock(monkeypatch, router_module, monotonic=lambda: clock["value"])
     router = RealityObservationRouter(RealityReachService())
     router.configure_subscription(
         ObservationSubscription(

@@ -1,6 +1,6 @@
 """An organ's own number is not something any part of her can read without a channel.
 
-`core/runtime/afferent.py`. A hundred and fifty-seven of the 375 columns of K_t
+`core/subject/afferent.py`. A hundred and fifty-seven of the 375 columns of K_t
 are read straight off a live organ. Every channel in a body is a low pass
 filter, so what arrives centrally is the recent history of a signal rather than
 its instantaneous truth.
@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from core.runtime.afferent import Afferent, afferent_turns, organ_sourced, sensed
+from core.subject.afferent import Afferent, afferent_turns, organ_sourced, sensed
 
 
 class _HasSurface:

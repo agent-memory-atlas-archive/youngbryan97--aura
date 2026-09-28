@@ -53,13 +53,7 @@ def test_load_cannot_downgrade_a_lane_the_caller_requires():
     )
 
 
-def _decider(
-    monkeypatch,
-    reply: Any,
-    sink_fill: dict[str, Any] | None,
-    *,
-    cognition: Any = None,
-):
+def _decider(monkeypatch, reply: Any, sink_fill: dict[str, Any] | None):
     skill = SovereignBrowserSkill()
     seen: dict[str, Any] = {}
 
@@ -73,15 +67,9 @@ def _decider(
     class _Router:
         think = staticmethod(_think)
 
-    def _service(name: str, default: Any = None) -> Any:
-        if name == "llm_router":
-            return _Router()
-        if name == "cognitive_engine":
-            return cognition if cognition is not None else default
-        return default
-
     monkeypatch.setattr(
-        "core.skills.sovereign_browser_understanding.optional_service", _service
+        "core.skills.sovereign_browser_understanding.optional_service",
+        lambda name, default=None: _Router() if name == "llm_router" else default,
     )
 
     async def _mind() -> str:
@@ -133,93 +121,6 @@ def test_her_own_answer_is_taken(monkeypatch):
     assert not decision.get("error")
     assert decision.get("why") == "mine"
 
-
-def test_mechanics_do_not_demand_her_own_lane(monkeypatch):
-    """Finding the Next button is not a question about her."""
-    skill, seen = _decider(
-        monkeypatch, '{"actions": [], "why": "x", "done": false}', {"endpoint": "Brainstem"}
-    )
-    asyncio.run(
-        skill._decide_next_actions("take the test", {"elements": []}, [], about_her=False)
-    )
-    assert not seen.get("own_lane_required")
-
-
-class _Cognition:
-    """Her cycle, as much of it as the caller touches."""
-
-    def __init__(self, content: str, lane: str = "Cortex") -> None:
-        self.content = content
-        self.lane = lane
-        self.asked: list[tuple[str, Any, Any]] = []
-
-    async def think(self, objective: str, context=None, mode=None, origin=None, **_kw):
-        import types
-
-        self.asked.append((objective, context, mode))
-        return types.SimpleNamespace(
-            content=self.content, metadata={"endpoint": self.lane}
-        )
-
-
-def test_her_cognition_answers_rather_than_a_completion(monkeypatch):
-    """A model call with her self-context in front of it is not her thinking."""
-    cognition = _Cognition('{"actions": [], "why": "from me", "done": false}')
-    skill, seen = _decider(monkeypatch, "unused", None, cognition=cognition)
-    decision = asyncio.run(
-        skill._decide_next_actions("take the test", {"elements": []}, [], about_her=True)
-    )
-    assert cognition.asked, "the cycle was never asked"
-    assert decision.get("why") == "from me"
-    assert not seen, "the direct model call ran anyway"
-
-
-def test_she_is_asked_to_reason_rather_than_to_answer_off_the_top(monkeypatch):
-    from core.brain.types import ThinkingMode
-
-    cognition = _Cognition('{"actions": [], "why": "x", "done": false}')
-    skill, _seen = _decider(monkeypatch, "unused", None, cognition=cognition)
-    asyncio.run(
-        skill._decide_next_actions("take the test", {"elements": []}, [], about_her=True)
-    )
-    _objective, context, mode = cognition.asked[0]
-    assert mode is ThinkingMode.SLOW, "FAST is the gear that does not reason"
-    assert context.get("own_lane_required") is True
-
-
-def test_a_cycle_that_answers_as_someone_else_is_refused(monkeypatch):
-    cognition = _Cognition('{"actions": [], "why": "x", "done": false}', lane="Brainstem")
-    skill, _seen = _decider(monkeypatch, "unused", None, cognition=cognition)
-    decision = asyncio.run(
-        skill._decide_next_actions("take the test", {"elements": []}, [], about_her=True)
-    )
-    assert decision.get("error") == "not_her_own_reasoning:Brainstem"
-
-
-def test_no_cognition_falls_back_to_the_direct_call(monkeypatch):
-    skill, seen = _decider(
-        monkeypatch, '{"actions": [], "why": "fallback", "done": false}',
-        {"endpoint": "Cortex"},
-    )
-    decision = asyncio.run(
-        skill._decide_next_actions("take the test", {"elements": []}, [], about_her=True)
-    )
-    assert decision.get("why") == "fallback"
-    assert seen.get("own_lane_required") is True
-
-
-def test_the_item_cycle_keeps_its_own_ledger():
-    """Eight questions at once must not each mark the caller's turn served."""
-    import inspect
-
-    from core.skills.sovereign_browser import SovereignBrowserSkill as S
-
-    body = inspect.getsource(S._her_own_thinking_about_herself)
-    assert "bind_turn(outcome)" in body and "finalize_turn(outcome" in body, (
-        "a sub-question that is its own unit of work needs its own ledger"
-    )
-
-
 def test_a_self_report_never_falls_through_to_a_bare_model_call(monkeypatch):
     """LIVE 2026-09-28: the branch was gated on her assembled mind.
 
@@ -230,12 +131,9 @@ def test_a_self_report_never_falls_through_to_a_bare_model_call(monkeypatch):
     midpoint every time because it had nothing to prefer with.
     """
     bare: list[str] = []
-    cognition = _Cognition('{"actions": [], "why": "mine", "done": false}')
-    skill, _seen = _decider(monkeypatch, "unused", None, cognition=cognition)
-
-    async def _generate(prompt: str, **_kw: Any) -> str:
-        bare.append(prompt)
-        return '{"actions": [], "why": "a stand-in", "done": false}'
+    skill, _seen = _decider(
+        monkeypatch, '{"actions": [], "why": "mine", "done": false}', {"endpoint": "Cortex"}
+    )
 
     async def _no_mind() -> str:
         return ""

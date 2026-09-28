@@ -37,7 +37,7 @@ import json
 import logging
 import threading
 import time
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
@@ -50,6 +50,27 @@ from core.runtime.lockdep import LockRank, checked_lock
 from core.runtime.state_ownership import state_root
 
 logger = logging.getLogger("Aura.Ontogeny.Authority")
+
+
+def _flush_at_shutdown(flush: Callable[[], Any], *, name: str) -> bool:
+    """Ask the shutdown coordinator to run ``flush`` before the process leaves.
+
+    Rows written from the event loop go to a daemon writer thread, and every
+    exit path leaves through the finalizer's ``os._exit``, which does not wait
+    for daemon threads, so whatever was still queued was lost.
+    ``memory_commit`` runs before state is vaulted and actors stop.
+    """
+    try:
+        from core.runtime.shutdown_coordinator import get_shutdown_coordinator
+
+        get_shutdown_coordinator().register(flush, phase="memory_commit", name=name)
+        return True
+    # not a failure: teardown already started, or there is no coordinator in
+    # this process; the writer thread keeps draining either way.
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("%s: no shutdown flush registered (%s: %s)", name, type(exc).__name__, exc)
+        return False
+
 
 AUTHORITY_SCHEMA = "aura.ontogeny.authority.v1"
 COMPARISON_EVIDENCE_UNIT = "unique_resolved_episode.v1"
@@ -499,6 +520,10 @@ class AuthorityLedger:
                     target=self._drain_pending, name="ontogeny-authority-writer", daemon=True
                 )
                 self._writer.start()
+                register = not getattr(self, "_flush_registered", False)
+                self._flush_registered = True
+            if register:
+                _flush_at_shutdown(self.flush, name="ontogeny_authority")
             return
         self._write(payload)
 
