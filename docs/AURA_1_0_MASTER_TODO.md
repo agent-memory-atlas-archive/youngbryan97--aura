@@ -1210,6 +1210,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Complete-path optimization](evidence/G03_COMPLETE_PATH_OPTIMIZATION_2026-09-28.md)
+  measures all 185 calibration sources at four checkpoints. The selected
+  paired fit loses 38 of 51 baseline-correct paths. A new opt-in objective
+  connects weak-choice risk to complete-path, baseline-preserving selection;
+  full model measurement and generated non-regression remain pending.
+  [Retained native generation](evidence/G03_RETAINED_NATIVE_GENERATION_2026-09-28.md)
+  independently verifies 7/14 exact procedures versus base 1/14, with seven
+  gains and one regression. The regression loses a base graph's proven
+  output/domain equivalence on a fork/join source. This previously exposed
+  canary is not promotable. A source-calibration complete-path audit is
+  connected; no 500-request run or G03 closure follows from the canary.
   [Native source-content controls](evidence/G03_NATIVE_SOURCE_CONTROL_2026-09-27.md)
   independently verify a six-request target-blind decode: 5/6 exact with
   source text, 1/6 under token erasure, and all six swapped outputs matching
@@ -1920,6 +1931,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   51/60. The candidate is not promoted; component attribution continues.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
+  [Conditional native binding](evidence/G04_CONDITIONAL_NATIVE_BINDING_2026-09-28.md)
+  independently replays base scores on fitted role/dependency prefixes:
+  32/36 references versus fitted 36/36 in each small cohort. The four
+  differences track intermediate results, not the final relation intervention.
+  Guided agreement grants no end-to-end score or fresh transfer; G04 stays open.
   [Bound source inventory](evidence/G04_BOUND_SOURCE_INVENTORY_2026-09-19.md)
   reconstructs 1,764 archived examples and 656 schemas across eight families
   from the exact manifests. Twenty-seven tests pass. Default family settings
@@ -1948,7 +1964,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Role and dependency controls](evidence/G04_NATIVE_BINDING_CONTROL_PLAN_2026-09-26.md)
   construct paired source changes with identical operations and public values.
   Shared-floor typing and causal connectivity are checked before scoring;
-  independent graph replay is implemented. Model measurement is pending.
+  independent graph replay is implemented.
+  [Role source-control result](evidence/G04_NATIVE_ROLE_SOURCE_CONTROL_2026-09-28.md)
+  independently verifies fitted 6/6 versus unfitted 2/6, erasure 0/6, and
+  six source-swapped programs matching the partner's intact program. The
+  base failures diverged first at operation choice, and the cohort reuses
+  exposed topologies and one renderer.
+  [Dependency source-control result](evidence/G04_NATIVE_DEPENDENCY_SOURCE_CONTROL_2026-09-28.md)
+  independently verifies the same 6/6, 2/6, 0/6, and six partner-matching
+  swaps for one changed argument dependency. Both comparisons demonstrate
+  local source-conditioned graph choice, but base failures first diverge at
+  operation selection. Operation-conditioned binding and fresh-family
+  controls remain pending; these results do not close G04.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
   OPEN, observed live 2026-09-21, and recorded here because it is a
   reasoning error rather than a plumbing one. Asked how far a bird flies

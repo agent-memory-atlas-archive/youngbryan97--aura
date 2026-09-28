@@ -24,6 +24,18 @@ clipped to -1..1 and arousal read out as (x + 1) / 2), so each is mapped from
 activations from 0 to 1 and are only clipped. Every other neuron is carried
 as it is; no hook reads it as an activation.
 
+Valence and arousal are her fused felt state once her affect phase has run, and
+the neuron only until then. The substrate is one term of how she feels —
+`HomeostaticCoupling` blends it into affect at `SUBSTRATE_SHARE` and the affect
+phase pushes the result back down — so publishing the neuron steered her cortex
+by an input to her feeling rather than by her feeling, and the neuron's own
+dynamics are wider within a turn than anything the appraisal puts into it.
+Measured on the stub organism, 28 September: three arms whose fused valence was
++0.445, +0.021 and +0.395 published 0.7048, 0.7048 and 0.7048, then 0.7227,
+0.5105 and 0.6975 once the phase had run — the manipulation reached the hooks at
+0.0003 of activation before and at 0.212 after, which is her spread exactly.
+See `note_felt`.
+
 The client publishes before each generation, so a generation is steered by the
 state she was in when it was asked for; the backward arrow drains at the same
 point. Until the first publish the array reads 0.5, the midpoint of every
@@ -47,6 +59,7 @@ __all__ = [
     "create_channel",
     "governor_inputs",
     "her_substrate",
+    "note_felt",
     "publish",
     "steering_now",
 ]
@@ -61,6 +74,52 @@ AROUSAL_SLOT = 1
 #: The service names the worker's sync thread looked her substrate up by when
 #: it ran in-process, in its order.
 _SUBSTRATE_SERVICES = ("liquid_substrate", "conscious_substrate", "liquid_state")
+
+#: How she feels, as her affect phase last fused it, and when. See `note_felt`.
+_FELT: dict[str, float] = {}
+
+
+def note_felt(valence: float, arousal: float) -> None:
+    """Her affect phase says how she feels; the hooks steer by this.
+
+    The substrate's valence neuron is one term of her felt state and not the
+    whole of it: `HomeostaticCoupling` blends the substrate into affect at
+    `SUBSTRATE_SHARE`, and the affect phase pushes the result back down. This
+    channel published the neuron, so her cortex was steered by an input to how
+    she feels rather than by how she feels, and the neuron's own dynamics are
+    wider than anything the appraisal puts into it. Measured on the stub
+    organism, 28 September: three arms whose fused valence was +0.456, +0.143
+    and +0.428 published neuron activations of 0.6154, 0.6077 and 0.6122, so
+    the manipulation reached the hooks at eight thousandths against a fused
+    spread of three tenths.
+
+    Fused valence and arousal replace those two dimensions. Every other neuron
+    is published as it is; no hook reads them as anything else.
+    """
+    try:
+        _FELT.update(valence=float(valence), arousal=float(arousal))
+    except (TypeError, ValueError) as exc:
+        logger.debug("A felt state that is not two numbers cannot steer: %s", exc)
+
+
+def _felt_now() -> dict[str, float] | None:
+    """Her felt state, until her affect phase fuses a newer one.
+
+    It does not expire. `AuraState.affect` is where her felt state is kept —
+    the heartbeat reads it rather than the affect engine for exactly this
+    reason — and a feeling does not stop being hers because nothing has asked
+    her a question lately. The substrate neuron goes on drifting towards her
+    chemistry between turns, and that drift is an input the next affect update
+    will fuse, not a newer account of how she feels.
+
+    An expiry was tried first and dated the reading against the substrate's
+    snapshot age. That rejected every reading: the substrate refreshes its
+    snapshot on its own loop, so the age is near zero whenever anything asks,
+    and a felt reading from earlier in the same turn is always older than it.
+    Empty until the affect phase has run once, and then the neuron is
+    published, which is what this channel did before it was told how she feels.
+    """
+    return _FELT or None
 
 
 def create_channel(mp_context: Any) -> Any:
@@ -88,10 +147,24 @@ def activation_state(substrate: Any) -> np.ndarray | None:
     if x.size == 0 or not np.isfinite(x).all():
         return None
     state = x.copy()
-    for name in ("idx_valence", "idx_arousal"):
+    felt = _felt_now()
+    # Her valence rests at 0 on either scale and is mapped the same way. Her
+    # arousal is not: the substrate carries it signed and the affect phase
+    # clamps its own to 0..1, which is already the scale a hook reads, so a
+    # fused arousal is published as it stands and only the neuron is mapped.
+    for name, key, signed in (
+        ("idx_valence", "valence", True),
+        ("idx_arousal", "arousal", False),
+    ):
         index = getattr(substrate, name, None)
-        if isinstance(index, int) and 0 <= index < x.size:
+        if not isinstance(index, int) or not 0 <= index < x.size:
+            continue
+        if felt is None:
             state[index] = np.clip((x[index] + 1.0) / 2.0, 0.0, 1.0)
+        elif signed:
+            state[index] = np.clip((felt[key] + 1.0) / 2.0, 0.0, 1.0)
+        else:
+            state[index] = np.clip(felt[key], 0.0, 1.0)
     for name in ("idx_frustration", "idx_curiosity", "idx_energy", "idx_focus"):
         index = getattr(substrate, name, None)
         if isinstance(index, int) and 0 <= index < x.size:

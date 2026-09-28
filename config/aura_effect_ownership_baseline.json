@@ -1993,7 +1993,7 @@
       "scope": "<module>._atomic_write_json"
     },
     {
-      "callee": "core.runtime.atomic_writer.atomic_write_text",
+      "callee": "core.runtime.atomic_writer.atomic_write_text_behind",
       "canonical_owner": false,
       "category": "direct_atomic_file_write",
       "count": 1,
@@ -14589,7 +14589,7 @@
       "canonical_owner": true,
       "category": "raw_subprocess",
       "count": 1,
-      "path": "core/runtime/subprocess_gateway.py",
+      "path": "core/runtime/subprocess_gateway_reaping.py",
       "scope": "<module>._run_bounded_by_its_work"
     },
     {
@@ -16554,6 +16554,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "2118864bd2f6f07e475a87ebd144366bb91ad5c7e68cbb6738055b7649b41d8f",
+  "inventory_sha256": "af6f6d214bb54b21eb5d5b6f0bc8f8ac0dbc1da2eb1a15a170961395adbe984b",
   "schema_version": 1
 }

@@ -21,6 +21,13 @@ from tools.lint_governance import (
 REPO = Path(__file__).resolve().parents[2]
 
 
+def test_lifted_subprocess_reaper_keeps_exact_primitive_ownership():
+    assert _canonical_owner("raw_subprocess", "core/runtime/subprocess_gateway_reaping.py")
+    assert _canonical_owner("raw_subprocess", "core/runtime/subprocess_gateway.py")
+    assert not _canonical_owner("raw_subprocess", "core/runtime/subprocess_gateway_unreviewed.py")
+    assert not _canonical_owner("raw_network", "core/runtime/subprocess_gateway_reaping.py")
+
+
 def _run_lint() -> int:
     env = os.environ.copy()
     cmd = [sys.executable, str(REPO / "tools" / "lint_governance.py")]

@@ -79,6 +79,8 @@ ANXIETY
 from __future__ import annotations
 
 import logging
+import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Dict, Literal
 
@@ -253,6 +255,27 @@ _EMOTION_SIGNATURES: Dict[EmotionName, NeurochemicalRecipe] = {
 }
 
 
+#: Her affect vocabulary against the eight recipes. Six of the eight names are
+#: channels she already carries, so those map to themselves. `sorrow` and
+#: `anxiety` are the recipes' own semantic labels for loss and for threat, and
+#: her channels for those are `sadness` and `fear`; the rest of her forty
+#: channels have no recipe and release nothing, which is the same as today.
+#:
+#: This table is a synonym list, not a tuning: every entry is one name for one
+#: state. A channel is added here when a recipe means it, never to move a
+#: number.
+HER_CHANNELS: Dict[str, EmotionName] = {
+    "joy": "joy",
+    "wonder": "wonder",
+    "interest": "interest",
+    "excitement": "excitement",
+    "disgust": "disgust",
+    "boredom": "boredom",
+    "sadness": "sorrow",
+    "fear": "anxiety",
+}
+
+
 class EmotionSignatureEngine:
     """
     Manages emotion signatures and applies their neurochemical/substrate effects.
@@ -267,6 +290,68 @@ class EmotionSignatureEngine:
         # idle neurochemical homeostasis impossible.
         self.emotion_intensity: float = 0.0  # 0-1, how strongly to apply effects
         self.emotion_momentum: float = 0.0  # carries emotional state forward
+        #: Every channel of hers that has a recipe, at the level she feels it.
+        #: Empty until an affect update tells her chemistry what she feels.
+        self.felt: Dict[EmotionName, float] = {}
+
+    def feel(self, emotions: Mapping[str, float] | None) -> float:
+        """Tell her chemistry what she feels. Returns the level it will release at.
+
+        Until 28 September nothing called `set_emotion`, so `emotion_intensity`
+        stayed at the 0.0 the constructor set and
+        :meth:`get_neurochemical_modulation` returned a zero for every chemical
+        on every metabolic tick, for the life of the process. Her rich emotions
+        never reached her chemistry, her chemistry is what the consciousness
+        bridge writes into the substrate's valence neuron on every frame, and
+        that neuron is what steers her cortex. So an emotion she appraised could
+        not reach the words she chose: measured on seed 7, a displacement that
+        moved her computed valence from 0.27 to 0.53 left the substrate valence
+        the hooks read at 0.111 against 0.117.
+
+        She feels several things at once, so each channel with a recipe releases
+        at its own level and the recipes are averaged by those levels. One hot
+        channel reduces to exactly the single-emotion case this engine already
+        had.
+        """
+        felt = {}
+        for name, level in dict(emotions or {}).items():
+            recipe = HER_CHANNELS.get(str(name))
+            if recipe is None:
+                continue
+            try:
+                value = float(level)
+            except (TypeError, ValueError):
+                continue
+            if math.isfinite(value) and value > 0.0:
+                felt[recipe] = max(felt.get(recipe, 0.0), min(1.0, value))
+        self.felt = felt
+        # Momentum is the level she was at when she was last asked, which is
+        # what "carries emotional state forward" means; the modulation already
+        # weighs it against the present level.
+        self.emotion_momentum = self.emotion_intensity
+        if felt:
+            self.current_emotion = max(felt, key=lambda name: felt[name])
+            self.emotion_intensity = felt[self.current_emotion]
+        else:
+            self.emotion_intensity = 0.0
+        return self.emotion_intensity
+
+    def _blended_signature(self) -> NeurochemicalRecipe:
+        """The recipes she is feeling, averaged by how strongly she feels each."""
+        if not self.felt:
+            return self.get_current_signature()
+        total = sum(self.felt.values())
+        if total <= 0.0:
+            return self.get_current_signature()
+        fields = [name for name in NeurochemicalRecipe.__dataclass_fields__ if name != "semantic_label"]
+        blended = {
+            field: sum(
+                getattr(_EMOTION_SIGNATURES[name], field) * level for name, level in self.felt.items()
+            )
+            / total
+            for field in fields
+        }
+        return NeurochemicalRecipe(**blended, semantic_label=self.current_emotion)
         
     def set_emotion(self, emotion: EmotionName, intensity: float = 0.5) -> None:
         """Set the current dominant emotion."""
@@ -285,7 +370,7 @@ class EmotionSignatureEngine:
         Return neurochemical production rate modifiers for this emotion.
         Applied ON TOP of the base neurochemical system dynamics.
         """
-        sig = self.get_current_signature()
+        sig = self._blended_signature()
         intensity = self.emotion_intensity * 0.8 + self.emotion_momentum * 0.2
         
         return {
@@ -303,7 +388,7 @@ class EmotionSignatureEngine:
         Return substrate state vector modulation factors.
         These scale the importance of certain dimensions in IIT calculations.
         """
-        sig = self.get_current_signature()
+        sig = self._blended_signature()
         intensity = self.emotion_intensity
         
         return {
@@ -315,7 +400,7 @@ class EmotionSignatureEngine:
     
     def get_steering_intensity(self) -> float:
         """How strongly to inject steering vectors for this emotion."""
-        sig = self.get_current_signature()
+        sig = self._blended_signature()
         return sig.steering_intensity * self.emotion_intensity
     
     def describe(self) -> str:

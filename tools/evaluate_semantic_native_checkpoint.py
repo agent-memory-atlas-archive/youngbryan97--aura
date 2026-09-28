@@ -38,7 +38,8 @@ def selected_checkpoint(directory):
     from tools.semantic_native_execution import execution_from_plan
     execution_from_plan(plan)
     if (plan.get("schema") not in {"aura.semantic_native_fit_plan.v1", "aura.semantic_native_fit_plan.v2",
-                                   "aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4"}
+                                   "aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4",
+                                   "aura.semantic_native_fit_plan.v5"}
             or plan.get("held_labels_used_for_fit_or_selection") is not False
             or plan.get("serving_authority") is not False
             or plan.get("qualification_evidence") is not False):
@@ -63,6 +64,8 @@ def selected_checkpoint(directory):
     if not fit or not cal or not held or fit & cal or fit & held or cal & held:
         raise ValueError("native fit source partitions overlap or are empty")
     selected = min(rows, key=lambda row: (row["calibration_loss"], row["step"]))
+    if plan["schema"] == "aura.semantic_native_fit_plan.v5":
+        selected = selected_path_checkpoint(directory, plan, rows)
     report_path = directory / "report.json"
     if report_path.exists():
         report = verified_document(report_path)
@@ -71,6 +74,44 @@ def selected_checkpoint(directory):
                 or report["selected_calibration_loss"] != selected["calibration_loss"]):
             raise ValueError("native fit report differs from source calibration")
     return plan, selected
+
+
+def selected_path_checkpoint(directory, plan, checkpoints):
+    """Replay source-only selection from complete, source-bound choice inventories."""
+    from core.learning.semantic_native_path_calibration import native_path_totals
+    from core.learning.semantic_native_path_selection import select_native_path_checkpoint
+    from tools.audit_semantic_native_path_calibration import calibration_competitions
+
+    supervision = verified_document(directory / "supervision.json")
+    competitions = calibration_competitions(plan, supervision)
+    sources, measurements = sorted(competitions), {}
+    expected_files = {f"calibration-paths-{row['step']}.json" for row in checkpoints}
+    if {path.name for path in directory.glob("calibration-paths-*.json")} != expected_files:
+        raise ValueError("native path checkpoint calibration inventory differs")
+    for checkpoint in checkpoints:
+        step = checkpoint["step"]
+        measured = verified_document(directory / f"calibration-paths-{step}.json")
+        if (measured.get("schema") != "aura.native_checkpoint_path_calibration.v1"
+                or measured.get("plan_sha256") != plan["plan_sha256"]
+                or measured.get("step") != step
+                or measured["receipt_sha256"] != checkpoint.get("calibration_path_receipt_sha256")):
+            raise ValueError("native path checkpoint calibration identity differs")
+        rows = measured["rows"]
+        totals = native_path_totals(rows, sources)
+        if measured.get("totals") != totals:
+            raise ValueError("native path checkpoint calibration totals differ")
+        for row in rows:
+            expected = competitions[row["source"]]
+            if len(row["decisions"]) != len(expected):
+                raise ValueError("native path checkpoint teacher inventory differs")
+            for decision, alternatives in zip(row["decisions"], expected, strict=True):
+                if (decision.get("kind") != alternatives[0]["kind"]
+                        or decision.get("correct_index") != alternatives[0]["correct_index"]
+                        or decision.get("choices") != [item["choice"] for item in alternatives]
+                        or len(decision["scores"]) != len(alternatives)):
+                    raise ValueError("native path checkpoint teacher alternatives differ")
+        measurements[step] = rows
+    return select_native_path_checkpoint(checkpoints, measurements, sources)[0]
 
 
 def observed_program_reach(labels):

@@ -22,6 +22,28 @@ INTERVENTION_DATASETS = frozenset({
 RETAINED_DATASETS = frozenset({"retained_validation", "retained_test"})
 
 
+def capture_grammar_choices(prefix, branches, model, sequences, *, split_at, max_tokens,
+                            strategy):
+    """Return full causal states, reusing only an identical frozen source anchor."""
+    import mlx.core as mx
+
+    if strategy == "full":
+        return tuple(prefix.capture(mx.array([sequence.tokens[:-1]], dtype=mx.int32))
+                     for sequence in sequences), None
+    if strategy != "trie" or not sequences:
+        raise ValueError("native grammar prefix strategy or choice set differs")
+    from core.learning.frozen_prefix_branches import FrozenPrefixBranches, native_source_anchor
+
+    anchor = native_source_anchor(sequences)
+    if branches is None:
+        branches = FrozenPrefixBranches(model, split_at=split_at,
+            anchor_tokens=anchor, max_tokens=max_tokens)
+    elif branches.anchor_tokens != anchor:
+        raise ValueError("native grammar source anchor changed within one request")
+    states = branches.capture_many(tuple(tuple(sequence.tokens[:-1]) for sequence in sequences))
+    return states, branches
+
+
 def select_search_proposal(search, scorer):
     """Rank every admitted graph without receiving its target or correctness."""
     scores = tuple(scorer(candidate.result.program) for candidate in search.candidates)
@@ -156,6 +178,7 @@ def main():
     parser.add_argument("--search-score-mode", choices=("normalized_choices", "native_nonpositive"),
                         default="native_nonpositive")
     parser.add_argument("--weight-mode", choices=("fitted", "base"), default="fitted")
+    parser.add_argument("--prefix-strategy", choices=("full", "trie"), default="full")
     parser.add_argument("--source-evidence", choices=("source_text", "source_token_erasure",
                                                       "source_pair_swap"),
                         default="source_text")
@@ -178,6 +201,9 @@ def main():
             parser.error("retained development sources need their report and bundles, without a new seed")
     elif args.source_report is not None or args.bundle is not None:
         parser.error("source report and bundles belong to retained development evaluation")
+    if args.prefix_strategy == "trie" and (args.dataset not in INTERVENTION_DATASETS | RETAINED_DATASETS
+            or args.search_completions):
+        parser.error("native grammar trie requires intervention or retained sources and greedy decode")
     seed = 0 if args.dataset in RETAINED_DATASETS else (3141592 if args.seed is None else args.seed)
     if seed < 0:
         parser.error("native grammar seed must be nonnegative")
@@ -237,13 +263,20 @@ def main():
                   "core/learning/semantic_program_feature_materialization.py")
     from tools.semantic_native_execution import EXECUTION_PATHS, execution_from_plan
     paths += EXECUTION_PATHS
-    execution_from_plan(training, check_installed=True)
+    execution = execution_from_plan(training, check_installed=True)
+    if args.prefix_strategy == "trie" and (execution is None
+            or execution["precision"] != "float32"):
+        raise ValueError("native grammar trie requires measured float32 training arithmetic")
+    if args.prefix_strategy == "trie":
+        paths += ("core/learning/frozen_prefix_branches.py",)
     implementation = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in paths}
     schema_version = "v4" if args.dataset in {"definition_intervention", "equation_intervention"} else "v3"
     if args.dataset in {"role_intervention", "dependency_intervention"}:
         schema_version = "v5"
     if args.dataset in RETAINED_DATASETS:
         schema_version = "v6"
+    if args.prefix_strategy == "trie":
+        schema_version = "v8" if args.dataset in RETAINED_DATASETS else "v7"
     body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": selected["receipt_sha256"],
@@ -261,6 +294,8 @@ def main():
             "candidate_inventory": "none", "input_grounding": "semantic_public_character_inputs.v1",
             "target_available_to_scorer": False, "held_labels_used_for_fit_or_selection": False,
             "serving_authority": False, "qualification_evidence": False}
+    if args.prefix_strategy == "trie":
+        body["prefix_strategy"] = "trie"
     if source_basis is not None:
         body["source_cohort_basis"] = source_basis
     plan = {**body, "plan_sha256": digest(body)}
@@ -281,11 +316,11 @@ def main():
         decode_native_grammar,
     )
     from core.learning.semantic_native_program import native_text_decision_sequence
+    from core.learning.semantic_native_search import search_native_grammar
     from core.learning.semantic_native_source_control import (
         apply_native_source_evidence,
         native_score_input_receipt,
     )
-    from core.learning.semantic_native_search import search_native_grammar
     from core.learning.semantic_program_floor import semantic_programs_structurally_equivalent
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
     from core.runtime.model_lane_control import standalone_model_lane
@@ -294,6 +329,8 @@ def main():
     started, rows = time.monotonic(), []
     with (standalone_model_lane(owner_id=f"semantic-native-grammar:{args.directory.name}",
                                 model_path=str(spec.model_path), purpose="evaluation",
+                                require_exclusive=schema_version == "v8",
+                                allow_owner_eviction=schema_version != "v8",
                                 preemptible=False, metadata={"production_effect": False}),
           mlx_memory_envelope(fraction=.80)):
         model, tokenizer = load(str(spec.model_path))
@@ -317,9 +354,11 @@ def main():
             scored_source_sha256 = hashlib.sha256(scored_source.encode()).hexdigest()
             scored = 0
             score_input_receipts = []
-            def score(choices, *, source=scored_source, source_identity=identity):
-                nonlocal scored
-                scores = []
+            branches = None
+            def score(choices, *, source=scored_source, source_identity=identity,
+                      receipts=score_input_receipts):
+                nonlocal scored, branches
+                sequences = []
                 input_receipts = []
                 for choice in choices:
                     if time.monotonic() - started > args.max_seconds:
@@ -331,12 +370,16 @@ def main():
                         sequence, source, tokenizer,
                         mode="source_text" if args.source_evidence == "source_pair_swap"
                         else args.source_evidence)
-                    hidden = prefix.capture(mx.array([sequence.tokens[:-1]], dtype=mx.int32))
-                    scores.append(-native_loss(suffix, hidden, sequence, summed=True,
-                                               scope="semantic_decisions").item())
+                    sequences.append(sequence)
                     input_receipts.append(native_score_input_receipt(sequence, control))
                     scored += 1
-                score_input_receipts.append(input_receipts)
+                states, branches = capture_grammar_choices(prefix, branches, model,
+                    sequences, split_at=split, max_tokens=training["max_sequence_tokens"],
+                    strategy=args.prefix_strategy)
+                scores = tuple(-native_loss(suffix, hidden, sequence, summed=True,
+                    scope="semantic_decisions").item()
+                    for hidden, sequence in zip(states, sequences, strict=True))
+                receipts.append(input_receipts)
                 print(json.dumps({"stage": "decision", "source_sha256": source_identity,
                                   "scored_prefixes": scored, "choices": len(choices)}), flush=True)
                 return tuple(scores)
@@ -412,6 +455,8 @@ def main():
                         "decision_trace": trace, "search": search_evidence,
                         "score_input_receipts": score_input_receipts,
                         "target_available_to_scorer": False}
+            if args.prefix_strategy == "trie":
+                row_body["prefix_execution"] = branches.receipt() if branches is not None else None
             row = {**row_body, "receipt_sha256": digest(row_body)}
             _save_if_absent(args.directory / "rows" / f"{identity}.json", row)
             rows.append(row)
@@ -440,6 +485,8 @@ def main():
                   "candidate_inventory": "none", "input_grounding": "semantic_public_character_inputs.v1",
                   "target_available_to_scorer": False, "serving_authority": False,
                   "qualification_evidence": False, "elapsed_seconds": time.monotonic() - started}
+        if args.prefix_strategy == "trie":
+            result["prefix_strategy"] = "trie"
         if source_basis is not None:
             result["source_cohort_basis"] = source_basis
         _save_if_absent(args.directory / "report.json", {**result, "receipt_sha256": digest(result)})

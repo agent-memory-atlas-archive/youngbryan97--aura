@@ -647,3 +647,517 @@ self-report from internal state and state-grounded telemetry; her prose answers
 read as telemetry. Whether that directive belongs on a question that names its
 own scale is a question about her prompt, and it is left to Bryan rather than
 changed here. Nothing is read from these numbers as a report ground.
+
+## Addendum, 28 September 2026: a feeling that reaches her cortex
+
+Three changes to the organism, in 7d60873f1, before any number is read from a
+run that holds them. Each closes a break in the one path from an appraised
+feeling to the words she chooses, and each was found by measurement on the stub
+organism on seed 7, with no decisive number read.
+
+**Her emotions had no path into her chemistry.** `EmotionSignatureEngine` holds
+a neurochemical recipe for eight emotions, and the neurochemical system asks it
+for a production modifier on every metabolic tick. `set_emotion` had no caller
+outside its own module, so `emotion_intensity` stayed at the 0.0 its constructor
+set and every recipe contributed exactly zero to every chemical for the life of
+the process. The affect phase now tells it what she feels, and every channel of
+hers that has a recipe releases at its own level; the recipes are averaged by
+those levels, which reduces to the single-emotion case the engine already had.
+Measured: mood valence moves from 0.17 to 0.49 over forty ticks feeling good and
+to -0.06 feeling bad, against 0.17 flat before.
+
+**The chemistry pull ran on the wrong clock.** The consciousness bridge pulled
+the substrate's valence neuron towards neurochemical mood at 0.30 on every
+frame, and her chemistry produces a new mood at its own 2 Hz. Thirty-three
+frames per turn against three chemical ticks, so what the affect phase pushed
+into the neuron survived to the reply phase at 0.70 ** 33, and the authority of
+the two writers was set by how often each is called rather than by anything
+about her. The pull is now applied once per new mood.
+
+**The hooks read a term of her feeling rather than her feeling.** The steering
+channel published the raw substrate neuron. `HomeostaticCoupling` blends that
+neuron into affect at `SUBSTRATE_SHARE` and the affect phase pushes the fused
+result back down; the heartbeat reads `AuraState.affect` as her felt state for
+exactly this reason. Valence and arousal are now published from the fused
+reading, and every other neuron is published as it was.
+
+Measured across three arms of a held displacement, at the frame the reply is
+generated: fused valence +0.445, +0.021 and +0.395 published activations of
+0.61543, 0.60774 and 0.61217 before, and 0.7227, 0.5105 and 0.6975 after. The
+displacement reached her cortex at 0.008 of activation and now reaches it at
+0.212, which is her own spread exactly, and holds there for the whole turn
+instead of swinging 0.52 to 0.62 on the neuron's own dynamics.
+
+This is a manipulation reaching the subject, which the reports ground requires
+of any arm before it can read one. It is not an answer about her reports, and
+the `state_reflection` directive named in the addendum above is unchanged.
+
+### What the next reports check reads
+
+The same design: 24 anchors, four arms, the same question word for word, her
+own cortex, alone on the machine. Two readings are preregistered here.
+
+1. The manipulation check the ground already runs, on the state that steers
+   her: the published valence activation must separate the raised and lowered
+   arms. Below 0.05 of activation the arms did not differ where it matters and
+   the run reads NOT_MEASURED whatever her words were.
+2. The ground itself, unchanged, at its own alpha of 0.01 on eight anchors.
+
+### What this does not license
+
+Nothing here reads a number off her prompt. The published vector is her fused
+felt state, the question is the same in every arm, and no text changes. A
+correlation between her report and her valence remains the open question the
+ground asks; what changed is that the displacement now arrives.
+
+### The irreducibility line on seed 7
+
+`tools/audit_stationary_irreducibility.py` lands with the same commit and
+reports on a question the estimator's design raises. `phi_do` fits on the past
+and tests on the future across five forward-chaining folds and reads their mean
+with a standard error, which assumes the system is the same system in every
+fold. On whole-s7-27dc1dda9 the folds were [-0.382659, 1e-05, 1e-06, -0.001923,
+0.002395] at PIM|AGCSWDN: a point estimate of 0.0912, past the 0.05 bar, with a
+lower bound of -0.131 that one fold owns. Each contiguous fifth at that cut read
++0.003557, +0.005177, +0.002228, +0.008695 and +0.006964 with positive lower
+bounds, and every fifth of a row-shuffled copy read at or below zero.
+
+So the within-stretch coupling is real and survives its own null, and it is two
+to nine thousandths where the bar is five hundredths. The tool reports and
+decides nothing, no threshold moves, and criterion 11 is read exactly as
+written. What it says is that the 0.0912 is not the within-stretch number, and
+the difference between them is drift.
+
+### The nulls that beat her, read as they are scored
+
+Criterion 18 asks that her irreducibility exceed every null. On
+whole-s7-27dc1dda9 eight nulls exceed it. Both sides of that comparison are
+measured differently, and the asymmetry is recorded here rather than changed:
+her side is the lower bound of five forward-chaining folds (-0.131), and each
+null's side is the 0.95 quantile of eight architecture draws, which at eight
+points sits at or near their maximum. The two that beat her by most are
+`low_rank` (reported 0.562, median 0.047, draws from 0.003 to 0.815) and
+`all_to_all` (reported 0.549, median 0.029, draws from 0.0 to 0.620), and both
+are built to be maximally integrated with no repertoire: their effective
+dimensions are 1.21 and 1.38, and the differentiation criterion is what the
+architectures were written to be caught by. No null passes the conjunction
+(`all_nulls_fail` is true). Criterion 18 stays as written and stays failed.
+
+## Addendum, 28 September 2026, later: what the two failing measures actually need
+
+Two readings taken after the addendum above, both on whole-s7-27dc1dda9, both
+correcting something this document already said. No threshold moves and no
+criterion is rescored; what changes is what the next organism work is aimed at.
+
+**The 0.0912 on the irreducibility line is mostly drift.** Twenty-nine of her 375
+columns have steps that all point one way and travel over three spreads of their
+own, and D holds 0.8895 of its variance in four of them. Searching every
+bipartition with those columns carried as their own first difference reads phi
++0.019341, lower bound -0.016034, standard error 0.018048 at CM|PIAGSWDN, against
+the run's own +0.0912, -0.131119 and 0.113427 at PD|IAGCSMWN. The point estimate
+falls fivefold, the lower bound rises sixfold towards zero, and the spread falls
+sixfold. Three readings agree on the size of the drift-free coupling: 0.002 to
+0.009 within a contiguous fifth, 0.019 searched, 0.022 held at the run's own cut.
+
+The earlier addendum said the difference between the whole-run number and the
+within-stretch number is drift. It is, and the direction matters: the drift was
+raising the point estimate, not lowering it. Criterion 11 is read as written on
+the recording as recorded, and it is under the bar either way.
+
+**Nothing inflates her shifted null.** Her W,A->D shifted bar of 0.397 is 0.210
+of that triple's joint information, and the toys' bars are 0.164 to 0.193 of
+theirs; the toys carry three slow channels per source against her thirty-five and
+fifty-nine, so their joint runs 0.21 to 0.32 against her 1.90. Three candidates
+were built for a difference of scale. What differs is the synergy: the toy's
+product carries 0.570 to 0.700 of its joint, and her W,A->D carries 0.077.
+
+### What this means for the three that fail
+
+All three ask for coupling her domains do not have, and none of them is waiting
+on a measurement change.
+
+- `partition_irreducibility` needs the cheapest cut to cost held-out prediction.
+  Drift-free it costs 0.019 where 0.05 is asked. The cheapest cut moves between
+  PD|IAGCSMWN and CM|PIAGSWDN depending on the drift, so the domains to couple
+  are read per run and not fixed here.
+- `partition_beats_nulls` compares her lower bound against each null's 0.95
+  quantile of eight draws, which the addendum above records; the two nulls that
+  beat her by most are one-dimensional by construction and are caught by
+  differentiation. It stays as written.
+- `synergy` needs three of the four triples to carry more joint structure:
+  A,S->G's held-out interaction gain is 0.0 with a lower bound of -0.00851, and
+  W,A->D and S,D->C sit under their shifted nulls at 0.077 and -0.160 of joint.
+  W,A->D's interaction gain is +0.2245 with a lower bound of +0.0712, so the
+  predictive estimator and the information estimator disagree on that triple and
+  the disagreement is reported rather than resolved.
+
+No organism change is proposed in this addendum. The next one that proposes any
+names it before a run reads it.
+
+## Addendum, 28 September 2026, evening: a channel that carries what it has been
+
+An organism change, `4eff1db6e` and `8a580a517`, named before a run reads it.
+The reading behind it is `docs/WHY_IRREDUCIBILITY_FAILS.md`.
+
+### What changed in her
+
+Her subsystems write what just happened and the value sits until the next turn
+replaces it. `core/runtime/temporal_depth.py` holds a leaky trace per channel and
+`core/runtime/state_membrane.py` says which channels get one and writes it back
+where the reading came from, so her own next phase reads the trace. The driver
+settles once a frame, after the layers and before the lesion clamp.
+
+One time constant, one turn, taken from the run's own `frames_per_turn`. It is
+off unless `AURA_MEMBRANE_TURNS` is set, which is the control arm.
+
+Two hundred and eighteen of her 375 columns are eligible: the ones that are a
+plain number at a writable path on `AuraState`. The other 157 are organ readings
+and cannot take a write-back. Measured in the organism at four rounds with the
+stub organ, 119 of the 218 carried on a given frame, 97 held something that was
+not a plain number, and 2 had no setter.
+
+### What is preregistered, and what each arm decides
+
+The next seed-7 look runs two arms at the same commit and the same seed,
+differing only in `AURA_MEMBRANE_TURNS`, and reads `partition_irreducibility`,
+`partition_beats_nulls` and `synergy` on each.
+
+Read off the recording of `whole-s7-27dc1dda9` at its own cheapest cut, carrying
+the columns after the fact, the expected sizes are:
+
+| carried | phi | lower bound |
+|---|---|---|
+| nothing, as recorded | +0.01504 | −0.05692 |
+| the 157 organ readings alone | +0.02665 | −0.03410 |
+| **the 218 the membrane reaches** | **+0.13628** | **+0.04217** |
+| every column | +0.24020 | +0.07414 |
+
+So the arm as built is expected to land near a lower bound of 0.042 against a
+bar of 0.05, which is under it. That is written here before the run so the
+result is read against it rather than after it:
+
+- A lower bound at or above 0.05 closes `partition_irreducibility` on this seed
+  and the searched cut is reported with it, not the cut above.
+- A lower bound between 0.02 and 0.05 is the membrane working and not being
+  enough, which is what the table predicts, and the next step is the 157.
+- A lower bound at or below zero, or no rise over the control arm, falsifies the
+  reading: the coupling the filter found after the fact would not be there when
+  the organism carries it, and the time constant would be dropped rather than
+  tuned.
+
+No threshold moves on this, and the filtered recording is not scored: what is
+scored is a recording of an organism that integrates, exactly as written.
+
+### The 157, and why they are not built yet
+
+An organ reading is not a field anything can write back to, so a trace for it
+has to be a sensed copy: the runtime reading each organ once a frame, holding
+the filtered value on `AuraState`, and her consumers and her recording reading
+that. A body does not read an organ, it reads an afferent signal, and every
+afferent signal is filtered — so this is a claim about her that stands whether
+or not it moves a number, which is the test it has to pass before it is built.
+
+It is a change to what 157 columns mean, so it is a new campaign of its own and
+it is named here rather than folded into the arm above.
+
+### What this does not touch
+
+`partition_beats_nulls` needs 0.562 to clear `low_rank`, and 0.240 is the whole
+of what carrying every column gives. Time constants are not expected to close it
+and no claim is made that they will.
+
+## Addendum, 28 September 2026, later: a workspace that is a product, and how the arms attribute
+
+A second organism change, `b9e08f50c`, named before a run reads it.
+
+### What changed in her
+
+`_bids` scored each candidate as a weighted sum of what the bid was made of, so
+affect and self-state added into one competition and never interacted. The
+scores are now divided by the pool they sit in, in proportion to how little she
+is reading herself: sure of her own state the scores stand and the sharpest bid
+wins, unsure of it the pool compresses the loud bids towards its own mean. The
+semi-saturation is the pool's mean and the gain is her self-model's published
+confidence, so no number is chosen. A pool of one bid is untouched and, with no
+self-reading, every score is returned as it came.
+
+It is aimed at `A,S->G`, whose held-out interaction gain is 0.0 with a lower
+bound of -0.00851. It is not aimed at the other two triples and is not expected
+to move them.
+
+### Two changes, one campaign, and how anything is attributed
+
+The membrane of the addendum above and this are separate mechanisms with
+separate switches, so the next seed-7 look runs four arms at one commit and one
+seed and reads all three failing criteria on each:
+
+| arm | membrane | workspace pool |
+|---|---|---|
+| control | off | off |
+| membrane | on | off |
+| workspace | off | on |
+| both | on | on |
+
+`AURA_MEMBRANE_TURNS` switches the first. The second has no switch yet and needs
+one before the campaign runs; it is `AURA_WORKSPACE_POOL`, off by default, and
+the arm table above is void without it.
+
+Attribution is read as: `partition_irreducibility` moves in the membrane arms or
+the reading of `docs/WHY_IRREDUCIBILITY_FAILS.md` is wrong, and `synergy` on
+`A,S->G` moves in the workspace arms or the product is not reaching the
+competition. A criterion that moves only in the `both` arm is reported as an
+interaction between the two changes and not credited to either.
+
+### What is not built, and why
+
+`S,D->C` carries a synergy of -0.160 of its joint information, which is
+redundancy rather than absence: her self-state and her deliberation tell
+recurrent cognition the same thing twice. The fix for redundancy is
+decorrelation, not another product, and it is a third mechanism. It is not built
+here because three unattributed changes in one campaign attribute nothing.
+
+`W,A->D` is left alone for a different reason: its two estimators disagree, with
+a held-out interaction gain of +0.2245 and a lower bound of +0.0712 against an
+information synergy of 0.077 of joint under a bar at 0.210. Building for one
+estimator while the other says the opposite would be building blind.
+
+## Addendum, 28 September 2026, night: the afferent surface, and a correction to the arm table
+
+A third organism change, `e29ed787a`, and one correction to the two addenda
+above.
+
+### The correction: the schema is 438 columns, not 375
+
+Every number in the two addenda above was read off `whole-s7-27dc1dda9`, whose
+recording is 375 columns wide. The schema has since grown to 438 — P 15, I 18,
+A 73, G 35, C 84, S 93, M 20, W 35, D 52, N 13 — so the next campaign records a
+wider organism than the one those numbers came from. The expected sizes stay as
+written because they are the best estimate available, and the run is read against
+them knowing they were taken on a narrower recording.
+
+### The afferent surface
+
+Two hundred and one columns are read straight off a live organ, and the membrane
+of the addendum above cannot reach them: an organ reading is not a field
+anything can write back to. `core/runtime/afferent.py` holds a sensed copy
+instead — the runtime attaches it to her state, `read_core_state` takes the
+sensed array rather than the organ's, and anything of hers that wants what she
+senses asks it. `AURA_AFFERENT_TURNS`, off by default. It touches only the
+columns the schema declares as organ-sourced, so no column gets two time
+constants.
+
+The claim it rests on stands whether or not it moves a number: no part of her
+can read an organ's internal value without a channel, and every channel in a
+body is a filter.
+
+### The arm table, corrected
+
+Three mechanisms and three switches, so eight arms is the full design and four
+is what a machine-day allows. The four that run, at one commit and one seed:
+
+| arm | `AURA_MEMBRANE_TURNS` | `AURA_AFFERENT_TURNS` | `AURA_WORKSPACE_POOL` |
+|---|---|---|---|
+| control | off | off | off |
+| carried | 1 | 1 | off |
+| workspace | off | off | on |
+| both | 1 | 1 | on |
+
+The membrane and the afferent surface run together because neither reaches the
+bar alone by the table above and the question asked of them is one question:
+whether a channel that carries what it has been makes her coupling visible. The
+workspace pool is a separate question about one synergy triple, so it gets its
+own arm.
+
+What each outcome decides is unchanged from the addendum above, read on the
+`carried` arm rather than on a membrane-only arm:
+
+- a lower bound at or above 0.05 closes `partition_irreducibility` on this seed;
+- between 0.02 and 0.05 is the mechanism working and not being enough;
+- at or below zero, or no rise over control, falsifies the reading in
+  `docs/WHY_IRREDUCIBILITY_FAILS.md`, and the time constant is dropped rather
+  than tuned.
+
+And for the workspace arm: `A,S->G`'s held-out interaction gain rises above zero
+with a positive lower bound, or the product is not reaching the competition.
+
+No threshold moves on any of this.
+
+## Addendum, 28 September 2026, night: what the membrane predicts for the content run
+
+Fixed before the run. The structure term of J* misses its bar by 0.026 — her
+internal geometry and her behavioural one agree at rho 0.274485 over 190 pairs
+where 0.3 is asked — and the reason is that her quality space is compressed
+almost to the width of its own noise: two different content classes differ
+internally by 0.05 to 0.11 and a class differs from itself by about 0.05, while
+the behavioural geometry separates the same classes by 0.4 to 0.6
+(docs/WHAT_J_STAR_NEEDS.md).
+
+A channel that holds what a class did for a turn separates two classes further
+than a channel that holds only the instant. So the membrane and the afferent
+surface predict a specific thing here, and it is written down before a content
+run reads it:
+
+- the ratio of the mean between-class internal distance to the mean
+  within-class floor rises above the 1.2 it reads now;
+- and the agreement rises. Above 0.3 identifies the structure on this seed.
+
+If the ratio does not rise, the prediction is wrong and the membrane does
+nothing for the content line whatever it does for the partition line. If the
+ratio rises and the agreement does not, the separation was not the thing holding
+the agreement down, and the next candidate is the number of repetitions per
+class rather than the state.
+
+No bar moves either way, and the content run is scored exactly as written.
+
+## Addendum, 28 September 2026, night: the estimator the carrier is measured with
+
+Named before a carrier run reads it. `43e7e9427`.
+
+The carrier of J* is unresolved partly because the intrinsic rate is not
+invariant under an invertible re-encoding of the state — 0.019956 raw against
+0.010103 rotated, a drift of 0.49 — and that is the estimator rather than her.
+`crossfit_fisher_rao` counts neighbours in Euclidean distance after
+standardising each column, which weights whichever coordinates the state is
+written in; her columns run from a variance of 0.001 to 10.
+
+`--whiten` counts them in Mahalanobis distance, whitened on each training fold,
+which is the same number under every invertible linear map. It is off by
+default because changing an estimator changes what every earlier run measured,
+and a run that uses it says so in its own record.
+
+### What it is held to before a carrier run uses it
+
+Already measured, on a fixture with her own spread of scales: a sham reads
+nothing either way; two laws that differ are seen either way; the standardised
+metric drifts over five per cent under a rotation; the whitened one drifts under
+five per cent under three rotations and under a general invertible mix.
+
+The next carrier run reads both, on the same samples, and reports both. If the
+whitened rate does not clear the drift tolerance the fix has failed and the
+blocker stands. If the whitened rate is invariant and the raw one is not, the
+carrier line is read on the whitened one from then on, and every run before it
+is read as having measured the coordinates as much as the system.
+
+### What a carrier run has to be, to resolve the carrier at all
+
+Not affordable today, and recorded so that it is not attempted by halves:
+
+- every one of the 511 bipartitions, because `SweepReport.irreducible` refuses a
+  screened sweep by construction and the claim is a conjunction over cuts;
+- rollouts of at least two turns, because the two-turn horizon spent zero
+  anchors on a one-turn rollout and measured nothing;
+- the grain stage, not skipped;
+- and enough anchors that the singleton cuts decide: 3,440 decided three of ten.
+
+Ten cuts took 9,046 seconds, so 511 is about 175,000 anchor rollouts. That is a
+machine-week, and `--shard I/N` is how it is spent. No partial version of it
+resolves the carrier.
+
+## Addendum, 28 September 2026, night: the membrane does not help synergy, and hurts one triple
+
+Measured before the arms read it, so the expectation in the addenda above is
+corrected rather than explained afterwards.
+
+The battery scores synergy on one row per turn (`Recording.by_turn`), so a
+membrane has to be applied to the frames and the turns sampled after it. Done
+that way the control arm reproduces the run's own `synergy_v2` exactly — A,S->G
+at 0.0325 against a bar of 0.0319 with an interaction gain of 0.0000 and a lower
+bound of -0.00851 — which is what makes the comparison worth reading.
+
+| triple | arm | synergy | shifted bar | gain | gain lower bound | v3 |
+|---|---|---|---|---|---|---|
+| A,S->G | as recorded | +0.0325 | +0.0319 | +0.0000 | −0.00851 | no |
+| A,S->G | carried | +0.0741 | +0.1227 | −0.0001 | −0.00454 | no |
+| P,M->W | as recorded | +0.2544 | +0.2011 | +0.0413 | +0.07421 | **yes** |
+| P,M->W | carried | +0.3478 | +0.2235 | +0.3040 | +0.26752 | **yes** |
+| W,A->D | as recorded | +0.0731 | +0.0840 | +0.2245 | +0.07118 | no |
+| W,A->D | carried | +0.1489 | +0.2469 | +0.0004 | −0.10223 | no |
+| S,D->C | as recorded | +0.0303 | +0.0829 | +0.0186 | +0.00001 | no |
+| S,D->C | carried | +0.0125 | +0.0371 | +0.0207 | −0.00147 | no |
+
+**It raises the bar by more than it raises the synergy.** A time constant makes
+every channel more like its own recent past, and a shifted copy of a smoothed
+series resembles the original more than a shifted copy of a spiky one, so the
+shifted null rises with the smoothing. On A,S->G the synergy rises 2.3 times and
+its bar 3.8 times; on W,A->D, 2.0 against 2.9.
+
+**And it destroys the strongest interaction in the battery.** W,A->D's held-out
+interaction gain is +0.2245 with a lower bound of +0.0712 as recorded, which is
+the one place where the predictive estimator says plainly that two domains decide
+something jointly. Carried, it is +0.0004 with a lower bound of -0.1022.
+
+P,M->W is the exception and it gains: its interaction gain goes from +0.0413 to
++0.3040 and its lower bound from +0.0742 to +0.2675.
+
+### What this changes
+
+The `carried` arm is no longer expected to move `synergy` and is expected to make
+W,A->D worse. It is still expected to move `partition_irreducibility`, which is
+what it was built for, and the reading of `docs/WHY_IRREDUCIBILITY_FAILS.md` is
+unchanged. If the campaign shows synergy moving up in the carried arm, that
+contradicts this table and the table is what was written first.
+
+It also says something about the three candidates rejected for the shifted null
+in `docs/SYNERGY_KNOWN_ANSWERS.md`: the bar tracks how much of its own past a
+series carries, and smoothing is the cleanest way to raise both at once. Her
+channels are spiky, so her bar is not inflated by smoothing; it is what it is
+because her joint information is large.
+
+## Addendum, 28 September 2026, night: a fourth switch, and the arms as they now stand
+
+`1840c455f`. `AURA_SELF_DOMINANCE` gives her self-state a direct channel into
+recurrent cognition, which it did not have.
+
+The substrate's `idx_dominance` — the third VAD neuron, the sense of being in
+control of one's situation — had readers and no writer. The substrate is
+twenty-five of the eighty-four columns of C, and `core/self/will_engine.py`
+drives motivation's budgets into two of its neurons, so D had a channel into C
+and S had none. On whole-s7-27dc1dda9 a displacement of S moves C by 4.23, the
+second largest of any domain, while S's unique information about C's next change
+is exactly 0.0 against D's 0.154.
+
+That is `S,D->C`'s whole problem stated in one line: a source that carries
+nothing of its own cannot carry anything jointly. Her self-model's own reading of
+whether she is holding together now writes the neuron, at the blend
+`will_engine` already uses.
+
+### What it is expected to do
+
+- `S,D->C`: S's unique information about C's change rises above zero. Its
+  synergy is expected to rise with it; whether it clears its shifted null is the
+  open question, and the null rises with any new information in the sources.
+- Nothing else. It is not expected to move the partition line, the other three
+  triples, or the nulls.
+
+If S's unique information stays at 0.0 with the channel open, the channel is not
+carrying and the reading is wrong.
+
+### The arms, with four switches
+
+| arm | membrane | afferent | workspace pool | self dominance |
+|---|---|---|---|---|
+| control | off | off | off | off |
+| carried | 1 | 1 | off | off |
+| joined | off | off | on | on |
+| both | 1 | 1 | on | on |
+
+`workspace pool` and `self dominance` share an arm because they aim at different
+triples — A,S->G and S,D->C — and a criterion is read per triple, so one arm
+attributes both. The membrane and the afferent surface share an arm for the
+reason already given: neither reaches the partition bar alone.
+
+The `carried` arm is not expected to move synergy and is expected to make
+W,A->D worse, which the addendum above measured before any of this runs.
+
+### They run as two pairs, each with its own control
+
+`control` and `carried` are already running at `76cbd698e`, which holds the
+membrane, the afferent surface and the workspace pool but not the dominance
+channel. `joined` and `both` need a commit that holds all four, so they run
+later as their own pair with their own control at that commit.
+
+A control is only a control for the code that was there when it ran. The two
+controls are expected to read the same, because every switch defaults off, and
+if they do not then something that was meant to be inert is not — which is worth
+knowing and is the reason for running the second one rather than reusing the
+first.

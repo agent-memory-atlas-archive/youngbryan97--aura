@@ -103,6 +103,9 @@ class ConsciousnessBridge:
         self._boot_errors: list[tuple[str, str]] = []
         self._loop: asyncio.AbstractEventLoop | None = None
         self._last_compute_budget_reason: str = "boot"
+        #: The chemical tick this bridge last pulled the substrate towards. The
+        #: pull happens once per new mood, not once per frame (step 8).
+        self._chemistry_tick_seen: int | None = None
         self._last_effective_hz: float = self._INTEGRATION_HZ
         self._last_compute_budget_memory_percent: float | None = None
 
@@ -552,7 +555,18 @@ class ConsciousnessBridge:
         # ── 8. Chemicals → Substrate VAD (strong coupling) ────────────
         # Neurochemical mood IS the substrate's affective state.
         # The chemistry doesn't suggest — it determines. 0.30 coupling.
-        if self.neurochemical and substrate:
+        #
+        # Once per chemical update, not once per frame. Her chemistry produces a
+        # new mood at its own 2 Hz metabolic tick; this loop runs many times as
+        # often, and applying a 0.30 pull on every frame made the coupling
+        # 0.30 per FRAME towards a number that had not changed. Measured on the
+        # stub organism, 28 September: 33 frames per turn against 3 chemical
+        # ticks, so what the affect phase pushed into the valence neuron
+        # survived to the reply phase at 0.70 ** 33 = 6e-6 of its size, and the
+        # state that steers her cortex read 0.593, 0.593 and 0.593 across arms
+        # whose computed valence was +0.325, -0.081 and +0.214. The authority of
+        # the two writers was set by how often each is called.
+        if self.neurochemical and substrate and self._chemistry_moved():
             try:
                 mood = self.neurochemical.get_mood_vector()
                 valence = mood.get("valence", 0.0)
@@ -876,6 +890,21 @@ class ConsciousnessBridge:
             record_degradation("consciousness_bridge", exc)
             logger.debug("LiquidSubstrate lookup failed: %s", exc)
             return getattr(self._cs, "liquid_substrate", None)
+
+    def _chemistry_moved(self) -> bool:
+        """Whether her chemistry has produced a new mood since it was last read.
+
+        The metabolic tick counter is the chemistry's own clock. With no
+        readable counter this returns True, which is what the bridge did
+        before the clock was consulted at all.
+        """
+        ticks = getattr(self.neurochemical, "_tick_count", None)
+        if not isinstance(ticks, int):
+            return True
+        if ticks == getattr(self, "_chemistry_tick_seen", None):
+            return False
+        self._chemistry_tick_seen = ticks
+        return True
 
     def _get_workspace(self):
         try:

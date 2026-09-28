@@ -145,22 +145,33 @@ def test_the_closure_vector_still_moves_past_twenty_exchanges():
     assert at_twenty_one < at_a_hundred < 1.0
 
 
-def test_the_finitude_model_is_asked_for_the_real_capacity():
-    """The assembler's call site, read rather than executed.
+def test_the_finitude_model_is_asked_for_the_real_capacity(monkeypatch, service_container):
+    """The assembler's call, made by assembling a prompt.
 
-    Executing it needs a whole assembled context; the defect was a literal in
-    the argument, which is visible in the source and cannot be misread.
+    The capacity is moved to a number nothing else uses, so a literal in the
+    argument, or a second source of the number, gives itself away.
     """
-    from pathlib import Path
+    import core.consciousness.temporal_finitude as temporal_finitude
+    import core.state.one_working_memory as one_working_memory
+    from core.brain.llm.context_assembler import ContextAssembler
 
-    from tests.source_contract import family_text_at
+    asked: list[dict] = []
 
-    # With the modules lifted out of it: the call is in context_assembler_blocks.
-    source = family_text_at(
-        Path(__file__).resolve().parents[1] / "core" / "brain" / "llm" / "context_assembler.py"
-    )
-    assert "working_memory_cap=40" not in source
-    assert "working_memory_cap=the_capacity()" in source
+    class _Finitude:
+        def compute(self, **kwargs):
+            asked.append(kwargs)
+
+        def get_context_block(self):
+            return ""
+
+    monkeypatch.setattr(temporal_finitude, "get_temporal_finitude_model", lambda: _Finitude())
+    monkeypatch.setattr(one_working_memory, "the_capacity", lambda: 173)
+    state = AuraState.default()
+    state.cognition.current_origin = "gui"
+    ContextAssembler.build_system_prompt(state)
+
+    assert asked, "the prompt was assembled without asking the finitude model"
+    assert asked[0]["working_memory_cap"] == 173
 
 
 @pytest.mark.parametrize("size", [0, 1, 40, 149, 150, 151, 5000])

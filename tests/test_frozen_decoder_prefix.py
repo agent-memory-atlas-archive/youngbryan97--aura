@@ -295,3 +295,37 @@ def test_trie_rejects_invalid_population_and_drift_before_advancing_any_branch()
             branches.capture_many(rows)
     assert branches.receipt()["branches"] == 0
     assert branches.receipt()["executed_tokens"] == 2
+
+
+@pytest.mark.parametrize("hybrid", [False, True])
+def test_grammar_choice_capture_reuses_one_source_without_changing_states(hybrid):
+    from tools.evaluate_semantic_native_grammar import capture_grammar_choices
+
+    if os.environ.get("MLX_ENABLE_TF32") != "0":
+        node = (f"{__file__}::"
+                f"{test_grammar_choice_capture_reuses_one_source_without_changing_states.__name__}"
+                f"[{hybrid}]")
+        result = subprocess.run([sys.executable, "-m", "pytest", "-q", node],
+            env={**os.environ, "MLX_ENABLE_TF32": "0"}, capture_output=True, text=True, timeout=120)
+        assert result.returncode == 0, result.stdout + result.stderr
+        return
+    model = _model(hybrid=hybrid, hybrid_layers=8)
+    split = len(model.layers) - 1
+    prefix = FrozenDecoderPrefix(model, split_at=split)
+    first = (SimpleNamespace(tokens=(1, 4, 2, 9, 5), continuation_start=3),
+             SimpleNamespace(tokens=(1, 4, 2, 8, 7), continuation_start=3))
+    second = (SimpleNamespace(tokens=(1, 4, 2, 9, 6), continuation_start=3),)
+    branches = None
+    for choices in (first, second):
+        full, _ = capture_grammar_choices(prefix, None, model, choices, split_at=split,
+            max_tokens=16, strategy="full")
+        reused, branches = capture_grammar_choices(prefix, branches, model, choices,
+            split_at=split, max_tokens=16, strategy="trie")
+        assert all(mx.allclose(left, right, atol=1e-5).item()
+                   for left, right in zip(full, reused, strict=True))
+    receipt = branches.receipt()
+    assert receipt["branches"] == 3 and receipt["trie_calls"] == 2
+    with pytest.raises(ValueError, match="anchor changed"):
+        capture_grammar_choices(prefix, branches, model,
+            (SimpleNamespace(tokens=(1, 4, 3, 9, 5), continuation_start=3),),
+            split_at=split, max_tokens=16, strategy="trie")

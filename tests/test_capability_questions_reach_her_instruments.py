@@ -142,16 +142,36 @@ def test_a_registry_that_raises_still_says_unknown(monkeypatch):
 
 
 @pytest.mark.parametrize(
-    "module_path",
-    ["core/brain/inference_gate.py", "core/brain/cognitive_engine.py"],
+    ("question", "reaches"),
+    [("can you search the web?", True), ("what is the weather in Paris?", False)],
 )
-def test_the_prompt_paths_use_the_wider_predicate(module_path):
-    """Wiring: the fix is worthless if the callers still ask the narrow one."""
-    from tests.source_contract import family_text_at
+def test_the_prompt_paths_use_the_wider_predicate(monkeypatch, question, reaches):
+    """Wiring: the fix is worthless if the callers still ask the narrow one.
 
-    source = family_text_at(Path(module_path))
+    The gate's grounding step is run on an ability question the narrow
+    predicate misses, and on a question that is not about her. The desktop
+    engine's copy of this block reads the instruments and hands nothing on,
+    because the gate delivers them, so the gate is the path measured.
+    """
+    import asyncio
 
-    assert "asks_about_own_capabilities" in source, module_path
+    from core.brain import present_moment, self_state_report
+    from core.brain.inference_gate_present_moment import _attach_the_present_moment
+
+    assert not asks_about_own_runtime(question)
+    monkeypatch.setattr(present_moment, "present_moment_block", lambda: "")
+    monkeypatch.setattr(self_state_report, "runtime_self_report", lambda: "[HER INSTRUMENTS]")
+    blocks: list[str] = []
+    asyncio.run(
+        _attach_the_present_moment(
+            ambient_grounding_blocks=blocks,
+            isolated_generation_contract=False,
+            recent_actions_already_grounded=True,
+            task_grounding_blocks=[],
+            visible_user_prompt=question,
+        )
+    )
+    assert ("[HER INSTRUMENTS]" in blocks) is reaches
 
 
 def test_the_response_contract_keeps_the_narrow_predicate():

@@ -91,11 +91,14 @@ def test_reuse_accepts_unchanged_implementation_and_rejects_capture_receipt_drif
     assert prefix_reuse_contract(source, new)["capture_inventory_sha256"] != contract["capture_inventory_sha256"]
 
 
-def test_reuse_admits_only_bound_paired_objective_on_identical_frozen_sequences(tmp_path):
+@pytest.mark.parametrize("path_mode", [False, True])
+def test_reuse_admits_only_bound_paired_objective_on_identical_frozen_sequences(tmp_path, path_mode):
     source, new, row, _manifest, _supervision = fixture(tmp_path)
     prior = json.loads((source / "plan.json").read_text())
     prior.update(objective="grammar_choices", loss_scope="semantic_decisions",
-                 grammar_choice_contract=GRAMMAR_CHOICE_CONTRACT)
+                 grammar_choice_contract=GRAMMAR_CHOICE_CONTRACT,
+                 unfitted_checkpoint_eligible=True,
+                 selection="minimum_source_calibration_conditional_grammar_choice_loss")
     prior.pop("plan_sha256")
     prior["plan_sha256"] = digest(prior)
     (source / "plan.json").write_text(json.dumps(prior))
@@ -120,6 +123,19 @@ def test_reuse_admits_only_bound_paired_objective_on_identical_frozen_sequences(
                grammar_source_pair_updates=1)
     new["implementation"].update({"tools/train_semantic_native_program.py": "new",
                                    "core/learning/semantic_native_source_pairs.py": "new"})
+    if path_mode:
+        from core.learning.semantic_native_path_objective import (
+            GRAMMAR_PATH_CONTRACT,
+            path_choice_contract,
+        )
+        from core.learning.semantic_native_path_selection import PATH_SELECTION_CONTRACT
+
+        new.update(schema="aura.semantic_native_fit_plan.v5",
+                   grammar_choice_contract=path_choice_contract(),
+                   grammar_path_objective_contract=GRAMMAR_PATH_CONTRACT,
+                   path_checkpoint_selection_contract=PATH_SELECTION_CONTRACT,
+                   selection="baseline_preserving_complete_source_calibration_paths")
+        new["implementation"]["core/learning/semantic_native_path_objective.py"] = "new"
     contract = prefix_reuse_contract(source, new)
     assert contract["source_count"] == 1
     assert contract["optimizer_state_reused"] is False
@@ -130,9 +146,14 @@ def test_reuse_admits_only_bound_paired_objective_on_identical_frozen_sequences(
     new["input"] = "source_erased"
     with pytest.raises(ValueError, match="undeclared"):
         prefix_reuse_contract(source, new)
+    new.pop("input")
+    if path_mode:
+        new["path_checkpoint_selection_contract"] = {}
+        with pytest.raises(ValueError, match="contract differs"):
+            prefix_reuse_contract(source, new)
 
 
-@pytest.mark.parametrize("defect", ["population", "model", "other_implementation", "source_rows",
+@pytest.mark.parametrize("defect", ["population", "model", "other_implementation", "path_relabel", "source_rows",
                                     "missing_manifest", "manifest_digest"])
 def test_reuse_refuses_protocol_and_manifest_drift(tmp_path, defect):
     source, new, _row, _manifest, _supervision = fixture(tmp_path)
@@ -142,6 +163,8 @@ def test_reuse_refuses_protocol_and_manifest_drift(tmp_path, defect):
         new["model_descriptor_sha256"] = "other"
     elif defect == "other_implementation":
         new["implementation"]["core/learning/semantic_native_grammar.py"] = "different"
+    elif defect == "path_relabel":
+        new["implementation"]["core/learning/semantic_native_path_objective.py"] = "new"
     elif defect == "source_rows":
         path = source / "supervision.json"
         body = json.loads(path.read_text())

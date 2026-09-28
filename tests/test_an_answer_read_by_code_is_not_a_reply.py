@@ -63,17 +63,53 @@ def test_and_still_keeps_the_thinking_channel_shut():
     assert 'cognitive_mode="fast"' in inspect.getsource(her)
 
 
-def test_an_answer_for_code_that_ran_into_its_budget_goes_to_its_reader():
+class _Answers:
+    """A client whose one generation is a plan cut off at its budget."""
+
+    PLAN = (
+        "LINE: keep the largest tile in the bottom-left corner and build along "
+        "the bottom row. ENDS WHEN: the corner tile has to move out of the "
+        "corner, which happens when the bottom row"
+    )
+
+    async def generate_text_async(self, prompt, **_kwargs):
+        return (True, self.PLAN, {})
+
+
+def _asked(*, internal_inference: bool, foreground_request: bool):
+    import asyncio
+
+    from core.brain.inference_gate import InferenceGate
+    from core.utils.deadlines import get_deadline
+
+    return asyncio.run(
+        InferenceGate()._generate_with_client(
+            _Answers(),
+            "how will you play this game",
+            "",
+            [],
+            get_deadline(10.0),
+            "Cortex",
+            messages=[{"role": "user", "content": "how will you play this game"}],
+            origin="agency_settling_on_an_approach",
+            foreground_request=foreground_request,
+            internal_inference=internal_inference,
+        )
+    )
+
+
+@pytest.mark.parametrize("foreground_request", [True, False])
+def test_an_answer_for_code_that_ran_into_its_budget_goes_to_its_reader(foreground_request):
     """A plan cut at its budget still names its line, and its reader parses that.
 
     LIVE 2026-09-23: a plan of 1,138 characters was refused as truncated_tail
     after a hundred seconds of the model's time, the lane was counted as
     failed, and the worker that wrote it was killed as stuck.
     """
-    import core.brain.inference_gate as gate
+    said = _asked(internal_inference=True, foreground_request=foreground_request)
+    assert said == _Answers.PLAN
 
-    source = inspect.getsource(gate)
-    at = source.index('bool(kwargs.get("internal_inference", False)) and integrity_reasons <= {')
-    refused = source.index("produced malformed model text", at)
-    assert '"truncated_tail"' in source[at : at + 200]
-    assert "return self._strip_silence(cleaned)" in source[at:refused]
+
+def test_the_same_cut_text_is_still_refused_when_nobody_reads_it_as_code():
+    """The null: without the flag, a background draft cut mid-clause is malformed."""
+    assert _asked(internal_inference=False, foreground_request=False) is None

@@ -372,6 +372,7 @@ def decide_cut(
     permutation_draws: int = 199,
     seed: int = 0,
     alpha: float = 0.05,
+    whiten: bool = False,
 ) -> tuple[IntrinsicRateEstimate, float, float, float]:
     """Score one cut: the excess rate, its lower bound, and a paired p-value.
 
@@ -389,6 +390,7 @@ def decide_cut(
         tau_seconds=tau_seconds,
         context=context,
         seed=seed,
+        whiten=whiten,
     )
     spread = bootstrap_rate_difference(
         samples["intact"],
@@ -467,6 +469,7 @@ async def sweep_cuts(
     looks: Sequence[int] = (),
     draws: int = 200,
     only: Sequence[str] = (),
+    whiten: bool = False,
 ) -> SweepReport:
     """Every bipartition, with precision spent where the answer is still open.
 
@@ -543,6 +546,7 @@ async def sweep_cuts(
                     seed=seed + position,
                     alpha=per_look,
                     draws=draws,
+                    whiten=whiten,
                 )
             except ValueError as exc:
                 # Recorded on the verdict AND counted, so a sweep where every
@@ -586,6 +590,7 @@ async def sweep_cuts_over_lags(
     shard: tuple[int, int] | None = None,
     looks: Sequence[int] = (),
     draws: int = 200,
+    whiten: bool = False,
     deciding: Sequence[int] | None = None,
     only: Sequence[str] = (),
 ) -> dict[int, SweepReport]:
@@ -716,6 +721,7 @@ async def sweep_cuts_over_lags(
                         seed=seed + lag + position,
                         alpha=per_look,
                         draws=draws,
+                        whiten=whiten,
                     )
                 except ValueError as exc:
                     verdict.note = f"not enough matched contexts: {exc}"

@@ -205,14 +205,21 @@ def verify_source_control_supervision(plan, supervision, items, tokenizer):
     from tools.evaluate_semantic_native_checkpoint import digest
 
     mode = source_control_mode_from_plan(plan)
-    if plan["schema"] in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4"}:
+    if plan["schema"] in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4",
+                          "aura.semantic_native_fit_plan.v5"}:
         from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
         from tools.train_semantic_native_program import native_grammar_supervision_sets
+
+        choice_contract = GRAMMAR_CHOICE_CONTRACT
+        if plan["schema"] == "aura.semantic_native_fit_plan.v5":
+            from core.learning.semantic_native_path_objective import path_choice_contract
+
+            choice_contract = path_choice_contract()
 
         fit_ids, cal_ids = set(plan["captured_fit_ids"]), set(plan["calibration_ids"])
         if (tokenizer is None or fit_ids & cal_ids or not fit_ids <= set(plan["fit_ids"])
                 or not (fit_ids | cal_ids) <= set(items)
-                or supervision.get("grammar_choice_contract") != GRAMMAR_CHOICE_CONTRACT):
+                or supervision.get("grammar_choice_contract") != choice_contract):
             raise ValueError("native grammar supervision scope or independent tokenizer differs")
         controlled = mode == "source_token_erasure"
         expected_control = {**SOURCE_ERASURE_CONTRACT, "erased_fit_ids": sorted(fit_ids),
@@ -380,7 +387,8 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
         raise ValueError("native fit report arithmetic differs from its plan")
     bank_plan, bank_report = _verified_pair(bank_directory)
     mode = source_control_mode_from_plan(plan)
-    expected_schema = ("aura.semantic_native_fit.v4" if plan["schema"] == "aura.semantic_native_fit_plan.v4"
+    expected_schema = ("aura.semantic_native_fit.v5" if plan["schema"] == "aura.semantic_native_fit_plan.v5"
+                       else "aura.semantic_native_fit.v4" if plan["schema"] == "aura.semantic_native_fit_plan.v4"
                        else "aura.semantic_native_fit.v3" if plan["schema"] == "aura.semantic_native_fit_plan.v3"
                        else "aura.semantic_native_fit.v2" if mode == "source_token_erasure"
                        else "aura.semantic_native_fit.v1")
@@ -394,7 +402,7 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
     if (len(history) != plan["steps"]
             or any(row["step"] != index or not math.isfinite(row["loss"]) for index, row in enumerate(history, 1))):
         raise ValueError("native fit optimizer history is incomplete")
-    if plan["schema"] == "aura.semantic_native_fit_plan.v4":
+    if plan.get("objective") == "grammar_source_pairs":
         from core.learning.semantic_native_source_pairs import native_source_pair_plan
 
         pairs = native_source_pair_plan(
@@ -479,7 +487,8 @@ def main():
     plan = verified_document(args.directory / "plan.json", "plan_sha256")
     tokenizer = None
     if (source_control_mode_from_plan(plan) == "source_token_erasure"
-            or plan["schema"] in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4"}):
+            or plan["schema"] in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4",
+                                  "aura.semantic_native_fit_plan.v5"}):
         from mlx_lm.utils import load_tokenizer
         tokenizer = load_tokenizer(Path(plan["model_path"]))
     result = verify_fit(args.directory, args.bank, items, tokenizer=tokenizer)

@@ -767,6 +767,73 @@ class SubjectRuntime:
             self.failures["turn_door.person"] = self.failures.get("turn_door.person", 0) + 1
             logger.warning("the person's turn was not observed: %s", exc)
 
+    def _attach_afferent(self) -> None:
+        """Give her state the surface she senses her own organs through.
+
+        A hundred and fifty-seven of her columns are read straight off a live
+        organ, and no part of her can read an organ without a channel. The
+        surface holds the sensed copy; `read_core_state` takes it instead of the
+        organ's own array, and anything of hers that wants what she senses asks
+        it. With `AURA_AFFERENT_TURNS` unset it returns every array untouched,
+        which is the reading she has now. See core/runtime/afferent.py.
+        """
+        if self.frames_per_turn <= 0:
+            return
+        from core.runtime.afferent import Afferent
+
+        surface = getattr(self.state, "afferent", None)
+        if isinstance(surface, Afferent) and surface.frames_per_turn == float(self.frames_per_turn):
+            return
+        try:
+            self.state.afferent = Afferent(float(self.frames_per_turn))
+        except (AttributeError, TypeError) as exc:
+            logger.warning("Her state cannot hold an afferent surface: %s", exc)
+
+    def _settle_membrane(self) -> None:
+        """Every channel that carries a trace becomes it, once a frame.
+
+        Her subsystems write what just happened and the value then sits until
+        the next turn replaces it, so each channel is a staircase and the
+        coupling between her domains is in which frames step. A membrane is
+        what a body puts between an event and the stages that read it. See
+        core/runtime/state_membrane.py and docs/WHY_IRREDUCIBILITY_FAILS.md.
+
+        Off unless `AURA_MEMBRANE_TURNS` asks for it, so a campaign can run the
+        arm with it and the arm without.
+        """
+        self._attach_afferent()
+        if self.frames_per_turn <= 0:
+            # Before the first turn has been lived the frame count is not known.
+            # The membrane starts at the first frame of the second turn.
+            return
+        from core.runtime.state_membrane import MembraneScope
+
+        scope = getattr(self.state, "membrane", None)
+        if not isinstance(scope, MembraneScope) or scope.frames_per_turn != float(
+            self.frames_per_turn
+        ):
+            # On her state rather than on the runtime, because `restore` replaces
+            # the state and leaves the runtime alone: a scope held here carried
+            # one arm's traces into the next.
+            scope = MembraneScope(float(self.frames_per_turn))
+            try:
+                self.state.membrane = scope
+            except (AttributeError, TypeError) as exc:
+                logger.warning("Her state cannot hold a membrane: %s", exc)
+                return
+        if not scope.on:
+            return
+        try:
+            from core.runtime.state_membrane import settle
+
+            self.membrane_reading = settle(self.state, scope)
+        except (AttributeError, KeyError, TypeError, ValueError) as exc:
+            logger.warning(
+                "No channel carried its trace this frame; the frame kept what its "
+                "writers left: %s",
+                exc,
+            )
+
     @opens_the_turn
     async def turn_once(
         self,
@@ -870,6 +937,10 @@ class SubjectRuntime:
             )
             await self._integrate_substrate(self.frame_index)
             self.frame_index += 1
+            # And what each channel has been, not only what it just became.
+            # Before the clamp below, so a held domain is still held: a trace
+            # of a channel the lesion is holding would move the held side.
+            self._settle_membrane()
             # A held domain is written back here as well as after each phase.
             # The layers and the substrate step inside this capture, after the
             # last phase's write-back, and the turn's objective and origin are
