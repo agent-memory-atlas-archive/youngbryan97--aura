@@ -47,12 +47,19 @@ from core.runtime.temporal_depth import Membrane
 logger = logging.getLogger("Aura.StateMembrane")
 
 __all__ = [
+    "FRAMES_PER_TURN_DEFAULT",
     "MembraneScope",
     "after_phase",
     "her_channels",
     "membrane_turns",
     "settle",
 ]
+
+#: Frames a turn holds when nothing has measured one yet. The clock of every
+#: seed-7 recording reads 33, and a null architecture has no turns of its own to
+#: read, so this is what a toy is carried at when she is carried at one turn.
+FRAMES_PER_TURN_DEFAULT: float = 33.0
+
 
 def membrane_turns() -> float:
     """How many turns a fast channel holds, from the environment. Zero is off."""

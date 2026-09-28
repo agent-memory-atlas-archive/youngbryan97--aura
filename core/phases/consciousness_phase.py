@@ -178,7 +178,52 @@ class ConsciousnessPhase(BasePhase):
         except _CONSCIOUSNESS_PHASE_ERRORS as exc:
             record_degradation("consciousness_phase", exc, action="selfhood layers not advanced")
 
+        self._every_domain_into_the_shared_block(new_state)
         return new_state
+
+    _RELAY: Any = None
+
+    @classmethod
+    def _every_domain_into_the_shared_block(cls, state: AuraState) -> None:
+        """All ten domains drive one block of the substrate, the last phase of a turn.
+
+        Her domains reach each other through named channels a few numbers wide,
+        so a cut that takes one away loses three or four numbers and is cheap,
+        and two channels that never meet cannot carry anything jointly. A
+        thalamus is what biology reached for: overlapping projections into one
+        high-dimensional space that everything reads back out of. The readback is
+        already built — `substrate_gates` scales recall's affect gain, both
+        initiative urges and every drive's growth by what the substrate holds,
+        and `steering_channel` carries it into her cortex.
+
+        Last in the turn, because every domain has written by then.
+        See core/consciousness/domain_relay.py.
+        """
+        try:
+            from core.consciousness.domain_relay import (
+                DomainRelay,
+                relay_strength,
+                summarise,
+            )
+
+            strength = relay_strength()
+            if strength <= 0.0:
+                return
+            substrate = get_runtime_service("liquid_substrate", default=None) or (
+                get_runtime_service("conscious_substrate", default=None)
+            )
+            if substrate is None or not hasattr(substrate, "x"):
+                return
+            if cls._RELAY is None or cls._RELAY.base + cls._RELAY.width != len(substrate.x):
+                cls._RELAY = DomainRelay(len(substrate.x))
+            size = cls._RELAY.into(substrate, summarise(state), strength)
+            state.response_modifiers["domain_relay"] = round(size, 8)
+        except _CONSCIOUSNESS_PHASE_ERRORS as exc:
+            record_degradation(
+                "consciousness_phase",
+                exc,
+                action="her domains did not reach the shared block this turn",
+            )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -868,15 +868,35 @@ def toy_closure(system: ToySystem, *, steps: int = 4000, seed: int = 0) -> tuple
     return bool(report.closed), float(report.leak)
 
 
+def _carried_like_her(x: np.ndarray) -> np.ndarray:
+    """A null's rows carried at whatever time constant her own channels are."""
+    from core.runtime.state_membrane import FRAMES_PER_TURN_DEFAULT, membrane_turns
+
+    turns = membrane_turns()
+    if turns <= 0.0:
+        return x
+    from core.runtime.temporal_depth import carry_rows
+
+    return carry_rows(x, turns * FRAMES_PER_TURN_DEFAULT)
+
+
 def toy_recording(system: ToySystem, *, steps: int = 4000, seed: int = 0) -> Recording:
-    """Run one architecture and shape the result like a real recording."""
+    """Run one architecture and shape the result like a real recording.
+
+    A null is carried exactly as she is. Her channels hold a leaky trace of
+    themselves when `AURA_MEMBRANE_TURNS` asks for it, and a toy is simulated
+    rather than lived so it never passes through her membranes; scoring her
+    carried recording against uncarried nulls would compare a smoothed system
+    with unsmoothed ones, and `partition_beats_nulls` is a comparison of numbers
+    computed the same way. The time constant is the same count of rows.
+    """
     rng = np.random.default_rng(seed)
     state = system.start(rng)
     rows: list[np.ndarray] = []
     for _ in range(steps):
         state = system.step(state, rng)
         rows.append(np.concatenate([state[key] for key in DOMAINS]))
-    x = np.vstack(rows)
+    x = _carried_like_her(np.vstack(rows))
     start = 0
     slices: dict[str, slice] = {}
     for key in DOMAINS:
