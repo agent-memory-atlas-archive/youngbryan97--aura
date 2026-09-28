@@ -528,6 +528,11 @@ class _UnderstandsThePage:
                         "origin": self._PAGE_ORIGIN,
                         "purpose": "page_decision" if shaped else "page_forecast",
                         "own_lane_required": True,
+                        # The turn that asked for this is waiting on it, so it
+                        # is not background work to be stood down while a
+                        # foreground turn runs — it IS the foreground turn's
+                        # work, reached through a tool.
+                        "serves_current_turn": True,
                     },
                     # Short chain of thought. A self-report item is not a
                     # lookup: "you regularly make new friends" is a question

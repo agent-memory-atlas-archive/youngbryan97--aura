@@ -1436,7 +1436,31 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
         try:
             _speech_profile, _sve = self._execute_substrate_voice_compile(objective, origin, state)
 
-            is_background = not background_policy.is_user_facing_origin(origin)
+            # Work the turn in front of her is waiting on is not background
+            # work, whatever its origin is called.
+            #
+            # `is_user_facing_origin` reads the origin's NAME, and a cycle run
+            # from inside a tool the person asked for does not have a
+            # user-facing name. So a question about herself, asked because she
+            # was told to take a test, was classified as background and
+            # suppressed while the very turn that asked it waited: LIVE
+            # 2026-09-28, "not_her_own_reasoning:suppressed" in place of every
+            # answer, and her forecast of the result never said at all.
+            #
+            # The claim is not taken on its own — a flag saying "this is
+            # foreground" would be an unauthenticated claim on the foreground
+            # lane. It counts only alongside the caller's declared requirement
+            # that this answer come from her own lane, which is a policy field
+            # the request contract validates.
+            turn_context = kwargs.get("context")
+            turn_context = turn_context if isinstance(turn_context, dict) else {}
+            serves_this_turn = bool(
+                turn_context.get("serves_current_turn")
+                and turn_context.get("own_lane_required")
+            )
+            is_background = not (
+                serves_this_turn or background_policy.is_user_facing_origin(origin)
+            )
             foreground_user_surface_owned = bool(not is_background and not is_test_run)
             explicit_tool_composition = origin in _EXPLICIT_TOOL_COMPOSITION_ORIGINS
             if is_background and not is_test_run and not explicit_tool_composition:
