@@ -189,6 +189,19 @@ class _UnderstandsThePage:
                     lines.append(f"question {group} sits under: {element['heading']}")
                 if element.get("asks"):
                     lines.append(f"question {group} reads: {element['asks']}")
+                # And what the options ARE, where they are a scale rather than
+                # a list. The page draws five dots between two opposing
+                # phrases and says nowhere that position is the answer.
+                reads = cls._how_the_scale_reads(
+                    [
+                        option
+                        for option in elements
+                        if isinstance(option, Mapping)
+                        and str(option.get("group") or "") == group
+                    ]
+                )
+                if reads:
+                    lines.append(f"question {group}: {reads}")
             state = []
             if element.get("group"):
                 # Options in one group answer ONE question. Rendering it is
@@ -530,10 +543,11 @@ class _UnderstandsThePage:
         said = str(getattr(thought, "content", "") or "").strip()
         if not said:
             return "", ""
-        lane = str(
-            (getattr(thought, "metadata", None) or {}).get("endpoint")
-            or self._HER_OWN_LANE
-        )
+        # Who actually generated it, and nothing assumed. Defaulting to her
+        # own lane here would be the same fail-open the guard below exists to
+        # close: a cycle that answered on a smaller model would have been
+        # taken for her.
+        lane = str((getattr(thought, "metadata", None) or {}).get("endpoint") or "")
         return said, lane
 
     async def _hold_the_outcome_against_what_she_said(
@@ -906,8 +920,10 @@ class _UnderstandsThePage:
 
         return str(generation_metadata_of(reply).get("endpoint") or "")
 
-    @staticmethod
-    def _an_answer_in_words(options: list[Mapping[str, Any]], index: int, why: str) -> str:
+    @classmethod
+    def _an_answer_in_words(
+        cls, options: list[Mapping[str, Any]], index: int, why: str
+    ) -> str:
         """One answer as it is said: the question, the choice, the reason.
 
         The question is read from how the page lays it out, with the run of
@@ -928,9 +944,81 @@ class _UnderstandsThePage:
                 asks = asks.replace(label, " ")
         question = " ".join(re.sub(r"(?:\s*\[[^\]]*\])+", " \u2026 ", asks).split()).strip(" \u2026")
         picked = name if labelled else f"{index + 1} of {len(options)}"
+        # Which way that position leans, where the options are a scale. "3 of
+        # 5" says where a dot is and nothing about what she answered.
+        scale = cls._the_scale_it_offers(options)
+        if not labelled and scale is not None:
+            left, right, count = scale
+            middle = (count + 1) / 2.0
+            if index + 1 < middle:
+                picked = f"{picked}, toward \"{left}\""
+            elif index + 1 > middle:
+                picked = f"{picked}, toward \"{right}\""
+            else:
+                picked = f"{picked}, the midpoint, neither one"
         said = f"{question} \u2014 {picked}" if question else picked
         why = " ".join(why.split())
         return f"{said}. {why}" if why else said
+
+    @staticmethod
+    def _the_scale_it_offers(
+        options: list[Mapping[str, Any]],
+    ) -> tuple[str, str, int] | None:
+        """The two ends of a bipolar scale, where that is what these options are.
+
+        A run of unlabelled controls between two phrases is not a list of
+        choices — it is a scale, and an option means its distance from each
+        end. The page draws that and says it nowhere: five dots between "makes
+        lists" and "relies on memory", each carrying only a value. Shown as
+        options they read as five nameless things to pick from, and the
+        middle one is the only safe pick, which is what a watcher saw —
+        3 of 5 on item after item.
+
+        Structural, so it holds for any instrument that draws one: the layout
+        the observer already captures puts the option run between the words on
+        either side of it. Where the options have their own labels, or where
+        one side has no words, this is not a scale and says so by returning
+        nothing.
+        """
+        if len(options) < 3:
+            return None
+        named = {str(option.get("name") or "").strip() for option in options}
+        named.discard("")
+        group = str(options[0].get("group") or "")
+        if len(named) == len(options) and named != {group}:
+            # Each option says what it is; there is no scale to read.
+            return None
+        asks = str(options[0].get("asks") or "")
+        if not asks:
+            return None
+        run = re.search(r"(?:\s*\[[^\]]*\])+", asks)
+        if run is None:
+            return None
+        left = " ".join(asks[: run.start()].split()).strip()
+        right = " ".join(asks[run.end() :].split()).strip()
+        if not left or not right:
+            return None
+        return left, right, len(options)
+
+    @classmethod
+    def _how_the_scale_reads(cls, options: list[Mapping[str, Any]]) -> str:
+        """One line saying what choosing each position on this scale means."""
+        scale = cls._the_scale_it_offers(options)
+        if scale is None:
+            return ""
+        left, right, count = scale
+        middle = (count + 1) / 2.0
+        midpoint = (
+            f"{middle:.0f} is the midpoint, neither one"
+            if float(middle).is_integer()
+            else "there is no midpoint, so every choice leans one way"
+        )
+        return (
+            f"this is a {count}-point scale between two opposites: 1 is "
+            f"entirely \"{left}\", {count} is entirely \"{right}\", and "
+            f"{midpoint}. Choosing a position says how far toward one of them "
+            "you are."
+        )
 
     @staticmethod
     def _unanswered_questions(

@@ -248,6 +248,16 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                 said = f"{said}. What I said was: {raw[:160]}"
         elif decision.get("done") is True and not decision.get("actions"):
             said = f"I think this is finished. {why}" if why else "I think this is finished."
+        elif any(
+            str(item.get("said") or "").strip()
+            for item in (decision.get("resolved_actions") or [])
+            if isinstance(item, dict)
+        ):
+            # Every move in this round carries its own words and will say them
+            # as it is made. A decision-level line on top of those is the same
+            # content twice, which is what a watcher saw: "sceptical ... wants
+            # to believe — 3 of 5" and then the identical sentence again.
+            return ""
         else:
             naming = [
                 str(elements[int(item["index"])].get("name") or "").strip()
@@ -257,9 +267,14 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                 and 0 <= int(item["index"]) < len(elements)
             ]
             doing = ", ".join(name for name in naming if name)
+            # Nothing to report is not worth a line. "I am deciding what to do
+            # here" told a watcher that a decision had been made and nothing
+            # about it.
             said = f"{why} I am going to {doing}." if doing and why else (
-                why or (f"I am going to {doing}." if doing else "I am deciding what to do here.")
+                why or (f"I am going to {doing}." if doing else "")
             )
+        if not said:
+            return ""
         self._narrate({"why": said, "asked": str(observation.get("title") or "")})
         self._say_out_loud(said)
         return said

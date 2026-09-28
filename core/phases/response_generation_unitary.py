@@ -5148,6 +5148,13 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             requested_shape = str(runtime_context.get("output_shape") or "").strip().lower()
             if requested_shape:
                 llm_kwargs["output_shape"] = requested_shape
+            # And the caller's claim that only her own lane may answer this.
+            # A cycle asked about her is still a cycle whose generation gets
+            # routed, and routing downgrades a heavy tier under load: LIVE
+            # 2026-09-28, thirty-two questions about herself answered by the
+            # brainstem while the caller had said who had to answer them.
+            if runtime_context.get("own_lane_required"):
+                llm_kwargs["own_lane_required"] = True
             if is_user_facing:
                 llm_kwargs.update(
                     {
