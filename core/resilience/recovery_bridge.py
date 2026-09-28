@@ -38,6 +38,9 @@ from typing import Any
 
 logger = logging.getLogger("Aura.RecoveryBridge")
 
+#: Put on the queue by stop(): the one record that is not a fault.
+_STOP = object()
+
 _QUEUE_MAX = 256
 _PER_FAULT_COOLDOWN_S = 300.0
 
@@ -132,9 +135,36 @@ class RecoveryBridge:
         logger.info("Recovery bridge online — faults now actuate their strategies.")
         return True
 
+    def stop(self, *, timeout_s: float = 5.0) -> bool:
+        """Stop the worker and wait for it. True when it has left.
+
+        The loop's own comment said it was bounded by the started flag, and
+        nothing ever cleared the flag — nor could clearing it wake a thread
+        blocked in `queue.get()`. The sentinel is what wakes it; a fault
+        already queued ahead of it is still answered.
+        """
+        if not self._started:
+            return True
+        self._started = False
+        try:
+            self._queue.put(_STOP, timeout=timeout_s)
+        except queue.Full as exc:
+            logger.warning("Recovery bridge queue full at stop (%s); the worker leaves "
+                           "after the next fault it takes", exc)
+        worker = self._worker
+        if worker is not None and worker is not threading.current_thread():
+            worker.join(timeout=timeout_s)
+            if worker.is_alive():
+                logger.warning("Recovery bridge worker did not leave within %.1fs", timeout_s)
+                return False
+        self._worker = None
+        return True
+
     def _drain(self) -> None:
-        while self._started:  # daemon lifetime; bounded by the started flag
+        while True:
             record = self._queue.get()
+            if record is _STOP:
+                return
             try:
                 self._respond(record)
             except (ImportError, AttributeError, RuntimeError, OSError, TypeError, ValueError) as exc:

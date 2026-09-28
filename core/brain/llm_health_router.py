@@ -453,6 +453,31 @@ def force_release_generation_gate(
     return released_any
 
 
+def _the_turn_is_waiting_on_this(kwargs: Mapping[str, Any] | None) -> bool:
+    """Whether this request is work a user turn is actually waiting on.
+
+    A tool the person asked for makes model calls while their turn is open, and
+    those calls carry the tool's own origin — which is not a user-facing name.
+    So they were classified as background and queued behind the very turn that
+    was waiting for them: LIVE 2026-09-28, "Queueing background inference until
+    admission clears for origin=sovereign_browser reason=foreground_chat_active",
+    the decision came back empty, and the run stopped on the first page without
+    clicking anything.
+
+    The flag alone would be an unauthenticated claim on the foreground lane, so
+    it counts only while a turn is genuinely bound. Outside one it means
+    nothing and the request stays background.
+    """
+    if not (kwargs or {}).get("serves_current_turn"):
+        return False
+    try:
+        from core.runtime.turn_outcome import current_turn
+
+        return current_turn() is not None
+    except (ImportError, RuntimeError, AttributeError):
+        return False
+
+
 def _record_router_degradation(
     exc: BaseException,
     *,
@@ -1941,8 +1966,10 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             or purpose.endswith("_baseline")
             or "_baseline" in purpose
         )
-        explicit_foreground = bool(kwargs.get("foreground_request", False)) or bool(
-            kwargs.get("health_probe", False)
+        explicit_foreground = (
+            bool(kwargs.get("foreground_request", False))
+            or bool(kwargs.get("health_probe", False))
+            or _the_turn_is_waiting_on_this(kwargs)
         )
         is_background = self._is_background_request(
             origin=origin,
@@ -2015,6 +2042,11 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             or kwargs.get("health_probe", False)
             or kwargs.get("protected_foreground_lane", False)
             or kwargs.get("proof_primary_lane_required", False)
+            # The third place this is decided, and the one the queueing reads.
+            # The other two were given the rule and this one kept sending a
+            # tool's calls to the back of the queue behind the turn waiting on
+            # them.
+            or _the_turn_is_waiting_on_this(kwargs)
         )
         # Default-purpose normalization must happen BEFORE classification:
         # the gated implementation stamps unlabelled chat calls with
@@ -2036,6 +2068,16 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             explicit_background=explicit_background,
             explicit_foreground=explicit_foreground,
         )
+        if explicit_foreground:
+            # Said once, here, where it was established — so every endpoint
+            # below acts on the router's conclusion instead of deriving its
+            # own. The MLX clients keep their own mirror of the background
+            # policy and cannot see a claim the router already authenticated:
+            # LIVE 2026-09-28, the router admitted the browser's decision as
+            # foreground and the endpoint refused it with
+            # `foreground_quiet_window` a moment later, so the page decision
+            # came back empty and the run stopped without clicking anything.
+            kwargs["foreground_request"] = True
         if request_is_background:
             foreground_owner = _active_foreground_generation_owner()
             if foreground_owner:
@@ -2248,8 +2290,10 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
         origin = str(kwargs.get("origin", "") or "").lower()
         purpose = str(kwargs.get("purpose", "") or "").lower()
         explicit_background = bool(kwargs.get("is_background", False))
-        explicit_foreground = bool(kwargs.get("foreground_request", False)) or bool(
-            kwargs.get("health_probe", False)
+        explicit_foreground = (
+            bool(kwargs.get("foreground_request", False))
+            or bool(kwargs.get("health_probe", False))
+            or _the_turn_is_waiting_on_this(kwargs)
         )
         non_chat_inference = bool(kwargs.pop("_non_chat_inference", False))
         if non_chat_inference:

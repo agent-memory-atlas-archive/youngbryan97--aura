@@ -55,6 +55,11 @@ class IdentityReflectionPhase(BasePhase):
         If validation fails, returns the PARENT state (Hard Stop) instead of the new one.
         """
         logger.debug("🛡️ CognitiveGuard: Validating state transition integrity.")
+
+        # Her sense of holding together, into the neuron that means it. Before
+        # the guard and before every early return below, because what she is
+        # does not depend on whether her narrative was revised this turn.
+        self._hold_together_reaches_the_substrate(state)
         
         # 1. Identity Consistency Check
         identity_name = str(getattr(state.identity, "name", "Aura") or "Aura").strip()
@@ -139,6 +144,71 @@ class IdentityReflectionPhase(BasePhase):
             state.identity.last_evolution_timestamp = time.time()
 
         return state
+
+    #: How much of the neuron a push moves, borrowed rather than chosen: it is
+    #: the blend `core/self/will_engine.py` already uses to drive motivation's
+    #: budgets into the same substrate.
+    _DOMINANCE_BLEND: float = 0.2
+
+    @staticmethod
+    def _hold_together_reaches_the_substrate(state: AuraState) -> None:
+        """Her self-state writes the dominance neuron, which nothing wrote.
+
+        The substrate declares three VAD neurons and `idx_dominance` is the
+        third: in the circumplex it is the sense of being in control of one's
+        situation rather than carried by it. Everything reads it — the aesthetic
+        engine, the substrate gates, two of the substrate's own summaries — and
+        on 28 September nothing in the runtime wrote it. A reader with no writer.
+
+        It matters beyond the tidiness. The substrate is twenty-five of the
+        eighty-four columns of recurrent cognition, and `core/self/will_engine.py`
+        drives motivation's budgets into two of its neurons, so deliberation has
+        a channel into recurrent cognition and self-state has none. Measured on
+        whole-s7-27dc1dda9: a displacement of S moves C by 4.23, the second
+        largest of any domain, while S's unique information about C's next change
+        is exactly 0.0 and D's is 0.154. An influence that exists under
+        intervention because it travels through another domain, and does not
+        exist in her ordinary variation at all.
+
+        `identity.stability` is her self-model's own reading of whether she is
+        holding together, already on 0 to 1, and it is the whole of what is
+        written here; the neuron is signed and rests at zero, so it is mapped the
+        way the steering channel maps the same block back.
+        """
+        import os
+
+        if os.environ.get("AURA_SELF_DOMINANCE", "").strip().lower() not in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }:
+            return
+        try:
+            from core.container import ServiceContainer
+
+            substrate = ServiceContainer.get("liquid_substrate", default=None) or (
+                ServiceContainer.get("conscious_substrate", default=None)
+            )
+            index = getattr(substrate, "idx_dominance", None)
+            if substrate is None or not isinstance(index, int):
+                return
+            stability = float(getattr(state.identity, "stability", 0.5) or 0.0)
+            held = max(-1.0, min(1.0, 2.0 * max(0.0, min(1.0, stability)) - 1.0))
+            blend = IdentityReflectionPhase._DOMINANCE_BLEND
+            with substrate.sync_lock:
+                substrate.x[index] = (1.0 - blend) * float(substrate.x[index]) + blend * held
+                marker = getattr(substrate, "mark_state_mutated_locked", None)
+                if callable(marker):
+                    marker("identity_reflection.dominance")
+            state.response_modifiers["self_dominance"] = round(held, 6)
+        except (AttributeError, ImportError, IndexError, KeyError, TypeError, ValueError) as exc:
+            record_degradation(
+                "identity_reflection",
+                exc,
+                severity="warning",
+                action="her self-state did not reach the dominance neuron this turn",
+            )
 
     @staticmethod
     def _worth_revisiting(state):

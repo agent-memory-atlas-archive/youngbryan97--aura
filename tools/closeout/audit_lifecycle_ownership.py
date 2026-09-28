@@ -154,17 +154,47 @@ _FORBIDDEN_CALLS: dict[str, dict[str, frozenset[str]]] = {
 }
 
 
+
+#: Helpers that call the function they are given. `off_the_loop(f, **kw)`
+#: calls `f` as surely as `f(**kw)` does, and reading only the call's own
+#: name made a function moved off the event loop look like a call that had
+#: been lost: `publish_shutdown_verdict` went through `off_the_loop` on 24
+#: September and this audit reported it gone.
+_CALLS_ITS_ARGUMENT = {
+    "off_the_loop": 0,
+    "behind_the_loop": 1,
+    "to_thread": 0,
+    "run_in_executor": 1,
+    "run_sync_shutdown_callable": 0,
+    "call_soon": 0,
+    "call_soon_threadsafe": 0,
+    "submit": 0,
+}
+
+
+def _delegated_callee(call: ast.Call) -> ast.expr | None:
+    """The function a delegating helper will call, when it is named in the call."""
+    func = call.func
+    name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
+    index = _CALLS_ITS_ARGUMENT.get(name)
+    if index is None or len(call.args) <= index:
+        return None
+    target = call.args[index]
+    return target if isinstance(target, (ast.Name, ast.Attribute)) else None
+
+
 def _call_names(node: ast.AST) -> set[str]:
     names: set[str] = set()
     for item in ast.walk(node):
         if not isinstance(item, ast.Call):
             continue
-        if isinstance(item.func, ast.Name):
-            names.add(item.func.id)
-        elif isinstance(item.func, ast.Attribute):
-            names.add(item.func.attr)
-            if isinstance(item.func.value, ast.Name):
-                names.add(f"{item.func.value.id}.{item.func.attr}")
+        for func in (item.func, _delegated_callee(item)):
+            if isinstance(func, ast.Name):
+                names.add(func.id)
+            elif isinstance(func, ast.Attribute):
+                names.add(func.attr)
+                if isinstance(func.value, ast.Name):
+                    names.add(f"{func.value.id}.{func.attr}")
     return names
 
 
@@ -182,7 +212,9 @@ def _qualified_call_names(node: ast.AST) -> set[str]:
         path
         for item in ast.walk(node)
         if isinstance(item, ast.Call)
-        for path in (_attribute_path(item.func),)
+        for func in (item.func, _delegated_callee(item))
+        if func is not None
+        for path in (_attribute_path(func),)
         if path
     }
 

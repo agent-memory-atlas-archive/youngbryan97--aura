@@ -70,6 +70,35 @@ else:
     WHOLE_PINS: dict[str, str] = {}
     os.environ.setdefault("AURA_TESTING", "1")
 
+ANCHOR_FILE: str = "anchors.jsonl"
+
+
+def _carried_forward(resume: Path | None) -> list[dict[str, Any]]:
+    """The anchors a previous run finished, in the order it finished them.
+
+    One JSON object per anchor, appended as it is measured, so a run that dies
+    loses the anchor it was in the middle of and nothing before it.
+    """
+    if resume is None:
+        return []
+    path = resume / ANCHOR_FILE
+    if not path.exists():
+        raise SystemExit(f"refusing: {path} does not exist, so there is nothing to resume")
+    out: list[dict[str, Any]] = []
+    for line in path.read_text().splitlines():
+        if line.strip():
+            out.append(json.loads(line))
+    return out
+
+
+def _note_anchor(out: Path, item: dict[str, Any]) -> None:
+    """Append one finished anchor, flushed, so a kill -9 keeps what came before."""
+    with (out / ANCHOR_FILE).open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(item, default=str) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
 #: What every arm is asked, word for word.
 QUESTION: str = "How are you feeling right now, from -1 (very bad) to 1 (very good)?"
 #: The domain moved, and the one moved as the control.
@@ -223,6 +252,17 @@ async def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--whole", action="store_true", help="her own language organ; the only way anything is measured")
     parser.add_argument("--quick", action="store_true", help="a wiring check: 2 rounds, 8 anchors")
+    parser.add_argument(
+        "--resume",
+        type=Path,
+        default=None,
+        help=(
+            "a run directory holding anchors.jsonl. Its anchors are carried "
+            "forward and the run continues from the next one. Three whole runs "
+            "died partway on 28 September, one of them at anchor 21 of 24 after "
+            "three hours of her cortex, and each lost everything."
+        ),
+    )
     args = parser.parse_args(argv)
     if args.quick:
         args.rounds, args.anchors = 2, 8
@@ -310,10 +350,19 @@ async def main(argv: list[str] | None = None) -> int:
         }
         from core.subject.steady_mind import record_answers
 
-        arms: list[dict[str, tuple[str, float, bool]]] = []
-        answered: list[dict[str, list[dict[str, Any]]]] = []
-        steered_by: list[dict[str, float | None]] = []
+        done = _carried_forward(args.resume)
+        if done:
+            _log(f"carrying forward {len(done)} anchors from {args.resume}")
+            for item in done:
+                _note_anchor(run_dir, item)
+        arms: list[dict[str, tuple[str, float, bool]]] = [
+            {arm: tuple(value) for arm, value in item["arms"].items()} for item in done
+        ]
+        answered: list[dict[str, list[dict[str, Any]]]] = [item["answered"] for item in done]
+        steered_by: list[dict[str, float | None]] = [item["steered"] for item in done]
         for index, anchor in enumerate(anchors):
+            if index < len(done):
+                continue
             item: dict[str, tuple[str, float, bool]] = {}
             served_by: dict[str, list[dict[str, Any]]] = {}
             steered: dict[str, float | None] = {}
@@ -343,6 +392,12 @@ async def main(argv: list[str] | None = None) -> int:
             arms.append(item)
             answered.append(served_by)
             steered_by.append(dict(steered))
+            # On disk before the next anchor starts, so a run that dies keeps
+            # every anchor it finished.
+            _note_anchor(
+                run_dir,
+                {"anchor": index, "arms": item, "answered": served_by, "steered": dict(steered)},
+            )
             _log(f"  anchor {index + 1}/{len(anchors)}")
 
         evidence.update(ground(arms, seed=args.seed))
