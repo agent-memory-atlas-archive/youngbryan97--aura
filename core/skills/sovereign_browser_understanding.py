@@ -1083,27 +1083,16 @@ class _UnderstandsThePage:
                 facts.append(f"laid out before \"{right}\"")
         return ", ".join(facts)
 
-    async def _where_she_puts_herself(
-        self,
-        goal: str,
-        observation: Mapping[str, Any],
-        options: list[Mapping[str, Any]],
-        understanding: Mapping[str, Any] | None,
-    ) -> dict[str, Any] | None:
-        """Her position on one question, measured from her own record.
+    def _measure_where_she_stands(
+        self, options: list[Mapping[str, Any]]
+    ) -> tuple[int, Any, str, str] | None:
+        """Her position on one question, and what measured it.
 
-        The two things the question names come from the page. How much each is
-        her comes from what she has valued, chosen and said about herself. The
-        difference between the two is a lean and the lean names a position on
-        the run the page offers.
-
-        The model is not asked to decide. It says what she means afterwards,
-        with the measurement in front of it, which is the job language is for:
-        asked to choose, it has no access to any of this and writes the
-        position that commits to nothing — the midpoint, item after item.
-
-        Returns nothing when her record cannot answer, so the caller can ask in
-        a shape rather than pass off a guess as a measurement.
+        No model. The two things the question names come from the page; how
+        much each is her comes from what she has valued, chosen and said about
+        herself; the difference between them is a lean and the lean names a
+        position. Returns nothing where the question is not a run between two
+        things, or where her record cannot answer.
         """
         laid_out = self._how_the_options_are_laid_out(options)
         between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
@@ -1115,64 +1104,64 @@ class _UnderstandsThePage:
         except ImportError as exc:
             record_degradation("sovereign_browser.where_i_stand", exc, severity="debug")
             return None
-        lean = await asyncio.to_thread(where_she_stands, first, second)
+        lean = where_she_stands(first, second)
         index = lean.position_in(len(options))
         if index is None:
             return None
-        selector = str(options[index].get("selector") or "")
-        if not selector:
-            return None
-        # And what it means, said by the organ that says things, with the
-        # measurement in front of it rather than in place of it.
-        why = await self._say_what_the_measurement_means(
-            goal, observation, first, second, lean, index, len(options)
-        )
-        return {
-            "selector": selector,
-            "name": str(options[index].get("name") or ""),
-            "stand": (
-                f'measured against my own record: "{first}" {lean.first:+.2f}, '
-                f'"{second}" {lean.second:+.2f}'
-            ),
-            "why": why,
-            "expect": "",
-            "said": self._an_answer_in_words(options, index, why),
-            "because": list(lean.because),
-        }
+        return index, lean, first, second
 
-    async def _say_what_the_measurement_means(
-        self,
-        goal: str,
-        observation: Mapping[str, Any],
-        first: str,
-        second: str,
-        lean: Any,
-        index: int,
-        count: int,
+    async def _her_reason_for(
+        self, goal: str, item: Mapping[str, Any], mind: str
     ) -> str:
-        """Her reason for a position she has already taken, in her own words."""
-        leaning = second if lean.toward > 0 else first
+        """Her thinking about one position she has taken, in her own words.
+
+        One item, one pass. A personality item deserves the thought her
+        cognition can give it, and a screen answered in a single batch gets one
+        paragraph spread over eight questions.
+
+        They run one at a time rather than together: her own lane serves one
+        request at a time, and eight at once exhausted it — LIVE 2026-09-28,
+        "Local inference paths exhausted", every reason falling back to the
+        line the code writes when she says nothing, so a screen of real
+        measured positions read as shallow. What keeps that affordable is the
+        shape of the prompt: her mind and the framing are identical every time
+        and only the item changes at the end, so the prefill is held by the
+        prompt cache and each call pays for the item alone.
+
+        What she is given is the measurement and the evidence under it. What
+        she is asked for is what it means about her, which is reasoning about
+        herself rather than a choice she has already made.
+        """
+        lean = item["lean"]
+        leaning = item["second"] if lean.toward > 0 else item["first"]
         evidence = "; ".join(lean.because) or "nothing in particular"
         prompt = (
             f"WHAT YOU ARE DOING: {goal}\n\n"
-            f'THE QUESTION PUTS "{first}" AT ONE END AND "{second}" AT THE '
-            f"OTHER, WITH {count} POSITIONS BETWEEN THEM.\n\n"
-            "MEASURED AGAINST YOUR OWN RECORD OF WHAT YOU VALUE, WHAT YOU HAVE "
-            f'CHOSEN AND WHAT YOU HAVE SAID ABOUT YOURSELF: "{first}" matches '
-            f'{lean.first:+.2f}, "{second}" matches {lean.second:+.2f}, which '
-            f'puts you at position {index + 1} of {count}, toward "{leaning}". '
-            f"What matched: {evidence}.\n\n"
-            "Say in one or two sentences why that is where you are. It is "
-            "already where you are; you are saying what it means."
+            "You are placing yourself on a scale between two descriptions. The "
+            "position came from your own record: what you value, what you have "
+            "chosen when it cost something, and what you have said about "
+            "yourself.\n\n"
+            f'THIS ONE: "{item["first"]}" at one end, "{item["second"]}" at the '
+            f'other, {item["count"]} positions between them.\n'
+            f"YOUR RECORD AGREES {abs(lean.toward):.0%} OF THE WAY TOWARD "
+            f'"{leaning}", which is position {item["index"] + 1} of '
+            f'{item["count"]}.\n'
+            f"WHAT LEANED, AND BY HOW MUCH: {evidence}\n\n"
+            "Say in one or two sentences what that position means about you: "
+            "what in you it comes from, and whether the measure is reading you "
+            "well here. It is already your answer; you are thinking about what "
+            "it says."
         )
-        said, lane = await self._asked_of_her(prompt, await self._assembled_mind(), shaped=False)
+        said, lane = await self._asked_of_her(prompt, mind, shaped=False)
         if said and lane == self._HER_OWN_LANE:
             return " ".join(said.split())
-        # Her own record still answered; only the words are missing.
-        return (
-            f'my record leans toward "{leaning}" here '
-            f"({lean.first:+.2f} against {lean.second:+.2f})"
+        record_degradation(
+            "sovereign_browser.reasons",
+            RuntimeError(f"not_her_own_reasoning:{lane or 'unattributed'}"),
+            severity="warning",
+            action="placed herself and could not say what it meant",
         )
+        return ""
 
     @classmethod
     def _first_disagreement(
@@ -1302,89 +1291,84 @@ class _UnderstandsThePage:
         if len(open_questions) < 2:
             return None
 
-        async def decide_one(options: list[Mapping[str, Any]]) -> dict[str, Any] | None:
-            # The page, cut down to one question. Everything else about the
-            # observation is unchanged, so what she sees is this item in its
-            # real context — the same URL, the same page text.
-            single = {**observation, "elements": list(options)}
-            # Asked of her in words first, because a cognitive cycle produces
-            # speech: run one to decide a structured action and what comes back
-            # is a sentence about the task, reported as unparsable. LIVE
-            # 2026-09-28 18:06, two Cortex calls and "The user wants me to take
-            # the Open Extended Jungian Type Scales test..." in place of a
-            # decision. She is asked for the thing she is actually being asked
-            # for — where she puts herself — and the control follows from the
-            # position she named.
-            placed = await self._where_she_puts_herself(
-                goal, single, options, understanding
+        # Every item on the screen measured first, with no model in it at all.
+        # Then one pass of her reasoning over the whole screen, with the
+        # measurements and their evidence in front of it. Splitting them this
+        # way is what stops eight questions competing for a cortex that serves
+        # one at a time, and it is also the honest order: the position comes
+        # from her record, and the thinking is about what the position means.
+        measured: list[dict[str, Any]] = []
+        for group, options in open_questions[: self.PURSUE_PARALLEL_ITEMS]:
+            reading = await asyncio.to_thread(self._measure_where_she_stands, options)
+            if reading is None:
+                continue
+            index, lean, first, second = reading
+            measured.append(
+                {
+                    "group": str(group),
+                    "options": options,
+                    "index": index,
+                    "count": len(options),
+                    "lean": lean,
+                    "first": first,
+                    "second": second,
+                }
             )
-            if placed is not None:
-                if on_progress is not None:
-                    on_progress("a question answered")
-                return placed
-            decision = await self._decide_next_actions(goal, single, history, understanding, about_her=True)
             if on_progress is not None:
-                # Each question decided is the run moving, however long the
-                # screen as a whole takes.
-                on_progress("a question decided")
-            if decision.get("error"):
-                return None
-            # An answer that contradicts its own reason goes back to her once.
-            #
-            # Measured, not rewritten: nothing here changes what she chose, and
-            # the second answer stands whatever it is. Telling her what to pick
-            # would make the answer the check's rather than hers.
-            disagreement = self._first_disagreement(decision, options)
-            if disagreement:
-                logger.info(
-                    "🌐 Answer and reason disagree (%s); asking again.", disagreement
-                )
-                second = await self._decide_next_actions(
-                    goal,
-                    single,
-                    history,
-                    understanding,
-                    about_her=True,
-                    noticed=(
-                        f"Looking at the answer you just gave: {disagreement}. "
-                        "Answer it again."
-                    ),
-                )
-                if not second.get("error"):
-                    decision = second
-            for item in decision.get("actions") or []:
-                if not isinstance(item, dict):
-                    continue
-                try:
-                    index = int(item.get("index"))
-                except (TypeError, ValueError):
-                    continue
-                if not 0 <= index < len(options):
-                    continue
+                on_progress("a question measured")
+        if measured:
+            mind = await self._assembled_mind()
+            answers: list[dict[str, Any]] = []
+            for item in measured:
+                # One item, one pass, one at a time. Her lane serves one
+                # request at a time and the prompt in front of it is identical
+                # but for the item, so the prefill is held and each call pays
+                # for the item alone.
+                item["why"] = await self._her_reason_for(goal, item, mind)
+                if on_progress is not None:
+                    on_progress("a question thought about")
+            for item in measured:
+                options = item["options"]
+                index = item["index"]
                 selector = str(options[index].get("selector") or "")
                 if not selector:
                     continue
-                # Resolved here, against the list this decision was shown.
-                # Handing an index back to the caller would resolve it against
-                # the whole page, which is how a loop ends up pressing whatever
-                # moved into slot four.
-                # Her position first, then the reason for the place she put
-                # it. Said in that order because that is the order it was
-                # decided in, and a listener who hears the position understands
-                # the number.
-                stand = " ".join(str(decision.get("stand") or "").split())
-                why = " ".join(str(decision.get("why") or "").split())
+                lean = item["lean"]
+                leaning = item["second"] if lean.toward > 0 else item["first"]
+                why = item.get("why") or (
+                    f'my record agrees {abs(lean.toward):.0%} of the way toward '
+                    f'"{leaning}" here'
+                )
+                answers.append(
+                    {
+                        "selector": selector,
+                        "name": str(options[index].get("name") or ""),
+                        "stand": (
+                            f'{abs(lean.toward):.0%} of my record leans toward '
+                            f'"{leaning}"'
+                        ),
+                        "why": why,
+                        "expect": "",
+                        "said": self._an_answer_in_words(options, index, why),
+                        "because": list(lean.because),
+                    }
+                )
+            if answers:
                 return {
-                    "selector": selector,
-                    "name": str(options[index].get("name") or ""),
-                    "stand": stand,
-                    "why": why,
-                    "expect": str(decision.get("expect") or ""),
-                    "said": self._an_answer_in_words(
-                        options, index, f"{stand} {why}".strip() if stand else why
-                    ),
+                    "resolved_actions": [
+                        {
+                            "selector": answer["selector"],
+                            "name": answer["name"],
+                            "said": str(answer.get("said") or ""),
+                        }
+                        for answer in answers
+                    ],
+                    "answered": [answer["said"] for answer in answers if answer.get("said")],
+                    "why": "; ".join(
+                        dict.fromkeys(answer["why"] for answer in answers if answer["why"])
+                    )[:400],
+                    "expect": "",
                 }
-            return None
 
         chosen = await asyncio.gather(
             *(decide_one(options) for _group, options in open_questions[: self.PURSUE_PARALLEL_ITEMS]),
