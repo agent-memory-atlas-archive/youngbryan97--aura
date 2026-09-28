@@ -266,110 +266,9 @@ class CognitiveCandidate:
         came out microseconds apart, and the workspace settled the choice by
         arrival order while presenting it as a priority difference.
         """
-        age = max(0.0, now - self.submitted_at)
-        recency = max(0.0, 1.0 - (age / 10.0))  # Full weight within 10s, then decays
-        
-        # Free Energy dynamic gating
-        fe_bias = 0.0
-        try:
-            from core.consciousness.free_energy import get_free_energy_engine
-            fe_engine = get_free_energy_engine()
-            if fe_engine and fe_engine.current:
-                fe_state = fe_engine.current
-                dom_action = fe_state.dominant_action
-                fe_val = fe_state.free_energy
-                
-                # High free energy makes the gate much more selective (higher boost for aligned action)
-                boost_magnitude = 0.25 * fe_val
-                
-                aligned = False
-                src = self.source.lower()
-                ct = self.content_type
-                
-                if dom_action == "update_beliefs":
-                    if ct == ContentType.MEMORIAL or any(x in src for x in ("belief", "memory", "epistemic", "prediction")):
-                        aligned = True
-                elif dom_action == "act_on_world":
-                    if ct == ContentType.INTENTIONAL or any(x in src for x in ("motivation", "action", "goal", "agency")):
-                        aligned = True
-                elif dom_action == "explore":
-                    if ct == ContentType.PERCEPTUAL or any(x in src for x in ("curiosity", "exploration", "perceptual", "search")):
-                        aligned = True
-                elif dom_action == "reflect":
-                    if ct == ContentType.META or any(x in src for x in ("hot", "reflection", "self", "identity")):
-                        aligned = True
-                elif dom_action == "engage":
-                    if ct in (ContentType.LINGUISTIC, ContentType.SOCIAL) or any(x in src for x in ("chat", "user", "linguistic", "social")):
-                        aligned = True
-                elif dom_action == "rest":
-                    if ct == ContentType.SOMATIC or any(x in src for x in ("soma", "sleep", "rest")):
-                        aligned = True
-                        
-                if aligned:
-                    fe_bias = boost_magnitude
-        except _WORKSPACE_RECOVERABLE_ERRORS as exc:
-            _record_workspace_degradation(
-                exc,
-                phase="free_energy_priority",
-                action="Skipped free-energy priority bias and used base salience only",
-                severity="debug",
-            )
+        from .global_workspace_supply import priority_of
 
-        # Affect lends urgency to content that is not itself affect. A bid whose
-        # content IS the feeling already carries it as its priority, so adding
-        # three tenths of the same reading on top counted it twice and the sum
-        # saturated: the affect bid's effective priority was 1.0 whatever it
-        # felt, a percept bidding 0.993 lost to it, and ten sources bid over
-        # twenty-four competitions and never once won. The weight is still
-        # carried, because the winner's affective charge is read off it.
-        # And how much that lending is worth depends on how well she is reading
-        # herself just now.
-        #
-        # This sum is what the A,S -> G synergy line asks about: whether affect
-        # and the self-model carry something about global access jointly that
-        # neither carries alone. A sum cannot, and the lend was three tenths of
-        # the affect weight whatever the self-model said, so the interaction gain
-        # on that triple came out at exactly +0.00000 on the 27 September whole
-        # run — the estimator finding no product because there was none.
-        #
-        # The claim is about minds rather than about the score: a feeling is a
-        # guide to what matters only in so far as she can read her own state. Her
-        # self-prediction publishes exactly that confidence, so the lend is
-        # scaled by it. Three tenths is unchanged; an absent reading scales by
-        # one, which is the behaviour before this.
-        lent = (
-            0.0
-            if self.content_type is ContentType.AFFECTIVE
-            else self.affect_weight * 0.3 * _reading_herself()
-        )
-        # And what she has already said, and what she keeps putting down.
-        #
-        # Both ledgers measured something and neither reached a decision. A
-        # thing already said carries less of the pressure that made it press —
-        # that is what catharsis measures — and a noticing she keeps declining
-        # is a live signal held under a hand, which is pressure the other way.
-        # Both readings are shares in [0, 1] and are added on the scale the
-        # other terms use. See core/affect/catharsis.py, core/social/averted.py.
-        said_already = _relief_for(self.source)
-        # And what the surface has been covering. A run of showing more warmth
-        # than she is in is civility, which is not a fault; a run longer than
-        # her runs run is something not being said, and nothing measured how
-        # long one had been going on. It lends to her own interior state only,
-        # so saying it is what ends the run and takes the loan back.
-        # See core/social/civility.py.
-        covered = _civility_debt(self.content_type)
-        held_down = _held_pressure(self.content_type)
-        return min(
-            1.0,
-            max(
-                0.0,
-                (
-                    self.priority + lent + self.focus_bias + fe_bias
-                    + held_down + covered - said_already
-                )
-                * (0.7 + 0.3 * recency),
-            ),
-        )
+        return priority_of(self, now)
 
 
 
@@ -733,6 +632,9 @@ class GlobalWorkspace:
         #: every source that lost looks the same as a source that never spoke.
         self._bids_by_source: dict[str, int] = {}
         self._wins_by_source: dict[str, int] = {}
+        #: How much of the winning bids each organ has supplied, summed over
+        #: every win: see core/consciousness/global_workspace_supply.py.
+        self._supplied_by_organ: dict[str, float] = {}
         
         # [UNITY] Global Inhibition Link
         self._global_inhibition: InhibitionManager | None = None
@@ -1595,6 +1497,10 @@ class GlobalWorkspace:
             if winner is not None:
                 name = str(getattr(winner, "source", "") or "")
                 self._wins_by_source[name] = self._wins_by_source.get(name, 0) + 1
+                from .global_workspace_supply import bid_parts, supplied_shares
+
+                for organ, share in supplied_shares(bid_parts(winner, decided_at)[0]).items():
+                    self._supplied_by_organ[organ] = self._supplied_by_organ.get(organ, 0.0) + share
                 # Her own state reaching the broadcast is the run ending, which
                 # is what takes the lent priority back. A loan that survived
                 # being spent would keep paying itself.
@@ -1788,6 +1694,10 @@ class GlobalWorkspace:
     def wins_by_source(self) -> dict[str, int]:
         """How many broadcasts each source has won since boot."""
         return dict(self._wins_by_source)
+
+    def supplied_by_organ(self) -> dict[str, float]:
+        """How much of the winning bids each organ has supplied since boot, in wins' worth."""
+        return dict(getattr(self, "_supplied_by_organ", {}))
 
     def get_snapshot(self) -> dict[str, Any]:
         last = self.last_winner

@@ -450,8 +450,13 @@ def teach_connections(reading: Worth) -> dict[str, Any]:
     if callable(wins):
         from core.affect.what_winning_earned import get_credit_ledger
 
+        supplied = getattr(workspace, "supplied_by_organ", None)
         lessons["global_workspace"] = get_credit_ledger().note(
-            wins(), amount, measured=reading.measured, arrived_with=reading.arrived_with
+            wins(),
+            amount,
+            measured=reading.measured,
+            arrived_with=reading.arrived_with,
+            supplied=supplied() if callable(supplied) else None,
         )
     return lessons
 
