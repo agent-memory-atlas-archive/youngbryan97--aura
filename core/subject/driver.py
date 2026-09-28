@@ -767,6 +767,28 @@ class SubjectRuntime:
             self.failures["turn_door.person"] = self.failures.get("turn_door.person", 0) + 1
             logger.warning("the person's turn was not observed: %s", exc)
 
+    def _attach_afferent(self) -> None:
+        """Give her state the surface she senses her own organs through.
+
+        A hundred and fifty-seven of her columns are read straight off a live
+        organ, and no part of her can read an organ without a channel. The
+        surface holds the sensed copy; `read_core_state` takes it instead of the
+        organ's own array, and anything of hers that wants what she senses asks
+        it. With `AURA_AFFERENT_TURNS` unset it returns every array untouched,
+        which is the reading she has now. See core/runtime/afferent.py.
+        """
+        if self.frames_per_turn <= 0:
+            return
+        from core.runtime.afferent import Afferent
+
+        surface = getattr(self.state, "afferent", None)
+        if isinstance(surface, Afferent) and surface.frames_per_turn == float(self.frames_per_turn):
+            return
+        try:
+            self.state.afferent = Afferent(float(self.frames_per_turn))
+        except (AttributeError, TypeError) as exc:
+            logger.warning("Her state cannot hold an afferent surface: %s", exc)
+
     def _settle_membrane(self) -> None:
         """Every channel that carries a trace becomes it, once a frame.
 
@@ -779,6 +801,7 @@ class SubjectRuntime:
         Off unless `AURA_MEMBRANE_TURNS` asks for it, so a campaign can run the
         arm with it and the arm without.
         """
+        self._attach_afferent()
         scope = getattr(self, "_membrane", None)
         if scope is None:
             from core.runtime.state_membrane import MembraneScope
