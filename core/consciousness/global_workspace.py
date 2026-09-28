@@ -554,13 +554,60 @@ def _bids(
         def earned(source: str) -> float:
             return 1.0
 
-    return {
+    raw = {
         id(candidate): candidate.priority_at(decided_at)
         * drawn(candidate.source)
         * earned(candidate.source)
         - fatigue.get(candidate.bidder, 0.0)
         + pressing(candidate.source)
         for candidate in candidates
+    }
+    return _normalised_by_the_pool(raw)
+
+
+def _normalised_by_the_pool(raw: dict[int, float]) -> dict[int, float]:
+    """Each bid against the pool it is competing in, as sharply as she reads herself.
+
+    The scores above are a weighted sum of what each bid is made of, so two
+    domains that both feed a bid add and never interact: on
+    whole-s7-27dc1dda9 the held-out interaction gain of affect and self-state
+    about the workspace was exactly 0.0, with a lower bound of -0.00851, which
+    is what a sum looks like to an estimator asking for a product.
+
+    Divisive normalisation is the canonical cortical alternative and it is a
+    product by construction: a bid is divided by the pool it sits in, and how
+    much the pool suppresses is a gain the circuit sets from elsewhere. Here
+    that gain is how well she is reading herself — the confidence her self-model
+    publishes beside its own prediction.
+
+    Dividing by the pool compresses the loud bids towards the pool's mean and
+    leaves the quiet ones where they are, so it flattens the field rather than
+    sharpening it. It applies in proportion to how little she can read herself:
+    sure of her own state, the scores stand as they were summed and the sharpest
+    bid takes the workspace; unsure of it, the pool bites and nothing dominates.
+    What wins then depends on her feeling and her self-state together and on
+    neither alone, which is what a held-out interaction gain of exactly 0.0
+    says is missing today.
+
+    With no self-reading at all `_reading_herself` is 1.0, the pool's share is
+    zero and every score is returned as it came, which is the competition she
+    had before this existed. A field of one bid is never touched.
+    """
+    if len(raw) < 2:
+        return raw
+    herself = _reading_herself()
+    share = max(0.0, min(1.0, 1.0 - herself))
+    if share <= 0.0:
+        return raw
+    pool = sum(max(0.0, value) for value in raw.values())
+    if pool <= 0.0:
+        return raw
+    # The semi-saturation is the pool's own mean, so nothing is chosen here: a
+    # bid at the mean is halved and the spread around it is what survives.
+    mean = pool / len(raw)
+    return {
+        key: value * (1.0 - share) + share * (value * mean / (mean + max(0.0, value)))
+        for key, value in raw.items()
     }
 
 
