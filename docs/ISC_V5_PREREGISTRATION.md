@@ -1008,3 +1008,47 @@ the agreement down, and the next candidate is the number of repetitions per
 class rather than the state.
 
 No bar moves either way, and the content run is scored exactly as written.
+
+## Addendum, 28 September 2026, night: the estimator the carrier is measured with
+
+Named before a carrier run reads it. `43e7e9427`.
+
+The carrier of J* is unresolved partly because the intrinsic rate is not
+invariant under an invertible re-encoding of the state — 0.019956 raw against
+0.010103 rotated, a drift of 0.49 — and that is the estimator rather than her.
+`crossfit_fisher_rao` counts neighbours in Euclidean distance after
+standardising each column, which weights whichever coordinates the state is
+written in; her columns run from a variance of 0.001 to 10.
+
+`--whiten` counts them in Mahalanobis distance, whitened on each training fold,
+which is the same number under every invertible linear map. It is off by
+default because changing an estimator changes what every earlier run measured,
+and a run that uses it says so in its own record.
+
+### What it is held to before a carrier run uses it
+
+Already measured, on a fixture with her own spread of scales: a sham reads
+nothing either way; two laws that differ are seen either way; the standardised
+metric drifts over five per cent under a rotation; the whitened one drifts under
+five per cent under three rotations and under a general invertible mix.
+
+The next carrier run reads both, on the same samples, and reports both. If the
+whitened rate does not clear the drift tolerance the fix has failed and the
+blocker stands. If the whitened rate is invariant and the raw one is not, the
+carrier line is read on the whitened one from then on, and every run before it
+is read as having measured the coordinates as much as the system.
+
+### What a carrier run has to be, to resolve the carrier at all
+
+Not affordable today, and recorded so that it is not attempted by halves:
+
+- every one of the 511 bipartitions, because `SweepReport.irreducible` refuses a
+  screened sweep by construction and the claim is a conjunction over cuts;
+- rollouts of at least two turns, because the two-turn horizon spent zero
+  anchors on a one-turn rollout and measured nothing;
+- the grain stage, not skipped;
+- and enough anchors that the singleton cuts decide: 3,440 decided three of ten.
+
+Ten cuts took 9,046 seconds, so 511 is about 175,000 anchor rollouts. That is a
+machine-week, and `--shard I/N` is how it is spent. No partial version of it
+resolves the carrier.
