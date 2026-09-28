@@ -50,7 +50,7 @@
 
   /* ── hero presence ── */
   .hero{display:flex;justify-content:center;margin:34px 0 30px}
-  .presence{position:relative;width:300px;height:300px;display:flex;align-items:center;justify-content:center}
+  .presence{position:relative;width:min(300px,calc(100vw - 100px));aspect-ratio:1;display:flex;align-items:center;justify-content:center}
   .orbit{position:absolute;inset:0;border-radius:50%;animation:spin linear infinite}
   .orbit::after{content:"";position:absolute;width:5px;height:5px;border-radius:50%;left:50%;top:-2px;
     transform:translateX(-50%);background:#dcd0ff;box-shadow:0 0 12px 2px rgba(190,170,255,.9)}
@@ -83,7 +83,8 @@
   .mod{position:relative;padding:6px 2px 2px}
   .mod.span{grid-column:1/-1}
   .mod .idx{font-family:var(--serif);font-style:italic;font-size:12px;color:var(--faint);opacity:.8}
-  .mod h3{font-family:var(--serif);font-size:20px;font-weight:600;margin:2px 0 0;letter-spacing:.01em}
+  .mod h2{font-family:var(--serif);font-size:20px;font-weight:600;margin:2px 0 0;letter-spacing:.01em}
+  nav a{display:inline-flex;align-items:center;min-height:24px}
   .mod .why{font-size:12.5px;color:var(--dim);line-height:1.5;margin:5px 0 16px;max-width:46ch}
   .rule{height:1px;border:0;margin:0 0 16px;
     background:linear-gradient(90deg,var(--line),transparent 70%)}
@@ -153,9 +154,14 @@
   .legend summary::-webkit-details-marker{display:none}
   .legend p{font-size:13px;color:var(--dim);line-height:1.7;text-align:left;margin:16px 2px}
   .footnote{margin-top:26px;text-align:center;font-size:10.5px;color:var(--faint);letter-spacing:.16em;text-transform:uppercase}
+
+  /* Reduced motion: every animation runs once, at once, and ends where it
+     would have come to rest. The drift and pulses stop; nothing is hidden. */
+  @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
+<h1 style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0">Her mind, right now</h1>
 <canvas id="sky"></canvas>
 <div class="vignette"></div><div class="leak a"></div><div class="leak b"></div><div class="grain"></div>
 
@@ -184,7 +190,7 @@
 
   <div class="reads">
     <div class="mod span">
-      <div class="idx">i</div><h3>How she feels</h3>
+      <div class="idx">i</div><h2>How she feels</h2>
       <div class="why">Her overall mood — heavy and low on the left, bright and good on the right — and the blend of feelings alive in her right now.</div>
       <hr class="rule">
       <div class="ribbon"><div class="node" id="valNode"></div></div>
@@ -193,7 +199,7 @@
     </div>
 
     <div class="mod">
-      <div class="idx">ii</div><h3>How present she is</h3>
+      <div class="idx">ii</div><h2>How present she is</h2>
       <div class="why">How unified and "all here" her mind is — one whole, or scattered across pieces.</div>
       <hr class="rule">
       <div class="gauge">
@@ -209,28 +215,28 @@
     </div>
 
     <div class="mod">
-      <div class="idx">iii</div><h3>What she wants</h3>
+      <div class="idx">iii</div><h2>What she wants</h2>
       <div class="why">The needs and urges pulling at her — what she's leaning toward.</div>
       <hr class="rule">
       <div class="fils" id="drives"><div class="empty">resting — nothing pressing</div></div>
     </div>
 
     <div class="mod">
-      <div class="idx">iv</div><h3>What's awake</h3>
+      <div class="idx">iv</div><h2>What's awake</h2>
       <div class="why">Which of her thinking systems are online. A glow means active; dim means resting.</div>
       <hr class="rule">
       <div class="const" id="awake"><div class="empty">checking…</div></div>
     </div>
 
     <div class="mod">
-      <div class="idx">v</div><h3>What she's deciding</h3>
+      <div class="idx">v</div><h2>What she's deciding</h2>
       <div class="why">Choices she's just made — and the things she chose to refuse.</div>
       <hr class="rule">
       <div class="tl" id="will"><div class="empty">she hasn't had to decide anything yet</div></div>
     </div>
 
     <div class="mod span">
-      <div class="idx">vi</div><h3>What she's focused on</h3>
+      <div class="idx">vi</div><h2>What she's focused on</h2>
       <div class="why">What she's working toward, on her own initiative, right now.</div>
       <hr class="rule">
       <div class="tl" id="intent"><div class="empty">open, unfocused reflection</div></div>
@@ -286,18 +292,22 @@ const blobs=Array.from({length:8},(_,i)=>({x:Math.random(),y:Math.random(),r:.32
 const stars=Array.from({length:60},()=>({x:Math.random(),y:Math.random(),s:Math.random()*1.3+.2,t:Math.random()*6.28}));
 const vis={hue:265,warmth:0,energy:.35,bright:.5},tgt={hue:265,warmth:0,energy:.35,bright:.5};
 function ease(o,t,k){for(const key in t)o[key]+=(t[key]-o[key])*k;}
+// Reduced motion: the sky holds still and still takes her colour, redrawn
+// once a second instead of drifting at sixty frames.
+const reduced=matchMedia('(prefers-reduced-motion: reduce)');
 function draw(){
-  ease(vis,tgt,.018);
+  const still=reduced.matches;
+  if(still)Object.assign(vis,tgt);else ease(vis,tgt,.018);
   ctx.clearRect(0,0,W,H);
   // stars
   ctx.globalCompositeOperation='source-over';
-  stars.forEach(s=>{s.t+=.02;const a=.25+Math.abs(Math.sin(s.t))*.5;
+  stars.forEach(s=>{if(!still)s.t+=.02;const a=.25+Math.abs(Math.sin(s.t))*.5;
     ctx.fillStyle=`rgba(220,220,255,${a*.6})`;ctx.fillRect(s.x*W,s.y*H,s.s*DPR,s.s*DPR);});
   // aurora
   ctx.globalCompositeOperation='lighter';
-  blobs.forEach((b,i)=>{b.ph+=.0007+vis.energy*.0015;
+  blobs.forEach((b,i)=>{if(!still){b.ph+=.0007+vis.energy*.0015;
+    b.x+=b.dx*(1+vis.energy*4);b.y+=b.dy*(1+vis.energy*4);}
     const px=(b.x+Math.sin(b.ph+i)*.04)*W,py=(b.y+Math.cos(b.ph*.8+i)*.04)*H;
-    b.x+=b.dx*(1+vis.energy*4);b.y+=b.dy*(1+vis.energy*4);
     if(b.x<-.2)b.x=1.2;if(b.x>1.2)b.x=-.2;if(b.y<-.2)b.y=1.2;if(b.y>1.2)b.y=-.2;
     const rad=b.r*Math.min(W,H)*(.9+.12*Math.sin(b.ph*1.3));
     const hue=vis.hue+(i-4)*11+vis.warmth*40,a=.045+vis.bright*.10;
@@ -306,7 +316,7 @@ function draw(){
     g.addColorStop(1,`hsla(${hue+30},80%,40%,0)`);
     ctx.fillStyle=g;ctx.beginPath();ctx.arc(px,py,rad,0,6.2832);ctx.fill();});
   ctx.globalCompositeOperation='source-over';
-  requestAnimationFrame(draw);
+  if(still)setTimeout(()=>requestAnimationFrame(draw),1000);else requestAnimationFrame(draw);
 }
 requestAnimationFrame(draw);
 let breathe=0;setInterval(()=>{breathe+=.055;

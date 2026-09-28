@@ -283,6 +283,13 @@
         "name": "tests/test_conditions_and_escalation_cap.py",
         "why": "Decides the typed conditions the requirement names: Ready, Progressing and Degraded with reasons and transition times, published by the reconciler. Proof and certification conditions are not decided by it."
       }
+    ],
+    "ACCESSIBILITY-I18N-001": [
+      {
+        "kind": "make",
+        "name": "ui-audit",
+        "why": "Decides the automated half for every page the interface serves: contrast against every backdrop in the system's light and dark appearance and in every shell theme and accent, screen-reader names and heading structure, keyboard focus that is visible on every control Tab reaches, reduced motion honoured by keyframes and canvases alike, and reflow at 320 CSS pixels, which is a 1280-pixel window at 400% zoom. tests/test_the_interface_audit_can_fail.py holds that each of those can fail. Focus order, VoiceOver itself, captions, locale formatting, bidirectional text and translated strings are not decided by it."
+      }
     ]
   }
 }

@@ -56,4 +56,4 @@ pre.dt-pre { white-space: pre-wrap; max-height: 240px; overflow: auto; font: 12p
   background: rgba(255,255,255,0.02);
   align-items: center;
 }
-#scrub { width: 100%; }
+#scrub { width: 100%; min-height: 24px; }

@@ -24,7 +24,7 @@
     opacity:0;transform:translateY(14px);animation:rise 1.1s .1s cubic-bezier(.2,.7,.2,1) forwards}
   @keyframes rise{to{opacity:1;transform:none}}
   nav{display:flex;gap:22px;justify-content:center;font-size:12px;letter-spacing:.16em;text-transform:uppercase;margin-bottom:18px}
-  nav a{color:var(--faint);text-decoration:none;padding-bottom:4px;border-bottom:1px solid transparent;transition:.3s}
+  nav a{display:inline-flex;align-items:center;min-height:24px;color:var(--faint);text-decoration:none;padding-bottom:4px;border-bottom:1px solid transparent;transition:.3s}
   nav a:hover{color:var(--ink)} nav a.on{color:var(--ink);border-bottom-color:var(--line)}
   .ey{text-align:center;font-size:10.5px;letter-spacing:.5em;text-transform:uppercase;color:var(--faint)}
   h1{font-family:var(--serif);font-style:italic;font-weight:400;text-align:center;font-size:clamp(24px,3.6vw,33px);margin:14px 0 6px;
@@ -71,6 +71,10 @@
   .legend summary::-webkit-details-marker{display:none}
   .legend p{font-size:13px;color:var(--dim);line-height:1.7;margin:16px 2px}
   .footnote{margin-top:26px;text-align:center;font-size:10.5px;color:var(--faint);letter-spacing:.16em;text-transform:uppercase}
+
+  /* Reduced motion: every animation runs once, at once, and ends where it
+     would have come to rest. The drift and pulses stop; nothing is hidden. */
+  @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.01ms!important}}
 </style>
 </head>
 <body>
@@ -122,8 +126,12 @@ const sky=$('sky'),ctx=sky.getContext('2d');let W,H,DPR;
 function size(){DPR=Math.min(2,devicePixelRatio||1);W=sky.width=innerWidth*DPR;H=sky.height=innerHeight*DPR;}
 size();addEventListener('resize',size);
 const stars=Array.from({length:55},()=>({x:Math.random(),y:Math.random(),s:Math.random()*1.2+.2,t:Math.random()*6.28}));
-(function d(){ctx.clearRect(0,0,W,H);stars.forEach(s=>{s.t+=.016;const a=.2+Math.abs(Math.sin(s.t))*.5;
-  ctx.fillStyle=`rgba(210,210,255,${a*.5})`;ctx.fillRect(s.x*W,s.y*H,s.s*DPR,s.s*DPR);});requestAnimationFrame(d);})();
+const reduced=matchMedia('(prefers-reduced-motion: reduce)');
+function drawSky(){const still=reduced.matches;ctx.clearRect(0,0,W,H);stars.forEach(s=>{if(!still)s.t+=.016;const a=.2+Math.abs(Math.sin(s.t))*.5;
+  ctx.fillStyle=`rgba(210,210,255,${a*.5})`;ctx.fillRect(s.x*W,s.y*H,s.s*DPR,s.s*DPR);});if(!still)requestAnimationFrame(drawSky);}
+drawSky();
+reduced.addEventListener('change',()=>{if(!reduced.matches)drawSky();});
+addEventListener('resize',()=>{if(reduced.matches)drawSky();});
 
 let values={};
 const BOOL_KEYS=['safety.safe_mode','permissions.camera','permissions.screen','voice.input_enabled','notify.enabled'];
@@ -161,6 +169,17 @@ BOOL_KEYS.forEach(k=>{const el=$('sw-'+k);if(!el)return;
   el.addEventListener('click',toggle);
   el.addEventListener('keydown',e=>{if(e.key===' '||e.key==='Enter'){e.preventDefault();toggle();}});});
 load();setInterval(load,15000);
+</script>
+<script>
+// A switch is a div with role=switch, and its name is the bold label beside
+// it. Nothing tied the two together, so a screen reader announced five
+// unnamed switches.
+document.querySelectorAll('[role="switch"]').forEach(function (el) {
+  if (el.getAttribute('aria-label') || el.getAttribute('aria-labelledby')) return;
+  var holder = el.closest('.item, .hero');
+  var label = holder && holder.querySelector('b, h2');
+  if (label) el.setAttribute('aria-label', label.textContent.trim());
+});
 </script>
 </body>
 </html>

@@ -99,7 +99,21 @@ def test_a_deictic_is_what_separates_looking_from_remembering() -> None:
     ],
 )
 def test_physical_perception_follows_meaning_across_paraphrases(message: str) -> None:
-    """Novel wording must not make an available sense disappear."""
+    """Novel wording must not make an available sense disappear.
+
+    These are read by meaning, and a turn never loads the model that reads
+    it: the boot warms it first. So does this test. Without the warm it
+    passed only when some earlier test in the same process had warmed the
+    model, and failed alone.
+    """
+    from core.cognition.evidence_relevance import (
+        semantic_routing_available,
+        warm_semantic_routing,
+    )
+
+    if not semantic_routing_available():
+        pytest.skip("sentence-transformers unavailable; sight falls back to the lexical rules")
+    assert warm_semantic_routing() is True
     intent = classify(message)
     assert intent.kind == "look", (message, intent.reason)
     assert intent.question == message

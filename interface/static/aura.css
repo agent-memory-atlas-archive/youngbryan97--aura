@@ -18,13 +18,6 @@
     --sing-white: #ffffff;
     --sing-bg: radial-gradient(circle at center, #0a061a, #000000);
 
-    /* Mood Overrides (via JS) */
-    --mood-primary: var(--primary);
-    /* The readable one, for text. `--mood-primary` is the mood's colour and
-       carries whatever contrast that mood happens to have; anything a person
-       has to READ takes this, and the darker one stays for glows and rules. */
-    --mood-primary-bright: var(--primary-bright);
-    --mood-accent: var(--accent);
 
     --text: #d8d4e8;
     /* Measured against every backdrop this text actually sits on — the page,
@@ -57,6 +50,18 @@
     --chat-input-scale: 1;
     --neural-text-scale: 1;
     --neural-meta-scale: 1;
+}
+
+/* Mood overrides. aura.js paints these on <body> (paintMood). They live here
+   rather than on :root because a var() resolves where it is declared, and
+   the theme and accent classes redeclare --primary and --accent on body. */
+body {
+    --mood-primary: var(--primary);
+    /* The readable one, for text. `--mood-primary` is the mood's colour and
+       carries whatever contrast that mood happens to have; anything a person
+       has to READ takes this, and the darker one stays for glows and rules. */
+    --mood-primary-bright: var(--primary-bright);
+    --mood-accent: var(--accent);
 }
 
 /* Paired devices are an intentionally narrow conversation surface. */
@@ -3730,6 +3735,11 @@ body.accent-cyan { --primary: #00b4d8; --primary-bright: #48cae4; --accent: #00e
 body.accent-emerald { --primary: #10b981; --primary-bright: #34d399; --accent: #00ffa3; }
 /* ── ACCENT: AMBER ──────────────────────────────── */
 body.accent-amber { --primary: #f59e0b; --primary-bright: #fbbf24; --accent: #fcd34d; }
+/* The accents above are tuned for a dark page, and on the Light theme they
+   read 2.6 to 3.8:1 as text. The Light theme takes a deep shade of each. */
+body.theme-light.accent-cyan { --primary: #155e75; --primary-bright: #155e75; --accent: #155e75; }
+body.theme-light.accent-emerald { --primary: #047857; --primary-bright: #065f46; --accent: #065f46; }
+body.theme-light.accent-amber { --primary: #92400e; --primary-bright: #92400e; --accent: #92400e; }
 
 /* ══════════════════════════════════════════════════════════
    MAGNUM OPUS — Splash Screen (Retro Neon Title Sequence)
@@ -4163,7 +4173,7 @@ body.accent-amber { --primary: #f59e0b; --primary-bright: #fbbf24; --accent: #fc
     font-family: var(--font-main);
     font-size: 9px;
     letter-spacing: 3px;
-    color: rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.55);  /* 0.15 was 1.49:1 at 9px */
     text-transform: uppercase;
     z-index: 2;
 }
@@ -4454,7 +4464,7 @@ body.theme-midnight {
     --primary-bright: #6dacff;
     --accent: #00d4aa;
     --text: #c8d8f0;
-    --text-dim: #4a6480;
+    --text-dim: #7b93b5;  /* 5.15:1 on the lightest midnight panel; #4a6480 was 2.64 */
     --success: #00e89a;
     --warn: #ffa654;
     --error: #ff4466;
@@ -4494,9 +4504,11 @@ body.theme-light {
     --accent: #0891b2;
     --text: #1a1028;
     --text-dim: #6b6080;
-    --success: #059669;
-    --warn: #d97706;
-    --error: #dc2626;
+    /* Text colours, measured on white and on their own tinted pills: the
+       previous #059669, #d97706 and #dc2626 read 3.8, 3.2 and 4.5. */
+    --success: #047857;
+    --warn: #a14a08;
+    --error: #b91c1c;
 }
 body.theme-light header {
     background: rgba(255, 255, 255, 0.85);
@@ -4560,6 +4572,14 @@ body.theme-light .hdr-btn {
     background: rgba(107, 33, 168, 0.06);
     border: 1px solid #d8d0e8;
     color: #6b6080;
+}
+/* The privacy pill is neon green with !important for the dark shell, and
+   that green is 1.3:1 on white. */
+body.theme-light .privacy-btn:not(.disabled) {
+    border-color: var(--success) !important;
+    color: var(--success) !important;
+    background: rgba(4, 120, 87, 0.10) !important;
+    box-shadow: none;
 }
 body.theme-light .hdr-btn:hover {
     background: rgba(107, 33, 168, 0.12);
@@ -7797,7 +7817,7 @@ body.theme-light .skill-card::before {
   padding: var(--aura-space-5);
   border: 1px solid var(--aura-card-border);
   border-radius: var(--aura-radius-2);
-  background: #16141c;
+  background: var(--aura-raised);
   color: var(--aura-fg);
   font-family: var(--aura-font-ui);
   font-size: var(--aura-text-1);
@@ -7855,7 +7875,7 @@ body.theme-light .skill-card::before {
     padding: var(--aura-space-3, 12px) var(--aura-space-4, 18px);
     border: 1px solid var(--aura-card-border, #ffffff14);
     border-radius: var(--aura-radius-2, 10px);
-    background: var(--aura-card-bg, #17151b);
+    background: var(--aura-raised, #17151b);
     color: var(--aura-fg, #f4ede4);
     font: var(--aura-text-1, 14px)/var(--aura-text-1h, 1.5) var(--aura-font-ui, system-ui);
     box-shadow: 0 10px 30px #0009;

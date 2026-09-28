@@ -2,9 +2,16 @@
   "entries": [
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "ui-audit",
+          "why": "Decides the automated half for every page the interface serves: contrast against every backdrop in the system's light and dark appearance and in every shell theme and accent, screen-reader names and heading structure, keyboard focus that is visible on every control Tab reaches, reduced motion honoured by keyframes and canvases alike, and reflow at 320 CSS pixels, which is a 1280-pixel window at 400% zoom. tests/test_the_interface_audit_can_fail.py holds that each of those can fail. Focus order, VoiceOver itself, captions, locale formatting, bidirectional text and translated strings are not decided by it."
+        }
+      ],
       "id": "ACCESSIBILITY-I18N-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "open"
     },
@@ -105,9 +112,16 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_a_verifier_names_what_happened.py",
+          "why": "Decides the CTX2-AMP-001 part of this composite: the six named verification outcomes, and no crash, timeout or empty verifier set counted as correctness. The AMP-002 evidence binding and AMP-003 matched controls are not decided by it."
+        }
+      ],
       "id": "ADDENDUM-24",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "open"
     },
@@ -291,9 +305,16 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_standing_authority.py",
+          "why": "Drives the mechanism the requirement calls source-green, against its own words: a durable grant registry whose risk budget is atomic and survives a manager restart, child leases bound to exact arguments, origin, effect and tool (substitution refused), revocation that is durable, immediate and owner-authenticated, the argument-bound sandboxed_compute grant, fail-closed on a state or receipt failure, and the Will refusing without a validated child lease. If it fails, autonomy is running on approvals the requirement says it replaced, or on grants it cannot revoke."
+        }
+      ],
       "id": "AUTONOMY-AUTHORITY-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "in_progress"
     },
@@ -398,9 +419,16 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "checkpoint-hygiene-audit",
+          "why": "Decides the 'commit, push' clause: a checkpoint exists on pushed main with no local-only obligation \u2014 no merge, rebase, cherry-pick or bisect in progress and no work that lives only on this machine. Whether each tracker item is still verified open is not decided by it."
+        }
+      ],
       "id": "CARRYOVER-09",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "open"
     },
@@ -534,9 +562,22 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_a_verifier_names_what_happened.py",
+          "why": "Decides the requirement in its own terms: each of the six outcomes it names is produced by the path that should produce it, an empty verifier set folds to not_applicable rather than a pass, a crashed engine is verifier_failed rather than unsupported, a TimeoutError or OSError is named instead of escaping the gather, and escalation will not adopt a candidate on a check that could not run. If it fails, some non-correctness outcome is being read as correctness."
+        },
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_verifier_crash_is_not_a_pass.py",
+          "why": "The defect this requirement says to reproduce: a crashed verifier reported as clean, and an escalated answer inheriting the previous candidate's checked flag. Both are driven end to end through amplify()."
+        }
+      ],
       "id": "CTX2-AMP-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "open"
     },
@@ -1274,9 +1315,16 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "swallowed",
+          "why": "Decides the broad-catch clause: every except in core, interface and skills either records why it fired or carries a written sentence saying what it caught was an answer, and the ratchet is at zero with its baseline at zero. The sealed-file handlers it skips are counted on every run. Placeholders, stubs, dead code, unbounded queues and the other named kinds are not decided by it."
+        }
+      ],
       "id": "FND-02-HYGIENE",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "open"
     },
@@ -1298,9 +1346,22 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "make",
+          "name": "state-ownership",
+          "why": "Decides the duplicate-owner clause: it counts subsystems keeping a private copy of canonical state and fails when the count rises."
+        },
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_a_stopped_thread_does_not_come_back.py",
+          "why": "Decides the resurrection and stop-contract clauses for the thread owners it covers: a stop followed by a quick start leaves one loop rather than two, a stop waits for a pass in flight, and a load started before close does not load after it. It does not cover every thread in the tree."
+        }
+      ],
       "id": "FND-05-OWNERSHIP",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "open"
     },
@@ -1621,9 +1682,16 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_action_depth_honesty.py",
+          "why": "Decides the first clause, action expectations propagating into the live skill path: the skill registry applies the expectation after the verifier, and a shallow verified result is downgraded with its missing criteria and repair step named. Durable multi-tool workflows, compensation and long-chain validation are not decided by it."
+        }
+      ],
       "id": "MATRIX-09",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "in_progress"
     },
@@ -1679,9 +1747,16 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_runtime_health_contract.py",
+          "why": "Decides the clause 'no aggregate green status may conceal a required dead lane': the contract fails closed on a critical liveness failure and on a missing required liveness method, reports dead when no critical service exists, refuses to call a shutting-down runtime healthy, will not let tricorder health override a failed contract, fails the required-probe summary when scheduler, tool governance or a present-but-unready router is unhealthy, and rejects deferred inference as healthy. The reconciler, admission scheduler, backoff and longevity parts are not decided by it."
+        }
+      ],
       "id": "MATRIX-13",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "in_progress"
     },
@@ -2009,17 +2084,31 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_action_depth_honesty.py",
+          "why": "The first validator the requirement names, in its terms: through core/runtime/skill_contract.py a SUCCESS_VERIFIED result missing an acceptance criterion or its user-visible effect is downgraded to partial_success with ok=False and the missing criteria and next repair step named, one missing required evidence is downgraded to success_unverified, and the skill registry applies the expectation after the verifier. The live desktop proof that a multi-step action cannot complete without effect evidence is not decided by it."
+        }
+      ],
       "id": "PASSF-01",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "open"
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_conditions_and_escalation_cap.py",
+          "why": "Decides the typed-conditions part: components expose Ready, Progressing and Degraded with a reason, a message and a transition time that moves only on a status flip, and the reconciler publishes lane conditions. The requirement's bounded live desktop proof is not decided by it."
+        }
+      ],
       "id": "PASSF-02",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "open"
     },
@@ -2539,9 +2628,22 @@
     },
     {
       "broken_links": [],
-      "checks": [],
+      "checks": [
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_runtime_health_contract.py",
+          "why": "Decides 'without aggregate false health': the contract fails closed on a critical liveness failure or a missing liveness method, refuses to report a shutting-down runtime healthy, separates degraded from failed, fails the required-probe summary on an unhealthy scheduler, tool governance or unready router, and rejects deferred inference as healthy."
+        },
+        {
+          "from": "map",
+          "kind": "test",
+          "name": "tests/test_conditions_and_escalation_cap.py",
+          "why": "Decides the typed conditions the requirement names: Ready, Progressing and Degraded with reasons and transition times, published by the reconciler. Proof and certification conditions are not decided by it."
+        }
+      ],
       "id": "RUNTIME-001",
-      "linked": false,
+      "linked": true,
       "mandatory": true,
       "state": "in_progress"
     },
@@ -2936,28 +3038,26 @@
   "schema_version": 1,
   "summary": {
     "by_kind": {
-      "make": 17,
+      "make": 21,
       "receipt": 30,
-      "test": 16,
+      "test": 27,
       "tool": 5
     },
     "by_source": {
       "ledger": 30,
-      "map": 30,
+      "map": 45,
       "registry": 8
     },
     "complete": false,
-    "linked": 53,
+    "linked": 65,
     "requirements": 313,
     "unlinked": [
-      "ACCESSIBILITY-I18N-001",
       "ACCOUNT-AUTHORITY-001",
       "ACTION-SPINE-001",
       "ADAPT-001",
       "ADAPTATION-STATE-AUTHORITY-001",
       "ADDENDUM-19",
       "ADDENDUM-20",
-      "ADDENDUM-24",
       "ADDENDUM-25",
       "ADDENDUM-27",
       "ADDENDUM-28",
@@ -2969,7 +3069,6 @@
       "AMPLIFY-001",
       "AUDIT-001",
       "AUTONOMY-001",
-      "AUTONOMY-AUTHORITY-001",
       "CAPABILITY-CERT-001",
       "CARRYOVER-02",
       "CARRYOVER-03",
@@ -2977,7 +3076,6 @@
       "CARRYOVER-06",
       "CARRYOVER-07",
       "CARRYOVER-08",
-      "CARRYOVER-09",
       "CHAT-001",
       "CLOSEOUT-001",
       "CODING-001",
@@ -2987,7 +3085,6 @@
       "CONVERSATION-001",
       "CTX2-AGI-001",
       "CTX2-AGI-002",
-      "CTX2-AMP-001",
       "CTX2-AMP-002",
       "CTX2-AMP-003",
       "CTX2-COLLEAGUE-001",
@@ -3048,10 +3145,8 @@
       "EXPECT-001",
       "EXTREME-001",
       "FND-01-INVENTORY",
-      "FND-02-HYGIENE",
       "FND-03-CONTRACTS",
       "FND-04-EFFECTS",
-      "FND-05-OWNERSHIP",
       "FND-06-DATA",
       "FND-07-UNITY",
       "FND-08-DEPTH",
@@ -3086,9 +3181,7 @@
       "MATRIX-06",
       "MATRIX-07",
       "MATRIX-08",
-      "MATRIX-09",
       "MATRIX-10",
-      "MATRIX-13",
       "MATRIX-14",
       "MATRIX-15",
       "MATRIX-16",
@@ -3118,8 +3211,6 @@
       "OBSERVE-001",
       "OPERATIONS-001",
       "OS-AUTOMATION-001",
-      "PASSF-01",
-      "PASSF-02",
       "PASSF-04",
       "PASSF-05",
       "PASSF-06",
@@ -3174,7 +3265,6 @@
       "RR-09",
       "RR-10",
       "RR-11",
-      "RUNTIME-001",
       "SELF-MODEL-MIRROR-001",
       "SELF-STATE-CHAT-001",
       "SEMANTIC-REVIEW-001",

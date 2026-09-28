@@ -6,12 +6,13 @@
   --aura-card: rgba(255, 255, 255, 0.05);
   --aura-card-border: rgba(255, 255, 255, 0.08);
   --aura-radius: 14px;
+  --aura-glow: #1c1726;
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; }
 body {
-  background: radial-gradient(1200px 800px at 30% 20%, #1c1726 0%, #0d0c0f 60%);
+  background: radial-gradient(1200px 800px at 30% 20%, var(--aura-glow) 0%, var(--aura-bg) 60%);
   color: var(--aura-fg);
   font-family: -apple-system, "SF Pro Text", "Inter", system-ui, sans-serif;
   display: grid;
@@ -94,7 +95,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body { background: #0d0c0f; }
+  body { background: var(--aura-bg); }
 }
 
 @media (prefers-color-scheme: light) {
@@ -104,5 +105,7 @@ body {
     --aura-fg-dim: rgba(20, 17, 28, 0.62);
     --aura-card: rgba(0, 0, 0, 0.04);
     --aura-card-border: rgba(0, 0, 0, 0.08);
+    --aura-accent: #5a3fd0;
+    --aura-glow: #ffffff;
   }
 }

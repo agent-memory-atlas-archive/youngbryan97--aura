@@ -222,11 +222,23 @@
             50% { transform: scale(1.15); opacity: 0.7; }
         }
 
+        /* One column below 1024px. Spanning twelve tracks kept eleven 2rem
+           gaps, 352px of gap alone, so a 320px phone scrolled sideways. */
         @media (max-width: 1024px) {
-            main { padding: 1.5rem; }
-            .col-4, .col-6, .col-8 { grid-column: span 12; }
+            main { padding: 1.5rem; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
+            main > * { grid-column: 1 / -1; }
         }
-    </style>
+
+        @media (max-width: 640px) {
+            header { padding: 1rem; flex-wrap: wrap; gap: 0.5rem; }
+            main { padding: 1rem; }
+            .card { padding: 1.2rem; }
+        }
+
+  /* Reduced motion: every animation runs once, at once, and ends where it
+     would have come to rest. The drift and pulses stop; nothing is hidden. */
+  @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;animation-delay:0s!important;transition-duration:.01ms!important}}
+</style>
 </head>
 <body>
 
