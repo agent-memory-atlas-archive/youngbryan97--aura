@@ -742,3 +742,54 @@ are built to be maximally integrated with no repertoire: their effective
 dimensions are 1.21 and 1.38, and the differentiation criterion is what the
 architectures were written to be caught by. No null passes the conjunction
 (`all_nulls_fail` is true). Criterion 18 stays as written and stays failed.
+
+## Addendum, 28 September 2026, later: what the two failing measures actually need
+
+Two readings taken after the addendum above, both on whole-s7-27dc1dda9, both
+correcting something this document already said. No threshold moves and no
+criterion is rescored; what changes is what the next organism work is aimed at.
+
+**The 0.0912 on the irreducibility line is mostly drift.** Twenty-nine of her 375
+columns have steps that all point one way and travel over three spreads of their
+own, and D holds 0.8895 of its variance in four of them. Searching every
+bipartition with those columns carried as their own first difference reads phi
++0.019341, lower bound -0.016034, standard error 0.018048 at CM|PIAGSWDN, against
+the run's own +0.0912, -0.131119 and 0.113427 at PD|IAGCSMWN. The point estimate
+falls fivefold, the lower bound rises sixfold towards zero, and the spread falls
+sixfold. Three readings agree on the size of the drift-free coupling: 0.002 to
+0.009 within a contiguous fifth, 0.019 searched, 0.022 held at the run's own cut.
+
+The earlier addendum said the difference between the whole-run number and the
+within-stretch number is drift. It is, and the direction matters: the drift was
+raising the point estimate, not lowering it. Criterion 11 is read as written on
+the recording as recorded, and it is under the bar either way.
+
+**Nothing inflates her shifted null.** Her W,A->D shifted bar of 0.397 is 0.210
+of that triple's joint information, and the toys' bars are 0.164 to 0.193 of
+theirs; the toys carry three slow channels per source against her thirty-five and
+fifty-nine, so their joint runs 0.21 to 0.32 against her 1.90. Three candidates
+were built for a difference of scale. What differs is the synergy: the toy's
+product carries 0.570 to 0.700 of its joint, and her W,A->D carries 0.077.
+
+### What this means for the three that fail
+
+All three ask for coupling her domains do not have, and none of them is waiting
+on a measurement change.
+
+- `partition_irreducibility` needs the cheapest cut to cost held-out prediction.
+  Drift-free it costs 0.019 where 0.05 is asked. The cheapest cut moves between
+  PD|IAGCSMWN and CM|PIAGSWDN depending on the drift, so the domains to couple
+  are read per run and not fixed here.
+- `partition_beats_nulls` compares her lower bound against each null's 0.95
+  quantile of eight draws, which the addendum above records; the two nulls that
+  beat her by most are one-dimensional by construction and are caught by
+  differentiation. It stays as written.
+- `synergy` needs three of the four triples to carry more joint structure:
+  A,S->G's held-out interaction gain is 0.0 with a lower bound of -0.00851, and
+  W,A->D and S,D->C sit under their shifted nulls at 0.077 and -0.160 of joint.
+  W,A->D's interaction gain is +0.2245 with a lower bound of +0.0712, so the
+  predictive estimator and the information estimator disagree on that triple and
+  the disagreement is reported rather than resolved.
+
+No organism change is proposed in this addendum. The next one that proposes any
+names it before a run reads it.
