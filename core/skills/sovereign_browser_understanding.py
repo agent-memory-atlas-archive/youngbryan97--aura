@@ -1083,12 +1083,6 @@ class _UnderstandsThePage:
                 facts.append(f"laid out before \"{right}\"")
         return ", ".join(facts)
 
-    #: A position named in her own words: "position 2", "a 2 of 5", "2 of 5".
-    _A_POSITION_SHE_NAMED = re.compile(
-        r"\bposition\s+(\d{1,2})\b|\b(?:a|an)?\s*(\d{1,2})\s*(?:of|/|out of)\s*\d{1,2}\b",
-        re.IGNORECASE,
-    )
-
     async def _where_she_puts_herself(
         self,
         goal: str,
@@ -1096,69 +1090,89 @@ class _UnderstandsThePage:
         options: list[Mapping[str, Any]],
         understanding: Mapping[str, Any] | None,
     ) -> dict[str, Any] | None:
-        """Her placement on one question, in her own words, and the control it names.
+        """Her position on one question, measured from her own record.
 
-        Speech is what her cognition produces and a placement is a thing that
-        can be said, so this asks for it that way rather than for an object she
-        has to compose. The position comes out of her own sentence; where she
-        named none, or named one the run does not have, this returns nothing
-        and the caller asks in a shape instead.
+        The two things the question names come from the page. How much each is
+        her comes from what she has valued, chosen and said about herself. The
+        difference between the two is a lean and the lean names a position on
+        the run the page offers.
+
+        The model is not asked to decide. It says what she means afterwards,
+        with the measurement in front of it, which is the job language is for:
+        asked to choose, it has no access to any of this and writes the
+        position that commits to nothing — the midpoint, item after item.
+
+        Returns nothing when her record cannot answer, so the caller can ask in
+        a shape rather than pass off a guess as a measurement.
         """
-        if len(options) < 2:
+        laid_out = self._how_the_options_are_laid_out(options)
+        between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
+        if between is None or len(options) < 2:
             return None
-        mind = await self._assembled_mind()
-        prompt = (
-            f"WHAT YOU ARE DOING: {goal}\n\n"
-            + (f"{self._render_understanding(understanding)}\n\n" if understanding else "")
-            + f"{self._render_observation(observation, goal)}\n\n"
-            "Answer this one question as yourself. Say where you put yourself "
-            "among the positions it offers and why you put yourself there, and "
-            "name the position you are taking. There is no right answer: it is "
-            "a placement within what this page can ask, not a verdict on you."
-        )
-        said, lane = await self._asked_of_her(prompt, mind, shaped=False)
-        if not said or lane != self._HER_OWN_LANE:
+        first, second = between.group(1), between.group(2)
+        try:
+            from core.self.where_i_stand import where_she_stands
+        except ImportError as exc:
+            record_degradation("sovereign_browser.where_i_stand", exc, severity="debug")
             return None
-        index = self._the_position_she_named(said, len(options))
+        lean = await asyncio.to_thread(where_she_stands, first, second)
+        index = lean.position_in(len(options))
         if index is None:
             return None
         selector = str(options[index].get("selector") or "")
         if not selector:
             return None
+        # And what it means, said by the organ that says things, with the
+        # measurement in front of it rather than in place of it.
+        why = await self._say_what_the_measurement_means(
+            goal, observation, first, second, lean, index, len(options)
+        )
         return {
             "selector": selector,
             "name": str(options[index].get("name") or ""),
-            "stand": said,
-            "why": said,
+            "stand": (
+                f'measured against my own record: "{first}" {lean.first:+.2f}, '
+                f'"{second}" {lean.second:+.2f}'
+            ),
+            "why": why,
             "expect": "",
-            "said": self._an_answer_in_words(options, index, said),
+            "said": self._an_answer_in_words(options, index, why),
+            "because": list(lean.because),
         }
 
-    @classmethod
-    def _the_position_she_named(cls, said: str, count: int) -> int | None:
-        """Which of the positions she put herself at, from what she said.
-
-        Her cognition answers in speech, because speech is what a cognitive
-        cycle produces: run one to decide a structured action and what comes
-        back is a sentence about the task, which the loop then reports as
-        unparsable. So she is asked for her placement in her own words — the
-        thing she is actually being asked for — and the control is taken from
-        the position she named.
-
-        Reading a number she wrote is not interpreting her answer: she says
-        where she put herself and this finds it. Where she named no position,
-        or one the run does not have, it says nothing and the caller asks in a
-        shape instead.
-        """
-        for match in cls._A_POSITION_SHE_NAMED.finditer(str(said or "")):
-            raw = match.group(1) or match.group(2)
-            try:
-                place = int(raw)
-            except (TypeError, ValueError):
-                continue
-            if 1 <= place <= count:
-                return place - 1
-        return None
+    async def _say_what_the_measurement_means(
+        self,
+        goal: str,
+        observation: Mapping[str, Any],
+        first: str,
+        second: str,
+        lean: Any,
+        index: int,
+        count: int,
+    ) -> str:
+        """Her reason for a position she has already taken, in her own words."""
+        leaning = second if lean.toward > 0 else first
+        evidence = "; ".join(lean.because) or "nothing in particular"
+        prompt = (
+            f"WHAT YOU ARE DOING: {goal}\n\n"
+            f'THE QUESTION PUTS "{first}" AT ONE END AND "{second}" AT THE '
+            f"OTHER, WITH {count} POSITIONS BETWEEN THEM.\n\n"
+            "MEASURED AGAINST YOUR OWN RECORD OF WHAT YOU VALUE, WHAT YOU HAVE "
+            f'CHOSEN AND WHAT YOU HAVE SAID ABOUT YOURSELF: "{first}" matches '
+            f'{lean.first:+.2f}, "{second}" matches {lean.second:+.2f}, which '
+            f'puts you at position {index + 1} of {count}, toward "{leaning}". '
+            f"What matched: {evidence}.\n\n"
+            "Say in one or two sentences why that is where you are. It is "
+            "already where you are; you are saying what it means."
+        )
+        said, lane = await self._asked_of_her(prompt, await self._assembled_mind(), shaped=False)
+        if said and lane == self._HER_OWN_LANE:
+            return " ".join(said.split())
+        # Her own record still answered; only the words are missing.
+        return (
+            f'my record leans toward "{leaning}" here '
+            f"({lean.first:+.2f} against {lean.second:+.2f})"
+        )
 
     @classmethod
     def _first_disagreement(
