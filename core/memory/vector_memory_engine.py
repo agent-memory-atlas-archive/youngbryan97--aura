@@ -73,7 +73,7 @@ from core.runtime.effect_boundary import effect_sink
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LockRank, checked_lock
 
-from .vector_memory_fallbacks import _EmbedsWithoutAModel
+from .vector_memory_engine_fallbacks import _EmbedsWithoutAModel
 
 logger = logging.getLogger("Aura.VectorMemory")
 

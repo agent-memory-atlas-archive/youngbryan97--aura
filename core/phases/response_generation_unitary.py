@@ -76,16 +76,16 @@ from core.utils.intent_normalization import normalize_memory_intent_text
 from core.utils.prompt_compression import compress_system_prompt
 from core.utils.task_tracker import get_task_tracker
 
-from .response_fetched_content import (  # noqa: F401  (re-exported: they were defined here)
-    _bind_fetched_content_to_the_contract,
-)
 from .response_generation_amplifiers import _AmplifiesTheDraft
 from .response_generation_shaping import _ShapesTheReply
-from .response_manim import (  # noqa: F401  (re-exported: they were defined here)
+from .response_generation_unitary_fetched_content import (  # noqa: F401  (re-exported: they were defined here)
+    _bind_fetched_content_to_the_contract,
+)
+from .response_generation_unitary_manim import (  # noqa: F401  (re-exported: they were defined here)
     _manim_source_for,
     _render_manim_in_background,
 )
-from .response_proof_turns import (  # noqa: F401  (re-exported: they were defined here)
+from .response_generation_unitary_proof_turns import (  # noqa: F401  (re-exported: they were defined here)
     _repair_an_incomplete_proof_evaluation,
     _retry_against_the_answer_options,
     _set_the_strict_proof_worker_arguments,

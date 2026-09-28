@@ -54,7 +54,7 @@ from core.runtime.errors import FallbackClassification, Severity, record_degrada
 from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
 
-from .neurochemical_outcomes import _AnswersOutcomes
+from .neurochemical_system_outcomes import _AnswersOutcomes
 
 logger = logging.getLogger("Consciousness.Neurochemical")
 _latest_instance: NeurochemicalSystem | None = None

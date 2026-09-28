@@ -85,7 +85,7 @@ from core.learning.semantic_relation_tissue import (
 )
 from core.verify.invariants import invariant
 
-from .semantic_operation_chart_calibration import (  # noqa: F401  (re-exported: they were defined here)
+from .semantic_program_transducer_fitting_chart_calibration import (  # noqa: F401  (re-exported: they were defined here)
     _calibrate_operation_charts,
     _select_operation_length_penalty,
 )

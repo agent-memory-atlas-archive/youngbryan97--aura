@@ -75,7 +75,14 @@ SUBPROCESS_GATEWAY_MODULE = "core/runtime/subprocess_gateway.py"
 
 
 def subprocess_must_use_gateway(rel: str) -> bool:
-    return rel.startswith(GATEWAY_OWNED_ROOTS) and rel != SUBPROCESS_GATEWAY_MODULE
+    """Whether a spawn at ``rel`` has to go through the gateway.
+
+    The gateway and the parts lifted out of it (``subprocess_gateway_<part>.py``,
+    the size gate's naming for a lift) are the gateway, and spawn directly.
+    """
+    gateway = SUBPROCESS_GATEWAY_MODULE.removesuffix(".py")
+    is_gateway = rel == SUBPROCESS_GATEWAY_MODULE or rel.startswith(gateway + "_")
+    return rel.startswith(GATEWAY_OWNED_ROOTS) and not is_gateway
 
 ALLOW_BLOCKING_SLEEP_IN_ASYNC = {
     # This chaos fault deliberately stalls the loop to verify lag detection

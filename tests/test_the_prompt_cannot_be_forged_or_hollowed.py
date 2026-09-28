@@ -90,13 +90,11 @@ def test_a_user_message_is_never_grounding():
 
 
 def test_the_real_producers_stamp_their_evidence():
-    import inspect
-
     import core.phases.response_generation as rg
     import core.phases.response_generation_unitary as rgu
 
     assert "stamp_grounding(" in family_text(rg)
-    assert inspect.getsource(rgu).count("stamp_grounding(") >= 2
+    assert family_text(rgu).count("stamp_grounding(") >= 2
 
 
 def test_volatile_grounding_is_stamped_before_insertion():

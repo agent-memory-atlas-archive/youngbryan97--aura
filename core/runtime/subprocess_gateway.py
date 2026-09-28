@@ -37,6 +37,11 @@ from core.utils.task_tracker import (
     end_shutdown_resource_creation_scope,
 )
 
+from .subprocess_gateway_reaping import (  # noqa: F401  (re-exported: they were defined here)
+    _run_bounded_by_its_work,
+    _terminate_and_reap_python_process,
+    _terminate_async_process_group,
+)
 from .subprocess_privilege import (  # noqa: F401  (re-exported: they were defined here)
     _desktop_longrun_override,  # noqa: F401  (read at call time by the lifted module)
     _desktop_safe_mode_requested,  # noqa: F401  (read at call time by the lifted module)
@@ -49,11 +54,6 @@ from .subprocess_privilege import (  # noqa: F401  (re-exported: they were defin
     _validate_desktop_safe_subprocess,
     _validate_offline_tooling_bypass,
     _validate_read_only_source,
-)
-from .subprocess_reaping import (  # noqa: F401  (re-exported: they were defined here)
-    _run_bounded_by_its_work,
-    _terminate_and_reap_python_process,
-    _terminate_async_process_group,
 )
 
 GovernanceViolation = _governance_context.GovernanceViolation

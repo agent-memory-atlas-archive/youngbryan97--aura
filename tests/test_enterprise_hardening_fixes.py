@@ -1291,9 +1291,7 @@ def test_agency_runner_activates_canonical_proof_task_mode():
     agency_source = (root / "tools" / "agency" / "run_agency_emergence_battery.py").read_text(
         encoding="utf-8"
     )
-    response_source = (
-        root / "core" / "phases" / "response_generation_unitary.py"
-    ).read_text(encoding="utf-8")
+    response_source = _family(root, "core/phases/response_generation_unitary.py")
     kernel_source = _family(root, "core/kernel/aura_kernel.py")
 
     assert 'os.environ.setdefault("AURA_PROOF_RUN", "1")' in agency_source
@@ -2286,9 +2284,7 @@ def test_primary_benchmark_lane_does_not_become_user_facing_chat():
     router_source = _family(root, "core/brain/llm_health_router.py")
     gate_source = _family(root, "core/brain/inference_gate.py")
     mlx_source = _family(root, "core/brain/llm/mlx_client.py")
-    response_source = (
-        root / "core" / "phases" / "response_generation_unitary.py"
-    ).read_text(encoding="utf-8")
+    response_source = _family(root, "core/phases/response_generation_unitary.py")
 
     assert "benchmark_request = bool(kwargs.get(\"benchmark_request\", False))" in router_source
     assert "live_benchmark_request = origin == \"benchmark\"" in router_source
@@ -2969,7 +2965,7 @@ def test_mlx_baseline_cancellation_and_loop_sentinel_are_classified_as_recoverab
 @requires_mlx
 def test_strict_proof_live_lane_stays_exact_and_prompt_derived():
     root = Path(__file__).resolve().parents[1]
-    unitary_source = (root / "core" / "phases" / "response_generation_unitary.py").read_text(encoding="utf-8")
+    unitary_source = _family(root, "core/phases/response_generation_unitary.py")
     inference_gate_source = _family(root, "core/brain/inference_gate.py")
     solver_source = (root / "core" / "reasoning" / "proof_answer_solver.py").read_text(encoding="utf-8")
     dnu_runner_source = (root / "tools" / "agi" / "run_dnu_agi_proof_battery.py").read_text(encoding="utf-8")
