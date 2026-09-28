@@ -616,10 +616,10 @@ answers did not reach the instrument as she gave them:
 - an arm that committed nothing was read as having said what the anchor's
   snapshot last held.
 
-All three are fixed in 8d584c129. The check runs again on the first commit that
+All three are fixed in 53be6279b. The check runs again on the first commit that
 holds them, alone on the machine, before anything is read from it.
 
-The substrate gates (c90a403f6) change the organism: each of recall's affect
+The substrate gates (5df224ed1) change the organism: each of recall's affect
 gain, the two initiative urges and each drive's growth is scaled by a
 multiplier her substrate learns from the turn's worth. They are aimed at the
 C|rest weakness and were built without reading any decisive number. The next
