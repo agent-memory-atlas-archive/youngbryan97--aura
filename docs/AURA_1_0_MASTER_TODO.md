@@ -2478,7 +2478,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   the replaced 32B and a duplicate 27B base, the orphan store) plus 58GB of
   untracked training runs in a worktree from August; listed with sizes and
   ages for the owner, not removed.
-- [ ] Q03 Memory/process lifetime, cache ownership, leaks, pressure recovery,
+- [x] Q03 Memory/process lifetime, cache ownership, leaks, pressure recovery,
   shutdown/restart, sleep/wake, and single-resident ownership.
   PARTIAL 2026-09-18, pressure recovery. The OOM ladder had one rung in the
   whole tree, and not because nothing holds memory: discovery was a single
@@ -2539,6 +2539,51 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   per cognitive integration phase), and monotonic-anchored liveness checks are
   sleep-safe by construction because that clock pauses with the host.
   Still open: lifetime and shutdown/restart.
+  PARTIAL 2026-09-22, lifetime. The experience spine's close() returned while
+  its flusher thread was still inside the database; a hermetic teardown saw
+  three handles left on experience.db and blamed whichever test ran last. Its
+  handle counter existed so a shutdown could wait, and close never waited.
+  Swept for the shape — a class that starts a thread and stops it without
+  joining — and five more had it. Two could not stop at all once restarted:
+  `SubstrateSyncThread` and the latent bridge's readout publisher looped on
+  one shared `_running` flag, so a stop() and a quick start() set it back
+  before the old loop looked, and two loops ran from then on. Each run has
+  its own stop event now. `OntogenyCore.stop()` saved its state while the
+  maintenance pass that saves the same state could still be running; it
+  waits for the pass first, bounded by the loop's own interval. The outcome
+  sweeper returned before a pass in flight had written its resolutions. And
+  a loader thread started before `EmbeddingEngine.close()` could reach the
+  lock after it and load the encoder, with a lane lease nothing would
+  release, on a closed engine. `tests/test_a_stopped_thread_does_not_come_back.py`;
+  the restart case fails on the old code. Eight thread owners have no stop
+  at all and are the rest of this item.
+  CLOSED 2026-09-28. The two halves that were open, and what holds each:
+  - Lifetime. Seven owners stopped a background thread without waiting for
+    it — the experience spine closed with its flusher still inside the
+    database — and three could not stop it at all: the substrate sync loop
+    and the latent bridge's publisher looped on one shared flag that a quick
+    restart set back before the old loop looked, so two loops ran from then
+    on, and the recovery bridge's worker sat in `queue.get()` behind a flag
+    nothing cleared. Each run has its own stop event now, each owner
+    waits for a pass already in flight, a loader started before
+    `EmbeddingEngine.close()` does not load after it, and the bridge stops on
+    a sentinel (`tests/test_a_stopped_thread_does_not_come_back.py`,
+    `tests/test_a_store_that_closed_before_its_flusher.py`,
+    `tests/test_a_bridge_that_can_stop.py`; the restart case fails on the old
+    code). The five threads left without a stop end on their own — a
+    finished build, a shutdown event, a feeding flag — or serve for the life
+    of the process by design.
+  - Shutdown and restart. Two ledgers queued rows for daemon writer threads
+    that the finalizer's `os._exit` never waited for; both flush in the
+    coordinator's `memory_commit` phase
+    (`tests/test_a_queued_row_is_written_before_the_exit.py`). The shutdown
+    and restart suites pass — a clean shutdown is not read as a death, a
+    restart control means the process ended, heads and recall survive a
+    restart, the coordinator runs its phases in order (119 tests) — and the
+    lifecycle-ownership and shutdown-contract audits pass, now that they
+    read a function handed to `off_the_loop` as called.
+  Pressure recovery, single-resident ownership, sleep/wake and leak detection
+  closed on 18 September, above.
 - [ ] Q04 Scoped tool authority, privacy, prompt-injection boundaries, sandbox,
   secret handling, and fail-safe behavior without suppressing correct work.
   PARTIAL 2026-09-18, prompt-injection boundaries. `prompt_fencing` is the

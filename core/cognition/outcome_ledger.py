@@ -53,6 +53,26 @@ from core.verify.invariants import invariant
 logger = logging.getLogger("Cognition.OutcomeLedger")
 
 
+def _flush_at_shutdown(flush: Callable[[], Any], *, name: str) -> bool:
+    """Ask the shutdown coordinator to run ``flush`` before the process leaves.
+
+    Rows written from the event loop go to a daemon writer thread, and every
+    exit path leaves through the finalizer's ``os._exit``, which does not wait
+    for daemon threads, so whatever was still queued was lost.
+    ``memory_commit`` runs before state is vaulted and actors stop.
+    """
+    try:
+        from core.runtime.shutdown_coordinator import get_shutdown_coordinator
+
+        get_shutdown_coordinator().register(flush, phase="memory_commit", name=name)
+        return True
+    # not a failure: teardown already started, or there is no coordinator in
+    # this process; the writer thread keeps draining either way.
+    except (ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug("%s: no shutdown flush registered (%s: %s)", name, type(exc).__name__, exc)
+        return False
+
+
 #: Identical (category, action, context) opens inside this window fold into the still-
 #: pending original instead of creating another row. Five minutes is long
 #: enough to absorb a stuck loop and short enough that genuinely repeated work
@@ -315,6 +335,10 @@ class OutcomeLedger:
                 target=self._drain_writes, name="outcome-ledger-writer", daemon=True
             )
             self._writer.start()
+            register = not getattr(self, "_flush_registered", False)
+            self._flush_registered = True
+        if register:
+            _flush_at_shutdown(self._flush_writes, name="outcome_ledger")
 
     def _drain_writes(self) -> None:
         while True:

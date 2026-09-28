@@ -323,6 +323,11 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
     def _initialize_locked(self) -> None:
         if self._initialized:
             return
+        # A loader thread started before close() can reach this lock after it.
+        # It used to load the encoder anyway and take a lane lease nothing
+        # would ever release, on an engine its owner had already closed.
+        if self._closing:
+            return
 
         try:
             from core.runtime.model_lane_control import (
