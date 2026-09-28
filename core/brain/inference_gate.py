@@ -8718,6 +8718,20 @@ class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _Wa
             if requested_tier == "secondary":
                 requested_tier = "primary"
         is_background, strict_primary_proof_lane = self._generate_with_metadata_sink_part_3(context, deep_handoff, explicit_background, health_probe, is_background, live_benchmark_request, origin, proof_evaluation_contract, purpose)
+        # An answer only she can give is not background work.
+        #
+        # `own_lane_required` says WHO must produce this, and a background
+        # request is sent to the tertiary tier a dozen lines below, before the
+        # routing advice that the requirement was written to survive. So the
+        # requirement was read after the lane had already been taken away:
+        # LIVE 2026-09-28, thirty-two questions about herself answered by the
+        # brainstem, each with a reason naming a strong preference and the
+        # midpoint chosen. No room is a reason to wait or to fail, and neither
+        # of those is a reason to let something else answer.
+        if context.get("own_lane_required"):
+            requested_tier = "primary"
+            deep_handoff = False
+            is_background = False
         if strict_primary_proof_lane:
             context["proof_primary_lane_required"] = True
             context["proof_model_tier"] = "primary"

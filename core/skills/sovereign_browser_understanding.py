@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import re
 from collections.abc import Callable, Mapping
 from typing import Any
@@ -17,6 +18,8 @@ from typing import Any
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import optional_service
+
+logger = logging.getLogger("Skills.SovereignBrowser")
 
 #: A decision round must never take the browser down with it. The loop can
 #: always report a failed round and stop; it can never leave a live lease and a
@@ -886,6 +889,21 @@ class _UnderstandsThePage:
                 },
             },
             "why": {"type": "string"},
+            # Where she actually stands on what the question is about, before
+            # any option is looked at.
+            #
+            # A graded question is answered in two steps and this loop only
+            # ever took the second. Asked "on a scale of 1 to 10, 10 being
+            # love and 1 being hate, how much do you like chocolate", a person
+            # does not weigh ten dots — they know where they stand (it is
+            # their favourite; they are allergic; it is fine but not their
+            # first choice) and the number follows from that. Picking an index
+            # straight off has no stance behind it, and the safe-looking index
+            # is the middle: LIVE 2026-09-28, the midpoint on item after item,
+            # under reasons that named a strong preference.
+            #
+            # Optional, because a Next button has no stance to take.
+            "stand": {"type": "string"},
             "expect": {"type": "string"},
             "done": {"type": "boolean"},
         },
@@ -1027,6 +1045,88 @@ class _UnderstandsThePage:
                 facts.append(f"laid out before \"{right}\"")
         return ", ".join(facts)
 
+    @classmethod
+    def _first_disagreement(
+        cls, decision: Mapping[str, Any], options: list[Mapping[str, Any]]
+    ) -> str:
+        """The first action in this decision whose choice fights its reason.
+
+        Read against her stance where she took one, because that is the thing
+        the position is supposed to express; the reason for the place is read
+        alongside it.
+        """
+        why = " ".join(
+            f"{decision.get('stand') or ''} {decision.get('why') or ''}".split()
+        )
+        for item in decision.get("actions") or []:
+            if not isinstance(item, dict):
+                continue
+            try:
+                index = int(item.get("index"))
+            except (TypeError, ValueError):
+                continue
+            if not 0 <= index < len(options):
+                continue
+            said = cls._the_choice_disagrees_with_its_reason(options, index, why)
+            if said:
+                return said
+        return ""
+
+    @classmethod
+    def _the_choice_disagrees_with_its_reason(
+        cls, options: list[Mapping[str, Any]], index: int, why: str
+    ) -> str:
+        """Where her own reason points, against where her answer landed.
+
+        LIVE 2026-09-28: "3 of 5, between 'makes lists' and 'relies on memory'.
+        I am choosing the middle option because I genuinely hold a strong
+        preference for externalized structure over relying on internal memory."
+        A reason that names one side and an answer that commits to neither is
+        an answer that contradicts itself, and nothing noticed.
+
+        Measured from the page's own words, not a vocabulary: the run of
+        controls sits between two phrases, and her reason is compared against
+        each of them by how many of their words it uses. Where it leans clearly
+        one way and the answer does not lie on that side, this says so. Where
+        the options carry their own labels, where the reason names neither side
+        or both equally, it says nothing — a check that guesses is worse than
+        no check.
+
+        Returns what disagrees, or "".
+        """
+        named = {str(option.get("name") or "").strip() for option in options}
+        named.discard("")
+        group = str(options[0].get("group") or "") if options else ""
+        if len(named) == len(options) and named != {group}:
+            return ""
+        laid_out = cls._how_the_options_are_laid_out(options)
+        between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
+        if between is None or not str(why or "").strip():
+            return ""
+        left, right = between.group(1), between.group(2)
+        said = cls._words_of(why)
+        toward_left = len(said & cls._words_of(left))
+        toward_right = len(said & cls._words_of(right))
+        if toward_left == toward_right:
+            return ""
+        middle = (len(options) + 1) / 2.0
+        place = index + 1
+        leaning, other = (
+            (left, right) if toward_left > toward_right else (right, left)
+        )
+        on_that_side = place < middle if toward_left > toward_right else place > middle
+        if on_that_side:
+            return ""
+        if place == middle:
+            return (
+                f'what you said is about "{leaning}" and the position you '
+                "chose is the midpoint, which commits to neither"
+            )
+        return (
+            f'what you said is about "{leaning}" and the position you chose '
+            f'leans toward "{other}"'
+        )
+
     @staticmethod
     def _unanswered_questions(
         observation: Mapping[str, Any]
@@ -1085,6 +1185,29 @@ class _UnderstandsThePage:
                 on_progress("a question decided")
             if decision.get("error"):
                 return None
+            # An answer that contradicts its own reason goes back to her once.
+            #
+            # Measured, not rewritten: nothing here changes what she chose, and
+            # the second answer stands whatever it is. Telling her what to pick
+            # would make the answer the check's rather than hers.
+            disagreement = self._first_disagreement(decision, options)
+            if disagreement:
+                logger.info(
+                    "🌐 Answer and reason disagree (%s); asking again.", disagreement
+                )
+                second = await self._decide_next_actions(
+                    goal,
+                    single,
+                    history,
+                    understanding,
+                    about_her=True,
+                    noticed=(
+                        f"Looking at the answer you just gave: {disagreement}. "
+                        "Answer it again."
+                    ),
+                )
+                if not second.get("error"):
+                    decision = second
             for item in decision.get("actions") or []:
                 if not isinstance(item, dict):
                     continue
@@ -1101,12 +1224,21 @@ class _UnderstandsThePage:
                 # Handing an index back to the caller would resolve it against
                 # the whole page, which is how a loop ends up pressing whatever
                 # moved into slot four.
+                # Her position first, then the reason for the place she put
+                # it. Said in that order because that is the order it was
+                # decided in, and a listener who hears the position understands
+                # the number.
+                stand = " ".join(str(decision.get("stand") or "").split())
+                why = " ".join(str(decision.get("why") or "").split())
                 return {
                     "selector": selector,
                     "name": str(options[index].get("name") or ""),
-                    "why": str(decision.get("why") or ""),
+                    "stand": stand,
+                    "why": why,
                     "expect": str(decision.get("expect") or ""),
-                    "said": self._an_answer_in_words(options, index, str(decision.get("why") or "")),
+                    "said": self._an_answer_in_words(
+                        options, index, f"{stand} {why}".strip() if stand else why
+                    ),
                 }
             return None
 
@@ -1156,6 +1288,7 @@ class _UnderstandsThePage:
         *,
         said_before: str = "",
         about_her: bool | None = None,
+        noticed: str = "",
     ) -> dict[str, Any]:
         """Ask her own reasoning what to do with this page.
 
@@ -1257,6 +1390,7 @@ class _UnderstandsThePage:
         said = "" if asks_about_her else " ".join(str(said_before or "").split())
         prompt = (
             f"GOAL: {goal}\n\n"
+            + (f"{noticed}\n\n" if noticed else "")
             + (f"WHAT YOU TOLD THEM BEFORE YOU BEGAN: {said}\n\n" if said else "")
             + (f"{self_state}\n\n" if self_state else "")
             + (f"{self._render_understanding(understanding)}\n\n" if understanding else "")
@@ -1265,6 +1399,9 @@ class _UnderstandsThePage:
             "Act on this page from that understanding. Answer with JSON only:\n"
             '{"actions": [{"index": <int>, "type": "click"|"type"|"scroll", '
             '"value": "<text for type, up/down for scroll>"}], '
+            '"stand": "<where you actually stand on what is being asked, in '
+            'your own words, before you look at the options — leave empty if '
+            'the control is not asking you for a position>", '
             '"why": "<one sentence, first person, why these and not the others>", '
             '"expect": "<what this should do to the page>", "done": false}\n'
             "Set done to true only when the whole task is accomplished. Use the "
