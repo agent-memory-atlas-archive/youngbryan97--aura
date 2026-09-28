@@ -15,7 +15,6 @@ with HealthAwareLLMRouter.
 """
 from __future__ import annotations
 
-from .llm_health_router_endpoint_call import _CallsTheEndpoint
 import asyncio
 import inspect  # noqa: F401  (read at call time by the lifted module)
 import logging
@@ -34,7 +33,9 @@ import httpx  # noqa: F401  (read at call time by the lifted module)
 
 from core.brain.generation_provenance import attributed_text
 from core.brain.llm.chat_format import format_chatml_messages
-from core.brain.llm.deferral_record import record_deferral  # noqa: F401  (read at call time by the lifted module)
+from core.brain.llm.deferral_record import (
+    record_deferral,  # noqa: F401  (read at call time by the lifted module)
+)
 from core.brain.llm.model_registry import (
     BRAINSTEM_ENDPOINT,  # noqa: F401  (read at call time by the lifted module)
     DEEP_ENDPOINT,  # noqa: F401  (read at call time by the lifted module)
@@ -53,7 +54,9 @@ from core.brain.llm.runtime_wiring import (
 from core.phases.response_contract import ResponseContract
 from core.runtime.desktop_boot_safety import desktop_resource_guard_enabled
 from core.runtime.errors import record_degradation
-from core.runtime.network_gateway import get_network_gateway  # noqa: F401  (read at call time by the lifted module)
+from core.runtime.network_gateway import (
+    get_network_gateway,  # noqa: F401  (read at call time by the lifted module)
+)
 from core.runtime.progress_bound import (
     await_while_the_task_moves,
     run_on_a_thread_while_it_works,
@@ -67,7 +70,15 @@ from core.runtime.proof_policy import (
 )
 from core.runtime.turn_analysis import analyze_turn
 from core.utils.concurrency import RobustLock
-from core.utils.task_tracker import get_task_tracker  # noqa: F401  (read at call time by the lifted module)
+from core.utils.task_tracker import (
+    get_task_tracker,  # noqa: F401  (read at call time by the lifted module)
+)
+
+from .llm_health_router_endpoint_call import _CallsTheEndpoint
+from .llm_health_router_gate_readings import (  # noqa: F401  (re-exported: they were defined here)
+    _oldest_generation_gate_lease_age_s,
+    generation_gate_snapshot,
+)
 
 logger = logging.getLogger("Brain.HealthRouter")
 
@@ -261,49 +272,6 @@ def _active_foreground_generation_owner() -> str:
         return ""
     lease_id, _acquired_at, owner = oldest_lease
     return owner if _lease_is_user_foreground(lease_id, owner) else ""
-
-
-def _oldest_generation_gate_lease_age_s() -> float:
-    oldest_lease = _oldest_generation_gate_lease()
-    if oldest_lease is None:
-        return 0.0
-    _lease_id, acquired_at, _owner = oldest_lease
-    return max(0.0, time.time() - float(acquired_at))
-
-
-def generation_gate_snapshot() -> dict[str, Any]:
-    """Return a read-only snapshot for schedulers and health probes."""
-
-    with _GENERATION_GATE_STATE_LOCK:
-        now = time.time()
-        active = {
-            int(lease_id): {
-                "age_s": max(0.0, now - float(acquired_at)),
-                "owner": str(owner or "unknown"),
-                "deadline_at": _GENERATION_GATE_LEASE_DEADLINES.get(int(lease_id)),
-                "deadline_remaining_s": (
-                    max(
-                        0.0,
-                        float(_GENERATION_GATE_LEASE_DEADLINES[int(lease_id)]) - now,
-                    )
-                    if int(lease_id) in _GENERATION_GATE_LEASE_DEADLINES
-                    else None
-                ),
-            }
-            for lease_id, (acquired_at, owner) in _GENERATION_GATE_ACTIVE_LEASES.items()
-        }
-        oldest = None
-        if active:
-            oldest_id = max(active, key=lambda lease_id: active[lease_id]["age_s"])
-            oldest = {"lease_id": oldest_id, **active[oldest_id]}
-        return {
-            "active_count": len(active),
-            "active": active,
-            "oldest": oldest,
-            "last_acquired_at": float(_GENERATION_GATE_LAST_ACQUIRED_AT or 0.0),
-            "last_owner": str(_GENERATION_GATE_LAST_OWNER or ""),
-            "wait_budget_s": float(_GENERATION_GATE_WAIT_S),
-        }
 
 
 def _mark_generation_gate_acquired(
