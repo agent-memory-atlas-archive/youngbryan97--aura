@@ -35,6 +35,23 @@ def residual_scales(values: list[float]) -> tuple[float, ...]:
     return tuple(values)
 
 
+def residual_training_contract(training: dict, selected: dict) -> None:
+    """Admit only completed, rejected path fits with the same calibration basis."""
+    if (training.get("schema") not in {"aura.semantic_native_fit_plan.v5",
+                                      "aura.semantic_native_fit_plan.v6"}
+            or selected.get("step") != 0 or training.get("suffix_layers") != 1
+            or "reused_prefix_contract" not in training):
+        raise ValueError("native residual requires a measured, rejected path suffix fit")
+    if training["schema"].endswith(".v6"):
+        from core.learning.semantic_native_path_objective import GRAMMAR_PATH_CONTRACT
+        from core.learning.semantic_native_typed_source_pairs import TYPED_SOURCE_PAIR_CONTRACT
+
+        if (training.get("grammar_source_pair_contract") != TYPED_SOURCE_PAIR_CONTRACT
+                or training.get("grammar_path_objective_contract") != GRAMMAR_PATH_CONTRACT
+                or training.get("contrast_policy") != "all_native_type_admitted_teacher_decisions_v1"):
+            raise ValueError("native residual v6 source contrast contract differs")
+
+
 def residual_admission(rows_by_scale: dict[float, list[dict]], sources: list[str]) -> dict:
     """Select from source paths only; a lower loss cannot excuse a lost path."""
     if not rows_by_scale or 0. not in rows_by_scale:
@@ -105,10 +122,7 @@ def run(args) -> None:
     configure_refit_environment(args.directory / "report.json")
     scales = residual_scales(args.scale)
     training, selected = selected_checkpoint(args.training_directory)
-    if (training["schema"] != "aura.semantic_native_fit_plan.v5"
-            or selected["step"] != 0 or training["suffix_layers"] != 1
-            or "reused_prefix_contract" not in training):
-        raise ValueError("native residual requires a measured, rejected v5 suffix fit")
+    residual_training_contract(training, selected)
     candidate = verified_document(args.training_directory / f"checkpoint-{args.candidate_step}.json")
     if (candidate["step"] == 0 or candidate["plan_sha256"] != training["plan_sha256"]
             or candidate["step"] not in {row["step"] for row in
@@ -142,6 +156,8 @@ def run(args) -> None:
              "core/learning/frozen_decoder_prefix.py",
              "core/learning/semantic_native_path_calibration.py",
              "tools/semantic_native_prefix_reuse.py")
+    if training["schema"].endswith(".v6"):
+        paths += ("core/learning/semantic_native_typed_source_pairs.py",)
     body = {"schema": "aura.native_residual_calibration_plan.v1",
             "training_plan_sha256": training["plan_sha256"],
             "training_report_receipt_sha256": verified_document(

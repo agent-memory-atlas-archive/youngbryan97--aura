@@ -11,6 +11,7 @@ from tools.calibrate_semantic_native_residual import (
     measured_row,
     residual_admission,
     residual_scales,
+    residual_training_contract,
 )
 from tools.evaluate_semantic_native_checkpoint import digest
 
@@ -29,6 +30,30 @@ def test_residual_requires_ordered_endpoints_and_an_interior_scale():
                 [0., 1., 0.08], [0., float("nan"), 1.], [0., 1.01, 1.]):
         with pytest.raises(ValueError, match="ordered 0"):
             residual_scales(bad)
+
+
+def test_typed_contrast_fit_uses_existing_rejected_path_residual_gate():
+    from core.learning.semantic_native_path_objective import GRAMMAR_PATH_CONTRACT
+    from core.learning.semantic_native_typed_source_pairs import TYPED_SOURCE_PAIR_CONTRACT
+
+    plan = {"schema": "aura.semantic_native_fit_plan.v6", "suffix_layers": 1,
+            "reused_prefix_contract": {},
+            "grammar_source_pair_contract": dict(TYPED_SOURCE_PAIR_CONTRACT),
+            "grammar_path_objective_contract": dict(GRAMMAR_PATH_CONTRACT),
+            "contrast_policy": "all_native_type_admitted_teacher_decisions_v1"}
+    residual_training_contract({"schema": "aura.semantic_native_fit_plan.v5",
+                                "suffix_layers": 1, "reused_prefix_contract": {}}, {"step": 0})
+    residual_training_contract(plan, {"step": 0})
+    for changed_plan, selected in (
+        ({**plan, "schema": "aura.semantic_native_fit_plan.v7"}, {"step": 0}),
+        ({**plan, "grammar_source_pair_contract": {}}, {"step": 0}),
+        ({**plan, "grammar_path_objective_contract": {}}, {"step": 0}),
+        ({**plan, "contrast_policy": "operation_only"}, {"step": 0}),
+        ({**plan, "suffix_layers": 2}, {"step": 0}),
+        (plan, {"step": 101}),
+    ):
+        with pytest.raises(ValueError, match="native residual"):
+            residual_training_contract(changed_plan, selected)
 
 
 def test_residual_selects_source_gain_only_when_all_baseline_paths_survive():
