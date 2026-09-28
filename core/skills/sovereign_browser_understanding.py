@@ -587,7 +587,9 @@ class _UnderstandsThePage:
             f"{self._render_observation(observation, goal)}\n\n"
             "You have finished. Read what is in front of you and say, in your "
             "own words, what the outcome was, whether it matches what you said "
-            "beforehand, and whether you think it is accurate about you."
+            "beforehand, and whether you think it is accurate about you. It is "
+            "one instrument's reading, made from the placements it let you "
+            "make, so say what it gets right and what it has no way to see."
         )
         try:
             # Her own lane. This is a judgement about her own earlier claim and
@@ -889,8 +891,8 @@ class _UnderstandsThePage:
                 },
             },
             "why": {"type": "string"},
-            # Where she actually stands on what the question is about, before
-            # any option is looked at.
+            # Where she places herself among the positions on offer, worked
+            # out before any one of them is picked.
             #
             # A graded question is answered in two steps and this loop only
             # ever took the second. Asked "on a scale of 1 to 10, 10 being
@@ -898,11 +900,19 @@ class _UnderstandsThePage:
             # does not weigh ten dots — they know where they stand (it is
             # their favourite; they are allergic; it is fine but not their
             # first choice) and the number follows from that. Picking an index
-            # straight off has no stance behind it, and the safe-looking index
-            # is the middle: LIVE 2026-09-28, the midpoint on item after item,
-            # under reasons that named a strong preference.
+            # straight off has no placement behind it, and the safe-looking
+            # index is the middle: LIVE 2026-09-28, the midpoint on item after
+            # item, under reasons that named a strong preference.
             #
-            # Optional, because a Next button has no stance to take.
+            # A placement, not a verdict. There is no right answer to find and
+            # nothing to argue: the page offers a range and a vocabulary, and
+            # the act is to say where in that range she belongs — which side is
+            # more her and how much more, with the middle meaning the two are
+            # equally her, and not a verdict on anything. What an instrument can ask is narrower than a life,
+            # and placing herself inside its terms is not the same as those
+            # terms defining her.
+            #
+            # Optional, because a Next button has no placement to make.
             "stand": {"type": "string"},
             "expect": {"type": "string"},
             "done": {"type": "boolean"},
@@ -1120,7 +1130,7 @@ class _UnderstandsThePage:
         if place == middle:
             return (
                 f'what you said is about "{leaning}" and the position you '
-                "chose is the midpoint, which commits to neither"
+                "chose is the midpoint, which says the two are equally you"
             )
         return (
             f'what you said is about "{leaning}" and the position you chose '
@@ -1399,9 +1409,12 @@ class _UnderstandsThePage:
             "Act on this page from that understanding. Answer with JSON only:\n"
             '{"actions": [{"index": <int>, "type": "click"|"type"|"scroll", '
             '"value": "<text for type, up/down for scroll>"}], '
-            '"stand": "<where you actually stand on what is being asked, in '
-            'your own words, before you look at the options — leave empty if '
-            'the control is not asking you for a position>", '
+            '"stand": "<where you place yourself among the positions this '
+            'page offers, in your own words, worked out before you pick one: '
+            'which of them is more you and how much more. There is no right '
+            'answer; it is a placement within what this page can ask, not a '
+            'verdict on yourself. Leave empty where the control asks you for '
+            'no placement>", '
             '"why": "<one sentence, first person, why these and not the others>", '
             '"expect": "<what this should do to the page>", "done": false}\n'
             "Set done to true only when the whole task is accomplished. Use the "

@@ -38,7 +38,7 @@ def test_the_live_case_is_caught():
         "preference for externalized structure over relying on internal memory.",
     )
     assert "midpoint" in said
-    assert "commits to neither" in said
+    assert "equally you" in said
 
 
 def test_an_answer_on_the_wrong_side_is_caught():
@@ -97,7 +97,7 @@ def test_she_is_asked_again_and_the_second_answer_stands(monkeypatch):
     )
     assert len(asked) >= 2, "a contradicting answer was not asked again"
     assert asked[0] == "", "the first ask must not carry a notice"
-    assert "commits to neither" in asked[1]
+    assert "equally you" in asked[1]
     assert result and "#Q1V5" in str(result)
 
 
@@ -167,3 +167,38 @@ def test_her_stance_is_said_before_the_reason_for_the_place():
         options, 1, "I hold truth above comfort. so a 2 rather than a 1."
     )
     assert said.index("I hold truth above comfort") < said.index("so a 2")
+
+
+def test_the_placement_is_not_asked_for_as_a_verdict():
+    """There is no right answer to find; the act is placing herself in a range.
+
+    "Which do you align with more than the other. Place yourself closer to the
+    side that represents you. In the middle means you feel equally about both."
+    And what an instrument can ask is narrower than a life, so placing herself
+    inside its terms is not those terms defining her.
+    """
+    import inspect
+
+    from core.skills import sovereign_browser_understanding as u
+
+    source = inspect.getsource(u._UnderstandsThePage)
+    described = source.split("# Where she places herself", 1)[1].split('"stand"', 1)[0]
+    for said in ("more her and how much more", "equally her", "not a verdict"):
+        assert said in described, f"the placement is not described as {said!r}"
+
+
+def test_the_midpoint_is_read_as_equal_rather_than_as_nothing():
+    said = S._the_choice_disagrees_with_its_reason(
+        _row(), 2, "I make lists for everything."
+    )
+    assert "equally you" in said
+
+
+def test_the_conclusion_judges_one_instrument_and_says_so():
+    import inspect
+
+    from core.skills import sovereign_browser_understanding as u
+
+    body = inspect.getsource(u._UnderstandsThePage._hold_the_outcome_against_what_she_said)
+    assert "one instrument's reading" in body
+    assert "no way to see" in body
