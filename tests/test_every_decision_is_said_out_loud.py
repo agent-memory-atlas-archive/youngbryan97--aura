@@ -101,7 +101,7 @@ def test_the_narration_fires_before_the_round_is_resolved():
     import inspect
 
     loop = inspect.getsource(SovereignBrowserSkill._handle_pursue)
-    narrated = loop.index("self._narrate_decision(decision, observation)")
+    narrated = loop.index("self._narrate_decision(decision, observation, goal)")
     branched = loop.index('if decision.get("error"):')
     assert narrated < branched, (
         "every decision must be said before the loop decides what to do with it"

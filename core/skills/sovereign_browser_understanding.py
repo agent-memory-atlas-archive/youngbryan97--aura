@@ -424,7 +424,43 @@ class _UnderstandsThePage:
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.calibration", exc, severity="debug")
 
-    async def _her_own_thinking_about_herself(self, prompt: str) -> tuple[str, str]:
+    async def _what_she_expects_it_to_say(
+        self, goal: str, observation: Mapping[str, Any], mind: str
+    ) -> str:
+        """What she expects this instrument to conclude about her, before she answers it.
+
+        A forecast made before arriving is made from nothing: she does not yet
+        know what the thing measures, and "what score will you get" has no
+        answer until the page says what it reports. Read here instead, from
+        what this page says it is and what it measures, and said before the
+        first item is answered — so the outcome at the end has something real
+        to be held against.
+
+        General to any instrument that will report on her, whatever it reports:
+        a type, a set of scales, a percentile, a sentence. Where a page names
+        no scores at all she infers what it may say about her from what it says
+        it is for, which is the same thing a person does with a test they have
+        not taken.
+        """
+        prompt = (
+            f"WHAT YOU ARE ABOUT TO DO: {goal}\n\n"
+            f"{self._render_observation(observation, goal)}\n\n"
+            "Before you answer anything: from what this page says this is and "
+            "what it measures, say what you expect it to conclude about you, "
+            "and why you expect that. If it names the scores it reports, "
+            "predict them. If it does not, say what it is likely to say about "
+            "you from what it measures. Answer in your own words."
+        )
+        said, lane = await self._her_own_thinking_about_herself(
+            prompt, shaped=False
+        )
+        if said and lane == self._HER_OWN_LANE:
+            return said
+        return ""
+
+    async def _her_own_thinking_about_herself(
+        self, prompt: str, *, shaped: bool = True
+    ) -> tuple[str, str]:
         """Put a question about her through her cognition, not a completion.
 
         `router.think` is a model call with her self-context in front of it.
@@ -461,9 +497,12 @@ class _UnderstandsThePage:
                 thought = await cycle(
                     prompt,
                     context={
-                        "output_shape": "json_object",
+                        # A decision is a structured choice and a forecast is
+                        # a sentence; holding the second to an object shape
+                        # would make her say it in JSON.
+                        **({"output_shape": "json_object"} if shaped else {}),
                         "origin": self._PAGE_ORIGIN,
-                        "purpose": "page_decision",
+                        "purpose": "page_decision" if shaped else "page_forecast",
                         "own_lane_required": True,
                     },
                     # Short chain of thought. A self-report item is not a

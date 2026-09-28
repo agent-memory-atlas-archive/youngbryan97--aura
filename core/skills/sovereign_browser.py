@@ -221,7 +221,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
             record_degradation("sovereign_browser", exc, action="pursuit narration skipped")
 
     def _narrate_decision(
-        self, decision: Mapping[str, Any], observation: Mapping[str, Any]
+        self, decision: Mapping[str, Any], observation: Mapping[str, Any], goal: str = ""
     ) -> str:
         """Say every decision as it is made, including the ones that do nothing.
 
@@ -233,8 +233,12 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
         stops making sense — and from outside they looked like a browser
         sitting still.
         """
+        # Ranked by the same goal the decision was shown, or index 3 names one
+        # control on screen and another in the sentence. LIVE 2026-09-28: "I
+        # need to click the Open Jungian Type Scales link ... I am going to
+        # about." — the page's nav link, read out of a differently ordered list.
         elements = self._controls_worth_offering(
-            list(observation.get("elements") or [])
+            list(observation.get("elements") or []), goal
         )
         why = " ".join(str(decision.get("why") or "").split())
         if decision.get("error"):
@@ -1337,6 +1341,18 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
 
                 decision = None
                 if self._asks_about_the_one_answering(observation):
+                    # Before the first item, what she expects it to say about
+                    # her. A forecast made before arriving is made from
+                    # nothing: she did not yet know what the thing measures.
+                    # Read from the page instead, said out loud, and kept as
+                    # the thing the result is held against at the end.
+                    if not said_before:
+                        said_before = await self._what_she_expects_it_to_say(
+                            goal, observation, mind
+                        )
+                        if said_before:
+                            self._say_out_loud(said_before)
+                            await self._hold_for_reading(said_before)
                     decision = await self._answer_each_question(
                         goal, observation, steps, understanding, on_progress=still_going
                     )
@@ -1348,7 +1364,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                 # ones that act and the ones that do not — and left up long
                 # enough to be read before anything happens because of it.
                 await self._hold_for_reading(
-                    self._narrate_decision(decision, observation)
+                    self._narrate_decision(decision, observation, goal)
                 )
                 if decision.get("error"):
                     # What she actually said, not just that it could not be read.
