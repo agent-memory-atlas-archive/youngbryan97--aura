@@ -10,8 +10,15 @@ import pytest
 from core.learning.frozen_state_store import FrozenStateStore
 from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
 from core.learning.semantic_native_source_pairs import SOURCE_PAIR_CONTRACT
+from core.learning.semantic_native_path_objective import (
+    GRAMMAR_PATH_CONTRACT,
+    JOINT_GRAPH_CONTRAST_CONTRACT,
+    path_choice_contract,
+)
+from core.learning.semantic_native_path_selection import JOINT_GRAPH_SELECTION_CONTRACT
 from tools.evaluate_semantic_native_checkpoint import digest
 from tools.semantic_native_prefix_reuse import open_reused_prefix, prefix_reuse_contract
+from tools.train_semantic_native_program import graft_reused_grammar_states
 from tools.verify_semantic_native_fit import verify_state_storage
 
 
@@ -76,6 +83,89 @@ def test_full_reuse_contract_reopens_all_states_and_verifies_report(tmp_path):
     with pytest.raises(ValueError, match="capture inventory differs"):
         verify_state_storage(tmp_path / "new", new, report, supervision)
     assert manifest["plan_sha256"] == contract["source_plan_sha256"]
+
+
+def test_joint_graph_reuse_grafts_old_grammar_and_new_graph_into_verified_shard(tmp_path):
+    source, new, row, _manifest, _old_supervision = fixture(tmp_path)
+    prior = json.loads((source / "plan.json").read_text())
+    prior.update(objective="grammar_choices", loss_scope="semantic_decisions",
+                 grammar_choice_contract=GRAMMAR_CHOICE_CONTRACT,
+                 unfitted_checkpoint_eligible=True,
+                 selection="minimum_source_calibration_conditional_grammar_choice_loss")
+    prior.pop("plan_sha256")
+    prior["plan_sha256"] = digest(prior)
+    (source / "plan.json").write_text(json.dumps(prior))
+    manifest_path = next((source / "prefix-states").glob("*.json"))
+    manifest = json.loads(manifest_path.read_text())
+    manifest["plan_sha256"] = prior["plan_sha256"]
+    manifest.pop("receipt_sha256")
+    manifest["receipt_sha256"] = digest(manifest)
+    manifest_path.chmod(0o600)
+    manifest_path.write_text(json.dumps(manifest))
+    prior_supervision = {"plan_sha256": prior["plan_sha256"], "rows": [row]}
+    prior_supervision["receipt_sha256"] = digest(prior_supervision)
+    (source / "supervision.json").write_text(json.dumps(prior_supervision))
+    capture_path = source / "prefix-receipts" / "source.json"
+    capture = json.loads(capture_path.read_text())
+    capture["plan_sha256"] = prior["plan_sha256"]
+    capture_path.write_text(json.dumps(capture))
+
+    new = deepcopy(prior)
+    new.update(schema="aura.semantic_native_fit_plan.v7",
+               grammar_choice_contract=path_choice_contract(),
+               grammar_path_objective_contract=GRAMMAR_PATH_CONTRACT,
+               path_checkpoint_selection_contract=JOINT_GRAPH_SELECTION_CONTRACT,
+               selection="baseline_preserving_joint_source_calibration",
+               joint_graph_contrast_limit=2,
+               graph_contrast_contract=JOINT_GRAPH_CONTRAST_CONTRACT)
+    new["implementation"].update({"tools/train_semantic_native_program.py": "new",
+                                  "core/learning/frozen_state_store.py": "new",
+                                  "core/learning/semantic_native_grammar.py": "new"})
+    contract = prefix_reuse_contract(source, new)
+    assert contract["schema"] == "aura.native_frozen_prefix_reuse.v2"
+    assert contract["row_bound_implementation_paths"] == ["core/learning/semantic_native_grammar.py"]
+    new["reused_prefix_contract"] = contract
+    new.pop("plan_sha256")
+    new["plan_sha256"] = digest(new)
+    graph_rows = [{"source": "source", "choice_index": index, "tokens": [1, 2, 4 + index]}
+                  for index in range(2)]
+    supervision = {"plan_sha256": new["plan_sha256"], "rows": [row],
+                   "graph_rows": graph_rows}
+    with mx.stream(mx.cpu):
+        prior_states = open_reused_prefix(contract, new, supervision)
+        old_key, graph_key, rival_key = ("source", 0, 0), ("source", -1, 0), ("source", -1, 1)
+        combined = graft_reused_grammar_states(
+            prior_states, "source", (((old_key,), 0),),
+            {graph_key: mx.arange(4, dtype=mx.float32) + 10,
+             rival_key: mx.arange(4, dtype=mx.float32) + 20})
+        store = FrozenStateStore(tmp_path / "new" / "prefix-states",
+            plan_sha256=new["plan_sha256"], max_resident_bytes=64)
+        store.write_source("source", combined, sequence_digests={
+            old_key: digest(row["tokens"]),
+            graph_key: digest(graph_rows[0]["tokens"]),
+            rival_key: digest(graph_rows[1]["tokens"])})
+    captures = {"plan_sha256": new["plan_sha256"], "source": "source",
+                "checked_choices": 2, "complete_rankings_checked": True}
+    (tmp_path / "new" / "prefix-receipts").mkdir()
+    (tmp_path / "new" / "prefix-receipts" / "source.json").write_text(json.dumps(captures))
+    report = {"reused_prefix_contract": contract, "prefix_storage_receipt": store.receipt(),
+              "prefix_capture_receipts": [{key: value for key, value in captures.items()
+                                           if key != "plan_sha256"}]}
+    result = verify_state_storage(tmp_path / "new", new, report, supervision)
+    assert result["sequences"] == 3
+    report["prefix_capture_receipts"][0]["checked_choices"] = 1
+    with pytest.raises(ValueError, match="capture inventory differs"):
+        verify_state_storage(tmp_path / "new", new, report, supervision)
+    report["prefix_capture_receipts"][0]["checked_choices"] = 2
+    old_shard = next((source / "prefix-states").glob("*.safetensors"))
+    old_shard.chmod(0o600)
+    with old_shard.open("r+b") as handle:
+        handle.seek(-1, 2)
+        last = handle.read(1)
+        handle.seek(-1, 2)
+        handle.write(bytes((last[0] ^ 1,)))
+    with pytest.raises(ValueError, match="reused frozen source bytes"):
+        verify_state_storage(tmp_path / "new", new, report, supervision)
 
 
 def test_reuse_accepts_unchanged_implementation_and_rejects_capture_receipt_drift(tmp_path):

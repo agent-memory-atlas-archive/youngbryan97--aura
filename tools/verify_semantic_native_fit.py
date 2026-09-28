@@ -330,18 +330,57 @@ def verify_state_storage(directory, plan, report, supervision):
         )
 
         origin = Path(reuse["source_directory"])
+        partial_reuse = reuse.get("schema") == "aura.native_frozen_prefix_reuse.v2"
         if (report.get("reused_prefix_contract") != reuse
                 or prefix_reuse_contract(origin, plan) != reuse
                 or digest(supervision["rows"]) != reuse["source_supervision_rows_sha256"]):
             raise ValueError("native frozen prefix reuse differs")
-        expected_captures = source_capture_receipts(
+        origin_captures = source_capture_receipts(
             origin, sources=sorted({row["source"] for row in supervision["rows"]}),
             plan_sha256=reuse["source_plan_sha256"])
-        if (digest(expected_captures) != reuse["capture_inventory_sha256"]
-                or report.get("prefix_capture_receipts") != expected_captures):
+        if digest(origin_captures) != reuse["capture_inventory_sha256"]:
             raise ValueError("native reused capture inventory differs")
-        shard_plan_sha = reuse["source_plan_sha256"]
-        shard_directory = origin
+        if partial_reuse:
+            from collections import Counter
+            from core.learning.frozen_state_store import FrozenStateStore
+
+            origin_plan = verified_document(origin / "plan.json", "plan_sha256")
+            origin_supervision = verified_document(origin / "supervision.json")
+            old_rows = {(row["source"], row["decision_index"], row["choice_index"]):
+                        digest(row["tokens"]) for row in origin_supervision["rows"]}
+            old_store = FrozenStateStore.open_existing(
+                origin / "prefix-states", plan_sha256=origin_plan["plan_sha256"],
+                max_resident_bytes=origin_plan["prefix_storage_contract"]["max_resident_bytes"],
+                sequence_digests=old_rows)
+            for source, shard in old_store._shards.items():
+                name = hashlib.sha256(source.encode()).hexdigest()
+                with open_stable_readonly_binary(
+                        origin / "prefix-states" / f"{name}.safetensors",
+                        max_bytes=shard["file_bytes"]) as (handle, identity):
+                    content = hashlib.sha256()
+                    while chunk := handle.read(1024 * 1024):
+                        content.update(chunk)
+                    if (identity.size != shard["file_bytes"]
+                            or content.hexdigest() != shard["weights_sha256"]):
+                        raise ValueError("reused frozen source bytes differ")
+
+            expected_captures = source_capture_receipts(
+                directory, sources=sorted({row["source"] for row in supervision["graph_rows"]}),
+                plan_sha256=plan["plan_sha256"])
+            graph_counts = Counter(row["source"] for row in supervision["graph_rows"])
+            if any(not row["complete_rankings_checked"]
+                   or row["checked_choices"] != graph_counts[row["source"]]
+                   or row["checked_choices"] < 2
+                   for row in expected_captures):
+                raise ValueError("partial frozen reuse lacks graph branch parity")
+            shard_plan_sha = plan["plan_sha256"]
+            shard_directory = directory
+        else:
+            expected_captures = origin_captures
+            shard_plan_sha = reuse["source_plan_sha256"]
+            shard_directory = origin
+        if report.get("prefix_capture_receipts") != expected_captures:
+            raise ValueError("native reused capture inventory differs")
     else:
         if "reused_prefix_contract" in report:
             raise ValueError("undeclared native frozen prefix reuse")

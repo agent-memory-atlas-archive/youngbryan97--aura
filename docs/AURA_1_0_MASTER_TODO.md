@@ -1240,6 +1240,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   connects complete-graph calibration to baseline-preserving checkpoint
   selection. Source-only preparation is measured; model-active fit and
   target-blind generated validation remain pending.
+  [V7 partial frozen-prefix reuse](evidence/G03_V7_PARTIAL_PREFIX_REUSE_2026-09-28.md)
+  verifies the 21,733 old grammar token rows and limits new model capture to
+  1,952 graph rows. Its source-only plan has no outcome measurement yet.
   [V6 typed source result](evidence/G03_V6_TYPED_SOURCE_RESULT_2026-09-28.md)
   rejects the widened fit: its selected checkpoint was unfitted, and the
   baseline-preserving factorized policy generated 6/14 exact programs and

@@ -90,6 +90,17 @@ def native_source_rankings(batch, grammar_groups, graph_groups, *, grammar_mode)
     return partitions
 
 
+def graft_reused_grammar_states(prior_states, source, decisions, graph_states):
+    """Bind old verified grammar rows and new graph rows into one source shard."""
+    grammar_keys = [key for keys, _correct in decisions for key in keys]
+    if (not graph_states or len(set(grammar_keys)) != len(grammar_keys)
+            or any(key[0] != source or key[1] != -1 for key in graph_states)
+            or any(key[0] != source or key[1] == -1 for key in grammar_keys)
+            or set(grammar_keys) & set(graph_states)):
+        raise ValueError("partial frozen capture crosses source or decision kinds")
+    return {**{key: prior_states[key] for key in grammar_keys}, **graph_states}
+
+
 def native_training_schedule(identities, *, steps, seed):
     """Freeze the original shuffled update order before capturing any states."""
     order = list(identities)
@@ -480,8 +491,7 @@ def main():
     if args.joint_graph_contrasts and (not args.path_objective
             or args.objective not in {"grammar_choices", "grammar_source_pairs"}
             or not 2 <= args.joint_graph_contrasts <= 32
-            or args.prefix_storage != "source_shards" or args.prefix_strategy != "trie"
-            or args.reuse_prefix_from is not None):
+            or args.prefix_storage != "source_shards" or args.prefix_strategy != "trie"):
         parser.error("joint graph contrast needs path risk, source shards and trie capture")
     typed_pairs = args.source_pair_policy == "typed_choice_complete_v1"
     if typed_pairs and (not args.path_objective or args.objective != "grammar_source_pairs"):
@@ -849,17 +859,23 @@ def main():
         construction_by_id = {identity: item.construction_id for identity, item in items.items()}
         del examples, fit, calibration, items, parent
         gc.collect()
+        partial_reuse = (args.reuse_prefix_from is not None
+                         and plan["reused_prefix_contract"]["schema"]
+                         == "aura.native_frozen_prefix_reuse.v2")
+        prior_states = None
         captured = {}
         if args.prefix_storage == "source_shards":
             from core.learning.frozen_state_store import FrozenStateStore
+            if partial_reuse:
+                prior_states = open_reused_prefix(plan["reused_prefix_contract"], plan, supervision)
             captured = (open_reused_prefix(plan["reused_prefix_contract"], plan, supervision)
-                if args.reuse_prefix_from is not None else
+                if args.reuse_prefix_from is not None and not partial_reuse else
                 FrozenStateStore(args.directory / "prefix-states",
                     plan_sha256=plan["plan_sha256"],
                     max_resident_bytes=plan["prefix_storage_contract"]["max_resident_bytes"]))
         verified_batch_sizes = set()
         capture_receipts = []
-        if args.reuse_prefix_from is not None:
+        if args.reuse_prefix_from is not None and not partial_reuse:
             from tools.semantic_native_prefix_reuse import source_capture_receipts
 
             prior = plan["reused_prefix_contract"]
@@ -868,8 +884,10 @@ def main():
                 plan_sha256=prior["source_plan_sha256"])
             if _digest(capture_receipts) != prior["capture_inventory_sha256"]:
                 raise ValueError("reused prefix capture inventory changed")
-        batches = (() if args.reuse_prefix_from is not None else
-                   source_sequence_groups(sequences) if args.prefix_strategy == "trie" else
+        capture_sequences = ({key: row for key, row in sequences.items() if key[1] == -1}
+                             if partial_reuse else sequences)
+        batches = (() if args.reuse_prefix_from is not None and not partial_reuse else
+                   source_sequence_groups(capture_sequences) if args.prefix_strategy == "trie" else
                    exact_length_batches(sequences, batch_size=args.prefix_batch_size))
         for batch in batches:
             check_bound()
@@ -890,7 +908,7 @@ def main():
                     check_bound()
                     if args.prefix_storage == "memory":
                         captured[key] = state
-                    if capture_receipts and key != batch[0]:
+                    if capture_receipts and key != batch[0] and not partial_reuse:
                         continue
                     positions = tuple(index - 1 for index in native_prediction_positions(row, scope=args.loss_scope))
                     expected = prefix.capture(mx.array([row.tokens[:-1]], dtype=mx.int32))
@@ -915,11 +933,11 @@ def main():
                     errors.append(error)
                     reference_scores.append(float(mx.sum(left).item()))
                     branch_scores.append(float(mx.sum(right).item()))
-                if not capture_receipts:
+                if not capture_receipts or partial_reuse:
                     from tools.probe_semantic_native_prefix_branches import ranked_score_equivalence
-                    partitions = native_source_rankings(
+                    partitions = (((batch, 0),) if partial_reuse else native_source_rankings(
                         batch, groups, graph_groups,
-                        grammar_mode=args.objective in {"grammar_choices", "grammar_source_pairs"})
+                        grammar_mode=args.objective in {"grammar_choices", "grammar_source_pairs"}))
                     offsets = {key: index for index, key in enumerate(batch)}
                     for keys, _gold in partitions:
                         indices = [offsets[key] for key in keys]
@@ -931,10 +949,15 @@ def main():
                             raise ValueError("native training trie changed a choice ranking")
                 capture_receipts.append({"source": batch[0][0], **branches.receipt(),
                     "checked_choices": len(errors), "max_target_error": max(errors),
-                    "complete_rankings_checked": len(capture_receipts) == 0})
+                    "complete_rankings_checked": partial_reuse or len(capture_receipts) == 0})
                 if args.prefix_storage == "source_shards":
-                    captured.write_source(batch[0][0], dict(zip(batch, states, strict=True)),
-                        sequence_digests={key: _digest(list(sequences[key].tokens)) for key in batch})
+                    source_states = dict(zip(batch, states, strict=True))
+                    if partial_reuse:
+                        source_states = graft_reused_grammar_states(
+                            prior_states, batch[0][0], groups[batch[0][0]], source_states)
+                    captured.write_source(batch[0][0], source_states,
+                        sequence_digests={key: _digest(list(sequences[key].tokens))
+                                          for key in source_states})
                 _save_if_absent(args.directory / "prefix-receipts" / f"{batch[0][0]}.json",
                     {"plan_sha256": plan["plan_sha256"], **capture_receipts[-1]})
                 del branches, states, expected, left, right
@@ -978,6 +1001,8 @@ def main():
                                   "population": len(sequences),
                                   "elapsed_seconds": time.monotonic() - started,
                                   "active_memory_bytes": mx.get_active_memory()}), flush=True)
+        del prior_states
+
         def source_objective(tail, identity, states):
             if args.objective in {"grammar_choices", "grammar_source_pairs"}:
                 if args.path_objective:
