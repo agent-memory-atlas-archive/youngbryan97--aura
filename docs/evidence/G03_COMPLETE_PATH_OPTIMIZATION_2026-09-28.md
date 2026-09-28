@@ -81,3 +81,46 @@ The model run, independent fit verification, and generated comparison
 are pending at this checkpoint. No broader validation follows unless the
 measured candidate justifies it. Focused checks: 158 passed, three optional
 tokenizer checks skipped.
+
+## Completed v5 fit and residual measurement
+
+The prepared run completed. Its independently reconstructed calibration is:
+
+| Step | Exact paths / 185 | Operations / 434 | References / 868 | Terminations / 434 | Lost baseline paths |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 0 | 51 | 311 | 744 | 424 | 0 |
+| 101 | 104 | 426 | 754 | 434 | 12 |
+| 202 | 34 | 423 | 704 | 434 | 51 |
+| 303 | 42 | 425 | 649 | 434 | 51 |
+
+Baseline-preserving selection chose step zero. The exposed 50-case bank
+then scored 39/50 against incumbent 41/50, with three gains and five
+regressions. The fit is rejected. Its independent verification receipt is
+`d5e6cf311b55e04387dbf83b984d34811da67d0f3c1f3b563b8fb23a4a4e13e1`.
+
+The separate residual measurement loaded checkpoint 101 and evaluated all
+185 source-calibration paths at scales 0, 0.08, and 1. Both endpoints
+reproduced the saved checkpoint scores and path profiles. Scale 0.08
+reached 60/185 exact paths: nine new paths and no lost baseline path.
+Scale 1 reproduced 104/185 and the twelve losses. The measurement changed
+neither training selection nor serving authority. Its independent receipt
+is `c97833e01e24c9997f7c62ffdaa7011de84c474890148df12752db244605f03c`.
+
+Target-blind generation on fourteen retained development requests did not
+carry this source gain forward. Residual and freshly replayed base both
+scored 1/14 exact procedures, 3/14 observed answers, and two proven
+output/domain equivalences. Paired gains and regressions were zero for
+each correctness measure. The residual completed two additional wrong
+graphs; completion cannot count as a semantic gain. Both runs ended with
+empty process lineage and were independently replayed without source drift.
+
+Evidence under `/Users/bryan/.aura/rlc-evidence`:
+
+- `semantic-native-residual-source-cal-v1-20260928`
+- `semantic-native-residual-retained-14-v1-20260928`
+- `semantic-native-risk-base-retained-14-v1-20260928`
+- `semantic-native-residual-retained-comparison-v1-20260928.json`
+
+Paired receipt:
+`0174eddbf5d368914f51d031fa5384599b114d039e96d3888d3e94a9453711c0`.
+G03 and G04 remain open. No broad run, promotion, or fusion follows.

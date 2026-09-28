@@ -32,6 +32,7 @@ from core.governance.capability_chain import (
     issuer_is_asymmetric,
     reset_capability_chain,
 )
+from tests.clock_patch import patch_module_clock
 
 
 @pytest.fixture(autouse=True)
@@ -255,7 +256,7 @@ def test_expiry_is_enforced_at_execution_not_issue(monkeypatch):
     # The clock moves past expiry before the sink runs.
     import core.governance.capability_chain as chain
 
-    monkeypatch.setattr(chain.time, "time", lambda: cap.expires_at + 1.0)
+    patch_module_clock(monkeypatch, chain, time=lambda: cap.expires_at + 1.0)
     with pytest.raises(CapabilityViolation) as exc:
         enforce_capability(
             ctx, sink="test", domain="tool_execution", action="shell_command"

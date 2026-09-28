@@ -27,11 +27,16 @@ behaviour spread through the writers.
 
 from __future__ import annotations
 
+import logging
 import math
 from collections.abc import Iterable, Mapping
 from typing import Any
 
-__all__ = ["Membrane", "keep_for", "ONE_TURN_IS_THE_UNIT"]
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+__all__ = ["Membrane", "carry_rows", "keep_for", "ONE_TURN_IS_THE_UNIT"]
 
 #: The time constant is given in frames and the caller takes it from the run's
 #: own clock. `frames_per_turn` on the seed-7 recording is 33, and one turn is
@@ -48,7 +53,9 @@ def keep_for(tau_frames: float) -> float:
     """
     try:
         tau = float(tau_frames)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as exc:
+        logger.debug("time constant %r is not a number, so the trace keeps nothing (%s: %s)",
+                     tau_frames, type(exc).__name__, exc)
         return 0.0
     if not math.isfinite(tau) or tau <= 0.0:
         return 0.0
@@ -130,3 +137,24 @@ class Membrane:
 
     def __len__(self) -> int:
         return len(self._trace)
+
+
+def carry_rows(x: np.ndarray, tau_rows: float) -> np.ndarray:
+    """Every column of a matrix as a leaky integral down its rows.
+
+    The same arithmetic `Membrane` does one channel at a time, for a recording
+    that already exists. A null architecture is simulated rather than lived, so
+    it never passes through her membranes; scoring her carried recording against
+    uncarried nulls would compare a smoothed system with unsmoothed ones, and
+    `partition_beats_nulls` is a comparison of numbers computed the same way.
+    Whatever is done to her recording is done here to theirs.
+    """
+    keep = keep_for(tau_rows)
+    values = np.asarray(x, dtype=np.float64)
+    if keep <= 0.0 or values.ndim != 2 or values.shape[0] < 2:
+        return values
+    out = np.empty_like(values)
+    out[0] = values[0]
+    for row in range(1, values.shape[0]):
+        out[row] = keep * out[row - 1] + (1.0 - keep) * values[row]
+    return out

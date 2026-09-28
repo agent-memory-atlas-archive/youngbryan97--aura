@@ -11,6 +11,8 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from core.runtime.state_membrane import after_phase
+
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -933,6 +935,9 @@ class _RunsTheThinkingLoop:
                             _skip_provenance(phase_name, temp_state, reason)
                             continue
                         temp_state = await self._run_thinking_loop_started_at(context, kwargs, objective, ordinal, phase, phase_name, temp_state)
+                        # Her membrane, as the kernel settles it after each of
+                        # its phases. See core/runtime/state_membrane.py.
+                        temp_state = after_phase(temp_state, len(self._phases))
 
                     state = temp_state
                     record_response_path(

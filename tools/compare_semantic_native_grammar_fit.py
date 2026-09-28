@@ -15,9 +15,33 @@ if str(ROOT) not in sys.path:
 
 def matched_generation(fitted_plan, base_plan, fitted_verification, base_verification):
     excluded = {"weight_mode", "plan_sha256"}
-    if (fitted_plan.get("weight_mode") != "fitted" or base_plan.get("weight_mode") != "base"
-            or {key: value for key, value in fitted_plan.items() if key not in excluded}
-                != {key: value for key, value in base_plan.items() if key not in excluded}):
+    mode = fitted_plan.get("weight_mode")
+    left, right = dict(fitted_plan), dict(base_plan)
+    if mode in {"residual", "factorized"}:
+        field = "residual_calibration" if mode == "residual" else "factorized_residual"
+        schema = "v9" if mode == "residual" else "v10"
+        contract = left.pop(field, {})
+        additions = {"tools/calibrate_semantic_native_residual.py",
+                     "tools/verify_semantic_native_residual.py"}
+        if mode == "factorized":
+            additions |= {"core/learning/semantic_native_factorized_residual.py",
+                          "tools/factor_semantic_native_residual.py",
+                          "tools/verify_semantic_native_factorized_residual.py"}
+        if (left.get("schema") != f"aura.semantic_native_grammar_plan.{schema}"
+                or right.get("schema") != "aura.semantic_native_grammar_plan.v8"
+                or contract.get("baseline_checkpoint_receipt_sha256")
+                    != right.get("checkpoint_receipt_sha256")
+                or contract.get("source_only") is not True
+                or contract.get("serving_authority") is not False
+                or set(left.get("implementation", {})) - set(right.get("implementation", {}))
+                    != additions):
+            raise ValueError("native generation residual lineage differs")
+        left["implementation"] = {key: value for key, value in left["implementation"].items()
+                                  if key not in additions}
+        excluded |= {"schema", "checkpoint_receipt_sha256"}
+    if (mode not in {"fitted", "residual", "factorized"} or base_plan.get("weight_mode") != "base"
+            or {key: value for key, value in left.items() if key not in excluded}
+                != {key: value for key, value in right.items() if key not in excluded}):
         raise ValueError("native generation arms differ beyond fitted weights")
     sources = fitted_plan.get("sources")
     if not isinstance(sources, list) or not sources or len(set(sources)) != len(sources):
@@ -46,7 +70,7 @@ def matched_generation(fitted_plan, base_plan, fitted_verification, base_verific
                          "base_correct": sum(right[key] for _, right in pairs),
                          "gains": sum(left[key] and not right[key] for left, right in pairs),
                          "regressions": sum(right[key] and not left[key] for left, right in pairs)}
-    return {"population": len(sources), **metrics,
+    return {"population": len(sources), "candidate_weight_mode": mode, **metrics,
             "source_outcomes": [{"source_sha256": source,
                 "fitted_procedure": left["procedure_equivalent"], "base_procedure": right["procedure_equivalent"],
                 "fitted_answer": left["observed_answer_correct"], "base_answer": right["observed_answer_correct"],
@@ -90,7 +114,8 @@ def main():
         verified["meaning_audit"] = audit_grammar_meanings(rows, examples)
         plans.append(plan)
         verifications.append(verified)
-    body = {"schema": "aura.native_grammar_fit_comparison.v1",
+    body = {"schema": ("aura.native_grammar_fit_comparison.v1" if plans[0]["weight_mode"] == "fitted"
+                       else "aura.native_grammar_fit_comparison.v2"),
             "fitted_report_receipt_sha256": verifications[0]["report_receipt_sha256"],
             "base_report_receipt_sha256": verifications[1]["report_receipt_sha256"],
             "training_plan_sha256": plans[0]["training_plan_sha256"],

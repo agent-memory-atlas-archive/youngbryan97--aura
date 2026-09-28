@@ -5,10 +5,18 @@ one and applies it, once per frame, to the state itself — so her own consumers
 read the trace, and so does anything that records her. A membrane that only the
 recorder saw would be a change to the measurement rather than to her.
 
-Only channels that are a plain number at a plain dotted path on `AuraState` are
-eligible. A reading that has to be dug out of a list, or asked of an organ, is
-not a field anything can write back to, and a membrane that could not write back
-would be a reading nothing takes.
+Her channels are found in her own state: every float reachable through her
+state's own fields and string-keyed maps. A float is a graded quantity; an int
+is a count or an index and a trace of one is not a count. And a channel carries
+a trace only once it has moved both ways, because a value that only grows is a
+clock or a running total, and a trace of a clock is a late clock. Nothing here
+reads the battery. The set was first the battery's own column list, which made
+the organism smooth exactly what the instrument reads; tests/
+test_the_organism_cannot_see_the_instrument.py failed on it, rightly.
+
+Her kernel and her chat pipeline settle it after every phase
+(`after_phase`), and the subject-core driver once a frame, so the membrane is
+hers wherever she runs rather than a mechanism only the harness has.
 
 One time constant, one turn, for every channel. A turn is the interval her
 phases write on and it is the run's own `frames_per_turn`, so nothing here is
@@ -39,11 +47,19 @@ from core.runtime.temporal_depth import Membrane
 logger = logging.getLogger("Aura.StateMembrane")
 
 __all__ = [
+    "FRAMES_PER_TURN_DEFAULT",
     "MembraneScope",
-    "eligible_channels",
+    "after_phase",
+    "her_channels",
     "membrane_turns",
     "settle",
 ]
+
+#: Frames a turn holds when nothing has measured one yet. The clock of every
+#: seed-7 recording reads 33, and a null architecture has no turns of its own to
+#: read, so this is what a toy is carried at when she is carried at one turn.
+FRAMES_PER_TURN_DEFAULT: float = 33.0
+
 
 def membrane_turns() -> float:
     """How many turns a fast channel holds, from the environment. Zero is off."""
@@ -58,34 +74,47 @@ def membrane_turns() -> float:
     return max(0.0, turns)
 
 
-#: Built once. A scope is carried on her state and a fork deep-copies it, so a
-#: per-instance table of two hundred columns would be copied on every arm of
-#: every trial for no reason; the table is the same for all of them.
-_CHANNELS: dict[str, str] | None = None
+#: How deep the walk goes into her state. Her deepest float sits five levels
+#: down (`affect.markers.tangled.lifts.joy`); past that is a structure nothing
+#: reads as a quantity.
+_DEPTH = 6
 
 
-def eligible_channels() -> dict[str, str]:
-    """Every schema column whose value is a plain number at a writable path.
+def her_channels(state: Any) -> dict[str, float]:
+    """Every float in her state, by dotted path, found by walking her own fields.
 
-    Returns the column name against the dotted path it reads, so the set is a
-    table that can be printed rather than a behaviour spread through writers.
+    Dataclass fields and string-keyed maps are walked; lists, sets and objects
+    that are neither are not, because a position in a list is not a place a
+    value can be written back to. Booleans and ints are not floats.
     """
-    global _CHANNELS
+    import dataclasses
 
-    if _CHANNELS is not None:
-        return _CHANNELS
-    from core.subject.state import _SCHEMAS, DOMAINS
+    out: dict[str, float] = {}
 
-    out: dict[str, str] = {}
-    for domain in DOMAINS:
-        schema = _SCHEMAS[domain]
-        for feature, source in zip(schema.features, schema.sources, strict=True):
-            path = str(source)
-            if path.startswith("organ:") or "[" in path or "*" in path:
-                continue
-            out[f"{domain}.{feature}"] = path
-    _CHANNELS = out
+    def walk(node: Any, prefix: str, depth: int) -> None:
+        if depth > _DEPTH:
+            return
+        if dataclasses.is_dataclass(node) and not isinstance(node, type):
+            items: Iterable[tuple[str, Any]] = (
+                (f.name, getattr(node, f.name, None)) for f in dataclasses.fields(node)
+            )
+        elif isinstance(node, Mapping):
+            items = ((k, v) for k, v in node.items() if isinstance(k, str) and "." not in k)
+        else:
+            return
+        for name, value in items:
+            path = f"{prefix}.{name}" if prefix else name
+            if isinstance(value, float):
+                out[path] = value
+            elif value is not None and not isinstance(value, (bool, int, str, bytes)):
+                walk(value, path, depth + 1)
+
+    walk(state, "", 0)
     return out
+
+
+#: Which ways a channel has moved: up, down, or both.
+_UP, _DOWN = 1, 2
 
 
 class MembraneScope:
@@ -102,10 +131,23 @@ class MembraneScope:
         self.frames_per_turn = float(frames_per_turn)
         self.turns = held
         self.membrane = Membrane(held * frames_per_turn)
+        self._last: dict[str, float] = {}
+        self._moved: dict[str, int] = {}
+
+    def note(self, path: str, value: float) -> None:
+        """Remember which way a channel has moved since this scope first saw it."""
+        last = self._last.get(path)
+        if last is not None and value != last:
+            self._moved[path] = self._moved.get(path, 0) | (_UP if value > last else _DOWN)
+        self._last[path] = value
+
+    def carries(self, path: str) -> bool:
+        return self._moved.get(path, 0) == _UP | _DOWN
 
     @property
-    def channels(self) -> dict[str, str]:
-        return eligible_channels()
+    def channels(self) -> tuple[str, ...]:
+        """The channels that carry a trace now: every float that has moved both ways."""
+        return tuple(sorted(path for path, moved in self._moved.items() if moved == _UP | _DOWN))
 
     @property
     def on(self) -> bool:
@@ -120,7 +162,7 @@ class MembraneScope:
             "on": self.on,
             "turns": self.turns,
             "frames_per_turn": self.frames_per_turn,
-            "eligible": len(self.channels),
+            "carrying": len(self.channels),
             "membrane": self.membrane.reading(),
         }
 
@@ -159,7 +201,7 @@ def _write(root: Any, path: str, value: float) -> bool:
 
 
 def settle(state: Any, scope: MembraneScope) -> dict[str, Any]:
-    """One frame: every eligible channel becomes the trace of what it has been.
+    """One frame: every channel that has moved both ways becomes the trace of what it has been.
 
     Returns what moved, for a health report. A channel whose current value is
     not a plain number is skipped and keeps whatever its owner wrote, which is
@@ -168,12 +210,12 @@ def settle(state: Any, scope: MembraneScope) -> dict[str, Any]:
     if not scope.on:
         return {"on": False, "carried": 0, "skipped": 0}
     carried = skipped = refused = 0
-    for column, path in scope.channels.items():
-        value = _read(state, path)
-        if isinstance(value, bool) or not isinstance(value, (int, float)):
+    for path, value in her_channels(state).items():
+        scope.note(path, value)
+        if not scope.carries(path):
             skipped += 1
             continue
-        trace = scope.membrane.feel(column, value)
+        trace = scope.membrane.feel(path, value)
         if trace is None:
             skipped += 1
             continue
@@ -182,3 +224,28 @@ def settle(state: Any, scope: MembraneScope) -> dict[str, Any]:
         else:
             refused += 1
     return {"on": True, "carried": carried, "skipped": skipped, "refused": refused}
+
+
+def after_phase(state: Any, frames_per_turn: float) -> Any:
+    """Settle her membrane once after a phase, when it is switched on.
+
+    Her kernel and her chat pipeline call this after every phase they run, with
+    the number of phases in their own turn as the frames a turn is worth. The
+    scope rides on her state, which every phase derives from the last, so the
+    traces go wherever her state goes. Returns the state it was given.
+    """
+    if state is None or frames_per_turn <= 0 or membrane_turns() <= 0.0:
+        return state
+    scope = getattr(state, "membrane", None)
+    if not isinstance(scope, MembraneScope) or scope.frames_per_turn != float(frames_per_turn):
+        scope = MembraneScope(float(frames_per_turn))
+        try:
+            state.membrane = scope
+        except (AttributeError, TypeError) as exc:
+            logger.warning("Her state cannot hold a membrane: %s", exc)
+            return state
+    try:
+        settle(state, scope)
+    except (AttributeError, KeyError, TypeError, ValueError) as exc:
+        logger.warning("Her membrane did not settle after a phase: %s", exc)
+    return state

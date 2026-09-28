@@ -4,7 +4,10 @@ from copy import deepcopy
 
 import pytest
 
-from core.learning.semantic_native_path_selection import select_native_path_checkpoint
+from core.learning.semantic_native_path_selection import (
+    select_native_joint_graph_checkpoint,
+    select_native_path_checkpoint,
+)
 
 
 def measured(successes):
@@ -53,3 +56,60 @@ def test_missing_or_invalid_measurement_is_not_eligible(defect):
         checkpoints[1]["calibration_loss"] = float("nan")
     with pytest.raises(ValueError):
         select_native_path_checkpoint(checkpoints, measurements, ["a", "b", "c"])
+
+
+def joint_measured(path_successes, graph_successes):
+    rows = measured(path_successes)
+    for row, success in zip(rows, graph_successes, strict=True):
+        row["whole_graph"] = {"positive_index": 0,
+                              "scores": [1., 0.] if success else [0., 1.]}
+    return rows
+
+
+def test_joint_selection_rejects_graph_regression_even_if_paths_improve():
+    checkpoints = [{"step": 0, "calibration_loss": 1.}, {"step": 1, "calibration_loss": .01}]
+    measurements = {0: joint_measured((True, False, False), (True, False, False)),
+                    1: joint_measured((True, True, True), (False, True, True))}
+    selected, verdicts = select_native_joint_graph_checkpoint(
+        checkpoints, measurements, ["a", "b", "c"])
+    assert selected["step"] == 0
+    assert verdicts[1]["baseline_graph_regressions"] == ["a"]
+    assert not verdicts[1]["eligible"]
+
+
+def test_joint_selection_prefers_graph_gain_over_lower_loss_without_regression():
+    checkpoints = [{"step": 0, "calibration_loss": .1}, {"step": 1, "calibration_loss": .5}]
+    measurements = {0: joint_measured((True, False, False), (True, False, False)),
+                    1: joint_measured((True, False, False), (True, True, False))}
+    selected, verdicts = select_native_joint_graph_checkpoint(
+        checkpoints, measurements, ["a", "b", "c"])
+    assert selected["step"] == 1
+    assert verdicts[1]["positive_graph_rankings"] == 2
+
+
+def test_joint_selection_does_not_count_a_tied_graph_as_a_win():
+    checkpoints = [{"step": 0, "calibration_loss": 1.}, {"step": 1, "calibration_loss": .01}]
+    measurements = {0: joint_measured((False, False, False), (True, False, False)),
+                    1: joint_measured((False, False, False), (True, False, False))}
+    measurements[1][0]["whole_graph"]["scores"] = [0., 0.]
+    selected, verdicts = select_native_joint_graph_checkpoint(
+        checkpoints, measurements, ["a", "b", "c"])
+    assert selected["step"] == 0
+    assert verdicts[1]["baseline_graph_regressions"] == ["a"]
+
+
+@pytest.mark.parametrize("defect", ["missing", "nan", "wrong_positive", "short"])
+def test_joint_selection_requires_every_graph_measurement(defect):
+    checkpoints = [{"step": 0, "calibration_loss": .1}]
+    rows = joint_measured((True, False, False), (True, False, False))
+    graph = rows[0]["whole_graph"]
+    if defect == "missing":
+        del rows[0]["whole_graph"]
+    elif defect == "nan":
+        graph["scores"][0] = float("nan")
+    elif defect == "wrong_positive":
+        graph["positive_index"] = 1
+    else:
+        graph["scores"].pop()
+    with pytest.raises(ValueError, match="whole-graph"):
+        select_native_joint_graph_checkpoint(checkpoints, {0: rows}, ["a", "b", "c"])

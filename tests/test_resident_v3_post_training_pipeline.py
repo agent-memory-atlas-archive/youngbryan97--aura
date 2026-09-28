@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 from core.brain.llm.latent_cortex.campaign_journal import canonical_json_bytes
+from tests.clock_patch import patch_module_clock
 from tools import run_resident_v3_post_training_pipeline as pipeline
 
 
@@ -289,7 +290,7 @@ def test_launcher_holds_independent_sleep_assertion(
         return Process()
 
     monkeypatch.setattr(pipeline.subprocess, "Popen", popen)
-    monkeypatch.setattr(pipeline.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, pipeline, sleep=lambda _seconds: None)
 
     receipt = pipeline.launch_pipeline(config_path, pipeline.REPO_ROOT)
 

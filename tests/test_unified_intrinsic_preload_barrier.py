@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 import tools.unified_intrinsic_preload_barrier as barrier
+from tests.clock_patch import patch_module_clock
 from tools import run_detached_step as detached
 from tools.unified_intrinsic_preload_barrier import (
     UnifiedPreloadBarrierError,
@@ -310,10 +311,7 @@ def test_release_expires_for_model_load_but_remains_historical_evidence(
         expected_target_start_token=ready["target_start_token"],
         expected_command_sha256=ready["command_sha256"],
     )
-    monkeypatch.setattr(
-        barrier.time,
-        "time_ns",
-        lambda: int(release["expires_at_unix_ns"]) + 1,
+    patch_module_clock(monkeypatch, barrier, time_ns=lambda: int(release["expires_at_unix_ns"]) + 1,
     )
 
     with pytest.raises(UnifiedPreloadBarrierError, match="differs"):

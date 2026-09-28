@@ -6,10 +6,23 @@ from types import SimpleNamespace
 import pytest
 
 from tools.verify_semantic_native_fit import (
+    persisted_source_pairs,
     regrade_bank,
     verify_native_totals,
     verify_source_control_supervision,
 )
+
+
+def test_source_pair_witness_compares_persisted_sequence_inputs():
+    raw = {"source": [{"partner": "peer", "witness": {
+        "inputs": [(4, 7), 2], "outputs": [(4, 7), 2]}}]}
+    persisted = persisted_source_pairs(raw)
+    assert raw != persisted
+    assert persisted == {"source": [{"partner": "peer", "witness": {
+        "inputs": [[4, 7], 2], "outputs": [[4, 7], 2]}}]}
+    forged = deepcopy(persisted)
+    forged["source"][0]["witness"]["outputs"][0][0] = 8
+    assert persisted_source_pairs(raw) != forged
 
 
 def test_totals_keep_unknowns_separate_from_correct_and_regressed():

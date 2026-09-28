@@ -23,6 +23,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from tests.clock_patch import patch_module_clock
+
 # ═══════════════════════════════════════════════════════════════════════
 # Phase 1: Fault Taxonomy & FMEA
 # ═══════════════════════════════════════════════════════════════════════
@@ -355,7 +357,7 @@ class TestSLOErrorBudgetDedup:
         from core.runtime import errors as errors_module
 
         clock = {"now": 1000.0}
-        monkeypatch.setattr(errors_module.time, "time", lambda: clock["now"])
+        patch_module_clock(monkeypatch, errors_module, time=lambda: clock["now"])
         assert errors_module._slo_error_budget_admits("x", "Y") is True
         assert errors_module._slo_error_budget_admits("x", "Y") is False
         clock["now"] += 301.0
@@ -927,7 +929,10 @@ class TestAuditRegressions:
         import core.resilience.fault_taxonomy as fault_taxonomy
         import slo.slo_monitor as slo_monitor
 
-        monkeypatch.setattr(fault_taxonomy.time, "time", lambda: 1234.5)
+        # Both modules whose timestamps this reads, each by name: one patch on
+        # the shared time module used to reach both, and every other thread too.
+        patch_module_clock(monkeypatch, fault_taxonomy, time=lambda: 1234.5)
+        patch_module_clock(monkeypatch, slo_monitor, time=lambda: 1234.5)
 
         fault = fault_taxonomy.FaultRecord(
             fault_id="F01",

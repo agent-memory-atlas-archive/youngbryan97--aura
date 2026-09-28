@@ -1,4 +1,3 @@
-from chat_lane_support import patch_chat_lane
 import asyncio
 import contextlib
 import hashlib
@@ -11,21 +10,23 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from chat_lane_support import patch_chat_lane
 
-from core.utils.injected_blocks import stamp_runtime_payload
+import interface.routes.chat_capability_inventory as _chat_capability_inventory
+import interface.routes.chat_conversation_repair as _chat_conversation_repair
+import interface.routes.chat_desktop_objective as _chat_desktop_objective
 import interface.routes.chat_desktop_repair as _chat_desktop_repair
 import interface.routes.chat_memory_state as _chat_memory_state
 import interface.routes.chat_preflight as _chat_preflight
+import interface.routes.chat_protected_prompt as _chat_protected_prompt
+import interface.routes.chat_runtime_proof as _chat_runtime_proof
+from core.utils.injected_blocks import stamp_runtime_payload
 from tests.chat_lane_support import (
     chat_lane_source,
     lane_function_source,
     patch_chat_lane,
 )
-import interface.routes.chat_conversation_repair as _chat_conversation_repair
-import interface.routes.chat_capability_inventory as _chat_capability_inventory
-import interface.routes.chat_desktop_objective as _chat_desktop_objective
-import interface.routes.chat_runtime_proof as _chat_runtime_proof
-import interface.routes.chat_protected_prompt as _chat_protected_prompt
+from tests.clock_patch import patch_module_clock
 
 
 @pytest.mark.asyncio
@@ -9358,8 +9359,8 @@ async def test_api_chat_desktop_required_does_not_start_second_full_mind_owner(m
 
 @pytest.mark.asyncio
 async def test_required_runtime_status_turn_invokes_cognitive_engine(monkeypatch):
-    from core.providers import engine_connection_pool as pool_module
     from core.brain.llm import model_registry
+    from core.providers import engine_connection_pool as pool_module
     from interface.routes import chat as chat_routes
 
     calls = []
@@ -10549,7 +10550,7 @@ def test_recurrent_desktop_cognitive_failure_schedules_one_governed_repair(monke
         "get",
         staticmethod(lambda name, default=None: services.get(name, default)),
     )
-    monkeypatch.setattr(chat_routes.time, "monotonic", lambda: 10_000.0)
+    patch_module_clock(monkeypatch, chat_routes, monotonic=lambda: 10_000.0)
     chat_routes._desktop_cognitive_repair_last_scheduled.clear()
 
     first = chat_routes._route_desktop_cognitive_failure_to_resilience(
@@ -13598,6 +13599,7 @@ async def test_recorded_answer_wrapper_does_not_rewrite_proven_authored_bytes(
     monkeypatch,
 ) -> None:
     from fastapi.responses import JSONResponse
+
     from interface.routes import chat as chat_routes
 
     patch_chat_lane(monkeypatch, "_append_past_action_record",
@@ -15679,8 +15681,8 @@ async def test_compound_turn_keeps_its_objective_and_delivered_history(monkeypat
 
 @pytest.mark.asyncio
 async def test_route_assessment_hears_the_assistant_history_given_to_the_model(monkeypatch):
-    from core.providers import engine_connection_pool as pool_module
     from core.conversation.turn_evidence_custody import bind_turn_evidence_custody, turn_transcript
+    from core.providers import engine_connection_pool as pool_module
     from interface.routes import chat as chat_routes
 
     answer = (
@@ -15782,8 +15784,8 @@ async def test_ordinary_desktop_chat_turn_keeps_the_prompt_cache(monkeypatch, se
     `disable_prompt_cache` (and `clear_prompt_cache`, which wiped every other
     lane's entry too) from an era when the 32B's cache budget was zero anyway.
     """
-    from core.providers import engine_connection_pool as pool_module
     from core.brain.types import ThinkingMode
+    from core.providers import engine_connection_pool as pool_module
     from interface.routes import chat as chat_routes
 
     user_message = "What's the weather like where you are?"
@@ -17674,7 +17676,6 @@ async def test_stabilizer_replaces_subjective_cortex_story_with_typed_evidence(m
 
 def test_desktop_cortex_evidence_is_not_guarded_by_authored_fastpath_policy():
     """A signed measurement remains a read when the desktop requires full-mind prose."""
-    from interface.routes import chat as chat_routes
 
     source = chat_lane_source()
     marker = "Verified self-evidence is a typed runtime read"

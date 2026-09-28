@@ -16,8 +16,10 @@ from tools.train_semantic_native_program import (
     native_schedule_coverage,
     native_source_embedding,
     native_source_loss,
+    native_source_rankings,
     native_supervision_sets,
     native_training_schedule,
+    projected_source_shard_bytes,
     selected_projection_error,
 )
 
@@ -60,6 +62,32 @@ def test_prefix_batches_preserve_every_complete_sequence_and_ignore_input_order(
     for size in (0, True, 33):
         with pytest.raises(ValueError, match="batch size"):
             list(exact_length_batches(sequences, batch_size=size))
+
+
+def test_source_shard_projection_counts_every_graph_and_decision_branch():
+    rows = {
+        ("a", 0, 0): NativeProgramSequence((1, 2, 3), 1),
+        ("a", -1, 0): NativeProgramSequence((1, 2, 3, 4), 1),
+        ("b", 0, 0): NativeProgramSequence((1, 2), 1),
+    }
+    assert projected_source_shard_bytes(rows, hidden_size=8) == {"a": 160, "b": 32}
+    with pytest.raises(ValueError, match="geometry"):
+        projected_source_shard_bytes(rows, hidden_size=0)
+    with pytest.raises(ValueError, match="source-bound"):
+        projected_source_shard_bytes({0: rows[("a", 0, 0)]}, hidden_size=8)
+
+
+def test_trie_parity_inventory_includes_complete_graph_alternatives():
+    decisions = (("s", 0, 0), ("s", 0, 1))
+    graphs = (("s", -1, 0), ("s", -1, 1))
+    batch = (*graphs, *decisions)
+    assert native_source_rankings(
+        batch, {"s": ((decisions, 0),)}, {"s": graphs}, grammar_mode=True
+    ) == ((decisions, 0), (graphs, 0))
+    with pytest.raises(ValueError, match="missed"):
+        native_source_rankings(batch, {"s": ((decisions, 0),)}, {}, grammar_mode=True)
+    with pytest.raises(ValueError, match="crosses"):
+        native_source_rankings((*batch, ("other", 0, 0)), {}, {}, grammar_mode=False)
 
 
 class Suffix(nn.Module):

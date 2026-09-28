@@ -39,7 +39,8 @@ def selected_checkpoint(directory):
     execution_from_plan(plan)
     if (plan.get("schema") not in {"aura.semantic_native_fit_plan.v1", "aura.semantic_native_fit_plan.v2",
                                    "aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4",
-                                   "aura.semantic_native_fit_plan.v5"}
+                                   "aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6",
+                                   "aura.semantic_native_fit_plan.v7"}
             or plan.get("held_labels_used_for_fit_or_selection") is not False
             or plan.get("serving_authority") is not False
             or plan.get("qualification_evidence") is not False):
@@ -64,7 +65,8 @@ def selected_checkpoint(directory):
     if not fit or not cal or not held or fit & cal or fit & held or cal & held:
         raise ValueError("native fit source partitions overlap or are empty")
     selected = min(rows, key=lambda row: (row["calibration_loss"], row["step"]))
-    if plan["schema"] == "aura.semantic_native_fit_plan.v5":
+    if plan["schema"] in {"aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6",
+                          "aura.semantic_native_fit_plan.v7"}:
         selected = selected_path_checkpoint(directory, plan, rows)
     report_path = directory / "report.json"
     if report_path.exists():
@@ -79,7 +81,10 @@ def selected_checkpoint(directory):
 def selected_path_checkpoint(directory, plan, checkpoints):
     """Replay source-only selection from complete, source-bound choice inventories."""
     from core.learning.semantic_native_path_calibration import native_path_totals
-    from core.learning.semantic_native_path_selection import select_native_path_checkpoint
+    from core.learning.semantic_native_path_selection import (
+        select_native_joint_graph_checkpoint,
+        select_native_path_checkpoint,
+    )
     from tools.audit_semantic_native_path_calibration import calibration_competitions
 
     supervision = verified_document(directory / "supervision.json")
@@ -110,7 +115,24 @@ def selected_path_checkpoint(directory, plan, checkpoints):
                         or decision.get("choices") != [item["choice"] for item in alternatives]
                         or len(decision["scores"]) != len(alternatives)):
                     raise ValueError("native path checkpoint teacher alternatives differ")
+            if plan["schema"] == "aura.semantic_native_fit_plan.v7":
+                graph = row.get("whole_graph")
+                alternatives = [item for item in supervision["graph_rows"]
+                                if item["source"] == row["source"]]
+                if (not isinstance(graph, dict) or len(alternatives) < 2
+                        or graph.get("program_sha256s") != [item["program_sha256"] for item in alternatives]
+                        or graph.get("positive_index") != 0
+                        or [item["positive"] for item in alternatives] != [True] + [False] * (len(alternatives) - 1)
+                        or not isinstance(graph.get("scores"), list)
+                        or len(graph["scores"]) != len(alternatives)
+                        or any(type(value) not in (float, int) or not math.isfinite(value)
+                               for value in graph["scores"])):
+                    raise ValueError("native whole-graph calibration inventory differs")
+            elif "whole_graph" in row:
+                raise ValueError("historical native path acquired whole-graph calibration")
         measurements[step] = rows
+    if plan["schema"] == "aura.semantic_native_fit_plan.v7":
+        return select_native_joint_graph_checkpoint(checkpoints, measurements, sources)[0]
     return select_native_path_checkpoint(checkpoints, measurements, sources)[0]
 
 

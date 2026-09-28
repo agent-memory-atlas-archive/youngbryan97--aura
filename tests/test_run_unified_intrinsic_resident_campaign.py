@@ -11,6 +11,7 @@ import pytest
 
 import tools.run_unified_intrinsic_resident_campaign as controller
 from core.learning.frontier_process_supervision import frontier_process_task_battery
+from tests.clock_patch import patch_module_clock
 from tools import run_detached_step as detached
 from tools.prepare_unified_intrinsic_resident_campaign import (
     BOOTSTRAP_PROFILES,
@@ -26,7 +27,6 @@ from tools.prepare_unified_intrinsic_resident_campaign import (
 )
 from tools.unified_intrinsic_checkpoint import resolve_checkpoint_generation
 from tools.unified_intrinsic_resident_identity import canonical_bytes, canonical_sha256
-
 
 
 def _compiled_depth_ladder(training) -> list[int]:
@@ -1021,7 +1021,7 @@ def test_clean_child_exit_waits_for_signed_detached_terminal_handoff(
         ]
     )
     monkeypatch.setattr(controller.detached, "_status", lambda _run_dir: next(statuses))
-    monkeypatch.setattr(controller.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, controller, sleep=lambda _seconds: None)
 
     status = controller._await_detached_terminal_handoff(
         tmp_path / "attempt",
@@ -1306,7 +1306,7 @@ def test_file_lock_waits_for_bounded_launch_handoff(
                 raise BlockingIOError
 
     monkeypatch.setattr(controller.fcntl, "flock", flock)
-    monkeypatch.setattr(controller.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, controller, sleep=lambda _seconds: None)
 
     with controller._file_lock(
         tmp_path / "host.lock",

@@ -7,6 +7,7 @@ import pytest
 
 import core.continuous_cognition as continuous_cognition
 from core.continuous_cognition import ContinuousCognitionLoop
+from tests.clock_patch import patch_module_clock
 
 
 def test_continuous_cognition_task_creation_failure_fails_closed(monkeypatch):
@@ -145,10 +146,7 @@ def test_continuous_cognition_times_worker_without_event_loop_delay(monkeypatch)
     loop = ContinuousCognitionLoop()
     readings = [10.0, 10.125]
     original_monotonic = continuous_cognition.time.monotonic
-    monkeypatch.setattr(
-        continuous_cognition.time,
-        "monotonic",
-        lambda: readings.pop(0) if readings else original_monotonic(),
+    patch_module_clock(monkeypatch, continuous_cognition, monotonic=lambda: readings.pop(0) if readings else original_monotonic(),
     )
     monkeypatch.setattr(loop, "_cognitive_step", lambda: None)
 

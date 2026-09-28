@@ -11,6 +11,7 @@ from core.brain.inference_gate import InferenceGate
 from core.brain.llm import mlx_client
 from core.brain.llm.mlx_client import MLXLocalClient
 from core.utils.deadlines import get_deadline
+from tests.clock_patch import patch_module_clock
 
 
 class CompletionClient(MLXLocalClient):
@@ -162,7 +163,7 @@ def test_progress_owner_distinguishes_long_prefill_from_dead_worker(monkeypatch,
         client._prefill_floor_seconds = lambda count: 0.0
         client._first_token_hard_ceiling = lambda **kw: 20.0
         client._record_degraded_event = lambda *a, **kw: None
-        monkeypatch.setattr(mlx_client.time, "time", lambda: 1000.0)
+        patch_module_clock(monkeypatch, mlx_client, time=lambda: 1000.0)
         loop_thread = threading.get_ident()
 
         def memory_snapshot():

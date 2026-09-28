@@ -14,6 +14,7 @@ import pytest
 from core.brain.llm.latent_cortex.campaign_journal import CampaignJournal, CampaignPlan
 from core.learning.resident_recurrent_sft_bootstrap_authority import sha256_json
 from core.runtime.secure_path_custody import DirectoryCustody, path_custody_threat_model
+from tests.clock_patch import patch_module_clock
 from tools import run_resident_recurrent_sft_bootstrap_campaign as controller
 
 
@@ -757,7 +758,7 @@ def test_controller_stops_after_two_consecutive_no_progress_failures(
             "receipt": {"returncode": 1, "receipt_sha256": "b" * 64},
         },
     )
-    monkeypatch.setattr(controller.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, controller, sleep=lambda _seconds: None)
     config_path = tmp_path / "config.json"
     config_path.write_text("{}")
 
@@ -1077,7 +1078,7 @@ def test_target_checkpoint_with_failed_receipt_is_certified_without_overshoot(
             },
         ),
     )
-    monkeypatch.setattr(controller.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, controller, sleep=lambda _seconds: None)
     config_path = tmp_path / "config.json"
     config_path.write_text("{}")
 
@@ -1125,7 +1126,7 @@ def test_stale_detached_heartbeat_requests_authenticated_stop(
         "_stop",
         lambda path, **_kwargs: stops.append(path) or {"stopped": True},
     )
-    monkeypatch.setattr(controller.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, controller, sleep=lambda _seconds: None)
 
     status = controller._wait_attempt(
         config_path=tmp_path / "config.json",

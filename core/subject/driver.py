@@ -28,6 +28,7 @@ the shared state, which is where the coupling being measured actually lives.
 
 from __future__ import annotations
 
+from .driver_host import _HeldHost
 import asyncio
 import copy
 import inspect
@@ -230,6 +231,7 @@ from core.subject.snapshot import (  # noqa: E402
     _held,
     _HeldObserver,
     _intentions_state,
+    _layer_state,
     _lifetime_last,
     _module_state,
     _moments_of,
@@ -238,6 +240,7 @@ from core.subject.snapshot import (  # noqa: E402
     _reanchor,
     _restore_effort,
     _restore_intentions,
+    _restore_layers,
     _restore_lifetime_last,
     _restore_module_state,
     _restore_moments,
@@ -275,6 +278,7 @@ HARNESS_ROUTES: dict[str, str] = {
     "_act": "core/phases/action_grounding.py:ground_response, a skill she dispatches; a scratch world stands in for the environment",
     "_meet_the_person": "core/kernel/turn_door.py:observe_the_person, the step the desktop's incoming path runs beside each message",
     "step_once": "core/subject/steppable.py:step_once, the free-running layers the runtime runs on timers, advanced by count",
+    "_settle_membrane": "core/runtime/state_membrane.py:after_phase, the membrane her kernel and her chat pipeline settle after every phase",
     "note_effort": "core/soma/effort.py:note_effort, the cost the production phase seam reports",
     "_condition_index": "instrument: labels which condition a frame came from",
     "after_phase": "instrument: the lesion's clamp, empty outside a lesion",
@@ -287,7 +291,7 @@ HARNESS_ROUTES: dict[str, str] = {
 
 
 @dataclass
-class SubjectRuntime:
+class SubjectRuntime(_HeldHost):
     """The organism, running offline, forkable."""
 
     kernel: Any
@@ -389,25 +393,6 @@ class SubjectRuntime:
     ORGAN_FIELDS: ClassVar[tuple[str, ...]] = tuple(
         organ.name for organ in dataclass_fields(Organs)
     )
-
-    def freeze_host(self) -> dict[str, float]:
-        """Take the body's current reading and hold it for every arm to come."""
-        hardware = dict(getattr(self.state.soma, "hardware", {}) or {})
-        latency = dict(getattr(self.state.soma, "latency", {}) or {})
-        self.frozen_host = {
-            key: float(hardware.get(key, 0.0) or 0.0)
-            for key in ("cpu_usage", "vram_usage", "ram_usage", "temperature")
-        }
-        # Latency is elapsed wall clock, so it differs between two arms run
-        # seconds apart by exactly as much as the machine was busy. Same
-        # argument as the hardware readings: it is the environment, and it
-        # belongs held still.
-        self.frozen_latency = {
-            key: float(latency.get(key, 0.0) or 0.0)
-            for key in ("last_thought_ms", "perception_lag_ms", "token_velocity")
-        }
-        self._hold_observer()
-        return self.frozen_host
 
     async def calibrate_fork(self, conditions: Sequence[Condition]) -> dict[str, Any]:
         """Find out which services and phases actually move, and carry only those.
@@ -537,83 +522,6 @@ class SubjectRuntime:
         except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("cognitive health projection failed: %s", exc)
 
-    def _republish_body(self) -> None:
-        """Tell the engine that judges the body what the body was just held at.
-
-        The proprioceptive loop reads the machine and reports it to the
-        resilience engine mid-phase, and the hold is applied after the phase.
-        Without this the engine — and through it homeostasis, and through that
-        her will to live — kept reading the real machine while the state was
-        held at the displaced value, which is the two-bodies problem again with
-        the seam moved. One body: the held reading is the reading.
-        """
-        engine = getattr(self.organs, "soma", None)
-        report = getattr(engine, "observe_host", None)
-        if not callable(report) or self.frozen_host is None:
-            return
-        try:
-            report(
-                cpu_percent=self.frozen_host.get("cpu_usage", 0.0),
-                ram_percent=self.frozen_host.get(
-                    "ram_usage", self.frozen_host.get("vram_usage", 0.0)
-                ),
-                temperature_c=self.frozen_host.get("temperature"),
-            )
-        except (AttributeError, TypeError, ValueError) as exc:
-            # The frozen host is what keeps an arm from reading the real
-            # machine. One that does not install leaves the guards reading
-            # live load, which is the defect the freeze exists to prevent.
-            logger.warning("The declared host was not installed: %s", exc)
-            return
-
-    def thaw_host(self) -> None:
-        self.frozen_host = None
-        self.frozen_latency = None
-        self._release_observer()
-
-    def _hold_observer(self) -> None:
-        """Hold the shared host observer still for the arms that follow.
-
-        The state's body readings are held by `freeze_host`, and every layer
-        that reads the machine through the shared observer went round that hold
-        — embodied interoception samples it once a second of the organism's
-        life, so two arms seconds apart read a different machine and the
-        difference was in the floor of every edge into the body. This is the
-        same act at the observer's own seam: the first reading of each kind
-        stands for all three arms.
-        """
-        try:
-            from core.runtime.resource_observation import (
-                get_resource_observer,
-                set_resource_observer_for_test,
-            )
-        except (ImportError, AttributeError):
-            # not a failure: no observer module, so there is nothing to
-            # hold and nothing reading it either.
-            return
-        if self._held_observer is not None:
-            return
-        # Over the run's declared host when one is installed, so an arm's held
-        # answers are the declared reading rather than the machine's.
-        held = _HeldObserver(get_resource_observer())
-        self._previous_observer = set_resource_observer_for_test(held)
-        self._held_observer = held
-
-    def _release_observer(self) -> None:
-        if self._held_observer is None:
-            return
-        try:
-            from core.runtime.resource_observation import set_resource_observer_for_test
-
-            set_resource_observer_for_test(self._previous_observer)
-        except (ImportError, AttributeError) as exc:
-            # The held observer is cleared below either way, so a release
-            # that did not land leaves the run's observer installed over
-            # whatever runs next.
-            logger.warning("The previous observer was not put back: %s", exc)
-        self._held_observer = None
-        self._previous_observer = None
-
     def snapshot(self) -> Snapshot:
         carried = _carried_by_name(self)
         return Snapshot(
@@ -652,6 +560,7 @@ class SubjectRuntime:
             world=_world_state(getattr(self, "_scratch", None)),
             stores=_store_state(),
             intentions=_intentions_state(self._intentions),
+            layers=_layer_state(self.organism, carried),
         )
 
     def _module_keys(self) -> set[str] | None:
@@ -697,6 +606,7 @@ class SubjectRuntime:
         _restore_module_state(snapshot.module_state)
         _empty_again(snapshot.empty_module_slots)
         _restore_services(snapshot.services)
+        _restore_layers(self.organism, snapshot.layers)
         _restore_effort(snapshot.effort)
         self.frame_index = snapshot.frame_index
         self.spoken = snapshot.spoken
@@ -775,11 +685,11 @@ class SubjectRuntime:
         surface holds the sensed copy; `read_core_state` takes it instead of the
         organ's own array, and anything of hers that wants what she senses asks
         it. With `AURA_AFFERENT_TURNS` unset it returns every array untouched,
-        which is the reading she has now. See core/runtime/afferent.py.
+        which is the reading she has now. See core/subject/afferent.py.
         """
         if self.frames_per_turn <= 0:
             return
-        from core.runtime.afferent import Afferent
+        from core.subject.afferent import Afferent
 
         surface = getattr(self.state, "afferent", None)
         if isinstance(surface, Afferent) and surface.frames_per_turn == float(self.frames_per_turn):
@@ -1914,11 +1824,16 @@ def _publish_repository(runtime: SubjectRuntime) -> None:
     except Exception as exc:  # noqa: BLE001 - a container that refuses is a datum
         logger.warning("could not register the run's state repository: %s", exc)
 
-async def quiesce_organism(runtime: SubjectRuntime) -> list[str]:
-    """Stop the free-running loops before the paired arms begin."""
-    from core.subject.organism import _live_tasks, quiesce
+async def quiesce_organism(runtime: SubjectRuntime, *, stepped_only: bool = False) -> list[str]:
+    """Stop the free-running loops before the paired arms begin.
 
-    stopped = await quiesce()
+    `stepped_only` stops just the loops the harness steps itself and leaves
+    every other task alone, which is what a run with her cortex needs: her
+    language organ's own tasks keep her answering.
+    """
+    from core.subject.organism import _live_tasks, quiesce, stepped_loops
+
+    stopped = await quiesce(only=stepped_loops() if stepped_only else None)
     if runtime.organism is not None:
         runtime.organism.stopped_loops = stopped
         # And re-read what is left. The summary taken at bring-up listed

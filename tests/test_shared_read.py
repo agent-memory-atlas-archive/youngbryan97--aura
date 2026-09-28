@@ -3,6 +3,7 @@ import asyncio
 import pytest
 
 from core.runtime.shared_read import SharedRead
+from tests.clock_patch import patch_module_clock
 
 
 @pytest.mark.asyncio
@@ -110,7 +111,7 @@ async def test_completed_values_expire(monkeypatch):
     from core.runtime import shared_read
 
     now = [10.0]
-    monkeypatch.setattr(shared_read.time, "monotonic", lambda: now[0])
+    patch_module_clock(monkeypatch, shared_read, monotonic=lambda: now[0])
     reads = SharedRead(retention_s=5)
     calls = 0
 

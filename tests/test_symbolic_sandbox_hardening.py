@@ -20,6 +20,7 @@ from core.brain.symbolic_sandbox import (
     _safe_diagnostic,
     _strip_fence,
 )
+from tests.clock_patch import patch_module_clock
 
 # ── fa63fa56: timeout / round validation ───────────────────────────────────
 
@@ -127,7 +128,7 @@ async def test_shared_deadline_stops_the_loop(monkeypatch):
     # Clock calls: deadline calc, round0 top, round0 mid-check (all t=0), then
     # round1 top jumps past the shared deadline so the loop stops as timed_out.
     ticks = iter([0.0, 0.0, 0.0, 100.0, 100.0, 100.0])
-    monkeypatch.setattr(ss.time, "monotonic", lambda: next(ticks, 100.0))
+    patch_module_clock(monkeypatch, ss, monotonic=lambda: next(ticks, 100.0))
     res = await sbx.run_with_self_correction("x", repair, max_rounds=5)
     assert res.timed_out is True
     assert any("deadline" in w for w in res.warnings)

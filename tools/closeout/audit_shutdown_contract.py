@@ -123,6 +123,34 @@ _REQUEST_SNAPSHOT_FIELDS = frozenset(
 )
 
 
+#: Helpers that call the function they are given. `off_the_loop(f, **kw)`
+#: calls `f` as surely as `f(**kw)` does, and reading only the call's own
+#: name made a function moved off the event loop look like a call that had
+#: been lost: `publish_shutdown_verdict` went through `off_the_loop` on 24
+#: September and this audit reported it gone.
+_CALLS_ITS_ARGUMENT = {
+    "off_the_loop": 0,
+    "behind_the_loop": 1,
+    "to_thread": 0,
+    "run_in_executor": 1,
+    "run_sync_shutdown_callable": 0,
+    "call_soon": 0,
+    "call_soon_threadsafe": 0,
+    "submit": 0,
+}
+
+
+def _delegated_callee(call: ast.Call) -> ast.expr | None:
+    """The function a delegating helper will call, when it is named in the call."""
+    func = call.func
+    name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
+    index = _CALLS_ITS_ARGUMENT.get(name)
+    if index is None or len(call.args) <= index:
+        return None
+    target = call.args[index]
+    return target if isinstance(target, (ast.Name, ast.Attribute)) else None
+
+
 def _call_name(node: ast.Call) -> str:
     func = node.func
     if isinstance(func, ast.Name):
@@ -130,6 +158,21 @@ def _call_name(node: ast.Call) -> str:
     if isinstance(func, ast.Attribute):
         return func.attr
     return ""
+
+
+def _call_names_of(node: ast.AST) -> set[str]:
+    """Every name called in `node`, including a function a helper is given."""
+    names: set[str] = set()
+    for item in ast.walk(node):
+        if isinstance(item, ast.Call):
+            names.add(_call_name(item))
+            callee = _delegated_callee(item)
+            if isinstance(callee, ast.Name):
+                names.add(callee.id)
+            elif isinstance(callee, ast.Attribute):
+                names.add(callee.attr)
+    names.discard("")
+    return names
 
 
 def _qualified_functions(tree: ast.AST) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
@@ -221,7 +264,7 @@ def audit(root: Path) -> dict[str, Any]:
                 issues.append(f"missing shutdown contract function: {relative}:{qualified_name}")
                 continue
             checked_functions += 1
-            calls = {_call_name(node) for node in ast.walk(function) if isinstance(node, ast.Call)}
+            calls = _call_names_of(function)
             missing_calls = sorted(required_calls - calls)
             if missing_calls:
                 issues.append(

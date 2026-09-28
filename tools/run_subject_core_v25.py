@@ -376,6 +376,8 @@ async def _spectrum(
     design: dict[str, Any] | None = None,
     only: Sequence[str] = (),
     whiten: bool = False,
+    fail_fast: bool = False,
+    stop_file: str = "",
 ) -> tuple[dict[float, float], dict[str, Any]]:
     """The weakest cut's rate at every horizon on the ladder.
 
@@ -398,6 +400,8 @@ async def _spectrum(
         alpha=float(chosen.get("alpha") or 0.05),
         deciding=chosen.get("deciding") or None,
         whiten=whiten,
+        fail_fast=fail_fast,
+        stop_file=stop_file,
     )
     for lag in sorted(reports):
         report = reports[lag]
@@ -677,6 +681,16 @@ async def main() -> int:
         help="the horizons that decide whether a cut draws more anchors; default is every one scored",
     )
     parser.add_argument(
+        "--fail-fast", action="store_true",
+        help=(
+            "take the cuts one at a time, the most lopsided first, each to its "
+            "decision, and stop at the first that ends undecided: the claim is a "
+            "conjunction, so that cut refuses it, and a failing run says so after "
+            "one cut's rollouts rather than all 511. Shards stop each other through "
+            "a REFUSED file in the shard directory"
+        ),
+    )
+    parser.add_argument(
         "--v5", action="store_true",
         help="the ISC-v5 design in core/subject/isc_v5.py: its looks, draws, level, horizons and anchors",
     )
@@ -893,6 +907,16 @@ async def main() -> int:
         # a bank it will not use.
         anchors: list[Any] = []
         if "nulls" not in done_v25:
+            # Everything from here forks paired arms off these anchors, so the
+            # free-running loops stop before any anchor is taken, as
+            # run_subject_core.py stops them before its interventions. Left
+            # running, each ticked its layer on the machine's clock on top of
+            # the harness's own step, and two untouched forks from one anchor
+            # parted within a frame or three: that was the sham floor of 0.062
+            # to 0.093 on the seed-7 look at 38ef2c9ce, larger than seven
+            # singletons' whole effect.
+            evidence["stopped_loops"] = await quiesce_organism(runtime)
+            _log(f"stopped {len(evidence['stopped_loops'])} free-running loops before the anchors")
             _log(f"collecting {args.anchors} anchors")
             anchors = await collect_anchor_bank(
                 runtime, conditions,
@@ -909,12 +933,15 @@ async def main() -> int:
         if shard is not None:
             lags = ladder if (args.lags or not args.quick) else (1, 8)
             _log(f"shard {shard[0]} of {shard[1]}: scoring its cuts at {len(lags)} horizons")
+            shard_dir = args.shard_dir or (args.out / "shards")
             _, cut_detail = await _spectrum(
                 runtime, anchors, conditions,
                 lags=lags, frame_seconds=frame_seconds, turns=args.turns,
                 rounds=args.cut_rounds, seed=args.seed, domains=support,
                 screen=args.screen, shard=shard, design=sweep_design, only=only_cuts,
                 whiten=bool(args.whiten),
+                fail_fast=bool(args.fail_fast),
+                stop_file=str(Path(shard_dir) / "REFUSED") if args.fail_fast else "",
             )
             payload = {
                 "shard": f"{shard[0]}/{shard[1]}",
@@ -998,6 +1025,7 @@ async def main() -> int:
                     rounds=args.cut_rounds, seed=args.seed, domains=support,
                     screen=args.screen, design=sweep_design, only=only_cuts,
                     whiten=bool(args.whiten),
+                    fail_fast=bool(args.fail_fast),
                 )
             binding = _horizon_is_binding(spectrum, lags)
             tau_star = max(spectrum, key=lambda tau: spectrum[tau]) if spectrum else None

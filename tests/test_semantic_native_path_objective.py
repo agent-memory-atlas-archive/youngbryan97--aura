@@ -70,8 +70,79 @@ def test_calibration_collects_same_scores_without_partner_or_runtime_labels():
     assert loss.item() >= 0.
 
 
+def test_complete_graph_contrast_shares_the_path_risk_and_changes_gradient():
+    decisions = ((("op-correct", "op-rival"), 0),)
+    fixed = {"op-correct": mx.array(2.), "op-rival": mx.array(0.),
+             "graph-rival": mx.array(2.)}
+    measured = []
+
+    def objective(graph):
+        return native_grammar_path_objective(
+            lambda key: graph if key == "graph-correct" else fixed[key], decisions,
+            graph_keys=("graph-correct", "graph-rival"),
+            measured_graph_scores=measured)
+
+    assert mx.grad(objective)(mx.array(0.)).item() < 0.
+    assert objective(mx.array(4.)).item() < objective(mx.array(0.)).item()
+    assert len(measured) == 3
+    assert measured[0].tolist() == pytest.approx([0., 2.])
+    with pytest.raises(ValueError, match="source/partner"):
+        native_grammar_path_objective(lambda key: fixed[key], decisions,
+                                      graph_keys=("same", "same"))
+
+
 def test_mismatched_pair_cannot_silently_move_loss_to_another_target():
     with pytest.raises(ValueError, match="contrast labels"):
         native_grammar_path_objective(lambda key: mx.array(float(key)),
             (((1, 2), 0),), partner_decisions=(((3, 4), 0),),
             pair={"decision_index": 0, "own_index": 0, "partner_index": 1})
+
+
+def test_typed_source_interactions_share_the_path_risk_and_train_reference_binding():
+    from core.learning.semantic_native_decision_supervision import native_decision_choice_loss
+    from core.learning.semantic_native_source_pairs import native_source_interaction_loss
+
+    decisions = ((('op', 'op-rival'), 0), (('ref', 'ref-rival'), 0))
+    peers = {"op-source": ((('peer-op', 'peer-op-rival'), 1),),
+             "ref-source": ((('unused', 'unused2'), 0), (('peer-ref', 'peer-ref-rival'), 1))}
+    pairs = [{"kind": kind, "partner": partner, "decision_index": index,
+              "own_index": 0, "partner_index": 1}
+             for index, (kind, partner) in enumerate([
+                 ("operation", "op-source"), ("reference", "ref-source")])]
+    fixed = {"op": 3., "op-rival": 0., "peer-op": 0., "peer-op-rival": 3.,
+             "ref-rival": 2., "peer-ref": 2., "peer-ref-rival": 0.}
+
+    def objective(reference):
+        return native_grammar_path_objective(lambda key: reference if key == "ref"
+            else mx.array(fixed[key]), decisions, typed_pairs=pairs, partners=peers)
+
+    with mx.stream(mx.cpu):
+        expected = native_path_risk_loss(mx.stack([
+            native_decision_choice_loss(mx.array([3., 0.]), 0),
+            native_decision_choice_loss(mx.array([0., 2.]), 0),
+            native_source_interaction_loss(*[mx.array(value) for value in [3., 0., 0., 3.]]),
+            native_source_interaction_loss(*[mx.array(value) for value in [0., 2., 2., 0.]]),
+        ]))
+        assert objective(mx.array(0.)).item() == pytest.approx(expected.item())
+        assert mx.grad(objective)(mx.array(0.)).item() < -.5
+        assert objective(mx.array(4.)).item() < objective(mx.array(0.)).item()
+
+
+@pytest.mark.parametrize("defect", ["duplicate", "unknown_kind", "missing_peer", "labels", "legacy_mix"])
+def test_typed_interaction_rejects_bad_inventory_or_rebound_target(defect):
+    decisions = (((1, 2), 0),)
+    pairs = [{"kind": "reference", "partner": "peer", "decision_index": 0,
+              "own_index": 0, "partner_index": 1}]
+    peers = {"peer": (((3, 4), 1),)}
+    if defect == "duplicate":
+        pairs *= 2
+    elif defect == "unknown_kind":
+        pairs[0]["kind"] = "family"
+    elif defect == "missing_peer":
+        peers.clear()
+    elif defect == "labels":
+        peers["peer"] = (((3, 4), 0),)
+    extra = {"pair": pairs[0], "partner_decisions": peers["peer"]} if defect == "legacy_mix" else {}
+    with pytest.raises(ValueError, match="source/partner|typed contrast|contrast labels"):
+        native_grammar_path_objective(lambda key: mx.array(float(key)), decisions,
+                                     typed_pairs=pairs, partners=peers, **extra)

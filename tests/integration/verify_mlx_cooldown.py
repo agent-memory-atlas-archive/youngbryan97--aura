@@ -7,6 +7,7 @@ import pytest
 from core.brain.llm import mlx_client as mlx_module
 from core.brain.llm import model_registry
 from core.brain.llm.mlx_client import MLXLocalClient
+from tests.clock_patch import patch_module_clock
 
 
 class _AliveProcess:
@@ -32,7 +33,7 @@ async def test_swap_cooldown_enforced(monkeypatch: pytest.MonkeyPatch) -> None:
         "realpath",
         lambda value, *args, **kwargs: path_map.get(value, value),
     )
-    monkeypatch.setattr(mlx_module.time, "time", lambda: 1005.0)
+    patch_module_clock(monkeypatch, mlx_module, time=lambda: 1005.0)
     monkeypatch.setattr(model_registry, "ACTIVE_MODEL", "Qwen2.5-32B-Instruct-8bit")
     monkeypatch.setattr(model_registry, "DEEP_MODEL", "Qwen2.5-72B-Instruct-4bit")
     monkeypatch.setattr(

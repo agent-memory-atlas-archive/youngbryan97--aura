@@ -134,6 +134,16 @@
         return box.width > 0 && box.height > 0;
     }
 
+    // Text clipped to a single pixel, the pattern every screen-reader-only
+    // class uses, exists for the accessibility tree and has no ink anyone
+    // reads, so it has no contrast to judge. It still counts as a heading.
+    function visuallyHidden(element) {
+        const box = element.getBoundingClientRect();
+        if (box.width > 1 || box.height > 1) return false;
+        const style = getComputedStyle(element);
+        return style.overflow === 'hidden' || style.clip !== 'auto' || style.clipPath !== 'none';
+    }
+
     function accessibleName(element) {
         const label = (element.getAttribute('aria-label') || '').trim();
         if (label) return label;
@@ -188,6 +198,7 @@
             // page. What matters for such a control is whether it has a name,
             // and `controlFindings` asks that of every control already.
             if (ink[3] === 0) continue;
+            if (visuallyHidden(element)) continue;
             measured += 1;
             let best = 0;
             for (const backdrop of backdropsUnder(element)) {

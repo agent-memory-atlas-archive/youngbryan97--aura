@@ -91,7 +91,7 @@ def test_reuse_accepts_unchanged_implementation_and_rejects_capture_receipt_drif
     assert prefix_reuse_contract(source, new)["capture_inventory_sha256"] != contract["capture_inventory_sha256"]
 
 
-@pytest.mark.parametrize("path_mode", [False, True])
+@pytest.mark.parametrize("path_mode", [False, True, "typed"])
 def test_reuse_admits_only_bound_paired_objective_on_identical_frozen_sequences(tmp_path, path_mode):
     source, new, row, _manifest, _supervision = fixture(tmp_path)
     prior = json.loads((source / "plan.json").read_text())
@@ -136,6 +136,26 @@ def test_reuse_admits_only_bound_paired_objective_on_identical_frozen_sequences(
                    path_checkpoint_selection_contract=PATH_SELECTION_CONTRACT,
                    selection="baseline_preserving_complete_source_calibration_paths")
         new["implementation"]["core/learning/semantic_native_path_objective.py"] = "new"
+        if path_mode == "typed":
+            from tests.test_semantic_native_source_control import typed_plan
+
+            new.update(typed_plan())
+            new["implementation"]["core/learning/semantic_native_typed_source_pairs.py"] = "new"
+            # This fixture changes only training supervision, not captured source inventory.
+            prior.update(fit_ids=["a", "b"], scheduled_fit_ids=["a", "b"])
+            prior.pop("plan_sha256")
+            prior["plan_sha256"] = digest(prior)
+            (source / "plan.json").write_text(json.dumps(prior))
+            manifest["plan_sha256"] = prior["plan_sha256"]
+            manifest.pop("receipt_sha256")
+            manifest["receipt_sha256"] = digest(manifest)
+            manifest_path.write_text(json.dumps(manifest))
+            supervision["plan_sha256"] = prior["plan_sha256"]
+            supervision.pop("receipt_sha256")
+            supervision["receipt_sha256"] = digest(supervision)
+            (source / "supervision.json").write_text(json.dumps(supervision))
+            body["plan_sha256"] = prior["plan_sha256"]
+            receipt.write_text(json.dumps(body))
     contract = prefix_reuse_contract(source, new)
     assert contract["source_count"] == 1
     assert contract["optimizer_state_reused"] is False
@@ -153,7 +173,7 @@ def test_reuse_admits_only_bound_paired_objective_on_identical_frozen_sequences(
             prefix_reuse_contract(source, new)
 
 
-@pytest.mark.parametrize("defect", ["population", "model", "other_implementation", "path_relabel", "source_rows",
+@pytest.mark.parametrize("defect", ["population", "model", "other_implementation", "path_relabel", "typed_relabel", "source_rows",
                                     "missing_manifest", "manifest_digest"])
 def test_reuse_refuses_protocol_and_manifest_drift(tmp_path, defect):
     source, new, _row, _manifest, _supervision = fixture(tmp_path)
@@ -165,6 +185,8 @@ def test_reuse_refuses_protocol_and_manifest_drift(tmp_path, defect):
         new["implementation"]["core/learning/semantic_native_grammar.py"] = "different"
     elif defect == "path_relabel":
         new["implementation"]["core/learning/semantic_native_path_objective.py"] = "new"
+    elif defect == "typed_relabel":
+        new["implementation"]["core/learning/semantic_native_typed_source_pairs.py"] = "new"
     elif defect == "source_rows":
         path = source / "supervision.json"
         body = json.loads(path.read_text())

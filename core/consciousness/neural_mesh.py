@@ -15,6 +15,7 @@ so the original 64-neuron core becomes the executive summary of a much larger fi
 """
 from __future__ import annotations
 
+from .neural_mesh_clock import _SpikeClock
 import asyncio
 import logging
 import math
@@ -663,7 +664,7 @@ class CorticalColumn:
 from .mesh_modulation import _CarriesModulation
 
 
-class NeuralMesh(_CarriesModulation, MeshWiring):
+class NeuralMesh(_SpikeClock, _CarriesModulation, MeshWiring):
     """The 4096-neuron cortical mesh.
 
     Lifecycle:
@@ -712,6 +713,9 @@ class NeuralMesh(_CarriesModulation, MeshWiring):
         self._rng = noise
         self._lock = threading.Lock()
         self._modulation_lock = threading.Lock()
+        #: What a spike is stamped with and plasticity measures its window in.
+        #: The machine's monotonic clock, unless a harness hands it its own.
+        self._clock: Any = time.monotonic
 
         # Build columns
         self.columns: list[CorticalColumn] = []
@@ -1096,7 +1100,7 @@ class NeuralMesh(_CarriesModulation, MeshWiring):
             self._tick_inner()
 
     def _tick_inner(self):
-        now = time.monotonic()
+        now = self._clock()
         dt = self.cfg.dt
         cfg = self.cfg
         modulatory_gain, _, modulatory_noise = self._modulatory_state

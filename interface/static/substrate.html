@@ -22,7 +22,7 @@
         }
         .grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
             gap: 16px;
             max-width: 900px;
         }
@@ -113,7 +113,7 @@
         .highlight { color: #c4a1f7; }
         .status {
             font-size: 11px;
-            color: #4a4556;
+            color: #8a8694;
             margin-top: 16px;
             text-align: center;
         }
@@ -125,11 +125,15 @@
         }
         .phi-label {
             font-size: 10px;
-            color: #6b6578;
+            color: #9a93a8;
             text-align: center;
         }
         #fullCard {
             grid-column: 1 / -1;
+        }
+        /* Two columns do not fit a phone: the page was 545px wide at 375. */
+        @media (max-width: 600px) {
+            .grid { grid-template-columns: minmax(0, 1fr); }
         }
     </style>
 </head>

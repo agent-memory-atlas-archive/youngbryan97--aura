@@ -2496,7 +2496,9 @@ def _a_turn_ledger_is_bound() -> bool:
         from core.runtime.turn_outcome import current_turn
 
         return current_turn() is not None
-    except (ImportError, RuntimeError, AttributeError):
+    except (ImportError, RuntimeError, AttributeError) as exc:
+        logger.debug("turn binding could not be read, so no turn counts as bound (%s: %s)",
+                     type(exc).__name__, exc)
         return False
 
 

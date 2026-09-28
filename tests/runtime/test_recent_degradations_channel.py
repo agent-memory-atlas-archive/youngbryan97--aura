@@ -17,6 +17,8 @@ from __future__ import annotations
 
 import pytest
 
+from tests.clock_patch import patch_module_clock
+
 
 @pytest.fixture(autouse=True)
 def _clean_tracker():
@@ -158,7 +160,7 @@ def test_stale_warning_is_not_presented_as_current(monkeypatch) -> None:
     from core.conversation import chat_preflight
 
     observed_at = 10_000.0
-    monkeypatch.setattr(chat_preflight.time, "time", lambda: observed_at)
+    patch_module_clock(monkeypatch, chat_preflight, time=lambda: observed_at)
     active, unconfirmed = chat_preflight._current_degradation_records(
         [
             {
