@@ -1236,6 +1236,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [V6 typed source result](evidence/G03_V6_TYPED_SOURCE_RESULT_2026-09-28.md)
+  rejects the widened fit: its selected checkpoint was unfitted, and the
+  baseline-preserving factorized policy generated 6/14 exact programs and
+  8/14 correct answers, with four disconnected depth-bound exits. Independent
+  replay found zero implementation drift. G03 remains open.
   [Typed source contrast coverage](evidence/G03_TYPED_SOURCE_CONTRAST_COVERAGE_2026-09-28.md)
   adds fit-only witnessed reference interactions missing from the lineage-only
   objective. The frozen v6 preparation selects 303 operation and 135 reference
