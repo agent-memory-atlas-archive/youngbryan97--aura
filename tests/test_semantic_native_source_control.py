@@ -98,6 +98,36 @@ def test_paired_grammar_plan_requires_intact_source_and_bound_interaction():
             source_control_mode_from_plan(invalid)
 
 
+@pytest.mark.parametrize("paired", [False, True])
+def test_path_objective_requires_its_own_loss_and_baseline_selection_contract(paired):
+    from core.learning.semantic_native_path_objective import (
+        GRAMMAR_PATH_CONTRACT,
+        path_choice_contract,
+    )
+    from core.learning.semantic_native_path_selection import PATH_SELECTION_CONTRACT
+
+    plan = {"schema": "aura.semantic_native_fit_plan.v5",
+            "objective": "grammar_source_pairs" if paired else "grammar_choices",
+            "loss_scope": "semantic_decisions", "grammar_choice_contract": path_choice_contract(),
+            "grammar_path_objective_contract": GRAMMAR_PATH_CONTRACT,
+            "path_checkpoint_selection_contract": PATH_SELECTION_CONTRACT,
+            "selection": "baseline_preserving_complete_source_calibration_paths",
+            "unfitted_checkpoint_eligible": True}
+    if paired:
+        plan.update(grammar_source_pair_contract=SOURCE_PAIR_CONTRACT,
+                    grammar_source_pair_fit_partners={"a": {"partner": "b"}})
+    assert source_control_mode_from_plan(plan) == "source_text"
+    for invalid in ({**plan, "schema": "aura.semantic_native_fit_plan.v4"},
+                    {**plan, "grammar_choice_contract": GRAMMAR_CHOICE_CONTRACT},
+                    {**plan, "grammar_path_objective_contract": {}},
+                    {**plan, "path_checkpoint_selection_contract": {}},
+                    {**plan, "selection": "minimum_loss"},
+                    {**plan, "unfitted_checkpoint_eligible": False},
+                    {**plan, "source_evidence_control": SOURCE_ERASURE_CONTRACT}):
+        with pytest.raises(ValueError):
+            source_control_mode_from_plan(invalid)
+
+
 def test_current_tokenizer_can_erase_source_but_preserves_the_private_channel():
     checkpoint = os.environ.get("AURA_NATIVE_TOKENIZER_CHECKPOINT")
     if not checkpoint:

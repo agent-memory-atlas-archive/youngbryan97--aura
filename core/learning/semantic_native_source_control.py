@@ -24,19 +24,41 @@ SOURCE_ERASURE_CONTRACT = {
 def source_control_mode_from_plan(plan: Mapping[str, Any]) -> str:
     """Keep historical fits intact and require explicit authority for erasure."""
     schema = plan.get("schema")
-    if schema in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4"}:
+    path_mode = schema == "aura.semantic_native_fit_plan.v5"
+    path_fields = {"grammar_path_objective_contract", "path_checkpoint_selection_contract"}
+    if not path_mode and path_fields & set(plan):
+        raise ValueError("historical native fit cannot acquire path-risk selection")
+    if schema in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4",
+                  "aura.semantic_native_fit_plan.v5"}:
         from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
         from core.learning.semantic_native_source_pairs import SOURCE_PAIR_CONTRACT
 
+        choice_contract = GRAMMAR_CHOICE_CONTRACT
         objective = "grammar_source_pairs" if schema.endswith(".v4") else "grammar_choices"
+        if path_mode:
+            from core.learning.semantic_native_path_objective import (
+                GRAMMAR_PATH_CONTRACT,
+                path_choice_contract,
+            )
+            from core.learning.semantic_native_path_selection import PATH_SELECTION_CONTRACT
+
+            objective = plan.get("objective")
+            choice_contract = path_choice_contract()
+            if (objective not in {"grammar_choices", "grammar_source_pairs"}
+                    or plan.get("grammar_path_objective_contract") != GRAMMAR_PATH_CONTRACT
+                    or plan.get("path_checkpoint_selection_contract") != PATH_SELECTION_CONTRACT
+                    or plan.get("selection") != "baseline_preserving_complete_source_calibration_paths"
+                    or plan.get("unfitted_checkpoint_eligible") is not True):
+                raise ValueError("native path-risk objective or selection contract differs")
+        paired = objective == "grammar_source_pairs"
         if (plan.get("objective") != objective
                 or plan.get("loss_scope") != "semantic_decisions"
-                or plan.get("grammar_choice_contract") != GRAMMAR_CHOICE_CONTRACT
-                or (schema.endswith(".v4") and (
+                or plan.get("grammar_choice_contract") != choice_contract
+                or (paired and (
                     plan.get("grammar_source_pair_contract") != SOURCE_PAIR_CONTRACT
                     or not plan.get("grammar_source_pair_fit_partners")))):
             raise ValueError("native fit grammar-choice contract differs")
-        if schema.endswith(".v4") and "source_evidence_control" in plan:
+        if (paired or path_mode) and "source_evidence_control" in plan:
             raise ValueError("native paired-source fit cannot erase its training source")
         if "source_evidence_control" not in plan:
             return "source_text"
