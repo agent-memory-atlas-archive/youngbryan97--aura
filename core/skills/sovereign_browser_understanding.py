@@ -699,6 +699,7 @@ class _UnderstandsThePage:
             if callable(think) and mind:
                 raw = self._the_text_of(await think(
                     prompt, system_prompt=mind, schema=self._UNDERSTANDING_SCHEMA, output_shape="json_object",
+                    serves_current_turn=True,
                     origin=self._PAGE_ORIGIN, purpose="page_understanding",
                     max_tokens=420, temperature=0.2, _non_chat_inference=True,
                 ))
@@ -804,6 +805,7 @@ class _UnderstandsThePage:
                 system_prompt=mind,
                 timeout=45.0,
                 prefer_tier="local_fast",
+                serves_current_turn=True,
                 max_tokens=_UnderstandsThePage.DECISION_MAX_TOKENS,
                 temperature=0.2,
                 output_shape="json_object",
@@ -1668,12 +1670,20 @@ class _UnderstandsThePage:
                     answered_by = "fast_lane"
                     raw = await self._decide_on_the_fast_lane(router, prompt, mind)
                     if not self._decision_is_usable(raw, observation, goal):
+                        answered_by = "whole_page_think"
+                        # The turn is waiting on this one too. Without saying
+                        # so it is classified background, deferred under
+                        # headroom pressure and comes back empty: LIVE
+                        # 2026-09-28 18:29, "Decision by the mechanics lane on
+                        # fast_lane: empty_decision" on the index page, nothing
+                        # clicked. The claim is checked against whether a user
+                        # turn is actually in flight.
                         raw = self._the_text_of(await think(
                             prompt, system_prompt=mind, schema=self._DECISION_SCHEMA, output_shape="json_object",
                             origin=_UnderstandsThePage._PAGE_ORIGIN, purpose="page_decision",
+                            serves_current_turn=True,
                             max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
                         ))
-                answered_by = answered_by or "whole_page_think"
             elif asks_about_her:
                 # Nothing left that could answer AS her. A bare call would
                 # produce something, and what it produces is a stand-in's

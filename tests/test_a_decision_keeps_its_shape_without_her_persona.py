@@ -80,3 +80,25 @@ def test_an_absent_state_is_still_recorded():
     body = inspect.getsource(u._UnderstandsThePage._assembled_mind)
     assert "no_current_state" in body
     assert "record_degradation" in body
+
+
+def test_every_page_call_says_the_turn_is_waiting_on_it():
+    """Without saying so it is background, deferred, and comes back empty.
+
+    LIVE 2026-09-28 18:29: "Decision by the mechanics lane on fast_lane:
+    empty_decision" on the index page, nothing clicked. The claim is checked
+    against whether a user turn is actually in flight, so it is not a claim
+    anything can make.
+    """
+    source = inspect.getsource(u)
+    for method in (
+        u._UnderstandsThePage._understand_page,
+        u._UnderstandsThePage._decide_on_the_fast_lane,
+        u._UnderstandsThePage._decide_next_actions,
+        u._UnderstandsThePage._asked_of_her,
+    ):
+        body = inspect.getsource(method)
+        assert "serves_current_turn=True" in body, (
+            f"{method.__name__} asks for work the turn is waiting on without saying so"
+        )
+    assert source.count("serves_current_turn=True") >= 4
