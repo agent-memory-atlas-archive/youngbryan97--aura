@@ -18,13 +18,21 @@ a coupling only in its second half, and its null.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 import numpy as np
 import pytest
 
 from core.subject.irreducibility import phi_do
 from core.subject.recording import Recording
 from core.subject.state import DOMAINS, domain_slices
-from tools.audit_stationary_irreducibility import rows_of, shuffled, stretches
+from tools.audit_stationary_irreducibility import (
+    as_rates,
+    only_grows,
+    rows_of,
+    shuffled,
+    stretches,
+)
 
 
 def _recording(frames: int, *, coupled_from: int, seed: int = 0) -> Recording:
@@ -103,3 +111,54 @@ def test_the_stretch_with_the_coupling_scores_above_its_shuffled_null() -> None:
     assert real["phi_do"] > 0.0, real
     assert null["phi_do"] == pytest.approx(0.0, abs=real["phi_do"] / 2.0), (real, null)
     assert null["lower_bound"] <= real["lower_bound"], (real, null)
+
+
+def _with_a_counter(frames: int, seed: int = 5) -> Recording:
+    """A recording whose A block carries one counter that pauses now and then."""
+    recording = _recording(frames, coupled_from=0, seed=seed)
+    x = recording.x.copy()
+    rng = np.random.default_rng(seed)
+    column = recording.slices["A"].start
+    steps = (rng.random(frames) > 0.2).astype(float)
+    x[:, column] = np.cumsum(steps) * 3.0
+    return replace(recording, x=x)
+
+
+def test_a_counter_that_pauses_is_still_a_counter() -> None:
+    recording = _with_a_counter(2_000)
+    column = recording.slices["A"].start
+    mask = only_grows(recording.x)
+    assert bool(mask[column]), "a counter that holds still for a frame was missed"
+    assert int(mask.sum()) == 1, [recording.columns[i] for i, f in enumerate(mask) if f]
+
+
+def test_a_column_that_never_decreases_and_travels_little_is_not_named() -> None:
+    """The difference from `monotone_columns`: how far the column travelled.
+
+    That method flags every column whose steps all point one way, and
+    differencing all of them is what the earlier attempt recorded in its
+    docstring tried. This one asks for a drift over three spreads of the
+    column's own as well, so it names the ones a fitted model can extrapolate
+    across a contiguous split.
+    """
+    recording = _with_a_counter(2_000)
+    x = recording.x.copy()
+    column = recording.slices["G"].start
+    # Never decreases, and its spread is one jump rather than its drift: it
+    # travels about two of its own spreads, where a ramp travels three and a half.
+    x[:, column] = (np.arange(2_000) >= 1_000).astype(float) + np.arange(2_000) * 1e-4
+    crept = replace(recording, x=x)
+    assert bool(crept.monotone_columns()[column])
+    assert not bool(only_grows(crept.x)[column])
+    assert bool(only_grows(crept.x, spreads=1.0)[column])
+
+
+def test_carrying_a_counter_as_its_rate_keeps_the_rest_untouched() -> None:
+    recording = _with_a_counter(1_000)
+    mask = only_grows(recording.x)
+    rated = as_rates(recording, mask)
+    column = recording.slices["A"].start
+    assert np.allclose(rated.x[:, ~mask], recording.x[:, ~mask])
+    assert np.allclose(rated.x[1:, column], np.diff(recording.x[:, column]))
+    # And it is no longer a column that only grows.
+    assert not bool(only_grows(rated.x)[column])
