@@ -981,3 +981,30 @@ And for the workspace arm: `A,S->G`'s held-out interaction gain rises above zero
 with a positive lower bound, or the product is not reaching the competition.
 
 No threshold moves on any of this.
+
+## Addendum, 28 September 2026, night: what the membrane predicts for the content run
+
+Fixed before the run. The structure term of J* misses its bar by 0.026 — her
+internal geometry and her behavioural one agree at rho 0.274485 over 190 pairs
+where 0.3 is asked — and the reason is that her quality space is compressed
+almost to the width of its own noise: two different content classes differ
+internally by 0.05 to 0.11 and a class differs from itself by about 0.05, while
+the behavioural geometry separates the same classes by 0.4 to 0.6
+(docs/WHAT_J_STAR_NEEDS.md).
+
+A channel that holds what a class did for a turn separates two classes further
+than a channel that holds only the instant. So the membrane and the afferent
+surface predict a specific thing here, and it is written down before a content
+run reads it:
+
+- the ratio of the mean between-class internal distance to the mean
+  within-class floor rises above the 1.2 it reads now;
+- and the agreement rises. Above 0.3 identifies the structure on this seed.
+
+If the ratio does not rise, the prediction is wrong and the membrane does
+nothing for the content line whatever it does for the partition line. If the
+ratio rises and the agreement does not, the separation was not the thing holding
+the agreement down, and the next candidate is the number of repetitions per
+class rather than the state.
+
+No bar moves either way, and the content run is scored exactly as written.
