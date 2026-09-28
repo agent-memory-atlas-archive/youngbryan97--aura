@@ -9,6 +9,7 @@ import pytest
 
 from core.brain.llm import endogenous_pair_recorder as recorder
 from core.brain.llm.endogenous_state import STATE_DIM, EndogenousState
+from tests.clock_patch import patch_module_clock
 
 
 def _state() -> EndogenousState:
@@ -67,7 +68,7 @@ def test_async_response_claims_pending_state_and_writes_off_loop(tmp_path, monke
 
 def test_rotation_accounts_for_the_record_about_to_be_appended(tmp_path, monkeypatch):
     monkeypatch.setenv("AURA_ENDOGENOUS_PAIR_DIR", str(tmp_path))
-    monkeypatch.setattr(recorder.time, "time", lambda: 1788590347.125)
+    patch_module_clock(monkeypatch, recorder, time=lambda: 1788590347.125)
     first = "a"
     assert recorder.record_pair(_state(), first)
     active = tmp_path / "pairs.jsonl"

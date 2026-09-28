@@ -474,7 +474,9 @@ def _the_turn_is_waiting_on_this(kwargs: Mapping[str, Any] | None) -> bool:
         from core.runtime.turn_outcome import current_turn
 
         return current_turn() is not None
-    except (ImportError, RuntimeError, AttributeError):
+    except (ImportError, RuntimeError, AttributeError) as exc:
+        logger.debug("turn binding could not be read, so the request stays background (%s: %s)",
+                     type(exc).__name__, exc)
         return False
 
 

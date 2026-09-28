@@ -7,12 +7,13 @@ import pytest
 
 from core.runtime import turn_progress as progress
 from core.runtime.turn_outcome import TurnOutcome, bind_turn
+from tests.clock_patch import patch_module_clock
 
 
 @pytest.fixture
 def clock(monkeypatch):
     now = [100.0]
-    monkeypatch.setattr(progress.time, "monotonic", lambda: now[0])
+    patch_module_clock(monkeypatch, progress, monotonic=lambda: now[0])
     progress.forget_progress()
     return now
 

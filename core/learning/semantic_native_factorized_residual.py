@@ -48,6 +48,8 @@ def native_competition_kind(choices):
         try:
             for value in values:
                 RegisterIdentity.parse(value)
+        # not a failure: a string that is not a register identity makes these
+        # atoms something other than references, and the raise below says so.
         except ValueError:
             pass
         else:

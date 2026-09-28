@@ -30,6 +30,7 @@ from core.world_model.acg import (
     ActionConsequenceGraph,
     _is_deferral,
 )
+from tests.clock_patch import patch_module_clock
 
 
 @pytest.fixture
@@ -42,7 +43,7 @@ def graph(monkeypatch):
             return verdict["approved"], verdict["reason"]
 
     monkeypatch.setattr(constitution, "get_constitutional_core", lambda: _Core())
-    monkeypatch.setattr(acg_module.time, "monotonic", lambda: clock["now"])
+    patch_module_clock(monkeypatch, acg_module, monotonic=lambda: clock["now"])
     g = ActionConsequenceGraph(persist_path=tempfile.mktemp(suffix=".json"))
     g.verdict = verdict  # type: ignore[attr-defined]
     g.clock = clock  # type: ignore[attr-defined]

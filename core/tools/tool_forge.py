@@ -50,6 +50,9 @@ class ToolForge:
         sandbox_res = sandbox.validate_tool_code(code)
         if not sandbox_res.get("compiles", False):
             return False
+        if not sandbox_res.get("safe", False):
+            logger.warning("🛠️ ToolForge: refused '%s': %s", name, sandbox_res.get("reason"))
+            return False
 
         manifest = ForgedToolManifest(
             name=name,
@@ -58,7 +61,9 @@ class ToolForge:
             inputs={"params": "dict"},
             outputs={"result": "dict"},
             sandbox_level=risk_tier,
-            verified=True,
+            # Nothing was run. A screen that read the code is not a verification
+            # of what it does, and this said True for anything that parsed.
+            verified=False,
         )
 
         registry = get_tool_registry()
@@ -103,6 +108,9 @@ class ToolForge:
         if not sandbox_res.get("compiles", False):
             logger.error("❌ ToolForge: tool compilation failed in sandbox.")
             return None
+        if not sandbox_res.get("safe", False):
+            logger.warning("🛠️ ToolForge: refused '%s': %s", name, sandbox_res.get("reason"))
+            return None
 
         # 3. Create Manifest
         manifest = ForgedToolManifest(
@@ -112,12 +120,12 @@ class ToolForge:
             inputs={"params": "dict"},
             outputs={"result": "dict"},
             sandbox_level="restricted",
-            verified=True,
+            verified=False,
         )
         self.forged_tools[name] = manifest
 
         # 4. Register tool
         self.registry.register_tool(name, manifest)
-        logger.info("✅ ToolForge: tool '%s' successfully forged, sandboxed, and registered.", name)
+        logger.info("✅ ToolForge: tool '%s' screened and registered; it runs under the kernel sandbox.", name)
 
         return manifest

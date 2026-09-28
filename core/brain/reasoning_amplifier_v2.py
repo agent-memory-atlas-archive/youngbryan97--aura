@@ -338,6 +338,10 @@ class ReasoningReceipt:
     agreement: float
     epistemic_status: str
     promotion_authority: str = "none"
+    #: verified, contradicted, unsupported, not_applicable, verifier_failed or
+    #: timed_out. Only the first is correctness; the receipt names which one
+    #: this answer got rather than leaving a reader to infer it from a bool.
+    verification_outcome: str = ""
     evidence_refs: list[str] = field(default_factory=list)
     known_failures: list[str] = field(default_factory=list)
     budget_used: dict[str, Any] = field(default_factory=dict)
@@ -357,6 +361,7 @@ class ReasoningReceipt:
             "confidence": round(self.confidence, 3),
             "agreement": round(self.agreement, 3),
             "epistemic_status": self.epistemic_status,
+            "verification_outcome": self.verification_outcome,
             "promotion_authority": self.promotion_authority,
             "evidence_refs": self.evidence_refs[:6],
             "known_failures": self.known_failures[:6],
@@ -1052,6 +1057,9 @@ class ReasoningAmplifierV2:
                     # manufactured unanimity out of a single stored string.
                     agreement=0.0,
                     epistemic_status="verified_cached",
+                    # The cache refuses anything with verified=False (see the
+                    # note on _cache_refusal), so a hit is a stored verified.
+                    verification_outcome="verified",
                     budget_used={"samples": 0, "time_s": round(time.monotonic() - start, 3), "cache": True},
                     fallbacks_used=["solved_cache_hit"],
                 )
@@ -1148,7 +1156,12 @@ class ReasoningAmplifierV2:
                 esc_candidates = []
             for cand in [c for c in (esc_candidates or []) if c]:
                 esc_verdict = await self._verify(cand, problem, request.context)
-                if bool(getattr(esc_verdict, "ok", False)):
+                # "Did not object" includes a verifier that crashed or ran out of
+                # time, and adopting a candidate is treating it as the better
+                # answer. A check that could not run cannot make that case.
+                if bool(getattr(esc_verdict, "ok", False)) and bool(
+                    getattr(esc_verdict, "verification_was_possible", True)
+                ):
                     answer = cand
                     verdict = esc_verdict
                     verifier_ok = True
@@ -1234,9 +1247,35 @@ class ReasoningAmplifierV2:
                 "reasoning_text_mutations": text_mutations,
             }
 
-        verified_pass = verifier_ok and verifier_checked
+        # Only the "verified" outcome is correctness. A pass beside an engine
+        # that crashed or timed out is a pass from fewer checks than were asked
+        # for, and the receipt already names it verifier_failed or timed_out;
+        # the flag has to agree with the name.
+        verified_pass = (
+            verifier_ok
+            and verifier_checked
+            and bool(getattr(verdict, "verification_was_possible", True))
+        )
         confidence = round(
             min(calibration.confidence, 0.98 if verified_pass else 0.55), 4
+        )
+        # CTX2-AMP-002. The verdict was taken on `answer`, and the person is
+        # handed `calibrated_answer`. The durable sinks below already keep the
+        # text that earned the pass; the delivered text was still going out
+        # under it. When the two differ it faces the verifier itself.
+        delivered_verdict = verdict
+        if verified_pass and calibrated_answer != answer:
+            delivered_verdict = await self._verify(calibrated_answer, problem, request.context)
+        delivered_pass = bool(
+            delivered_verdict is not None
+            and getattr(delivered_verdict, "ok", False)
+            and getattr(delivered_verdict, "checked", False)
+            and getattr(delivered_verdict, "verification_was_possible", True)
+        )
+        if verified_pass and not delivered_pass:
+            fallbacks.append("delivered_rewrite_not_verified")
+        delivered_confidence = (
+            confidence if delivered_pass else round(min(confidence, 0.55), 4)
         )
 
         # 9b. learn from the outcome — memoize wins, queue losses for idle retry.
@@ -1280,6 +1319,12 @@ class ReasoningAmplifierV2:
             agreement=agreement,
             epistemic_status=calibration.overall.value,
             promotion_authority=promotion_authority,
+            # Of the text the person receives, not of a draft before it.
+            verification_outcome=(
+                str(getattr(delivered_verdict, "outcome", "") or "unsupported")
+                if delivered_verdict is not None
+                else "verifier_failed"
+            ),
             evidence_refs=evidence[:6],
             known_failures=verifier_issues[:6],
             budget_used={
@@ -1305,10 +1350,10 @@ class ReasoningAmplifierV2:
         )
         return AmplifiedAnswer(
             answer=calibrated_answer,
-            confidence=confidence,
-            # "verified" is a claim to the user: only ok AND actually-checked
-            # earns it. "The verifier had no objection to prose" does not.
-            verified=verified_pass,
+            confidence=delivered_confidence,
+            # "verified" is a claim to the user about the text they receive:
+            # only ok AND actually-checked, on that text, earns it.
+            verified=delivered_pass,
             calibrated=(calibration.downgraded > 0 or calibration.flagged_impossible > 0),
             receipt=receipt,
             generation_metadata=winning_generation_metadata,
@@ -1460,7 +1505,13 @@ class ReasoningAmplifierV2:
                     [
                         Attempt(
                             candidate=c,
-                            verified=bool(getattr(v, "ok", False)),
+                            # Training data. A candidate whose check partly
+                            # crashed or ran out of time taught the harness
+                            # it was verified.
+                            verified=bool(
+                                getattr(v, "ok", False)
+                                and getattr(v, "verification_was_possible", True)
+                            ),
                             checked=bool(getattr(v, "checked", False)),
                             confidence=float(getattr(v, "score", 0.0) or 0.0),
                         )
@@ -1699,7 +1750,9 @@ class ReasoningAmplifierV2:
                 **(context or {}),
             }
             return await self._ensure_verifier().verify(candidate, task_type=problem.task_type, context=ctx)
-        except (RuntimeError, AttributeError, TypeError, ValueError) as exc:
+        # TimeoutError and OSError reached the turn itself before; the caller
+        # reads None as "the verifier was unavailable", which is what happened.
+        except (RuntimeError, AttributeError, TypeError, ValueError, OSError) as exc:
             record_degradation("amplifier_v2_verify", exc)
             return None
 

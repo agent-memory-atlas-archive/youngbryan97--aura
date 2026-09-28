@@ -23,6 +23,7 @@ from core.runtime.resource_stage_guard import (
     read_armed_ack,
     read_compute_lease_ack,
 )
+from tests.clock_patch import patch_module_clock
 from tools import memory_sentinel
 from tools.memory_sentinel import should_kill_for_memory
 
@@ -242,7 +243,7 @@ def test_memory_sentinel_transitions_from_startup_to_steady_guard(
         "tree_rss_mb",
         lambda *_args, **_kwargs: (56000.0, 0.0, 1, 56000.0),
     )
-    monkeypatch.setattr(memory_sentinel.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, memory_sentinel, sleep=lambda _seconds: None)
 
     assert (
         memory_sentinel.main(
@@ -445,7 +446,7 @@ def test_memory_sentinel_enforces_compute_lease_and_low_water_rearm(
         "tree_rss_mb",
         lambda *_args, **_kwargs: (56000.0, 0.0, 1, 56000.0),
     )
-    monkeypatch.setattr(memory_sentinel.time, "sleep", advance_trainer)
+    patch_module_clock(monkeypatch, memory_sentinel, sleep=advance_trainer)
 
     assert (
         memory_sentinel.main(
@@ -528,7 +529,7 @@ def test_memory_sentinel_tombstones_invalid_compute_acquire(
         "tree_rss_mb",
         lambda *_args, **_kwargs: (56000.0, 0.0, 1, 56000.0),
     )
-    monkeypatch.setattr(memory_sentinel.time, "sleep", write_invalid_acquire)
+    patch_module_clock(monkeypatch, memory_sentinel, sleep=write_invalid_acquire)
     monkeypatch.setattr(
         memory_sentinel,
         "kill_tree",
@@ -746,7 +747,7 @@ class TestSentinelRearm:
         status, spawned = self._status(monkeypatch)
         base = 1_000_000.0
         clock = {"now": base}
-        monkeypatch.setattr(aura_main.time, "time", lambda: clock["now"])
+        patch_module_clock(monkeypatch, aura_main, time=lambda: clock["now"])
         for i in range(status.REARM_HOURLY_BUDGET):
             clock["now"] = base + i * 60.0
             assert status.rearm() is True

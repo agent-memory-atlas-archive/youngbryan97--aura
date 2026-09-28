@@ -109,11 +109,15 @@ def test_an_ordinary_message_is_not_counted():
 
 
 def test_the_count_reaches_the_integrity_surface():
-    import inspect
+    """Read with every module lifted out of health_contract.
 
+    The integrity sections moved into health_integrity_sections to pay the
+    size budget, and one file stopped being the surface this reads.
+    """
     from core.runtime import health_contract
+    from tests.source_contract import family_text
 
-    source = inspect.getsource(health_contract)
+    source = family_text(health_contract)
     assert "memory_consent_report" in source
     assert '"memory_consent"' in source
 

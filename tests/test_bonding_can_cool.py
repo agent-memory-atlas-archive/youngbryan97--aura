@@ -14,6 +14,7 @@ import asyncio
 
 from core.phases.bonding_phase import BondingPhase
 from core.state.aura_state import AuraState
+from tests.clock_patch import patch_module_clock
 
 
 def _turn(phase: BondingPhase, state: AuraState, objective: str) -> None:
@@ -26,7 +27,7 @@ def test_a_long_silence_lets_bonding_settle(monkeypatch) -> None:
     import core.phases.bonding_phase as module
 
     clock = {"now": 1_000.0}
-    monkeypatch.setattr(module.time, "time", lambda: clock["now"])
+    patch_module_clock(monkeypatch, module, time=lambda: clock["now"])
 
     phase = BondingPhase()
     state = AuraState()
@@ -48,7 +49,7 @@ def test_a_steady_rhythm_of_ordinary_exchanges_does_not_run_away(monkeypatch) ->
     import core.phases.bonding_phase as module
 
     clock = {"now": 1_000.0}
-    monkeypatch.setattr(module.time, "time", lambda: clock["now"])
+    patch_module_clock(monkeypatch, module, time=lambda: clock["now"])
 
     phase = BondingPhase()
     state = AuraState()
@@ -73,7 +74,7 @@ def test_a_richer_exchange_still_builds(monkeypatch) -> None:
     import core.phases.bonding_phase as module
 
     clock = {"now": 1_000.0}
-    monkeypatch.setattr(module.time, "time", lambda: clock["now"])
+    patch_module_clock(monkeypatch, module, time=lambda: clock["now"])
 
     phase = BondingPhase()
     state = AuraState()

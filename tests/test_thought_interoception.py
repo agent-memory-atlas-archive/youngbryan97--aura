@@ -22,6 +22,7 @@ from core.brain.llm.interoception_tap import (
     _step_stats,
     maybe_build_tap,
 )
+from tests.clock_patch import patch_module_clock
 
 
 def _logprobs(probs: list[float]) -> np.ndarray:
@@ -368,7 +369,7 @@ class TestThoughtInteroceptionEngine:
         engine = ti.ThoughtInteroceptionEngine()
         engine.ingest(_payload(), foreground=True, response_text="old answer text")
         real_time = time.time
-        monkeypatch.setattr(ti.time, "time", lambda: real_time() + ti.RECENT_TRACE_WINDOW_S + 5)
+        patch_module_clock(monkeypatch, ti, time=lambda: real_time() + ti.RECENT_TRACE_WINDOW_S + 5)
         assert engine.find_for_text("old answer text") is None
 
     def test_ground_truth_and_introspective_calibration(self):
@@ -463,7 +464,7 @@ class TestThoughtInteroceptionEngine:
         engine.pulse_live({"token_count": 12, "mean_surprisal": 1.4, "mean_entropy": 2.0})
         assert engine.live()["token_count"] == 12
         real_time = time.time
-        monkeypatch.setattr(ti.time, "time", lambda: real_time() + 60)
+        patch_module_clock(monkeypatch, ti, time=lambda: real_time() + 60)
         assert engine.live() == {}
 
     def test_ingest_payload_json_roundtrip_like_ipc(self):

@@ -48,6 +48,7 @@ from core.ontogeny.resolution import ResolverRegistry
 from core.ontogeny.state import OntogeneticState
 from core.ontogeny.trainer import replay_design
 from core.ontogeny.wiring import SEALED_REASONS, admission_features, admission_stakes, is_sealed
+from tests.clock_patch import patch_module_clock
 
 
 @pytest.fixture
@@ -796,7 +797,7 @@ class TestOrganEndToEnd:
             )
 
         monkeypatch.setattr(core._trainer, "train", _train)
-        monkeypatch.setattr(service_module.time, "sleep", handoffs.append)
+        patch_module_clock(monkeypatch, service_module, sleep=handoffs.append)
 
         core.train(yield_to_foreground=True)
 

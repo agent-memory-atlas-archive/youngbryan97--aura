@@ -12,7 +12,6 @@ change forces re-pairing.
 from __future__ import annotations
 
 import hashlib
-import hmac
 
 import pytest
 
@@ -23,6 +22,7 @@ from core.security.device_pairing import (
     PairingError,
     _manifest_digest,
 )
+from tests.clock_patch import patch_module_clock
 
 PHONE_CAPS = ("camera.capture", "location.get", "notify")
 
@@ -107,7 +107,7 @@ async def test_a_stale_nonce_is_refused(registry, monkeypatch):
     challenge = registry.begin_connect("dev1")
     signature = _sign(registry, device, challenge["nonce"])
 
-    monkeypatch.setattr(dp.time, "time", lambda: challenge["expires_at"] + 1.0)
+    patch_module_clock(monkeypatch, dp, time=lambda: challenge["expires_at"] + 1.0)
     with pytest.raises(PairingError, match="expired"):
         await registry.verify_connect(
             "dev1", nonce=challenge["nonce"], signature=signature,

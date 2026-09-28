@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from tests.clock_patch import patch_module_clock
 from tools import launch_resident_recurrence_training as launch
 
 
@@ -392,7 +393,7 @@ def test_launcher_waits_through_supervisor_handoff_for_running_target(
         "_read_json",
         lambda *_args, **_kwargs: (b"{}", next(statuses)),
     )
-    monkeypatch.setattr(launch.time, "sleep", lambda _seconds: None)
+    patch_module_clock(monkeypatch, launch, sleep=lambda _seconds: None)
 
     status = launch._wait_for_running_target(tmp_path)
 

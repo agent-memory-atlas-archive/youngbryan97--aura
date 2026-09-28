@@ -5,6 +5,7 @@ import pytest
 from core.brain.llm import mlx_client
 from core.brain.llm.mlx_client import MLXLocalClient
 from core.runtime import turn_progress
+from tests.clock_patch import patch_module_clock
 
 
 @pytest.fixture
@@ -17,7 +18,7 @@ def progress_client(monkeypatch):
     client._tokens_this_request = 16
     client._tokens_since_spawn = 16
     client._mark_progress = lambda: None
-    monkeypatch.setattr(mlx_client.time, "time", lambda: 102.0)
+    patch_module_clock(monkeypatch, mlx_client, time=lambda: 102.0)
     monkeypatch.setitem(mlx_client._HOST_RATES, "decode", 0.0)
     renewals = []
     monkeypatch.setattr(turn_progress, "note_progress", lambda **kw: renewals.append(True))
