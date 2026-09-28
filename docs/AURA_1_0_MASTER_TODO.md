@@ -1176,6 +1176,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Native source-content controls](evidence/G03_NATIVE_SOURCE_CONTROL_2026-09-27.md)
+  independently verify a six-request target-blind decode: 5/6 exact with
+  source text, 1/6 under token erasure, and all six swapped outputs matching
+  the partner's intact-source program (five partner-correct). This establishes
+  source-dependent choice on a constructed cohort, not general transfer or
+  correctness: one count request still stops early, and the current 261
+  contrastive source pairs supervise operations only.
   [Paired source-choice fit](evidence/G03_PAIRED_SOURCE_FIT_2026-09-27.md)
   independently verifies 47/50 on the exposed held candidate bank against
   incumbent 41/50, with six gains and zero regressions. Three arithmetic
