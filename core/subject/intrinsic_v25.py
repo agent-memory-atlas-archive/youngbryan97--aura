@@ -16,9 +16,10 @@ It estimates the physical-side quantity F_intrinsic from the v25 specification.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from math import acos, sqrt
-from typing import Mapping, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -84,6 +85,7 @@ def crossfit_fisher_rao(
     *,
     folds: int = 5,
     seed: int = 0,
+    whiten: bool = False,
 ) -> FisherRaoEstimate:
     """Estimate Fisher--Rao distance between two continuous sample laws.
 
@@ -91,7 +93,21 @@ def crossfit_fisher_rao(
     model-light estimator.  The exact theory is estimator-independent; this is
     a finite-data instrument and must always be calibrated against sham-vs-sham
     arms and alternative estimators in confirmatory work.
+
+    `whiten` decides the metric the neighbours are counted in. Standardising
+    each column and taking Euclidean distance weights the coordinates the state
+    happens to be written in, so the estimate moves when the same information is
+    written in a different basis: on the v25 run of 26 September the rate read
+    0.019956 raw and 0.010103 under an invertible rotation, a drift of 0.49, and
+    the carrier was reported unresolved for it. Whitening makes Euclidean
+    distance equal to Mahalanobis distance, which is the same number under every
+    invertible linear recoding, so the estimate is a property of the samples
+    rather than of the coordinates.
+
+    It is not the default: changing an estimator changes what every earlier run
+    measured, so a campaign asks for it and the preregistration says which.
     """
+    from sklearn.decomposition import PCA
     from sklearn.model_selection import StratifiedKFold
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.pipeline import make_pipeline
@@ -118,8 +134,17 @@ def crossfit_fisher_rao(
         if k % 2 == 0:
             k += 1
         k = min(k, max(1, len(train) - 1))
+        if whiten:
+            # Fitted on the training fold only, like every other step here.
+            # PCA whitening rather than an inverse covariance: with more
+            # columns than rows the covariance is singular, and the components
+            # a fold can support are exactly the ones it can whiten.
+            keep = max(1, min(len(train) - 1, x.shape[1]))
+            metric: Any = PCA(n_components=keep, whiten=True, random_state=seed)
+        else:
+            metric = StandardScaler()
         model = make_pipeline(
-            StandardScaler(),
+            metric,
             KNeighborsClassifier(n_neighbors=k, weights="uniform"),
         )
         model.fit(x[train], y[train])
@@ -150,12 +175,16 @@ def intrinsic_rate_from_samples(
     context: np.ndarray | None = None,
     folds: int = 5,
     seed: int = 0,
+    whiten: bool = False,
 ) -> IntrinsicRateEstimate:
     """Finite-data estimate of F_intrinsic for one partition and one lag.
 
     Context is the shared pre-transition causal state and environment.  Appending
     it to both arms converts the joint-distribution comparison into a comparison
     of conditional futures while preserving identical context marginals.
+
+    `whiten` is passed through to `crossfit_fisher_rao` and decides whether the
+    rate is a property of the samples or of the coordinates they are written in.
     """
     if tau_seconds <= 0:
         raise ValueError("tau_seconds must be positive")
@@ -172,8 +201,8 @@ def intrinsic_rate_from_samples(
         ctx = np.asarray(context, dtype=np.float64)[:n]
         arrays = [np.hstack([ctx, a]) for a in arrays]
 
-    raw = crossfit_fisher_rao(arrays[0], arrays[1], folds=folds, seed=seed)
-    sham = crossfit_fisher_rao(arrays[2], arrays[3], folds=folds, seed=seed + 1)
+    raw = crossfit_fisher_rao(arrays[0], arrays[1], folds=folds, seed=seed, whiten=whiten)
+    sham = crossfit_fisher_rao(arrays[2], arrays[3], folds=folds, seed=seed + 1, whiten=whiten)
     raw_rate = raw.distance_sq / tau_seconds
     sham_rate = sham.distance_sq / tau_seconds
     return IntrinsicRateEstimate(

@@ -55,8 +55,9 @@ import math
 import os
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 
@@ -374,6 +375,7 @@ async def _spectrum(
     shard: tuple[int, int] | None = None,
     design: dict[str, Any] | None = None,
     only: Sequence[str] = (),
+    whiten: bool = False,
 ) -> tuple[dict[float, float], dict[str, Any]]:
     """The weakest cut's rate at every horizon on the ladder.
 
@@ -395,6 +397,7 @@ async def _spectrum(
         draws=int(chosen.get("draws") or 200),
         alpha=float(chosen.get("alpha") or 0.05),
         deciding=chosen.get("deciding") or None,
+        whiten=whiten,
     )
     for lag in sorted(reports):
         report = reports[lag]
@@ -471,7 +474,7 @@ def _recoded(block: np.ndarray, seed: int) -> np.ndarray:
 
 
 def _invariance(
-    samples: dict[str, np.ndarray], *, tau_seconds: float, seed: int
+    samples: dict[str, np.ndarray], *, tau_seconds: float, seed: int, whiten: bool = False
 ) -> dict[str, Any]:
     """Score one cut three ways: raw, re-encoded, and with duplicate channels.
 
@@ -486,6 +489,7 @@ def _invariance(
         estimate = intrinsic_rate_from_samples(
             mapped["intact"], mapped["cut"], mapped["sham_a"], mapped["sham_b"],
             tau_seconds=tau_seconds, context=mapped.get("context"), seed=seed,
+            whiten=whiten,
         )
         return float(estimate.excess_rate)
 
@@ -627,6 +631,18 @@ async def main() -> int:
         ),
     )
     parser.add_argument("--skip-grain", action="store_true")
+    parser.add_argument(
+        "--whiten",
+        action="store_true",
+        help=(
+            "count the estimator's neighbours in Mahalanobis distance rather than "
+            "in Euclidean distance on standardised columns. The second weights the "
+            "coordinates the state is written in, and the run of 26 September read "
+            "0.019956 raw against 0.010103 under an invertible rotation of the same "
+            "information; the first is the same number in every basis. It changes "
+            "what is measured, so a campaign asks for it and says so."
+        ),
+    )
     parser.add_argument("--domains", type=str, default="", help="comma-separated support to test instead of all ten")
     parser.add_argument(
         "--allow-degraded", action="store_true",
@@ -898,6 +914,7 @@ async def main() -> int:
                 lags=lags, frame_seconds=frame_seconds, turns=args.turns,
                 rounds=args.cut_rounds, seed=args.seed, domains=support,
                 screen=args.screen, shard=shard, design=sweep_design, only=only_cuts,
+                whiten=bool(args.whiten),
             )
             payload = {
                 "shard": f"{shard[0]}/{shard[1]}",
@@ -980,6 +997,7 @@ async def main() -> int:
                     lags=lags, frame_seconds=frame_seconds, turns=args.turns,
                     rounds=args.cut_rounds, seed=args.seed, domains=support,
                     screen=args.screen, design=sweep_design, only=only_cuts,
+                    whiten=bool(args.whiten),
                 )
             binding = _horizon_is_binding(spectrum, lags)
             tau_star = max(spectrum, key=lambda tau: spectrum[tau]) if spectrum else None
@@ -1026,7 +1044,7 @@ async def main() -> int:
             tau_best = float(best_lag) * frame_seconds
             try:
                 evidence["representation_invariance"] = _invariance(
-                    samples, tau_seconds=tau_best, seed=args.seed
+                    samples, tau_seconds=tau_best, seed=args.seed, whiten=bool(args.whiten)
                 )
                 evidence["v25_nulls"] = _v25_nulls(
                     samples, tau_seconds=tau_best, seed=args.seed,
