@@ -920,3 +920,64 @@ here because three unattributed changes in one campaign attribute nothing.
 a held-out interaction gain of +0.2245 and a lower bound of +0.0712 against an
 information synergy of 0.077 of joint under a bar at 0.210. Building for one
 estimator while the other says the opposite would be building blind.
+
+## Addendum, 28 September 2026, night: the afferent surface, and a correction to the arm table
+
+A third organism change, `e29ed787a`, and one correction to the two addenda
+above.
+
+### The correction: the schema is 438 columns, not 375
+
+Every number in the two addenda above was read off `whole-s7-27dc1dda9`, whose
+recording is 375 columns wide. The schema has since grown to 438 — P 15, I 18,
+A 73, G 35, C 84, S 93, M 20, W 35, D 52, N 13 — so the next campaign records a
+wider organism than the one those numbers came from. The expected sizes stay as
+written because they are the best estimate available, and the run is read against
+them knowing they were taken on a narrower recording.
+
+### The afferent surface
+
+Two hundred and one columns are read straight off a live organ, and the membrane
+of the addendum above cannot reach them: an organ reading is not a field
+anything can write back to. `core/runtime/afferent.py` holds a sensed copy
+instead — the runtime attaches it to her state, `read_core_state` takes the
+sensed array rather than the organ's, and anything of hers that wants what she
+senses asks it. `AURA_AFFERENT_TURNS`, off by default. It touches only the
+columns the schema declares as organ-sourced, so no column gets two time
+constants.
+
+The claim it rests on stands whether or not it moves a number: no part of her
+can read an organ's internal value without a channel, and every channel in a
+body is a filter.
+
+### The arm table, corrected
+
+Three mechanisms and three switches, so eight arms is the full design and four
+is what a machine-day allows. The four that run, at one commit and one seed:
+
+| arm | `AURA_MEMBRANE_TURNS` | `AURA_AFFERENT_TURNS` | `AURA_WORKSPACE_POOL` |
+|---|---|---|---|
+| control | off | off | off |
+| carried | 1 | 1 | off |
+| workspace | off | off | on |
+| both | 1 | 1 | on |
+
+The membrane and the afferent surface run together because neither reaches the
+bar alone by the table above and the question asked of them is one question:
+whether a channel that carries what it has been makes her coupling visible. The
+workspace pool is a separate question about one synergy triple, so it gets its
+own arm.
+
+What each outcome decides is unchanged from the addendum above, read on the
+`carried` arm rather than on a membrane-only arm:
+
+- a lower bound at or above 0.05 closes `partition_irreducibility` on this seed;
+- between 0.02 and 0.05 is the mechanism working and not being enough;
+- at or below zero, or no rise over control, falsifies the reading in
+  `docs/WHY_IRREDUCIBILITY_FAILS.md`, and the time constant is dropped rather
+  than tuned.
+
+And for the workspace arm: `A,S->G`'s held-out interaction gain rises above zero
+with a positive lower bound, or the product is not reaching the competition.
+
+No threshold moves on any of this.
