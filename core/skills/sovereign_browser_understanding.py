@@ -1444,6 +1444,7 @@ class _UnderstandsThePage:
         # that routes them to `_answer_each_question`. Pressing Next is
         # mechanics wherever it sits.
         asks_about_her = bool(about_her)
+        answered_by = ""
 
         # Her whole mind, not a subset assembled here.
         #
@@ -1649,6 +1650,7 @@ class _UnderstandsThePage:
                             "error": f"not_her_own_reasoning:{answered_by or 'unattributed'}"
                         }
                 else:
+                    answered_by = "fast_lane"
                     raw = await self._decide_on_the_fast_lane(router, prompt, mind)
                     if not self._decision_is_usable(raw, observation, goal):
                         raw = self._the_text_of(await think(
@@ -1656,6 +1658,7 @@ class _UnderstandsThePage:
                             origin=_UnderstandsThePage._PAGE_ORIGIN, purpose="page_decision",
                             max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
                         ))
+                answered_by = answered_by or "whole_page_think"
             elif asks_about_her:
                 # Nothing left that could answer AS her. A bare call would
                 # produce something, and what it produces is a stand-in's
@@ -1665,11 +1668,23 @@ class _UnderstandsThePage:
                 generate = getattr(router, "generate", None)
                 if not callable(generate):
                     return {"error": "llm_router_unavailable"}
+                answered_by = "bare_generate"
                 raw = await generate(prompt, max_tokens=400, temperature=0.2)
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.decide", exc)
             return {"error": f"decision_failed:{type(exc).__name__}"}
-        return self._parse_decision(str(raw or ""))
+        parsed = self._parse_decision(str(raw or ""))
+        # Which path answered, and on which lane, said once per decision.
+        # Three of these run and a failed decision named none of them, so
+        # "unparsable_decision" was a sentence about a parser and not about
+        # where the answer came from.
+        logger.info(
+            "🌐 Decision by %s on %s: %s",
+            "her own lane" if asks_about_her else "the mechanics lane",
+            answered_by or "unattributed",
+            parsed.get("error") or "usable",
+        )
+        return parsed
 
     @staticmethod
     def _balanced_objects(text: str) -> list[str]:
