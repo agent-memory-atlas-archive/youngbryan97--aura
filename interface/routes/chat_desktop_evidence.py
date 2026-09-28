@@ -911,8 +911,8 @@ def _desktop_objective_self_sufficient_without_cognitive_text(user_message: str)
 
         if page_interaction_target(text):
             return True
-    except (ImportError, AttributeError, TypeError, ValueError):
-        pass
+    except (ImportError, AttributeError, TypeError, ValueError) as exc:
+        logger.debug("page work could not be read from the request; asking the desktop task: %s", exc)
     try:
         from core.skills.desktop_task import DesktopTaskSkill
 
