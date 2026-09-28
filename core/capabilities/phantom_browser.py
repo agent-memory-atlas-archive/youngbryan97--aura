@@ -173,6 +173,28 @@ def _normalize_url(url: str) -> str:
     return "https://" + text
 
 
+def why_it_would_not_load(browser: Any) -> str:
+    """The reason this browser already has for a navigation that did not arrive.
+
+    ``browse()`` returns False and keeps the reason on its navigation record —
+    a redirect somewhere else, a page that never settled, a bot block. Callers
+    reported "Failed to load X" instead, which covers all of them and helps with
+    none: LIVE 2026-08-31, 2048game.com began serving a captcha and what she
+    said was that the URL would not load; LIVE 2026-09-28, r/futurology answered
+    `bot_block_or_captcha` and the adapter reported "Failed to load
+    r/futurology". `sovereign_browser` read the record and no other caller did,
+    so the reading lives here, beside the record it reads.
+    """
+    record = getattr(browser, "_last_navigation", None) or {}
+    said = str(record.get("reason") or "").strip()
+    if said == "bot_block_or_captcha":
+        return (
+            "the site is blocking automated browsers (a captcha or bot check), "
+            "so this is not something more tries will get past"
+        )
+    return said
+
+
 class PhantomBrowser(_ActsOnThePage):
     """High-fidelity browser agent (Async Version).
     """

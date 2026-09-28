@@ -53,12 +53,22 @@ class _UnderstandsThePage:
         return f"{observation.get('url')}#{marks}"
 
     @classmethod
-    def _controls_worth_offering(cls, elements: list[Any]) -> list[Any]:
+    def _controls_worth_offering(
+        cls, elements: list[Any], goal: str = ""
+    ) -> list[Any]:
         """The controls that can advance a goal, before the ones that decorate.
 
         Truncating the raw list would cut the answers and keep the navigation,
         because site furniture is emitted first in document order. Ranking by
         what a control DOES keeps the form and drops the chrome.
+
+        And by what the GOAL names, ahead of that. Ranking by role alone is
+        blind to the errand: LIVE 2026-09-28, asked to take the Open Extended
+        Jungian Type Scales, she arrived at openpsychometrics.org — an index of
+        forty-odd tests, no form on it — and the link to the one she was sent
+        for sat below a budget built for questionnaires. The page she could see
+        held no test and no way to one. A control whose words answer the goal's
+        words is the way in, wherever the document happens to put it.
         """
         # A question that is answered offers nothing.
         #
@@ -89,9 +99,11 @@ class _UnderstandsThePage:
                 and str(element.get("group")) in answered
             )
         ]
+        wanted = cls._words_of(goal)
         ranked = sorted(
             enumerate(live),
             key=lambda pair: (
+                -cls._how_far_it_answers(pair[1], wanted),
                 cls._ACTIONABLE_ROLES.index(str(pair[1].get("role") or "").lower())
                 if str(pair[1].get("role") or "").lower() in cls._ACTIONABLE_ROLES
                 else len(cls._ACTIONABLE_ROLES),
@@ -100,14 +112,58 @@ class _UnderstandsThePage:
         )
         return [element for _index, element in ranked[: cls.PURSUE_CONTROL_BUDGET]]
 
+    #: Words that name nothing in particular, so sharing one says nothing.
+    _SAYS_NOTHING = frozenset({
+        "the", "a", "an", "and", "or", "of", "to", "for", "on", "in", "at", "by",
+        "with", "from", "it", "its", "this", "that", "your", "you", "me", "my",
+        "i", "is", "are", "be", "as", "test", "page", "site", "com", "org",
+        "www", "http", "https", "take", "tell", "say", "go", "get", "them",
+        "they", "what", "when", "why", "how", "each", "before", "after", "start",
+    })
+
+    @classmethod
+    def _words_of(cls, text: str) -> frozenset[str]:
+        """The distinctive words of a phrase, lowercased."""
+        return frozenset(
+            word
+            for word in re.findall(r"[a-z0-9]+", str(text or "").lower())
+            if len(word) >= 3 and word not in cls._SAYS_NOTHING
+        )
+
+    @classmethod
+    def _how_far_it_answers(cls, element: Any, wanted: frozenset[str]) -> int:
+        """How many of the goal's own words this control carries.
+
+        A count, not a score: two words shared is twice the evidence of one,
+        and nothing here needs a weighting nobody measured.
+        """
+        if not wanted or not isinstance(element, Mapping):
+            return 0
+        said = cls._words_of(
+            " ".join(
+                str(element.get(field) or "")
+                for field in ("name", "value", "asks", "heading")
+            )
+        )
+        return len(wanted & said)
+
     # A classmethod rather than a static one because it reads two budgets off
     # the class. It used to name the class to get at them, which is the same
     # dependency written in a way that breaks the moment the method moves.
     @classmethod
-    def _render_observation(cls, observation: Mapping[str, Any]) -> str:
-        """The page as the decision sees it: what it says, and what it offers."""
+    def _render_observation(
+        cls, observation: Mapping[str, Any], goal: str = ""
+    ) -> str:
+        """The page as the decision sees it: what it says, and what it offers.
+
+        The goal travels with it because the ranking below depends on it, and
+        every index the decision writes is resolved against the same list in
+        the pursuit loop. A list ranked one way here and another way there
+        means `[3]` names one control on screen and a different one in the
+        click.
+        """
         elements = cls._controls_worth_offering(
-            list(observation.get("elements") or [])
+            list(observation.get("elements") or []), goal
         )
         lines = [
             f"URL: {observation.get('url')}",
@@ -147,6 +203,25 @@ class _UnderstandsThePage:
             lines.append(
                 f"[{index}] {element.get('role')} \u2014 {element.get('name')}{suffix}"
             )
+        # What was left out, and what is below the fold.
+        #
+        # Neither was said, so a page whose list had been cut and a page with
+        # nothing more on it read exactly alike, and scrolling was a guess. The
+        # observer keeps both numbers and nothing showed them.
+        held = len(list(observation.get("elements") or []))
+        if held > len(elements):
+            lines.append(
+                f"({held - len(elements)} more control(s) on this page are not "
+                "listed; the ones most likely to serve the goal are)"
+            )
+        below = (
+            int(observation.get("scroll_height") or 0)
+            - int(observation.get("scroll_y") or 0)
+            - int(observation.get("viewport_height") or 0)
+        )
+        if below > 0 and int(observation.get("viewport_height") or 0) > 0:
+            screens = below / float(observation["viewport_height"])
+            lines.append(f"(the page continues {screens:.1f} screen(s) below this one)")
         return "\n".join(lines)
 
     @staticmethod
@@ -398,7 +473,7 @@ class _UnderstandsThePage:
             f"WHAT I AM TRYING TO ACCOMPLISH: {goal}\n\n"
             + (f"{recalled}\n\n" if recalled else "")
             + f"{prior_view}"
-            f"{self._render_observation(observation)}\n\n"
+            f"{self._render_observation(observation, goal)}\n\n"
             "Describe the situation, as JSON only:\n"
             '{"here": "<what this page is>", '
             '"to_progress": "<what I have to do on THIS page to move forward>", '
@@ -447,7 +522,9 @@ class _UnderstandsThePage:
         return "MY UNDERSTANDING OF THIS TASK:\n" + "\n".join(lines) if lines else ""
 
     @classmethod
-    def _decision_is_usable(cls, raw: Any, observation: Mapping[str, Any]) -> bool:
+    def _decision_is_usable(
+        cls, raw: Any, observation: Mapping[str, Any], goal: str = ""
+    ) -> bool:
         """Whether this decision names something that can actually be done.
 
         Not "did the call succeed" — an answer that parses to no action, or to
@@ -462,7 +539,9 @@ class _UnderstandsThePage:
             return False
         if parsed.get("done") is True:
             return True
-        elements = cls._controls_worth_offering(list(observation.get("elements") or []))
+        elements = cls._controls_worth_offering(
+            list(observation.get("elements") or []), goal
+        )
         for item in parsed.get("actions") or []:
             if not isinstance(item, dict):
                 continue
@@ -910,7 +989,7 @@ class _UnderstandsThePage:
             + (f"WHAT YOU TOLD THEM BEFORE YOU BEGAN: {said}\n\n" if said else "")
             + (f"{self_state}\n\n" if self_state else "")
             + (f"{self._render_understanding(understanding)}\n\n" if understanding else "")
-            + f"{self._render_observation(observation)}\n\n"
+            + f"{self._render_observation(observation, goal)}\n\n"
             f"{positions}\n\n"
             "Act on this page from that understanding. Answer with JSON only:\n"
             '{"actions": [{"index": <int>, "type": "click"|"type"|"scroll", '
@@ -986,7 +1065,7 @@ class _UnderstandsThePage:
                     raw = self._the_text_of(reply)
                 else:
                     raw = await self._decide_on_the_fast_lane(router, prompt, mind)
-                    if not self._decision_is_usable(raw, observation):
+                    if not self._decision_is_usable(raw, observation, goal):
                         raw = self._the_text_of(await think(
                             prompt, system_prompt=mind, schema=self._DECISION_SCHEMA, output_shape="json_object",
                             origin=_UnderstandsThePage._PAGE_ORIGIN, purpose="page_decision",

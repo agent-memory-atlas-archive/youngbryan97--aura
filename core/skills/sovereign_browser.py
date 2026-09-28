@@ -305,17 +305,12 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
             # none. LIVE 2026-08-31: 2048game.com began serving a captcha to
             # her browser, which is why a task that had worked for days
             # stopped — and what she reported was that the URL would not load.
-            why = getattr(browser, "_last_navigation", None) or {}
-            said = str(why.get("reason") or "").strip()
-            if said == "bot_block_or_captcha":
-                self._why_it_would_not_load = (
-                    "the site is blocking automated browsers (a captcha or bot "
-                    "check), so this is not something more tries will get past"
-                )
-            elif said:
-                self._why_it_would_not_load = said
-            else:
-                self._why_it_would_not_load = "the browser reported it did not load"
+            from core.capabilities.phantom_browser import why_it_would_not_load
+
+            self._why_it_would_not_load = (
+                why_it_would_not_load(browser)
+                or "the browser reported it did not load"
+            )
         return bool(got)
 
     def _could_not_load(self, url: str) -> str:
@@ -868,7 +863,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                 _read_comprehension(url=observed_url or url, title="", text=content)
             )
             return payload
-        return {"ok": False, "error": f"Failed to load {url}"}
+        return {"ok": False, "error": self._could_not_load(url)}
 
     async def _handle_interact(
         self,
@@ -1300,7 +1295,9 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                 # index 3 named one control on screen and a different one in the
                 # click — the precise way these loops end up pressing whatever
                 # moved into slot four.
-                elements = self._controls_worth_offering(list(observation.get("elements") or []))
+                elements = self._controls_worth_offering(
+                    list(observation.get("elements") or []), goal
+                )
                 planned: list[BrowserAction] = []
                 # Selectors that were already resolved against the list their
                 # own decision was shown — see `_answer_each_question`. They
