@@ -1161,3 +1161,29 @@ controls are expected to read the same, because every switch defaults off, and
 if they do not then something that was meant to be inert is not — which is worth
 knowing and is the reason for running the second one rather than reusing the
 first.
+
+## Addendum, 28 September 2026, afternoon: the gates look, read
+
+The look named on 27 September ran at `38ef2c9ce`, seed 7, both arms beside each
+other from 00:55 to 03:16: the substrate gates as built, and
+`AURA_DISABLE_SUBSTRATE_GATES=1`. Ten cuts each, 128 anchors a cut, the deciding
+horizon of one turn. What it was to read was C|rest's excess in each arm.
+
+| | C\|rest excess | lower bound | cuts decided | closure leak |
+|---|---|---|---|---|
+| gates | 0.0033 | -0.0311 | 3 of 10: P, D, A | 0.0011 |
+| no gates | 0.0045 | -0.0329 | 2 of 10: P, D | -0.0173 |
+
+The gates did not reach C. Its excess is the same in both arms to within a
+thousandth, and far inside the instrument's spread. A is decided with the gates
+and not without, at a lower bound of +0.0003 against -0.0030: a margin that
+small is one draw, not an effect, and nothing is credited to the gates for it.
+Closure holds in both.
+
+Two things the look shows that matter more than the gates. The seven undecided
+cuts are all singletons (I, W, N, G, M, S, C), and their excess runs from -0.018
+to +0.028 while the sham arm against itself reads 0.062 to 0.093 in both arms,
+so the instrument's floor is larger than every singleton's effect. And the
+estimator is not invariant in either arm: a recoding drift of 0.49 with the
+gates and 0.41 without, which the whitened estimator of `43e7e9427` is held to
+first.
