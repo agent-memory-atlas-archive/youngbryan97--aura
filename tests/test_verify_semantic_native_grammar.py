@@ -10,14 +10,14 @@ from core.learning.procedure_induction import Instruction, Program
 from tools.verify_semantic_native_grammar import (
     replay_greedy_decisions,
     source_separation_summary,
-    verify_grammar_row,
-    verify_source_separation,
     verified_dataset,
     verified_examples,
     verified_input_grounding,
     verified_pair_totals,
     verified_public_inputs,
     verified_weight_mode,
+    verify_grammar_row,
+    verify_source_separation,
 )
 
 
@@ -67,7 +67,8 @@ def test_grammar_decision_replay_rejects_forged_winner():
     row = {"decision_trace": json.loads(json.dumps(generated.trace)),
            "program": generated.program.to_dict(),
            "decode_status": "completed", "bound_forced_completion": False}
-    plan = {"max_steps": 8, "register_encoding": REGISTER_ENCODING}
+    plan = {"schema": "aura.semantic_native_grammar_plan.v5",
+            "max_steps": 8, "register_encoding": REGISTER_ENCODING}
     replay_greedy_decisions(row, example=example, plan=plan)
     forged = {**row, "decision_trace": [dict(step) for step in row["decision_trace"]]}
     forged["decision_trace"][0]["chosen"] = "sub"
@@ -112,7 +113,8 @@ def test_grammar_replay_binds_each_score_to_the_scored_input(mode):
            "score_input_receipts": json.loads(json.dumps(input_receipts)),
            "program": generated.program.to_dict(), "decode_status": "completed",
            "bound_forced_completion": False}
-    plan = {"max_steps": 8, "register_encoding": REGISTER_ENCODING,
+    plan = {"schema": "aura.semantic_native_grammar_plan.v5",
+            "max_steps": 8, "register_encoding": REGISTER_ENCODING,
             "source_evidence": mode}
     replay_greedy_decisions(row, example=example, plan=plan, tokenizer=tokenizer,
                             max_sequence_tokens=1024, scored_source=scored_source)
@@ -282,9 +284,10 @@ def test_independent_intervention_pair_metrics_reject_wrong_registers():
     assert verified_pair_totals((before, wrong), dataset="operation_intervention")["source_responsive"] == 0
 
 
-def test_retained_development_protocol_cannot_be_relabelled_fresh():
+@pytest.mark.parametrize("version", ["v6", "v8"])
+def test_retained_development_protocol_cannot_be_relabelled_fresh(version):
     basis = {"split": "test", "exposure": "previously_exposed_development"}
-    plan = {"schema": "aura.semantic_native_grammar_plan.v6", "dataset": "retained_test",
+    plan = {"schema": f"aura.semantic_native_grammar_plan.{version}", "dataset": "retained_test",
             "seed": 0, "source_cohort_basis": basis}
     report = {"dataset": "retained_test", "seed": 0, "source_cohort_basis": basis}
     assert verified_dataset(plan, report) == ("retained_test", 0)

@@ -1920,6 +1920,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   51/60. The candidate is not promoted; component attribution continues.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
+  [Conditional native binding](evidence/G04_CONDITIONAL_NATIVE_BINDING_2026-09-28.md)
+  independently replays base scores on fitted role/dependency prefixes:
+  32/36 references versus fitted 36/36 in each small cohort. The four
+  differences track intermediate results, not the final relation intervention.
+  Guided agreement grants no end-to-end score or fresh transfer; G04 stays open.
   [Bound source inventory](evidence/G04_BOUND_SOURCE_INVENTORY_2026-09-19.md)
   reconstructs 1,764 archived examples and 656 schemas across eight families
   from the exact manifests. Twenty-seven tests pass. Default family settings
@@ -1953,8 +1958,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   independently verifies fitted 6/6 versus unfitted 2/6, erasure 0/6, and
   six source-swapped programs matching the partner's intact program. The
   base failures diverged first at operation choice, and the cohort reuses
-  exposed topologies and one renderer. Dependency and fresh-family controls
-  remain pending; this does not close G04.
+  exposed topologies and one renderer.
+  [Dependency source-control result](evidence/G04_NATIVE_DEPENDENCY_SOURCE_CONTROL_2026-09-28.md)
+  independently verifies the same 6/6, 2/6, 0/6, and six partner-matching
+  swaps for one changed argument dependency. Both comparisons demonstrate
+  local source-conditioned graph choice, but base failures first diverge at
+  operation selection. Operation-conditioned binding and fresh-family
+  controls remain pending; these results do not close G04.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
   OPEN, observed live 2026-09-21, and recorded here because it is a
   reasoning error rather than a plumbing one. Asked how far a bird flies

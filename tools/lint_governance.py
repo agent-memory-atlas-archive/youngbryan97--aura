@@ -57,7 +57,8 @@ SKIP_DIR_PARTS = {
 # on the narrow CONSEQUENTIAL_CALLS or skip-file ALLOW_LIST.
 
 CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
-    "raw_subprocess": frozenset({"core/runtime/subprocess_gateway.py"}),
+    "raw_subprocess": frozenset({"core/runtime/subprocess_gateway.py",
+                                 "core/runtime/subprocess_gateway_reaping.py"}),
     "raw_network": frozenset({"core/runtime/network_gateway.py"}),
     "raw_file_mutation": frozenset(
         {

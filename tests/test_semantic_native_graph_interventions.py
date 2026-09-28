@@ -80,8 +80,9 @@ def test_symmetric_binding_cannot_be_reported_as_a_changed_role():
         graph_intervention_candidate(Program(2, (Instruction("sub", (0, 1)),)), (3, 7), kind="unknown")
 
 
-def test_trie_verifier_requires_strategy_and_complete_choice_coverage():
-    plan = {"schema": "aura.semantic_native_grammar_plan.v7", "prefix_strategy": "trie"}
+@pytest.mark.parametrize("version", ["v7", "v8"])
+def test_trie_verifier_requires_strategy_and_complete_choice_coverage(version):
+    plan = {"schema": f"aura.semantic_native_grammar_plan.{version}", "prefix_strategy": "trie"}
     report = {"prefix_strategy": "trie"}
     row = {"score_input_receipts": [[{}, {}], [{}]],
            "prefix_execution": {"schema": "aura.frozen_prefix_branches.v2",
