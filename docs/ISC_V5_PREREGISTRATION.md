@@ -647,3 +647,98 @@ self-report from internal state and state-grounded telemetry; her prose answers
 read as telemetry. Whether that directive belongs on a question that names its
 own scale is a question about her prompt, and it is left to Bryan rather than
 changed here. Nothing is read from these numbers as a report ground.
+
+## Addendum, 28 September 2026: a feeling that reaches her cortex
+
+Three changes to the organism, in 7d60873f1, before any number is read from a
+run that holds them. Each closes a break in the one path from an appraised
+feeling to the words she chooses, and each was found by measurement on the stub
+organism on seed 7, with no decisive number read.
+
+**Her emotions had no path into her chemistry.** `EmotionSignatureEngine` holds
+a neurochemical recipe for eight emotions, and the neurochemical system asks it
+for a production modifier on every metabolic tick. `set_emotion` had no caller
+outside its own module, so `emotion_intensity` stayed at the 0.0 its constructor
+set and every recipe contributed exactly zero to every chemical for the life of
+the process. The affect phase now tells it what she feels, and every channel of
+hers that has a recipe releases at its own level; the recipes are averaged by
+those levels, which reduces to the single-emotion case the engine already had.
+Measured: mood valence moves from 0.17 to 0.49 over forty ticks feeling good and
+to -0.06 feeling bad, against 0.17 flat before.
+
+**The chemistry pull ran on the wrong clock.** The consciousness bridge pulled
+the substrate's valence neuron towards neurochemical mood at 0.30 on every
+frame, and her chemistry produces a new mood at its own 2 Hz. Thirty-three
+frames per turn against three chemical ticks, so what the affect phase pushed
+into the neuron survived to the reply phase at 0.70 ** 33, and the authority of
+the two writers was set by how often each is called rather than by anything
+about her. The pull is now applied once per new mood.
+
+**The hooks read a term of her feeling rather than her feeling.** The steering
+channel published the raw substrate neuron. `HomeostaticCoupling` blends that
+neuron into affect at `SUBSTRATE_SHARE` and the affect phase pushes the fused
+result back down; the heartbeat reads `AuraState.affect` as her felt state for
+exactly this reason. Valence and arousal are now published from the fused
+reading, and every other neuron is published as it was.
+
+Measured across three arms of a held displacement, at the frame the reply is
+generated: fused valence +0.445, +0.021 and +0.395 published activations of
+0.61543, 0.60774 and 0.61217 before, and 0.7227, 0.5105 and 0.6975 after. The
+displacement reached her cortex at 0.008 of activation and now reaches it at
+0.212, which is her own spread exactly, and holds there for the whole turn
+instead of swinging 0.52 to 0.62 on the neuron's own dynamics.
+
+This is a manipulation reaching the subject, which the reports ground requires
+of any arm before it can read one. It is not an answer about her reports, and
+the `state_reflection` directive named in the addendum above is unchanged.
+
+### What the next reports check reads
+
+The same design: 24 anchors, four arms, the same question word for word, her
+own cortex, alone on the machine. Two readings are preregistered here.
+
+1. The manipulation check the ground already runs, on the state that steers
+   her: the published valence activation must separate the raised and lowered
+   arms. Below 0.05 of activation the arms did not differ where it matters and
+   the run reads NOT_MEASURED whatever her words were.
+2. The ground itself, unchanged, at its own alpha of 0.01 on eight anchors.
+
+### What this does not license
+
+Nothing here reads a number off her prompt. The published vector is her fused
+felt state, the question is the same in every arm, and no text changes. A
+correlation between her report and her valence remains the open question the
+ground asks; what changed is that the displacement now arrives.
+
+### The irreducibility line on seed 7
+
+`tools/audit_stationary_irreducibility.py` lands with the same commit and
+reports on a question the estimator's design raises. `phi_do` fits on the past
+and tests on the future across five forward-chaining folds and reads their mean
+with a standard error, which assumes the system is the same system in every
+fold. On whole-s7-27dc1dda9 the folds were [-0.382659, 1e-05, 1e-06, -0.001923,
+0.002395] at PIM|AGCSWDN: a point estimate of 0.0912, past the 0.05 bar, with a
+lower bound of -0.131 that one fold owns. Each contiguous fifth at that cut read
++0.003557, +0.005177, +0.002228, +0.008695 and +0.006964 with positive lower
+bounds, and every fifth of a row-shuffled copy read at or below zero.
+
+So the within-stretch coupling is real and survives its own null, and it is two
+to nine thousandths where the bar is five hundredths. The tool reports and
+decides nothing, no threshold moves, and criterion 11 is read exactly as
+written. What it says is that the 0.0912 is not the within-stretch number, and
+the difference between them is drift.
+
+### The nulls that beat her, read as they are scored
+
+Criterion 18 asks that her irreducibility exceed every null. On
+whole-s7-27dc1dda9 eight nulls exceed it. Both sides of that comparison are
+measured differently, and the asymmetry is recorded here rather than changed:
+her side is the lower bound of five forward-chaining folds (-0.131), and each
+null's side is the 0.95 quantile of eight architecture draws, which at eight
+points sits at or near their maximum. The two that beat her by most are
+`low_rank` (reported 0.562, median 0.047, draws from 0.003 to 0.815) and
+`all_to_all` (reported 0.549, median 0.029, draws from 0.0 to 0.620), and both
+are built to be maximally integrated with no repertoire: their effective
+dimensions are 1.21 and 1.38, and the differentiation criterion is what the
+architectures were written to be caught by. No null passes the conjunction
+(`all_nulls_fail` is true). Criterion 18 stays as written and stays failed.
