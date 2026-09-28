@@ -49,6 +49,7 @@ from core.phases.repair_phase import (
 from core.phases.response_generation_unitary import UnitaryResponsePhase
 from core.phases.unity_binding import UnityBindingPhase
 from core.resilience.error_boundary import wrap_phase
+from core.runtime.state_membrane import after_phase
 from core.runtime.cognitive_provenance import (  # noqa: F401  (read at call time by the lifted module)
     begin_transformation,
     close_tick,
@@ -454,6 +455,10 @@ class AuraKernel(_TicksAndShutsDown):
                 objective=objective,
                 priority=priority,
             )
+            # Her membrane, when it is switched on: every channel she holds
+            # carries the trace of what it has been, a turn's worth of phases
+            # long. See core/runtime/state_membrane.py.
+            result_state = after_phase(result_state, len(self._phases))
             return result_state
         except BaseException as exc:  # noqa: BLE001 — recorded, then re-raised
             phase_error = repr(exc)

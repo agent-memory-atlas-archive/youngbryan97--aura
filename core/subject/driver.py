@@ -277,6 +277,7 @@ HARNESS_ROUTES: dict[str, str] = {
     "_act": "core/phases/action_grounding.py:ground_response, a skill she dispatches; a scratch world stands in for the environment",
     "_meet_the_person": "core/kernel/turn_door.py:observe_the_person, the step the desktop's incoming path runs beside each message",
     "step_once": "core/subject/steppable.py:step_once, the free-running layers the runtime runs on timers, advanced by count",
+    "_settle_membrane": "core/runtime/state_membrane.py:after_phase, the membrane her kernel and her chat pipeline settle after every phase",
     "note_effort": "core/soma/effort.py:note_effort, the cost the production phase seam reports",
     "_condition_index": "instrument: labels which condition a frame came from",
     "after_phase": "instrument: the lesion's clamp, empty outside a lesion",
@@ -779,11 +780,11 @@ class SubjectRuntime:
         surface holds the sensed copy; `read_core_state` takes it instead of the
         organ's own array, and anything of hers that wants what she senses asks
         it. With `AURA_AFFERENT_TURNS` unset it returns every array untouched,
-        which is the reading she has now. See core/runtime/afferent.py.
+        which is the reading she has now. See core/subject/afferent.py.
         """
         if self.frames_per_turn <= 0:
             return
-        from core.runtime.afferent import Afferent
+        from core.subject.afferent import Afferent
 
         surface = getattr(self.state, "afferent", None)
         if isinstance(surface, Afferent) and surface.frames_per_turn == float(self.frames_per_turn):
