@@ -271,8 +271,6 @@ def main(argv: list[str] | None = None) -> int:
                                             "purified_norm": variants["purified_norm"],
                                             "nuisance_dimensions": variants["nuisance_dimensions"]})
                         for ordinal, vector in enumerate(variants["polarity_flip_nulls"]):
-                            if vector is None:
-                                continue
                             directory = staging / "polarity_nulls" / str(ordinal)
                             directory.mkdir(parents=True, exist_ok=True)
                             path = directory / f"{dimension}_layer{layer}.npz"
@@ -282,7 +280,8 @@ def main(argv: list[str] | None = None) -> int:
                                      contrast_design_sha256=design.sha256,
                                      control="within_pair_polarity_flip")
                             entries.append({"path": str(path.relative_to(staging)),
-                                            "sha256": _sha256_file(path)})
+                                            "sha256": _sha256_file(path),
+                                            "target_cosine": variants["polarity_null_target_cosines"][ordinal]})
                 metadata = {"schema": "aura.caa.contrastive_capture.v1",
                             "model_descriptor_sha256": descriptor,
                             "contrast_design_sha256": design.sha256,

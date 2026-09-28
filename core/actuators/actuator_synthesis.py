@@ -188,7 +188,7 @@ class ActuatorSynthesizer:
     # -- code generation --------------------------------------------------------
 
     async def synthesize_actuator_code(self, request: SynthesisRequest) -> str:
-        """Synthesize a complete BaseActuator Python class using the LocalBrain Ollama instance."""
+        """Synthesize a complete BaseActuator Python class on the resident MLX brain."""
         brain = LocalBrain()
 
         system_prompt = (

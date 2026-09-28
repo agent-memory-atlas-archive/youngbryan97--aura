@@ -10,6 +10,8 @@ import logging
 import os
 import socket
 import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FuturesTimeout
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -18,6 +20,47 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.CapabilityGuard")
 _NETWORK_RESOLUTION_ERRORS = (OSError, UnicodeError, ValueError)
+
+#: How long a name may take to resolve before the guard treats it as
+#: unresolvable. `socket.gethostbyname` takes no timeout and
+#: `socket.setdefaulttimeout` does not reach it, so with no network on macOS it
+#: sits in the resolver for as long as the resolver wants — inside a decision a
+#: turn is waiting on. Unresolvable already means "block the URL" here, which is
+#: the safe direction, so a name that will not answer quickly is one that will
+#: not answer. Two seconds is the resolver's own first-attempt budget.
+_RESOLVE_DEADLINE_S = 2.0
+
+
+#: The pool the resolution runs in. Module-level and never shut down per call:
+#: a pool used as a context manager joins its worker on the way out, so the
+#: deadline returned in time and the `with` block then waited the full thirty
+#: seconds for the stuck resolver anyway — measured, in the test beside this.
+#: Two workers, so one wedged lookup does not starve the next; a third caller
+#: finds no free worker, its future never starts, and it is refused on the
+#: deadline, which is the same safe answer.
+_RESOLVERS = ThreadPoolExecutor(max_workers=2, thread_name_prefix="capability-resolve")
+
+
+def _resolves_to(domain: str) -> str | None:
+    """The address a name resolves to inside the deadline, or nothing.
+
+    Returns None both for a name that does not resolve and for one that did not
+    resolve in time. The caller treats them the same way, and the alternative is
+    a turn that never comes back.
+    """
+    future = _RESOLVERS.submit(socket.gethostbyname, domain)
+    try:
+        return str(future.result(timeout=_RESOLVE_DEADLINE_S))
+    except FuturesTimeout:
+        future.cancel()
+        logger.warning(
+            "SecurityViolation: name did not resolve within %.1fs, blocking: %s",
+            _RESOLVE_DEADLINE_S,
+            domain,
+        )
+        return None
+    except _NETWORK_RESOLUTION_ERRORS:
+        return None
 
 class CapabilityGuard:
     """Runtime enforcement of system capabilities."""
@@ -175,16 +218,20 @@ class CapabilityGuard:
                 parsed = urllib.parse.urlparse(url)
                 domain = parsed.hostname or url
                 
-                # SSRF Protection
-                try:
-                    ip = socket.gethostbyname(domain)
-                    ip_obj = ipaddress.ip_address(ip)
-                    if ip_obj.is_loopback or ip_obj.is_private or ip_obj.is_link_local:
-                        logger.warning("SSRF SecurityViolation: Blocked request to private/loopback IP: %s (resolved from %s)", ip, domain)
-                        return False
-                except _NETWORK_RESOLUTION_ERRORS:
+                # SSRF Protection, on a deadline. See _resolves_to.
+                ip = _resolves_to(domain)
+                if ip is None:
                     if url.startswith("http://") or url.startswith("https://"):
                         logger.warning("SecurityViolation: Blocked unresolvable URL: %s", url)
+                        return False
+                else:
+                    try:
+                        ip_obj = ipaddress.ip_address(ip)
+                    except ValueError:
+                        logger.warning("SecurityViolation: Blocked unparseable address %s from %s", ip, domain)
+                        return False
+                    if ip_obj.is_loopback or ip_obj.is_private or ip_obj.is_link_local:
+                        logger.warning("SSRF SecurityViolation: Blocked request to private/loopback IP: %s (resolved from %s)", ip, domain)
                         return False
 
                 # Allowed domains validation

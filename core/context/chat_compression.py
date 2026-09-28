@@ -361,7 +361,7 @@ class ChatCompressionService:
     """Compresses conversation history to stay within model context limits.
 
     Ported from gemini-cli's ChatCompressionService with adaptations for
-    Aura's local Ollama-based LLM architecture.
+    Aura's resident MLX brain.
     """
 
     def __init__(self, temp_dir: str = None):

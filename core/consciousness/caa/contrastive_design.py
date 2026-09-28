@@ -8,6 +8,7 @@ vector construction or hyperparameter choice.
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import math
 from collections import Counter, defaultdict
@@ -141,16 +142,46 @@ def unit_direction(direction: np.ndarray) -> np.ndarray:
 
 def polarity_flip_nulls(positive: np.ndarray, negative: np.ndarray, *,
                         count: int, seed: int) -> tuple[np.ndarray, ...]:
-    """Flip labels within pairs; reordering pairs alone cannot null a mean."""
+    """Draw distinct balanced label flips, without a residual majority label."""
     positive = np.asarray(positive, dtype=np.float64)
     negative = np.asarray(negative, dtype=np.float64)
-    paired_direction(positive, negative)
-    if count < 1:
+    target = paired_direction(positive, negative)
+    pair_count = len(positive)
+    possible = math.comb(pair_count, pair_count // 2) if pair_count >= 4 else 0
+    if (count < 1 or pair_count % 2 or count > possible):
         raise ValueError("polarity_null_count_invalid")
     rng = np.random.default_rng(seed)
     differences = positive - negative
-    return tuple(np.mean(differences * rng.choice((-1., 1.), size=(len(differences), 1)), axis=0)
-                 for _ in range(count))
+    target_norm = float(np.linalg.norm(target))
+    if target_norm <= 1e-8:
+        raise ValueError("polarity_null_target_unidentified")
+    nulls: list[np.ndarray] = []
+    if possible <= 1024:
+        patterns = list(itertools.combinations(range(pair_count), pair_count // 2))
+        rng.shuffle(patterns)
+    else:
+        patterns = []
+        seen: set[tuple[int, ...]] = set()
+        for _ in range(max(128, count * 64)):
+            indices = tuple(sorted(int(index) for index in
+                                   rng.choice(pair_count, pair_count // 2, replace=False)))
+            if indices not in seen:
+                seen.add(indices)
+                patterns.append(indices)
+    for positive_indices in patterns:
+        signs = -np.ones(pair_count, dtype=np.float64)
+        signs[list(positive_indices)] = 1.0
+        vector = np.mean(differences * signs[:, None], axis=0)
+        norm = float(np.linalg.norm(vector))
+        if norm <= 1e-8:
+            continue
+        cosine = abs(float(np.dot(vector, target) / (norm * target_norm)))
+        if cosine >= 1.0 - 1e-6:
+            continue
+        nulls.append(vector)
+        if len(nulls) == count:
+            return tuple(nulls)
+    raise ValueError("polarity_null_geometry_unidentified")
 
 
 def construct_candidates(
@@ -178,8 +209,10 @@ def construct_candidates(
     return {
         "raw": unit_direction(target),
         "purified": unit_direction(purified) if np.linalg.norm(purified) > 1e-8 else None,
-        "polarity_flip_nulls": tuple(unit_direction(vector) if np.linalg.norm(vector) > 1e-8
-                                      else None for vector in nulls),
+        "polarity_flip_nulls": tuple(unit_direction(vector) for vector in nulls),
+        "polarity_null_target_cosines": tuple(float(np.dot(vector, target) /
+                                                     (np.linalg.norm(vector) * np.linalg.norm(target)))
+                                               for vector in nulls),
         "raw_norm": float(np.linalg.norm(target)),
         "purified_norm": float(np.linalg.norm(purified)),
         "nuisance_dimensions": tuple(sorted(nuisance_pairs)),

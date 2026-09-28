@@ -367,12 +367,23 @@ def test_get_model_path_preserves_missing_absolute_paths(monkeypatch, tmp_path):
 
 
 def test_get_model_path_is_idempotent_for_governed_repository_id(monkeypatch, tmp_path):
+    """A repository id handed in comes back out, which is what idempotence is.
+
+    This used to pass a model NAME and assert a repository id came back — the
+    missing-artifact fallback, not idempotence. That fallback is gone: it sent a
+    download into the path that answers a person, so with no network she could
+    not reply at all. The id still survives a round trip when a caller supplies
+    one, and a name still resolves to a path.
+    """
     monkeypatch.setattr(model_paths, "BASE_DIR", tmp_path)
     monkeypatch.setattr(model_registry, "_cortex_path_cache", None)
-    repository_id = model_registry.get_model_path("Qwen2.5-32B-Instruct-8bit")
+    repository_id = "mlx-community/Qwen2.5-32B-Instruct-8bit"
 
-    assert repository_id == "mlx-community/Qwen2.5-32B-Instruct-8bit"
+    assert model_registry.is_model_repository_id(repository_id)
     assert model_registry.get_model_path(repository_id) == repository_id
+    by_name = model_registry.get_model_path("Qwen2.5-32B-Instruct-8bit")
+    assert not model_registry.is_model_repository_id(by_name)
+    assert by_name.endswith("Qwen2.5-32B-Instruct-8bit")
 
 
 def test_explicit_shared_model_root_is_independent_of_source_root(monkeypatch, tmp_path):

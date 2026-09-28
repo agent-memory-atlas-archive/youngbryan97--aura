@@ -32,7 +32,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
-__all__ = ["Relation", "Graph", "Alignment", "map_structures", "shuffled_null"]
+__all__ = ["Relation", "Graph", "Alignment", "AlignmentAlternatives",
+           "map_structures", "map_structures_alternatives", "shuffled_null"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,6 +114,14 @@ class Alignment:
         }
 
 
+@dataclass(frozen=True, slots=True)
+class AlignmentAlternatives:
+    """Best tied readings from a bounded search, with truncation explicit."""
+
+    readings: tuple[Alignment, ...]
+    truncated: bool
+
+
 def _score(
     source: Graph,
     target: Graph,
@@ -141,7 +150,9 @@ def _score(
     return len(matched) / total, depth / total, matched
 
 
-def _predicate_candidates(source: Graph, target: Graph) -> list[dict[str, str]]:
+def _predicate_candidates(
+    source: Graph, target: Graph, *, require_complete: bool = False,
+) -> list[dict[str, str]]:
     """Every way of reading the source's relation words as the target's.
 
     Only arity-compatible pairings: a two-place relation cannot be read as a
@@ -177,6 +188,9 @@ def _predicate_candidates(source: Graph, target: Graph) -> list[dict[str, str]]:
     for choices in options:
         total *= len(choices)
         if total > _MAX_PREDICATE_READINGS:
+            if require_complete:
+                raise ValueError(
+                    "predicate reading search exceeds its exhaustive budget")
             # Too many readings to enumerate. Fall back to matching the words
             # exactly, which is the old behaviour, rather than searching a
             # fraction of the space and reporting the best of it as the best.
@@ -222,6 +236,34 @@ def _injective(combination: Sequence[str | None]) -> bool:
 _MAX_PREDICATE_READINGS = 4096
 
 
+def _candidate_alignments(
+    source: Graph, target: Graph, max_objects: int, *,
+    require_complete: bool = False,
+):
+    source_objects, target_objects = source.objects, target.objects
+    if not source_objects or not target_objects:
+        return
+    if len(source_objects) > max_objects or len(target_objects) > max_objects:
+        raise ValueError(
+            f"{len(source_objects)} and {len(target_objects)} objects exceed the "
+            f"{max_objects} this exhaustive search will attempt; a bigger domain needs "
+            "a heuristic search, and pretending to have found nothing would be worse"
+        )
+    readings = _predicate_candidates(
+        source, target, require_complete=require_complete)
+    size = min(len(source_objects), len(target_objects))
+    # A maximal partial injection can extend every smaller injection without
+    # removing matches. Enumerate source subsets when the target is smaller.
+    for subset in itertools.combinations(source_objects, size):
+        for permutation in itertools.permutations(target_objects, size):
+            mapping = dict(zip(subset, permutation, strict=True))
+            for reading in readings:
+                score, systematicity, matched = _score(source, target, mapping, reading)
+                yield Alignment(mapping=dict(mapping), matched=tuple(matched),
+                                score=score, systematicity=systematicity,
+                                predicate_mapping=dict(reading))
+
+
 def map_structures(
     source: Graph, target: Graph, *, max_objects: int = 7
 ) -> Alignment | None:
@@ -232,34 +274,41 @@ def map_structures(
     heuristic that is not written here. Refusing is better than a partial
     search whose failures look like "no analogy".
     """
-    source_objects, target_objects = source.objects, target.objects
-    if not source_objects or not target_objects:
-        return None
-    if len(source_objects) > max_objects or len(target_objects) > max_objects:
-        raise ValueError(
-            f"{len(source_objects)} and {len(target_objects)} objects exceed the "
-            f"{max_objects} this exhaustive search will attempt; a bigger domain needs "
-            "a heuristic search, and pretending to have found nothing would be worse"
-        )
-    readings = _predicate_candidates(source, target)
     best: Alignment | None = None
-    size = min(len(source_objects), len(target_objects))
-    # A maximal partial injection can extend every smaller injection without
-    # removing matches. Enumerate source subsets when the target is smaller.
-    for subset in itertools.combinations(source_objects, size):
-        for permutation in itertools.permutations(target_objects, size):
-            mapping = dict(zip(subset, permutation, strict=True))
-            for reading in readings:
-                score, systematicity, matched = _score(source, target, mapping, reading)
-                if best is None or (score, systematicity) > (best.score, best.systematicity):
-                    best = Alignment(
-                        mapping=mapping,
-                        matched=tuple(matched),
-                        score=score,
-                        systematicity=systematicity,
-                        predicate_mapping=dict(reading),
-                    )
+    for candidate in _candidate_alignments(source, target, max_objects):
+        if best is None or (candidate.score, candidate.systematicity) > (
+                best.score, best.systematicity):
+            best = candidate
     return best
+
+
+def map_structures_alternatives(
+    source: Graph, target: Graph, *, max_objects: int = 7,
+    max_results: int = 16,
+) -> AlignmentAlternatives:
+    """Retain tied best correspondences instead of hiding ambiguity.
+
+    The predicate candidate budget is the same as ``map_structures``. A tie
+    describes that search, not every semantic interpretation of the scene.
+    """
+    if type(max_results) is not int or not 1 <= max_results <= 256:
+        raise ValueError("alignment result budget must be between 1 and 256")
+    best_key: tuple[float, float] | None = None
+    ties: list[Alignment] = []
+    truncated = False
+    for candidate in _candidate_alignments(
+            source, target, max_objects, require_complete=True):
+        key = (candidate.score, candidate.systematicity)
+        if best_key is None or key > best_key:
+            best_key = key
+            ties = [candidate]
+            truncated = False
+        elif key == best_key:
+            if len(ties) < max_results:
+                ties.append(candidate)
+            else:
+                truncated = True
+    return AlignmentAlternatives(tuple(ties), truncated)
 
 
 def shuffled_null(

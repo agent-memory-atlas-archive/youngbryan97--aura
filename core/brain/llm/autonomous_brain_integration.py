@@ -299,6 +299,21 @@ def _peek_endpoint_health(router, name: str) -> bool:
         return bool(peek(name))
     return bool(monitor.is_healthy(name))
 
+def _declared_footprint_gb(model_path: str) -> float:
+    """What the lifecycle says this artifact weighs, or zero when it says nothing.
+
+    Read rather than written into a log line: a size typed into a message is a
+    claim nobody checks, and this one was wrong for a week.
+    """
+    try:
+        from core.brain.llm.model_lifecycle import _APPROX_SIZE_GB
+
+        return float(_APPROX_SIZE_GB.get(str(model_path).rstrip("/").split("/")[-1], 0.0))
+    # not a failure: a footprint nobody declared is reported as nothing.
+    except (ImportError, AttributeError, TypeError, ValueError):
+        return 0.0
+
+
 class ReflexClient:
     """A minimal rule-based client that provides emergency cognitive output."""
     async def think(self, prompt: str, **kwargs) -> str:
@@ -620,7 +635,7 @@ class AutonomousCognitiveEngine:
                 )
                 logger.error("Failed to register %s pathway: %s", DEEP_ENDPOINT, e)
 
-        # ── LOCAL TERTIARY: Brainstem (7B) — Background/heartbeat ──
+        # ── LOCAL TERTIARY: the Brainstem — Background/heartbeat ──
         if allow_non_primary_tiers and brainstem_model_path and BRAINSTEM_ENDPOINT not in getattr(self.llm_router, "endpoints", {}):
             try:
                 from .mlx_client import get_mlx_client
@@ -634,7 +649,23 @@ class AutonomousCognitiveEngine:
                     model_name=brainstem_model_path.split("/")[-1],
                     client=brainstem_client,
                 ))
-                logger.info("⚡ TERTIARY Tier registered: %s (7B) — Background/Reflex", BRAINSTEM_ENDPOINT)
+                # Its own name and its own declared footprint. This line used
+                # to type a parameter count into itself, and it had been wrong
+                # since 20 September: the brainstem is a 27B at two bits. That
+                # is the shape of mislabel that sends a diagnosis the wrong
+                # way — asked why she could not reply when the cortex was
+                # refused its spawn with 11.9GB of headroom against 24GB
+                # required, the log named a fallback lane at a size it does not
+                # have, so the question the line should have settled (does an
+                # 8.6GB lane fit in 11.9GB) could not be asked of it. A size
+                # typed into a message is a claim nobody checks; this reads the
+                # one the lifecycle declares.
+                logger.info(
+                    "⚡ TERTIARY Tier registered: %s (%s, %.1fGB) — Background/Reflex",
+                    BRAINSTEM_ENDPOINT,
+                    brainstem_model_path.split("/")[-1],
+                    _declared_footprint_gb(brainstem_model_path),
+                )
             except BRAIN_RECOVERABLE_ERRORS as e:
                 _record_brain_degradation(
                     e,

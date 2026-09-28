@@ -62,14 +62,15 @@ def verify_grammar_row(row, *, example, identity, plan_sha256):
 def verified_source_evidence(plan, report, rows):
     """Preserve the source intervention across plan, report, and every row."""
     mode = plan.get("source_evidence", "source_text")
-    if (mode not in {"source_text", "source_token_erasure"}
+    if (mode not in {"source_text", "source_token_erasure", "source_pair_swap"}
             or report.get("source_evidence", "source_text") != mode
             or any(row.get("source_evidence", "source_text") != mode for row in rows)):
         raise ValueError("native grammar source-evidence mode differs")
     return mode
 
 
-def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_tokens=None):
+def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_tokens=None,
+                            scored_source=None):
     from core.learning.semantic_native_grammar import (
         NativeGrammarIncompleteError,
         decode_native_grammar,
@@ -79,6 +80,7 @@ def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_
     if not isinstance(trace, list):
         raise ValueError("native grammar decision trace is missing")
     verify_inputs = "source_evidence" in plan
+    scored_source = example.source_text if scored_source is None else scored_source
     input_receipts = row.get("score_input_receipts")
     if verify_inputs and (tokenizer is None or max_sequence_tokens is None
                           or not isinstance(input_receipts, list)
@@ -101,11 +103,12 @@ def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_
             expected_inputs = []
             for choice in choices:
                 sequence = native_text_decision_sequence(
-                    example.source_text, choice.text, (choice.span,), tokenizer,
+                    scored_source, choice.text, (choice.span,), tokenizer,
                     max_tokens=max_sequence_tokens)
                 sequence, control = apply_native_source_evidence(
-                    sequence, example.source_text, tokenizer,
-                    mode=plan["source_evidence"])
+                    sequence, scored_source, tokenizer,
+                    mode="source_text" if plan["source_evidence"] == "source_pair_swap"
+                    else plan["source_evidence"])
                 expected_inputs.append(native_score_input_receipt(sequence, control))
             if input_receipts[consumed] != expected_inputs:
                 raise ValueError("native grammar scored-input tokens or source control differ")
@@ -393,6 +396,15 @@ def verify_grammar(directory, training_directory):
         raise ValueError("native grammar plan, checkpoint, or authority differs")
     examples = verified_examples(plan, dataset=dataset, seed=seed)
     sources = [hashlib.sha256(example.source_text.encode()).hexdigest() for example in examples]
+    from tools.evaluate_semantic_native_grammar import validated_source_pair_map
+
+    expected_pair_map = validated_source_pair_map(
+        examples, dataset=dataset, require_contrast=plan.get("source_evidence") == "source_pair_swap")
+    if ("source_pair_map" in plan and plan["source_pair_map"] != expected_pair_map
+            or plan.get("source_evidence") == "source_pair_swap"
+            and "source_pair_map" not in plan):
+        raise ValueError("native grammar source-pair map differs")
+    source_text_by_sha256 = dict(zip(sources, (example.source_text for example in examples), strict=True))
     forbidden = set(training["fit_ids"]) | set(training["calibration_ids"]) | set(training["held_ids"])
     if (not sources or sources != plan["sources"] or len(set(sources)) != len(sources)
             or forbidden & set(sources) or report["plan_sha256"] != plan["plan_sha256"]
@@ -407,8 +419,14 @@ def verify_grammar(directory, training_directory):
 
         tokenizer = load_tokenizer(Path(training["model_path"]))
     for example, identity in zip(examples, sources, strict=True):
+        scored_source = (source_text_by_sha256[expected_pair_map[identity]]
+                         if plan.get("source_evidence") == "source_pair_swap"
+                         else example.source_text)
         verified_public_inputs(example)
         row = verified_document(directory / "rows" / f"{identity}.json")
+        if ("source_evidence" in plan and row.get("scored_source_sha256")
+                != hashlib.sha256(scored_source.encode()).hexdigest()):
+            raise ValueError("native grammar scored source differs")
         if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6")):
             from core.learning.semantic_public_inputs import semantic_public_character_inputs
 
@@ -422,7 +440,8 @@ def verify_grammar(directory, training_directory):
         if row["search"] is not None:
             raise ValueError("native grammar row search mode differs")
         replay_greedy_decisions(row, example=example, plan=plan, tokenizer=tokenizer,
-                                max_sequence_tokens=training["max_sequence_tokens"])
+                                max_sequence_tokens=training["max_sequence_tokens"],
+                                scored_source=scored_source)
         rows.append(row)
     totals = {"population": len(outcomes),
               "program_equivalent": sum(equivalent for equivalent, _ in outcomes),

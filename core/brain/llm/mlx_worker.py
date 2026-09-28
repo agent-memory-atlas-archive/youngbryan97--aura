@@ -6373,6 +6373,20 @@ def _mlx_worker_loop(
                 load_prism_hadamard_pack,
             )
 
+            # A repository id here is a download, and a download is the internet
+            # inside the path that answers a person. `mlx_lm.load` calls
+            # `snapshot_download` for anything that is not a local directory, so
+            # with no network it blocks on DNS, the lane never reaches `ready`,
+            # and routing has nowhere to send the turn. The registry no longer
+            # answers one; this is the seam that makes sure nothing else can.
+            # Fetching is `core.brain.llm.model_lifecycle`, explicitly.
+            if not os.path.isdir(str(model_path)):
+                raise FileNotFoundError(
+                    "a serving load needs a local model directory, and "
+                    f"{model_path!r} is not one; nothing she needs in order to "
+                    "think with may be fetched over a network"
+                )
+
             if is_prism_hadamard_pack(model_path):
                 if adapter_path:
                     raise ValueError(

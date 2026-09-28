@@ -322,7 +322,26 @@ class CognitiveCandidate:
         # felt, a percept bidding 0.993 lost to it, and ten sources bid over
         # twenty-four competitions and never once won. The weight is still
         # carried, because the winner's affective charge is read off it.
-        lent = 0.0 if self.content_type is ContentType.AFFECTIVE else self.affect_weight * 0.3
+        # And how much that lending is worth depends on how well she is reading
+        # herself just now.
+        #
+        # This sum is what the A,S -> G synergy line asks about: whether affect
+        # and the self-model carry something about global access jointly that
+        # neither carries alone. A sum cannot, and the lend was three tenths of
+        # the affect weight whatever the self-model said, so the interaction gain
+        # on that triple came out at exactly +0.00000 on the 27 September whole
+        # run — the estimator finding no product because there was none.
+        #
+        # The claim is about minds rather than about the score: a feeling is a
+        # guide to what matters only in so far as she can read her own state. Her
+        # self-prediction publishes exactly that confidence, so the lend is
+        # scaled by it. Three tenths is unchanged; an absent reading scales by
+        # one, which is the behaviour before this.
+        lent = (
+            0.0
+            if self.content_type is ContentType.AFFECTIVE
+            else self.affect_weight * 0.3 * _reading_herself()
+        )
         # And what she has already said, and what she keeps putting down.
         #
         # Both ledgers measured something and neither reached a decision. A
@@ -352,6 +371,35 @@ class CognitiveCandidate:
             ),
         )
 
+
+
+def _reading_herself() -> float:
+    """How sure her self-model is of its own prediction, in [0, 1].
+
+    One when there is no reading, so a workspace with no self-prediction behaves
+    as it did before this existed. The confidence is the organ's own, published
+    beside the prediction it belongs to; nothing here computes one.
+    """
+    try:
+        from core.runtime.service_registry import get_runtime_service
+
+        loop = get_runtime_service("self_prediction", default=None)
+        if loop is None:
+            return 1.0
+        prediction = getattr(loop, "_current_prediction", None)
+        if prediction is None:
+            return 1.0
+        confidence = float(getattr(prediction, "confidence", 1.0) or 1.0)
+    except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
+        logger.debug(
+            "self-prediction confidence unavailable (%s: %s); affect lends in full",
+            type(exc).__name__,
+            exc,
+        )
+        return 1.0
+    if confidence != confidence:  # NaN
+        return 1.0
+    return max(0.0, min(1.0, confidence))
 
 
 def _relief_for(source: str) -> float:

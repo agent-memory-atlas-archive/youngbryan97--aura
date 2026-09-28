@@ -119,6 +119,13 @@ preregistered campaigns with committed seeds.
 | **Native decoder semantic selection** | **RESEARCH ONLY (2026-09-25).** Source-only native suffix adaptation selects 45/50 correct programs on a frozen wording bank versus incumbent 41/50 and matched unfitted 27/50, with five gains and one regression. A separate whole-graph contrast checkpoint returns 38/50, with three gains and six regressions. Neither is promotable under the non-regression requirement. These are candidate-selection measurements, not freely decoded public answers, fresh-family transfer, recurrence gain or frontier qualification. [Complete evidence](evidence/G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md). |
 | **Broad reasoning gain, fusion, frontier performance** | **NOT CLAIMED.** No checkpoint in this programme authorizes any of them, and each entry in the ledger says so explicitly — including CP566, whose adjudication ships its limitations line inside the same receipt as its verdict. |
 
+**Indirect meaning research (2026-09-27).** The shared semantic runtime can now
+ask the local cortex to propose source-cited, arbitrary-arity scene graphs and
+compare a literal reading with possible indirect ones across audiences. The
+assessor preserves unobserved consequences and never treats a graph match as
+speaker intent. This is an opt-in research path with no serving authority or
+G-ledger promotion. [Mechanism and limits](INDIRECT_MEANING_SCENE_GRAPHS.md).
+
 **Native semantic boundary (2026-09-26).** A role-relative native suffix fit
 selects 46/50 correct programs against incumbent 41/50 and unfitted 39/50,
 with six gains and one regression. The matched fit-only source-erasure control
