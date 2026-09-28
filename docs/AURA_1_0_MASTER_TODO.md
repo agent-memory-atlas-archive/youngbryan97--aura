@@ -833,6 +833,40 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   as a freeze or a critical; the deferral consequence ledger and the
   immunity bridge report backpressure at info and record a degradation only
   when stuck.
+  UPDATE 2026-09-28. Twenty-three distinct causes in the feed of one boot,
+  four of them taken:
+  - `FAULT RUNTIME-MLX_CLIENT [MARGINAL]
+    stopped_before_worker_spawn:foreground_headroom_reserved`, once per boot
+    that reserves headroom for the cortex. `_warmup_impl` calls the precompile
+    from two branches; the foreground one stood down on
+    `_WarmupDeferredError` and the background one — the lane that takes the
+    refusal — read it as a precompile failure. The test counts call sites
+    against stand-downs. tests/test_a_warmup_refused_by_its_own_foreground_owner.py.
+  - `EVR[WARNING_HI] morphogenesis.edges went nominal -> red_high at 258count`,
+    on every boot since 21 September and the same 258 each time. The boot seed
+    added every adjacency pair in both directions and knew only the graph's
+    degree caps, so the topology passed the governor's envelope before a single
+    transition was proposed. It now admits the bindings that join two pieces
+    first, then density, then the reverse edges that only make a binding
+    mutual, and counts the per-cell degree budget — a transaction that passes
+    that raises and commits nothing, so a population shaped to press the cap
+    got no founding bindings at all.
+    tests/test_the_founding_bindings_respect_the_envelope.py.
+  - `ResourceGovernor: Eviction tier=moderate, callbacks=0`, at 92% pressure
+    mid-page-run. `register_eviction_callback` had no caller anywhere in the
+    runtime. Eviction now drives the OOM shed order the container fills,
+    shedding back under the threshold that fired and stopping as soon as it is
+    met. tests/test_an_eviction_asks_the_shed_order.py. Closes the governor's
+    half of Q03's pressure recovery.
+  - `Browser Blocked Detected: captcha` / `Skill 'reddit_adapter' returned
+    error: Failed to load r/futurology`. The browser's navigation record said
+    `bot_block_or_captcha` and seven sites in the adapter reported a bare
+    "Failed to load". The reading now lives beside the record it reads.
+    tests/test_a_blocked_source_says_it_is_blocked.py.
+  Not defects, checked and left: `Thermal pressure is fair` is said once when
+  it appears and once when it clears; `HIGH MEMORY PRESSURE: 85%` is the host
+  with Chrome, Codex and an IDE language server resident, and it is measured,
+  not mistaken.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,
