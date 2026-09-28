@@ -1187,3 +1187,92 @@ so the instrument's floor is larger than every singleton's effect. And the
 estimator is not invariant in either arm: a recoding drift of 0.49 with the
 gates and 0.41 without, which the whitened estimator of `43e7e9427` is held to
 first.
+
+## Addendum, 28 September 2026, evening: the fork was leaking, and that changes the control
+
+`babe01a06`. This is a fix to the instrument rather than to her, so it changes
+what every paired measurement in the battery reads and it is named before the
+run queued at `ed5aa7935` reads anything.
+
+### What was wrong
+
+`_state_is_its_dict` decides whether an object can be put back by writing its
+fields, and its own docstring names the failure it exists to prevent: a class
+whose numbers live in a C base has a `__dict__` too, and restored field by field
+it keeps whatever the last arm wrote.
+
+The heap-type flag used to carry that and no longer does — CPython converted the
+standard library's C types to heap types. So `random.Random` passed it: its
+`__dict__` holds `gauss_next` and its Mersenne state lives in `_random.Random`.
+Field by field, `gauss_next` was written, the restore returned success, and the
+generator went on from wherever the previous arm had left it. The workspace draws
+its somatic noise from one of these.
+
+An object is now also asked for its own account of its state, through
+`__reduce_ex__`, and one that keeps numbers in a C base has a copy written over
+the field instead.
+
+### Why it matters to every criterion, not one
+
+A sham arm is one snapshot forked twice with nothing done to either, so whatever
+differs between two forks is a floor under every arm of every trial: the edges,
+the perturbational spread, the lesion, the rescue and the null table are all
+paired. The gates look measured that floor at 0.062 to 0.093 while every
+undecided singleton cut's effect ran -0.018 to +0.028
+(docs/THE_SHAM_FLOOR_IS_A_LEAKY_FORK.md).
+
+So the `control` arm of the queued run is not a repeat of run_032's 21 of 24. It
+is the first reading of the battery with a fork that rewinds what it says it
+rewinds, and it is expected to differ from 21 of 24 in either direction. That
+expectation is written here rather than after.
+
+### What is measured and what is not
+
+Measured, at unit level on the shapes a fork carries: before the fix an object
+holding a seeded generator did not come back and two arms from one snapshot drew
+different numbers; after it, all five shapes round-trip, the generator's own
+state comes back, the object keeps its identity, and two arms draw the same five
+numbers.
+
+Not measured yet: whether this closes the column-level floor. Four forks of one
+anchor differed on 41 of 438 columns by more than five per cent of their own
+spread, and eleven organs did not come back. One cause is fixed. The other ten
+fields — `self_model.beliefs` and `snapshots`, `world_model._learned` and
+`_causal`, `free_energy._current`,
+`self_prediction._current_prediction`, `substrate._last_published_snapshot`,
+`mycelium.pathways`, `workspace.last_winner` — round-trip correctly as shapes in
+isolation, so whatever is wrong with them is in how the real objects are reached
+and is not yet named. The re-measurement is queued behind her cortex
+(`~/.aura/subject_core/scratch/forkfloor_after_cortex.sh`), and the number it
+returns is what says how much of the floor this closed.
+
+### The arms, at one commit
+
+`control`, `relay`, `carried`, `joined`, sequentially at `ed5aa7935`, each
+waiting for her cortex and for the others. `control` is all five switches off;
+`relay` is `AURA_DOMAIN_RELAY=0.35`; `carried` is the membrane and the afferent
+surface; `joined` is the workspace pool and the dominance channel. A criterion
+that moves in one arm and not the control is credited to that arm's mechanism,
+and one that moves in the control is credited to the fork.
+
+### Correction to the addendum above, same evening
+
+The column-level numbers it cites — 41 of 438 columns over five per cent, eleven
+organs not coming back — came from a probe that did not call `calibrate_clock`.
+That is what builds and installs the experiment clock and sets `runtime.clock`,
+and without it a restore cannot rewind the clock, so `_reanchor` is handed the
+real wall seconds since the snapshot, a different number for every fork. Most of
+what the probe reported is that, not the fork.
+
+What stands: the gates look's sham floor of 0.062 to 0.093 came from the v25
+runner, which does calibrate, so the floor is real and still larger than every
+singleton's effect. And the `random.Random` fault is independent of the clock —
+proved at unit level, two arms from one snapshot drawing different numbers before
+and the same five after.
+
+What changes here: the expectation for the `control` arm. It was written as
+"expected to differ from 21 of 24 in either direction" on the strength of a
+floor the probe mis-sized. The fix is real and its size is not yet known, so the
+control arm is read as the first battery reading with the generator fault closed
+and no size is predicted for it. The probes now calibrate and the re-measurement
+is queued.
