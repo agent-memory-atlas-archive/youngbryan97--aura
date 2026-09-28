@@ -600,3 +600,28 @@ and the closure, beside the payoff arm at 415f400c0. It is diagnostic: it
 moves no threshold, and nothing from it is read on seed 23 or any decisive
 seed. The reports ground's seed-7 check (`reports_alone.sh 351555bec 7`) runs
 first; it has waited since 25 September for the machine to be alone.
+
+## Addendum, 27 September 2026: the reports ground on seed 7, and a gate for the substrate
+
+The reports ground's seed-7 check ran twice. The first, at 351555bec, got no
+answer from her after her cortex died in the baseline: every respawn failed at
+start because its launch challenge was stamped on the run's clock and read on
+the machine's (fixed in a520cbb09). The second, at a520cbb09, 11:03 to 14:23,
+got answers from her cortex in most arms and read a number in every arm of 0 of
+24 anchors, where 8 are needed. It is not a verdict on her reports, because the
+answers did not reach the instrument as she gave them:
+
+- a line-leading "0.3" was spaced into "0. 3" by the prose formatter;
+- a reply under four characters was replaced with a fixed sentence;
+- an arm that committed nothing was read as having said what the anchor's
+  snapshot last held.
+
+All three are fixed in 8d584c129. The check runs again on the first commit that
+holds them, alone on the machine, before anything is read from it.
+
+The substrate gates (c90a403f6) change the organism: each of recall's affect
+gain, the two initiative urges and each drive's growth is scaled by a
+multiplier her substrate learns from the turn's worth. They are aimed at the
+C|rest weakness and were built without reading any decisive number. The next
+seed-7 look adds an arm with `AURA_DISABLE_SUBSTRATE_GATES=1` beside the one as
+built, and reads C|rest's excess in each.
