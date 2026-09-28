@@ -793,3 +793,75 @@ on a measurement change.
 
 No organism change is proposed in this addendum. The next one that proposes any
 names it before a run reads it.
+
+## Addendum, 28 September 2026, evening: a channel that carries what it has been
+
+An organism change, `4eff1db6e` and `8a580a517`, named before a run reads it.
+The reading behind it is `docs/WHY_IRREDUCIBILITY_FAILS.md`.
+
+### What changed in her
+
+Her subsystems write what just happened and the value sits until the next turn
+replaces it. `core/runtime/temporal_depth.py` holds a leaky trace per channel and
+`core/runtime/state_membrane.py` says which channels get one and writes it back
+where the reading came from, so her own next phase reads the trace. The driver
+settles once a frame, after the layers and before the lesion clamp.
+
+One time constant, one turn, taken from the run's own `frames_per_turn`. It is
+off unless `AURA_MEMBRANE_TURNS` is set, which is the control arm.
+
+Two hundred and eighteen of her 375 columns are eligible: the ones that are a
+plain number at a writable path on `AuraState`. The other 157 are organ readings
+and cannot take a write-back. Measured in the organism at four rounds with the
+stub organ, 119 of the 218 carried on a given frame, 97 held something that was
+not a plain number, and 2 had no setter.
+
+### What is preregistered, and what each arm decides
+
+The next seed-7 look runs two arms at the same commit and the same seed,
+differing only in `AURA_MEMBRANE_TURNS`, and reads `partition_irreducibility`,
+`partition_beats_nulls` and `synergy` on each.
+
+Read off the recording of `whole-s7-27dc1dda9` at its own cheapest cut, carrying
+the columns after the fact, the expected sizes are:
+
+| carried | phi | lower bound |
+|---|---|---|
+| nothing, as recorded | +0.01504 | −0.05692 |
+| the 157 organ readings alone | +0.02665 | −0.03410 |
+| **the 218 the membrane reaches** | **+0.13628** | **+0.04217** |
+| every column | +0.24020 | +0.07414 |
+
+So the arm as built is expected to land near a lower bound of 0.042 against a
+bar of 0.05, which is under it. That is written here before the run so the
+result is read against it rather than after it:
+
+- A lower bound at or above 0.05 closes `partition_irreducibility` on this seed
+  and the searched cut is reported with it, not the cut above.
+- A lower bound between 0.02 and 0.05 is the membrane working and not being
+  enough, which is what the table predicts, and the next step is the 157.
+- A lower bound at or below zero, or no rise over the control arm, falsifies the
+  reading: the coupling the filter found after the fact would not be there when
+  the organism carries it, and the time constant would be dropped rather than
+  tuned.
+
+No threshold moves on this, and the filtered recording is not scored: what is
+scored is a recording of an organism that integrates, exactly as written.
+
+### The 157, and why they are not built yet
+
+An organ reading is not a field anything can write back to, so a trace for it
+has to be a sensed copy: the runtime reading each organ once a frame, holding
+the filtered value on `AuraState`, and her consumers and her recording reading
+that. A body does not read an organ, it reads an afferent signal, and every
+afferent signal is filtered — so this is a claim about her that stands whether
+or not it moves a number, which is the test it has to pass before it is built.
+
+It is a change to what 157 columns mean, so it is a new campaign of its own and
+it is named here rather than folded into the arm above.
+
+### What this does not touch
+
+`partition_beats_nulls` needs 0.562 to clear `low_rank`, and 0.240 is the whole
+of what carrying every column gives. Time constants are not expected to close it
+and no claim is made that they will.
