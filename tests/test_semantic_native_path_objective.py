@@ -70,6 +70,27 @@ def test_calibration_collects_same_scores_without_partner_or_runtime_labels():
     assert loss.item() >= 0.
 
 
+def test_complete_graph_contrast_shares_the_path_risk_and_changes_gradient():
+    decisions = ((("op-correct", "op-rival"), 0),)
+    fixed = {"op-correct": mx.array(2.), "op-rival": mx.array(0.),
+             "graph-rival": mx.array(2.)}
+    measured = []
+
+    def objective(graph):
+        return native_grammar_path_objective(
+            lambda key: graph if key == "graph-correct" else fixed[key], decisions,
+            graph_keys=("graph-correct", "graph-rival"),
+            measured_graph_scores=measured)
+
+    assert mx.grad(objective)(mx.array(0.)).item() < 0.
+    assert objective(mx.array(4.)).item() < objective(mx.array(0.)).item()
+    assert len(measured) == 3
+    assert measured[0].tolist() == pytest.approx([0., 2.])
+    with pytest.raises(ValueError, match="source/partner"):
+        native_grammar_path_objective(lambda key: fixed[key], decisions,
+                                      graph_keys=("same", "same"))
+
+
 def test_mismatched_pair_cannot_silently_move_loss_to_another_target():
     with pytest.raises(ValueError, match="contrast labels"):
         native_grammar_path_objective(lambda key: mx.array(float(key)),

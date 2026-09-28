@@ -28,6 +28,11 @@ sys.modules["lint_doc_drift"] = gate
 _spec.loader.exec_module(gate)
 
 
+def test_preregistered_protocol_is_not_rewritten_for_moved_modules():
+    assert "docs/ISC_V5_PREREGISTRATION.md" in gate.EXCLUDE_PREFIX
+    assert "docs/ISC_V5_PREREGISTRATION.md" not in gate.tracked_docs()
+
+
 @pytest.fixture
 def scan(tmp_path, monkeypatch):
     """Scan one document written into a scratch copy of the repo root.
