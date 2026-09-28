@@ -1210,6 +1210,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Retained native generation](evidence/G03_RETAINED_NATIVE_GENERATION_2026-09-28.md)
+  independently verifies 7/14 exact procedures versus base 1/14, with seven
+  gains and one regression. The regression loses a base graph's proven
+  output/domain equivalence on a fork/join source. This previously exposed
+  canary is not promotable. A source-calibration complete-path audit is
+  connected; no 500-request run or G03 closure follows from the canary.
   [Native source-content controls](evidence/G03_NATIVE_SOURCE_CONTROL_2026-09-27.md)
   independently verify a six-request target-blind decode: 5/6 exact with
   source text, 1/6 under token erasure, and all six swapped outputs matching

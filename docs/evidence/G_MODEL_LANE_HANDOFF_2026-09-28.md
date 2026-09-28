@@ -30,3 +30,24 @@ That run is interrupted, not complete or scientifically adjudicated.
 Its runner retained arm results in memory until its final export, so
 this handoff does not claim a saved or resumable 21-anchor result.
 The already-paused load governor was not resumed into the RLC probe.
+
+## Later admissions on the same date
+
+The retained fitted canary also refused its first launch before model load.
+The competing `reports-s7-steering-2` lineage was checked: wrapper 1948,
+parent 2984 (creation time 1790609485.950774), and descendants 2986, 2992,
+3000, and 3352. Authorized SIGTERM ended exactly that lineage; no survivor
+remained. The second retained attempt then acquired the exclusive lane.
+The interrupted report logs and failed RLC admission remain on disk.
+
+Before the calibration audit, a new `reports-s7-steering-4` wrapper had
+started its `whole_dry_run.py` phase. The shared registry identified its
+1.5B worker and embedding owner, not an idle/free model lane. The audit
+refused admission without loading the 27B. Wrapper 4422 (creation time
+1790609903.985479), parent 6720 (1790610384.417092), and their verified
+descendants 6722, 6727, 6730, 7088, 7089, and 7546 were terminated under
+the same task-specific priority authorization. No survivor remained.
+The dry-run log at
+`/Users/bryan/subject-core-runs/reports-s7-steering-4-dry-closes.log`
+is preserved; that phase is interrupted, not complete. The calibration
+audit then acquired its own exclusive lane under detached supervision.
