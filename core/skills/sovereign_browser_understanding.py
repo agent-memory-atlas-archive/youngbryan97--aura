@@ -919,8 +919,18 @@ class _UnderstandsThePage:
         if not answers:
             return None
         return {
+            # Each answer carries the words she would say for it, so the loop
+            # can say that one and then make that one. The lines used to travel
+            # separately and were all said after every click had landed: one
+            # bubble at the end of a round listing what had already happened,
+            # rather than a reason arriving with its choice.
             "resolved_actions": [
-                {"selector": answer["selector"], "name": answer["name"]} for answer in answers
+                {
+                    "selector": answer["selector"],
+                    "name": answer["name"],
+                    "said": str(answer.get("said") or ""),
+                }
+                for answer in answers
             ],
             # Each answer as she would say it: the question, what she chose,
             # and why. One line a question, because the reasons are hers

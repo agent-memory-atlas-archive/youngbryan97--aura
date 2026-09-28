@@ -260,6 +260,50 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
         self._say_out_loud(said)
         return said
 
+    async def _make_each_move(
+        self,
+        browser: PhantomBrowser,
+        moves: list[tuple[BrowserAction, str]],
+        *,
+        action_context: Mapping[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Say each choice as it is made, make it, then go on to the next.
+
+        A screen of questions used to be answered in one batch and read out
+        afterwards: every click landed, and then one bubble listed what had
+        already happened. A reason that arrives after its choice is a report,
+        not a commentary, and a person watching cannot follow a decision they
+        are told about once it is over.
+
+        Each move is executed on its own so the reason can sit in front of it.
+        The rows come back merged into the shape one interaction returns, so
+        nothing downstream knows whether a round was one move or thirty.
+        """
+        rows: list[Any] = []
+        errors: list[str] = []
+        any_ok = False
+        for action, said in moves:
+            if said:
+                self._say_out_loud(said)
+                await self._hold_for_reading(said)
+            report = await self._handle_interact(
+                browser, None, [action], action_context=action_context
+            )
+            landed = report.get("action_report")
+            if isinstance(landed, list):
+                rows.extend(landed)
+            elif report.get("ok"):
+                rows.append({"ok": True})
+            if report.get("ok"):
+                any_ok = True
+            elif report.get("error"):
+                errors.append(str(report["error"]))
+        return {
+            "ok": any_ok,
+            "action_report": rows,
+            "error": "; ".join(dict.fromkeys(errors))[:400],
+        }
+
     @staticmethod
     def _landed_anything(steps: list[dict[str, Any]]) -> bool:
         """Whether any round of this run actually did something to the page."""
@@ -1365,14 +1409,21 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                 elements = self._controls_worth_offering(
                     list(observation.get("elements") or []), goal
                 )
-                planned: list[BrowserAction] = []
+                # One move is one action and the words she would say for it.
+                # Kept together so the loop can say that one and then make that
+                # one, in order, rather than making every choice and then
+                # reading out a list of what it had done.
+                moves: list[tuple[BrowserAction, str]] = []
                 # Selectors that were already resolved against the list their
                 # own decision was shown — see `_answer_each_question`. They
                 # skip index resolution entirely, because there is no shared
                 # list to resolve them against.
                 for item in decision.get("resolved_actions") or []:
                     if isinstance(item, dict) and item.get("selector"):
-                        planned.append(BrowserAction(type="click", selector=str(item["selector"])))
+                        moves.append((
+                            BrowserAction(type="click", selector=str(item["selector"])),
+                            str(item.get("said") or ""),
+                        ))
                 for item in decision.get("actions") or []:
                     if not isinstance(item, dict):
                         continue
@@ -1387,23 +1438,32 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                         continue
                     selector = str(elements[index].get("selector") or "")
                     if kind == "scroll":
-                        planned.append(BrowserAction(type="scroll", value=str(item.get("value") or "down")))
+                        moves.append((
+                            BrowserAction(type="scroll", value=str(item.get("value") or "down")),
+                            "",
+                        ))
                     elif not selector:
                         continue
                     elif kind == "type":
-                        planned.append(
-                            BrowserAction(type="type", selector=selector, value=str(item.get("value") or ""))
-                        )
+                        moves.append((
+                            BrowserAction(type="type", selector=selector, value=str(item.get("value") or "")),
+                            "",
+                        ))
                     else:
-                        planned.append(BrowserAction(type="click", selector=selector))
+                        moves.append((BrowserAction(type="click", selector=selector), ""))
 
-                if not planned:
+                if not moves:
                     steps.append({"error": "no_executable_action", "why": str(decision.get("why") or "")})
                     break
 
-                report = await self._handle_interact(
-                    browser, None, planned, action_context=action_context
+                # Choice, reason, choice, reason. Every line she has for a move
+                # is said before that move is made and left up long enough to
+                # be read, so what a watcher sees is her working rather than a
+                # report of work already finished.
+                report = await self._make_each_move(
+                    browser, moves, action_context=action_context
                 )
+                planned = [action for action, _said in moves]
                 asked = str(observation.get("text") or "").strip().splitlines()
                 steps.append(
                     {
@@ -1432,11 +1492,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                 # handed over at the end is a transcript of something the owner
                 # could not watch, and had no way to stop.
                 self._narrate(steps[-1])
-                # And what she answered about herself, out loud, one question
-                # at a time: where a person can hear it, not only in the trace.
-                for line in decision.get("answered") or []:
-                    self._say_out_loud(str(line))
-                    await self._hold_for_reading(str(line))
+                # Her answers were said with their moves, one at a time, above.
                 # A batch that half-landed is progress, not failure.
                 #
                 # `interact` verifies all-or-nothing, which is right for a scripted
