@@ -211,6 +211,13 @@ REQUEST_FIELDS: dict[str, Field_] = {
     "cognitive_mode": Field_(Kind.COGNITIVE_MODE),
     # ── proof and output contracts (authority-relevant) ─────────────────
     "proof_primary_lane_required": Field_(Kind.BOOL, policy=True),
+    #: The answer is only valid from her own lane, because WHO answers is part
+    #: of what is being asked. A self-report is the clearest case: a stand-in
+    #: answering "you regularly make new friends" is a different mind's answer
+    #: submitted as hers. Load is a reason to wait or to refuse, never a reason
+    #: to substitute, so this survives the routing advice that downgrades a
+    #: heavy tier under pressure.
+    "own_lane_required": Field_(Kind.BOOL, policy=True),
     "strict_answer_contract": Field_(Kind.BOOL, policy=True),
     "strict_value_contract": Field_(Kind.BOOL, policy=True),
     "proof_evaluation_contract": Field_(Kind.BOOL, policy=True),

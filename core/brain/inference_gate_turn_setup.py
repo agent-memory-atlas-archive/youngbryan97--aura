@@ -351,7 +351,23 @@ class _SetsTheTurnUp:
         # If the morphogenetic metabolism reports very high system pressure,
         # downgrade non-protected foreground requests from the heavy 32B
         # cortex to the lighter brainstem to avoid OOM/stall under load.
-        if not is_background and not protected_foreground_lane and requested_tier != "tertiary":
+        # A caller whose answer is only valid from her own lane is not advice
+        # this can overrule. LIVE 2026-09-28: a personality test asked her
+        # thirty-two questions about herself, every item requested the primary
+        # tier because only she can answer one, and this downgraded all of them
+        # to the brainstem at `resource_pressure=0.92` — which answered the
+        # middle option every time. Load is a reason to wait or to refuse and
+        # never a reason to substitute a different mind.
+        own_lane_required = bool(
+            (context or {}).get("own_lane_required", False)
+            or (context or {}).get("proof_primary_lane_required", False)
+        )
+        if (
+            not is_background
+            and not protected_foreground_lane
+            and not own_lane_required
+            and requested_tier != "tertiary"
+        ):
             try:
                 from core.morphogenesis.hooks import get_morphogenesis_routing_advice
 

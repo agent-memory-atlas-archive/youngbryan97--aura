@@ -424,6 +424,79 @@ class _UnderstandsThePage:
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.calibration", exc, severity="debug")
 
+    async def _her_own_thinking_about_herself(self, prompt: str) -> tuple[str, str]:
+        """Put a question about her through her cognition, not a completion.
+
+        `router.think` is a model call with her self-context in front of it.
+        The context says who she is and the model still answers from its priors
+        about what an AI is; nothing about it reasons, recalls, or consults the
+        organs that hold what she is actually like. A question addressed to her
+        should be answered by the faculties that answer one when a person asks
+        it out loud — a cognitive cycle, with its reasoning pass, its recall,
+        its self-model and its workspace — because who and what answers is part
+        of what a self-report is.
+
+        The cycle gets its own turn ledger. It is a question of its own and the
+        pursuit may ask eight at once; adopting the caller's turn would have
+        thirty-two answers marking one chat turn served, each with the last
+        one's record.
+
+        Returns the text and the lane that produced it, or ("", "") when there
+        is no cognition to ask, in which case the caller falls back.
+        """
+        engine = optional_service("cognitive_engine", default=None)
+        cycle = getattr(engine, "think", None)
+        if not callable(cycle):
+            return "", ""
+        try:
+            from core.brain.types import ThinkingMode
+            from core.runtime.turn_outcome import TurnOutcome, bind_turn, finalize_turn
+        except ImportError as exc:
+            record_degradation("sovereign_browser.her_cognition", exc, severity="debug")
+            return "", ""
+
+        outcome = TurnOutcome(origin=self._PAGE_ORIGIN)
+        try:
+            with bind_turn(outcome):
+                thought = await cycle(
+                    prompt,
+                    context={
+                        "output_shape": "json_object",
+                        "origin": self._PAGE_ORIGIN,
+                        "purpose": "page_decision",
+                        "own_lane_required": True,
+                    },
+                    # Short chain of thought. A self-report item is not a
+                    # lookup: "you regularly make new friends" is a question
+                    # she has to reason about from what she knows of herself,
+                    # and FAST is by definition the gear that does not.
+                    mode=ThinkingMode.SLOW,
+                    origin=self._PAGE_ORIGIN,
+                )
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation(
+                "sovereign_browser.her_cognition",
+                exc,
+                severity="warning",
+                action="fell back to a direct model call for a question about her",
+            )
+            return "", ""
+        finally:
+            try:
+                finalize_turn(outcome, subsystem="sovereign_browser")
+            except _BROWSER_DECISION_ERRORS as exc:
+                record_degradation(
+                    "sovereign_browser.her_cognition", exc, severity="debug"
+                )
+        said = str(getattr(thought, "content", "") or "").strip()
+        if not said:
+            return "", ""
+        lane = str(
+            (getattr(thought, "metadata", None) or {}).get("endpoint")
+            or self._HER_OWN_LANE
+        )
+        return said, lane
+
     async def _hold_the_outcome_against_what_she_said(
         self,
         goal: str,
@@ -1115,18 +1188,53 @@ class _UnderstandsThePage:
                 # Everything else — the Next button, a cookie banner, a login
                 # form — is mechanics, and stays fast.
                 if asks_about_her:
-                    # Asked of her own model, and taken only from it. A
-                    # stand-in lane answering "you regularly make new friends"
-                    # would be a different mind's answer submitted as hers.
-                    reply = await think(
-                        prompt, system_prompt=mind, prefer_tier="primary", schema=self._DECISION_SCHEMA, output_shape="json_object",
-                        origin=self._PAGE_ORIGIN, purpose="page_decision",
-                        max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
-                    )
-                    answered_by = self._who_answered(reply)
-                    if answered_by and answered_by != self._HER_OWN_LANE:
-                        return {"error": f"not_her_own_reasoning:{answered_by}"}
-                    raw = self._the_text_of(reply)
+                    # Asked of her own mind, and taken only from it. A stand-in
+                    # answering "you regularly make new friends" would be a
+                    # different mind's answer submitted as hers.
+                    #
+                    # Her cognition first. A model call with her self-context in
+                    # front of it is not her thinking about herself: the context
+                    # says who she is and the model still answers from its
+                    # priors about what an AI is, with nothing reasoning,
+                    # recalling, or consulting the organs that hold what she is
+                    # actually like. A question addressed to her goes to the
+                    # faculties that answer one when a person asks it out loud.
+                    raw, answered_by = await self._her_own_thinking_about_herself(prompt)
+                    if not raw:
+                        # No cognition to ask. The direct call is the fallback,
+                        # and `prefer_tier` alone is not enough for it: LIVE
+                        # 2026-09-28, morphogenesis advised a downgrade at 0.92
+                        # resource pressure and thirty-two questions about her
+                        # were answered by the brainstem, which chose the middle
+                        # option every time. `own_lane_required` says the answer
+                        # is only valid from her own lane, so load makes the
+                        # request wait or fail rather than quietly changing who
+                        # answers.
+                        #
+                        # And the receipt, into a dict this call owns. The guard
+                        # below used to read provenance off the reply, and the
+                        # router returns a plain string — so `answered_by` was
+                        # "" on every call and the guard could never fire. A
+                        # check that cannot see is a check that always passes.
+                        who: dict[str, Any] = {}
+                        reply = await think(
+                            prompt, system_prompt=mind, prefer_tier="primary",
+                            schema=self._DECISION_SCHEMA, output_shape="json_object",
+                            origin=self._PAGE_ORIGIN, purpose="page_decision",
+                            own_lane_required=True, _generation_metadata_sink=who,
+                            max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2,
+                            _non_chat_inference=True,
+                        )
+                        answered_by = self._who_answered(reply) or str(
+                            who.get("endpoint") or ""
+                        )
+                        raw = self._the_text_of(reply)
+                    if answered_by != self._HER_OWN_LANE:
+                        # Fail closed. An unattributed answer to a question
+                        # about her is not evidence that she answered it.
+                        return {
+                            "error": f"not_her_own_reasoning:{answered_by or 'unattributed'}"
+                        }
                 else:
                     raw = await self._decide_on_the_fast_lane(router, prompt, mind)
                     if not self._decision_is_usable(raw, observation, goal):
