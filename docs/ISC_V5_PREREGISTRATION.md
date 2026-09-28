@@ -1148,3 +1148,16 @@ reason already given: neither reaches the partition bar alone.
 
 The `carried` arm is not expected to move synergy and is expected to make
 W,A->D worse, which the addendum above measured before any of this runs.
+
+### They run as two pairs, each with its own control
+
+`control` and `carried` are already running at `76cbd698e`, which holds the
+membrane, the afferent surface and the workspace pool but not the dominance
+channel. `joined` and `both` need a commit that holds all four, so they run
+later as their own pair with their own control at that commit.
+
+A control is only a control for the code that was there when it ran. The two
+controls are expected to read the same, because every switch defaults off, and
+if they do not then something that was meant to be inert is not — which is worth
+knowing and is the reason for running the second one rather than reusing the
+first.
