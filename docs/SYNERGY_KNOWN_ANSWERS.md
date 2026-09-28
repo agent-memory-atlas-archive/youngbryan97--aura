@@ -228,3 +228,54 @@ null. Both first nulls still qualify, 5 of 5 on the product and 0 of 5 on the
 separable and uncoupled toys, so the shift stays and nothing is proposed. Two
 candidates have now been put into the toy, a shared schedule and the hold, and
 neither lifted its shift bar anywhere near her 0.40.
+
+### The drift table, fixed before it ran (28 September)
+
+Two candidates have been put into the toy and neither lifted its shifted bar
+near her 0.40: a shared schedule, and a condition held for a turn's frames. This
+is the third, and it comes from a measurement of her recording rather than from
+the list of things the toy leaves out.
+
+On whole-s7-27dc1dda9, 29 of 375 columns only ever grow, and they are not spread
+evenly. The share of each domain's raw variance they hold:
+
+| domain | columns | only grow | share of variance | share of the first three components |
+|---|---|---|---|---|
+| P | 15 | 0 | 0.0000 | 0.0000 |
+| I | 18 | 0 | 0.0000 | 0.0000 |
+| A | 59 | 4 | 0.0002 | 0.0722 |
+| G | 31 | 3 | 0.0127 | 0.2366 |
+| C | 63 | 7 | 0.0277 | 0.0913 |
+| S | 70 | 6 | 0.1540 | 0.1469 |
+| M | 20 | 2 | 0.0292 | 0.2279 |
+| W | 35 | 2 | 0.0044 | 0.1332 |
+| D | 51 | 4 | 0.8895 | 0.2012 |
+| N | 13 | 1 | 0.3500 | 0.1372 |
+
+D holds 0.8895 of its variance in counters. D is the target of W,A->D and a
+source of S,D->C, and those are the two triples whose synergy sits under the
+shifted null: 0.0731 against 0.0840, and 0.0303 against 0.0829. A shifted copy
+of anything slow predicts a trend, so a target that is mostly trend gives a
+shifted null most of what the real sources give.
+
+The toy's D has no trend at all, which is the difference between its bar and
+hers that no arm so far has tested.
+
+`tools/synergy_known_answers.py --drift target,sources,both` adds columns that
+only grow at those measured shares: `target` moves D alone, `sources` moves W
+and A alone, `both` moves all three. Nothing about the coupling changes in any
+arm, so a bar that rises rises on the drift.
+
+What is read is the shifted bar on the product toy, at seeds 3, 7, 11, 19 and
+23, against the 0.40 to 0.50 hers met.
+
+- If the `target` arm reaches 0.40 at four of five seeds and the `sources` arm
+  does not, a target that is mostly counter is what inflates her null, and the
+  answer is in the recording's schema rather than in the estimator.
+- If neither reaches it, drift does not explain her bar either, and the toy is
+  still missing something.
+- If `sources` reaches it and `target` does not, the sources carry it and D's
+  0.8895 is beside the point.
+
+Anything else is reported as it reads and decides nothing. No threshold moves on
+this table and no criterion is rescored from it.
