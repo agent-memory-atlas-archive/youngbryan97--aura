@@ -1948,7 +1948,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Role and dependency controls](evidence/G04_NATIVE_BINDING_CONTROL_PLAN_2026-09-26.md)
   construct paired source changes with identical operations and public values.
   Shared-floor typing and causal connectivity are checked before scoring;
-  independent graph replay is implemented. Model measurement is pending.
+  independent graph replay is implemented.
+  [Role source-control result](evidence/G04_NATIVE_ROLE_SOURCE_CONTROL_2026-09-28.md)
+  independently verifies fitted 6/6 versus unfitted 2/6, erasure 0/6, and
+  six source-swapped programs matching the partner's intact program. The
+  base failures diverged first at operation choice, and the cohort reuses
+  exposed topologies and one renderer. Dependency and fresh-family controls
+  remain pending; this does not close G04.
 - [ ] G05 Translate internal gains into correct freely decoded public answers.
   OPEN, observed live 2026-09-21, and recorded here because it is a
   reasoning error rather than a plumbing one. Asked how far a bird flies
