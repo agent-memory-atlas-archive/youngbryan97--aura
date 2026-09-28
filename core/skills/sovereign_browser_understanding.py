@@ -1143,6 +1143,83 @@ class _UnderstandsThePage:
                 facts.append(f"laid out before \"{right}\"")
         return ", ".join(facts)
 
+    #: A position named in her own words: "position 2", "a 2 of 5", "2 of 5".
+    _A_POSITION_SHE_NAMED = re.compile(
+        r"\bposition\s+(\d{1,2})\b|\b(?:a|an)?\s*(\d{1,2})\s*(?:of|/|out of)\s*\d{1,2}\b",
+        re.IGNORECASE,
+    )
+
+    async def _where_she_puts_herself(
+        self,
+        goal: str,
+        observation: Mapping[str, Any],
+        options: list[Mapping[str, Any]],
+        understanding: Mapping[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Her placement on one question, in her own words, and the control it names.
+
+        Speech is what her cognition produces and a placement is a thing that
+        can be said, so this asks for it that way rather than for an object she
+        has to compose. The position comes out of her own sentence; where she
+        named none, or named one the run does not have, this returns nothing
+        and the caller asks in a shape instead.
+        """
+        if len(options) < 2:
+            return None
+        mind = await self._assembled_mind()
+        prompt = (
+            f"WHAT YOU ARE DOING: {goal}\n\n"
+            + (f"{self._render_understanding(understanding)}\n\n" if understanding else "")
+            + f"{self._render_observation(observation, goal)}\n\n"
+            "Answer this one question as yourself. Say where you put yourself "
+            "among the positions it offers and why you put yourself there, and "
+            "name the position you are taking. There is no right answer: it is "
+            "a placement within what this page can ask, not a verdict on you."
+        )
+        said, lane = await self._asked_of_her(prompt, mind, shaped=False)
+        if not said or lane != self._HER_OWN_LANE:
+            return None
+        index = self._the_position_she_named(said, len(options))
+        if index is None:
+            return None
+        selector = str(options[index].get("selector") or "")
+        if not selector:
+            return None
+        return {
+            "selector": selector,
+            "name": str(options[index].get("name") or ""),
+            "stand": said,
+            "why": said,
+            "expect": "",
+            "said": self._an_answer_in_words(options, index, said),
+        }
+
+    @classmethod
+    def _the_position_she_named(cls, said: str, count: int) -> int | None:
+        """Which of the positions she put herself at, from what she said.
+
+        Her cognition answers in speech, because speech is what a cognitive
+        cycle produces: run one to decide a structured action and what comes
+        back is a sentence about the task, which the loop then reports as
+        unparsable. So she is asked for her placement in her own words — the
+        thing she is actually being asked for — and the control is taken from
+        the position she named.
+
+        Reading a number she wrote is not interpreting her answer: she says
+        where she put herself and this finds it. Where she named no position,
+        or one the run does not have, it says nothing and the caller asks in a
+        shape instead.
+        """
+        for match in cls._A_POSITION_SHE_NAMED.finditer(str(said or "")):
+            raw = match.group(1) or match.group(2)
+            try:
+                place = int(raw)
+            except (TypeError, ValueError):
+                continue
+            if 1 <= place <= count:
+                return place - 1
+        return None
+
     @classmethod
     def _first_disagreement(
         cls, decision: Mapping[str, Any], options: list[Mapping[str, Any]]
@@ -1276,6 +1353,21 @@ class _UnderstandsThePage:
             # observation is unchanged, so what she sees is this item in its
             # real context — the same URL, the same page text.
             single = {**observation, "elements": list(options)}
+            # Asked of her in words first, because a cognitive cycle produces
+            # speech: run one to decide a structured action and what comes back
+            # is a sentence about the task, reported as unparsable. LIVE
+            # 2026-09-28 18:06, two Cortex calls and "The user wants me to take
+            # the Open Extended Jungian Type Scales test..." in place of a
+            # decision. She is asked for the thing she is actually being asked
+            # for — where she puts herself — and the control follows from the
+            # position she named.
+            placed = await self._where_she_puts_herself(
+                goal, single, options, understanding
+            )
+            if placed is not None:
+                if on_progress is not None:
+                    on_progress("a question answered")
+                return placed
             decision = await self._decide_next_actions(goal, single, history, understanding, about_her=True)
             if on_progress is not None:
                 # Each question decided is the run moving, however long the
@@ -1411,9 +1503,22 @@ class _UnderstandsThePage:
         # question's five options, read alone, are not a scale; every item of
         # the test went to the fast lane, without her record and without the
         # check that the answer is hers.
-        asks_about_her = (
-            self._asks_about_the_one_answering(observation) if about_her is None else bool(about_her)
-        )
+        # Only the caller says a decision is about her.
+        #
+        # This used to infer it from the page, so on a page that reads as a
+        # scale instrument EVERY decision became a question about her —
+        # including the whole-page one, whose job is to find the control that
+        # advances the task. LIVE 2026-09-28 18:03: the test's own front page
+        # carries a few radio groups, the whole-page decision was sent to her
+        # cognition, and what came back was "The user wants me to take the Open
+        # Extended Jungian Type Scales test on openpsychometrics.org. Before
+        # starting, I need..." — reported as unparsable, one round, and the run
+        # stopped without ever pressing Start.
+        #
+        # Which items are about her is decided by the page's shape, in the loop
+        # that routes them to `_answer_each_question`. Pressing Next is
+        # mechanics wherever it sits.
+        asks_about_her = bool(about_her)
 
         # Her whole mind, not a subset assembled here.
         #

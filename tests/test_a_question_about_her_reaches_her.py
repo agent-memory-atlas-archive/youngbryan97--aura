@@ -66,13 +66,29 @@ def test_mechanics_pages_are_unaffected():
     assert asks({"elements": []}) is False
 
 
-def test_the_split_is_wired_into_the_decision():
-    body = inspect.getsource(SovereignBrowserSkill._decide_next_actions)
-    assert "_asks_about_the_one_answering(observation)" in body, (
-        "the detector must decide the lane, not merely exist"
+def test_the_split_is_wired_into_the_loop():
+    """The page's shape routes items to her; it does not relabel every decision.
+
+    Inferring it inside the decision made EVERY choice on a scale-shaped page a
+    question about her, including the whole-page one whose job is to find the
+    control that advances the task. LIVE 2026-09-28: the test's own front page
+    carries a few radio groups, the whole-page decision went to her cognition,
+    and the run stopped without ever pressing Start.
+    """
+    loop = inspect.getsource(SovereignBrowserSkill._handle_pursue)
+    assert "_asks_about_the_one_answering(observation)" in loop, (
+        "the detector must route the items, not merely exist"
     )
+    routed = loop.index("_asks_about_the_one_answering(observation)")
+    whole_page = loop.index("_decide_next_actions(")
+    assert routed < whole_page, "items must be offered to her before the page is"
+
+    body = inspect.getsource(SovereignBrowserSkill._decide_next_actions)
+    assert "asks_about_her = bool(about_her)" in body, (
+        "only the caller says a decision is about her"
+    )
+    branch = body.index("if asks_about_her:")
     fast = body.index("_decide_on_the_fast_lane")
-    branch = body.index("_asks_about_the_one_answering(observation)")
     assert branch < fast, "a question about her must not reach the fast lane first"
 
 
