@@ -76,7 +76,7 @@ def select_native_joint_graph_checkpoint(checkpoints: list[dict], measurements: 
                     or any(type(score) not in {int, float} or not math.isfinite(score)
                            for score in graph["scores"])):
                 raise ValueError("native joint selection needs measured whole-graph rankings")
-            if max(range(len(graph["scores"])), key=graph["scores"].__getitem__) == 0:
+            if graph["scores"][0] > max(graph["scores"][1:]):
                 graphs[step].add(source)
     baseline_paths, baseline_graphs = paths[0], graphs[0]
     adjudication = [{"step": row["step"], "exact_teacher_paths": len(paths[row["step"]]),
