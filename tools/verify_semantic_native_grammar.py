@@ -115,7 +115,7 @@ def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_
                 sequences.append(sequence)
             if input_receipts[consumed] != expected_inputs:
                 raise ValueError("native grammar scored-input tokens or source control differ")
-            if plan["schema"].endswith((".v7", ".v8")):
+            if plan["schema"].endswith((".v7", ".v8", ".v9")):
                 anchor_sha256 = verified_trie_anchor(
                     sequences, row["prefix_execution"], anchor_sha256)
         consumed += 1
@@ -146,7 +146,7 @@ def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_
             or program.to_dict() != row["program"]
             or forced is not row["bound_forced_completion"]):
         raise ValueError("native grammar decision replay differs from saved graph")
-    if plan["schema"].endswith((".v7", ".v8")) and anchor_sha256 is None:
+    if plan["schema"].endswith((".v7", ".v8", ".v9")) and anchor_sha256 is None:
         raise ValueError("native grammar trie has no scored source anchor")
 
 
@@ -202,7 +202,7 @@ def verify_source_separation(training, source_report_path, bundles, target_examp
 
 def verified_weight_mode(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    if (version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8"}
+    if (version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"}
             or plan["schema"] != f"aura.semantic_native_grammar_plan.{version}"
             or report.get("schema") != f"aura.semantic_native_grammar.{version}"):
         raise ValueError("native grammar schema versions differ")
@@ -210,7 +210,8 @@ def verified_weight_mode(plan, report):
         if "weight_mode" in plan or "weight_mode" in report:
             raise ValueError("historical native grammar weight mode was fitted")
         return "fitted"
-    if (plan.get("weight_mode") not in {"fitted", "base"}
+    modes = {"residual"} if version == "v9" else {"fitted", "base"}
+    if (plan.get("weight_mode") not in modes
             or report.get("weight_mode") != plan["weight_mode"]):
         raise ValueError("native grammar weight mode differs")
     return plan["weight_mode"]
@@ -218,7 +219,7 @@ def verified_weight_mode(plan, report):
 
 def verified_input_grounding(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    expected = ("semantic_public_character_inputs.v1" if version in {"v3", "v4", "v5", "v6", "v7", "v8"}
+    expected = ("semantic_public_character_inputs.v1" if version in {"v3", "v4", "v5", "v6", "v7", "v8", "v9"}
                 else "declared_public_inputs")
     if (plan.get("input_grounding") != expected
             or report.get("input_grounding") != plan["input_grounding"]):
@@ -241,7 +242,7 @@ def verified_dataset(plan, report):
     if version == "v7":
         allowed = {"operation_intervention", "definition_intervention", "equation_intervention",
                    "role_intervention", "dependency_intervention"}
-    if version in {"v6", "v8"}:
+    if version in {"v6", "v8", "v9"}:
         allowed = {"retained_validation", "retained_test"}
         if (seed != 0 or not isinstance(plan.get("source_cohort_basis"), dict)
                 or plan["source_cohort_basis"] != report.get("source_cohort_basis")):
@@ -257,7 +258,7 @@ def verified_dataset(plan, report):
 
 def verified_prefix_execution(plan, report, row=None):
     """Require complete branch accounting only for the new reuse contract."""
-    is_trie = plan["schema"].endswith((".v7", ".v8"))
+    is_trie = plan["schema"].endswith((".v7", ".v8", ".v9"))
     if is_trie:
         if plan.get("prefix_strategy") != "trie" or report.get("prefix_strategy") != "trie":
             raise ValueError("native grammar trie strategy differs")
@@ -433,8 +434,28 @@ def verify_grammar(directory, training_directory):
     plan = verified_document(directory / "plan.json", "plan_sha256")
     report = verified_document(directory / "report.json")
     weight_mode = verified_weight_mode(plan, report)
+    scored_checkpoint = selected
+    if weight_mode == "residual":
+        from tools.verify_semantic_native_residual import verify_residual
+
+        contract = plan.get("residual_calibration")
+        if (not isinstance(contract, dict) or contract != report.get("residual_calibration")
+                or contract.get("source_only") is not True
+                or contract.get("serving_authority") is not False
+                or contract.get("baseline_checkpoint_receipt_sha256") != selected["receipt_sha256"]):
+            raise ValueError("native grammar residual calibration contract differs")
+        result = verify_residual(Path(contract["directory"]), training_directory)
+        if (result["report_receipt_sha256"] != contract["report_receipt_sha256"]
+                or result["selected_scale"] != contract["selected_scale"]
+                or result["selected_scale"] <= 0.
+                or result["current_implementation_drift"]):
+            raise ValueError("native grammar residual source calibration differs")
+        scored_checkpoint = verified_document(training_directory /
+            f"checkpoint-{result['candidate_step']}.json")
+    elif "residual_calibration" in plan or "residual_calibration" in report:
+        raise ValueError("historical native grammar acquired a residual calibration")
     verified_prefix_execution(plan, report)
-    if plan["schema"].endswith((".v7", ".v8")):
+    if plan["schema"].endswith((".v7", ".v8", ".v9")):
         from tools.semantic_native_execution import execution_from_plan
 
         execution = execution_from_plan(training)
@@ -442,11 +463,11 @@ def verify_grammar(directory, training_directory):
             raise ValueError("native grammar trie training arithmetic differs")
     input_grounding = verified_input_grounding(plan, report)
     dataset, seed = verified_dataset(plan, report)
-    if (plan["schema"].endswith((".v6", ".v8"))
+    if (plan["schema"].endswith((".v6", ".v8", ".v9"))
             and plan["source_cohort_basis"]["source_report_sha256"] != training["source_report_sha256"]):
         raise ValueError("retained native source basis differs from the fitted checkpoint")
     if (plan["training_plan_sha256"] != training["plan_sha256"]
-            or plan["checkpoint_receipt_sha256"] != selected["receipt_sha256"]
+            or plan["checkpoint_receipt_sha256"] != scored_checkpoint["receipt_sha256"]
             or plan["model_descriptor_sha256"] != training["model_descriptor_sha256"]
             or plan["pointer_sha256"] != training["pointer_sha256"]
             or plan["target_available_to_scorer"] is not False
@@ -490,7 +511,7 @@ def verify_grammar(directory, training_directory):
         if ("source_evidence" in plan and row.get("scored_source_sha256")
                 != hashlib.sha256(scored_source.encode()).hexdigest()):
             raise ValueError("native grammar scored source differs")
-        if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8")):
+        if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8", ".v9")):
             from core.learning.semantic_public_inputs import semantic_public_character_inputs
 
             receipt = semantic_public_character_inputs(example.source_text).receipt()
@@ -512,7 +533,7 @@ def verify_grammar(directory, training_directory):
               "answer_correct": sum(correct for _, correct in outcomes),
               "bound_forced_completion": sum(row["bound_forced_completion"] for row in rows),
               "depth_bound_reached": sum(row["depth_bound_reached"] for row in rows)}
-    if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8")):
+    if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8", ".v9")):
         totals.update(verified_pair_totals(rows, dataset=dataset))
     if any(report[key] != value for key, value in totals.items()):
         raise ValueError("native grammar reported totals differ from execution")
@@ -526,7 +547,7 @@ def verify_grammar(directory, training_directory):
             "input_grounding": input_grounding,
             "dataset": dataset, "seed": seed,
             "training_plan_sha256": training["plan_sha256"],
-            "checkpoint_receipt_sha256": selected["receipt_sha256"],
+            "checkpoint_receipt_sha256": scored_checkpoint["receipt_sha256"],
             "totals": totals, "current_implementation_drift": drift,
             "independent_public_value_recovery": True,
             "artifacts_verified": True, "general_transfer_proven": False,
@@ -559,7 +580,7 @@ def main():
         training, _ = selected_checkpoint(args.training_directory)
         plan = verified_document(args.directory / "plan.json", "plan_sha256")
         examples = verified_examples(plan, dataset=result["dataset"], seed=result["seed"])
-        if plan["schema"].endswith((".v6", ".v8")):
+        if plan["schema"].endswith((".v6", ".v8", ".v9")):
             from tools.semantic_native_retained_sources import load_retained_native_sources
 
             _, basis = load_retained_native_sources(args.source_report, args.bundle,

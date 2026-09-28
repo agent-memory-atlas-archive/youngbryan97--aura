@@ -1210,6 +1210,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  2026-09-28: the complete-path v5 fit selected its unfitted baseline because
+  every fitted checkpoint lost baseline paths. A separately measured residual
+  gained nine exact source paths without losses, but target-blind generation
+  remained 1/14 exact and 3/14 observed answers, identical to the matched base.
+  [Completed measurements](evidence/G03_COMPLETE_PATH_OPTIMIZATION_2026-09-28.md)
+  reject promotion; G03 remains open.
   [Complete-path optimization](evidence/G03_COMPLETE_PATH_OPTIMIZATION_2026-09-28.md)
   measures all 185 calibration sources at four checkpoints. The selected
   paired fit loses 38 of 51 baseline-correct paths. A new opt-in objective

@@ -54,3 +54,40 @@ def test_unmatched_or_incomplete_arms_cannot_produce_a_gain_claim(defect):
         left["meaning_audit"]["comparisons"][-1]["procedure_equivalent"] = None
     with pytest.raises(ValueError):
         matched_generation(fitted, base, left, right)
+
+
+def residual_fixture():
+    candidate, base, left, right = fixture()
+    candidate.update(weight_mode="residual", schema="aura.semantic_native_grammar_plan.v9",
+                     checkpoint_receipt_sha256="candidate", residual_calibration={
+                         "baseline_checkpoint_receipt_sha256": "checkpoint",
+                         "source_only": True, "serving_authority": False})
+    candidate["implementation"] = {**candidate["implementation"],
+        "tools/calibrate_semantic_native_residual.py": "calibration",
+        "tools/verify_semantic_native_residual.py": "verification"}
+    base["schema"] = "aura.semantic_native_grammar_plan.v8"
+    left.update(weight_mode="residual", checkpoint_receipt_sha256="candidate")
+    return candidate, base, left, right
+
+
+def test_residual_matches_only_its_bound_baseline_and_common_implementation():
+    assert matched_generation(*residual_fixture())["candidate_weight_mode"] == "residual"
+
+
+@pytest.mark.parametrize("defect", ["checkpoint", "source_only", "authority", "schema", "decoder", "extra"])
+def test_residual_cannot_excuse_protocol_or_baseline_drift(defect):
+    candidate, base, left, right = residual_fixture()
+    if defect == "checkpoint":
+        candidate["residual_calibration"]["baseline_checkpoint_receipt_sha256"] = "other"
+    elif defect == "source_only":
+        candidate["residual_calibration"]["source_only"] = False
+    elif defect == "authority":
+        candidate["residual_calibration"]["serving_authority"] = True
+    elif defect == "schema":
+        base["schema"] = "aura.semantic_native_grammar_plan.v7"
+    elif defect == "decoder":
+        candidate["implementation"]["decoder"] = "changed"
+    else:
+        candidate["implementation"]["other"] = "changed"
+    with pytest.raises(ValueError):
+        matched_generation(candidate, base, left, right)

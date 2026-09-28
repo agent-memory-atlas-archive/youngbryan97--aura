@@ -177,7 +177,9 @@ def main():
     parser.add_argument("--search-nodes", type=int, default=256)
     parser.add_argument("--search-score-mode", choices=("normalized_choices", "native_nonpositive"),
                         default="native_nonpositive")
-    parser.add_argument("--weight-mode", choices=("fitted", "base"), default="fitted")
+    parser.add_argument("--weight-mode", choices=("fitted", "base", "residual"), default="fitted")
+    parser.add_argument("--residual-calibration", type=Path,
+                        help="verified source-only residual calibration for target-blind decode")
     parser.add_argument("--prefix-strategy", choices=("full", "trie"), default="full")
     parser.add_argument("--source-evidence", choices=("source_text", "source_token_erasure",
                                                       "source_pair_swap"),
@@ -204,6 +206,13 @@ def main():
     if args.prefix_strategy == "trie" and (args.dataset not in INTERVENTION_DATASETS | RETAINED_DATASETS
             or args.search_completions):
         parser.error("native grammar trie requires intervention or retained sources and greedy decode")
+    if args.weight_mode == "residual":
+        if (args.residual_calibration is None or args.dataset not in RETAINED_DATASETS
+                or args.prefix_strategy != "trie" or args.search_completions
+                or args.source_evidence != "source_text"):
+            parser.error("residual decode requires a retained target-blind trie cohort")
+    elif args.residual_calibration is not None:
+        parser.error("residual calibration belongs only to residual decode")
     seed = 0 if args.dataset in RETAINED_DATASETS else (3141592 if args.seed is None else args.seed)
     if seed < 0:
         parser.error("native grammar seed must be nonnegative")
@@ -213,6 +222,18 @@ def main():
     configure_refit_environment(args.directory / "report.json")
     from core.brain.llm.model_registry import get_active_cortex_spec
     training, selected = selected_checkpoint(args.training_directory)
+    scored_checkpoint = selected
+    residual = None
+    if args.weight_mode == "residual":
+        from tools.evaluate_semantic_native_checkpoint import verified_document
+        from tools.verify_semantic_native_residual import verify_residual
+
+        residual = verify_residual(args.residual_calibration, args.training_directory)
+        if (residual["selected_scale"] <= 0.
+                or residual["current_implementation_drift"]):
+            raise ValueError("native residual has no verified nonzero source-only scale")
+        scored_checkpoint = verified_document(args.training_directory /
+            f"checkpoint-{residual['candidate_step']}.json")
     from core.learning.semantic_native_codec import register_encoding_from_plan
     register_encoding = register_encoding_from_plan(training)
     spec = get_active_cortex_spec(force_refresh=True)
@@ -261,6 +282,9 @@ def main():
     if args.dataset in RETAINED_DATASETS:
         paths += ("tools/semantic_native_retained_sources.py",
                   "core/learning/semantic_program_feature_materialization.py")
+    if residual is not None:
+        paths += ("tools/calibrate_semantic_native_residual.py",
+                  "tools/verify_semantic_native_residual.py")
     from tools.semantic_native_execution import EXECUTION_PATHS, execution_from_plan
     paths += EXECUTION_PATHS
     execution = execution_from_plan(training, check_installed=True)
@@ -277,9 +301,11 @@ def main():
         schema_version = "v6"
     if args.prefix_strategy == "trie":
         schema_version = "v8" if args.dataset in RETAINED_DATASETS else "v7"
+    if residual is not None:
+        schema_version = "v9"
     body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
-            "checkpoint_receipt_sha256": selected["receipt_sha256"],
+            "checkpoint_receipt_sha256": scored_checkpoint["receipt_sha256"],
             "weight_mode": args.weight_mode,
             "source_evidence": args.source_evidence,
             "source_pair_map": source_pair_map,
@@ -298,6 +324,13 @@ def main():
         body["prefix_strategy"] = "trie"
     if source_basis is not None:
         body["source_cohort_basis"] = source_basis
+    if residual is not None:
+        body["residual_calibration"] = {
+            "directory": str(args.residual_calibration.resolve()),
+            "report_receipt_sha256": residual["report_receipt_sha256"],
+            "selected_scale": residual["selected_scale"],
+            "baseline_checkpoint_receipt_sha256": selected["receipt_sha256"],
+            "source_only": True, "serving_authority": False}
     plan = {**body, "plan_sha256": digest(body)}
     _save_if_absent(args.directory / "plan.json", plan)
     if args.plan_only:
@@ -329,8 +362,8 @@ def main():
     started, rows = time.monotonic(), []
     with (standalone_model_lane(owner_id=f"semantic-native-grammar:{args.directory.name}",
                                 model_path=str(spec.model_path), purpose="evaluation",
-                                require_exclusive=schema_version == "v8",
-                                allow_owner_eviction=schema_version != "v8",
+                                require_exclusive=schema_version in {"v8", "v9"},
+                                allow_owner_eviction=schema_version not in {"v8", "v9"},
                                 preemptible=False, metadata={"production_effect": False}),
           mlx_memory_envelope(fraction=.80)):
         model, tokenizer = load(str(spec.model_path))
@@ -338,14 +371,19 @@ def main():
         model.eval()
         split = len(model.layers) - training["suffix_layers"]
         prefix, suffix = FrozenDecoderPrefix(model, split_at=split), NativeDecoderSuffix(model, split_at=split)
-        if args.weight_mode == "fitted":
+        if args.weight_mode in {"fitted", "residual"}:
             mx.random.seed(training["seed"])
             linear_to_lora_layers(model, training["suffix_layers"], {
                 "rank": training["rank"], "scale": 16., "dropout": 0., "keys": training["adapter_keys"]})
             model.load_weights(str(args.training_directory /
-                                   f"checkpoint-{selected['step']}.safetensors"), strict=False)
+                                   f"checkpoint-{scored_checkpoint['step']}.safetensors"), strict=False)
         from tools.semantic_native_execution import apply_execution
         apply_execution(model, training)
+        if residual is not None:
+            from tools.calibrate_semantic_native_residual import native_lora_sites
+
+            for site in native_lora_sites(model, training):
+                site.scale = 16. * residual["selected_scale"]
         for example, identity in zip(examples, sources, strict=True):
             public_inputs, types = source_input_types(example.source_text)
             scored_source = (source_text_by_sha256[source_pair_map[identity]]
@@ -469,7 +507,9 @@ def main():
                 or current.pointer_sha256 != spec.pointer_sha256
                 or any(hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != sha
                        for name, sha in implementation.items())
-                or selected_checkpoint(args.training_directory) != (training, selected)):
+                or selected_checkpoint(args.training_directory) != (training, selected)
+                or residual is not None and verify_residual(
+                    args.residual_calibration, args.training_directory) != residual):
             raise ValueError("native grammar implementation, model, or checkpoint drifted")
         pair_totals = grammar_pair_totals(rows, dataset=args.dataset)
         result = {"schema": f"aura.semantic_native_grammar.{schema_version}",
@@ -489,6 +529,8 @@ def main():
             result["prefix_strategy"] = "trie"
         if source_basis is not None:
             result["source_cohort_basis"] = source_basis
+        if residual is not None:
+            result["residual_calibration"] = body["residual_calibration"]
         _save_if_absent(args.directory / "report.json", {**result, "receipt_sha256": digest(result)})
         print(json.dumps({key: value for key, value in result.items() if key != "row_receipts"}), flush=True)
 
