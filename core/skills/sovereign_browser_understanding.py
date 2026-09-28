@@ -505,99 +505,27 @@ class _UnderstandsThePage:
             )
         return ""
 
-    async def _her_own_thinking_about_herself(
-        self, prompt: str, *, shaped: bool = True
-    ) -> tuple[str, str]:
-        """Put a question about her through her cognition, not a completion.
-
-        `router.think` is a model call with her self-context in front of it.
-        The context says who she is and the model still answers from its priors
-        about what an AI is; nothing about it reasons, recalls, or consults the
-        organs that hold what she is actually like. A question addressed to her
-        should be answered by the faculties that answer one when a person asks
-        it out loud — a cognitive cycle, with its reasoning pass, its recall,
-        its self-model and its workspace — because who and what answers is part
-        of what a self-report is.
-
-        The cycle gets its own turn ledger. It is a question of its own and the
-        pursuit may ask eight at once; adopting the caller's turn would have
-        thirty-two answers marking one chat turn served, each with the last
-        one's record.
-
-        Returns the text and the lane that produced it, or ("", "") when there
-        is no cognition to ask, in which case the caller falls back.
-        """
-        engine = optional_service("cognitive_engine", default=None)
-        cycle = getattr(engine, "think", None)
-        if not callable(cycle):
-            return "", ""
-        try:
-            from core.brain.types import ThinkingMode
-            from core.runtime.turn_outcome import TurnOutcome, bind_turn, finalize_turn
-        except ImportError as exc:
-            record_degradation("sovereign_browser.her_cognition", exc, severity="debug")
-            return "", ""
-
-        outcome = TurnOutcome(origin=self._PAGE_ORIGIN)
-        try:
-            with bind_turn(outcome):
-                thought = await cycle(
-                    prompt,
-                    context={
-                        # A decision is a structured choice and a forecast is
-                        # a sentence; holding the second to an object shape
-                        # would make her say it in JSON.
-                        **({"output_shape": "json_object"} if shaped else {}),
-                        "origin": self._PAGE_ORIGIN,
-                        "purpose": "page_decision" if shaped else "page_forecast",
-                        "own_lane_required": True,
-                        # The turn that asked for this is waiting on it, so it
-                        # is not background work to be stood down while a
-                        # foreground turn runs — it IS the foreground turn's
-                        # work, reached through a tool.
-                        "serves_current_turn": True,
-                    },
-                    # Short chain of thought. A self-report item is not a
-                    # lookup: "you regularly make new friends" is a question
-                    # she has to reason about from what she knows of herself,
-                    # and FAST is by definition the gear that does not.
-                    mode=ThinkingMode.SLOW,
-                    origin=self._PAGE_ORIGIN,
-                )
-        except _BROWSER_DECISION_ERRORS as exc:
-            record_degradation(
-                "sovereign_browser.her_cognition",
-                exc,
-                severity="warning",
-                action="fell back to a direct model call for a question about her",
-            )
-            return "", ""
-        finally:
-            try:
-                finalize_turn(outcome, subsystem="sovereign_browser")
-            except _BROWSER_DECISION_ERRORS as exc:
-                record_degradation(
-                    "sovereign_browser.her_cognition", exc, severity="debug"
-                )
-        said = str(getattr(thought, "content", "") or "").strip()
-        if not said:
-            return "", ""
-        # Who actually generated it, and nothing assumed. Defaulting to her
-        # own lane here would be the same fail-open the guard below exists to
-        # close: a cycle that answered on a smaller model would have been
-        # taken for her.
-        lane = str((getattr(thought, "metadata", None) or {}).get("endpoint") or "")
-        return said, lane
-
     async def _asked_of_her(
         self, prompt: str, mind: str = "", *, shaped: bool = True
     ) -> tuple[str, str]:
         """One way to ask her something about herself, used by everything that does.
 
-        Her cognition first, because a question addressed to her is answered by
-        the faculties that answer one when a person asks it out loud. The direct
-        call second, on her own lane and only there, for when there is no cycle
-        to run or the cycle came back with nothing.
+        Her own lane, and only there, with her self-model, her values and her own
+        earlier words about herself in front of it.
+
+        Her full conversational cycle was tried here first and is the wrong
+        instrument: it exists to produce a reply to the person, and that is what
+        it produced. LIVE 2026-09-28 18:13, on the index page before a single
+        click: "The user wants me to take the Open Extended Jungian Type Scales
+        personality test... Before I start, they want me to tell them what type
+        I think I'll get and why. Let me first think about..." — the turn's own
+        answer, returned as a page decision and reported unparsable, twice in a
+        row, with the run stopping before it opened anything.
+
+        What her faculties have to contribute reaches this as context, which is
+        assembled by the caller: what she is like from her record of choices,
+        what she has said about herself in her own words, and what her
+        instruments say about her right now.
 
         Built once because three things ask her: what she expects an instrument
         to say before she answers it, how she answers each of its questions, and
@@ -609,9 +537,6 @@ class _UnderstandsThePage:
         Returns the text and the lane that produced it; the caller decides what
         an answer from somewhere else is worth.
         """
-        said, lane = await self._her_own_thinking_about_herself(prompt, shaped=shaped)
-        if said:
-            return said, lane
         router = optional_service("llm_router", default=None)
         think = getattr(router, "think", None)
         if not callable(think):
