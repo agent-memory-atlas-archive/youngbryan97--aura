@@ -124,3 +124,62 @@ def test_nothing_here_knows_what_an_instrument_measures():
     source = inspect.getsource(w)
     for tuned in ("jungian", "extravert", "introvert", "oejts", "myers", "likert"):
         assert tuned not in source.lower(), f"the measure is tuned to {tuned!r}"
+
+
+def test_a_lean_is_agreement_and_not_a_gap_between_two_numbers(embedder):
+    """Everything is somewhat similar to everything.
+
+    Measured on her real record, both sides of six real dimensions scored
+    between +0.49 and +0.65, so the gap between two of them is a rounding error
+    on a large constant and a lean built from it is always about zero — a
+    measurement landing on the midpoint as surely as a guess does. What carries
+    the signal is how consistently the things she holds point the same way.
+    """
+    record = [
+        w.Piece(said="truth", weight=1.0, source="value"),
+        w.Piece(said="care", weight=1.0, source="value"),
+        w.Piece(said="order", weight=1.0, source="chose"),
+    ]
+    lean = w.where_she_stands("play", "truth", record)
+    assert abs(lean.toward) > 0.5, (
+        "a record that agrees must produce a lean, however small each "
+        f"similarity gap is (got {lean.toward:+.3f})"
+    )
+
+
+def test_a_record_that_pulls_both_ways_leans_neither(embedder):
+    record = [
+        w.Piece(said="truth", weight=1.0, source="value"),
+        w.Piece(said="play", weight=1.0, source="value"),
+    ]
+    lean = w.where_she_stands("play", "truth", record)
+    assert lean.measured
+    assert abs(lean.toward) < 0.2
+
+
+def test_weight_decides_how_much_a_piece_counts(embedder):
+    light = [
+        w.Piece(said="truth", weight=0.1, source="value"),
+        w.Piece(said="play", weight=1.0, source="value"),
+    ]
+    heavy = [
+        w.Piece(said="truth", weight=1.0, source="value"),
+        w.Piece(said="play", weight=0.1, source="value"),
+    ]
+    assert w.where_she_stands("play", "truth", light).toward < w.where_she_stands(
+        "play", "truth", heavy
+    ).toward
+
+
+def test_the_lean_is_bounded_whatever_the_record(embedder):
+    record = [w.Piece(said="truth", weight=9.0, source="value")] * 5
+    lean = w.where_she_stands("play", "truth", record)
+    assert -1.0 <= lean.toward <= 1.0
+
+
+def test_the_evidence_names_which_side_each_piece_leans(embedder):
+    record = [w.Piece(said="truth", weight=1.0, source="value")]
+    lean = w.where_she_stands("play", "truth", record)
+    assert lean.because
+    assert "truth" in lean.because[0]
+    assert "leans" in lean.because[0]

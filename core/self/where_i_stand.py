@@ -130,8 +130,28 @@ def her_record() -> list[Piece]:
 
 
 def _embedder() -> Any:
+    """The organ that turns words into something comparable.
+
+    The registered memory engine holds one and is the shared instance the rest
+    of the runtime uses, so the model is loaded once. Where nothing is
+    registered — a probe, a test, a process that never booted memory — the
+    shared embedding engine is acquired directly rather than doing without,
+    because without it there is no measurement at all.
+    """
     engine = optional_service("vector_memory_engine", "vector_memory", default=None)
-    return engine if hasattr(engine, "embed") else None
+    held = getattr(engine, "embedder", None)
+    if hasattr(held, "embed"):
+        return held
+    if hasattr(engine, "embed"):
+        return engine
+    try:
+        from core.memory.embedding_runtime import acquire_shared_embedding_engine
+
+        shared = acquire_shared_embedding_engine("where-i-stand")
+        return shared if hasattr(shared, "embed") else None
+    except Exception as exc:  # noqa: BLE001 - no embedder is a measurement of nothing
+        record_degradation("where_i_stand", exc, severity="debug")
+        return None
 
 
 def _cosine(left: Any, right: Any) -> float:
@@ -195,29 +215,69 @@ def where_she_stands(
 ) -> Lean:
     """Which of two descriptions is more her, and by how much.
 
-    The two matches are on the same scale and measured against the same record,
-    so their difference is what carries meaning — the absolute height of either
-    one says more about the embedding than about her.
+    Not the gap between two similarity numbers. Everything is somewhat similar
+    to everything — measured on her own record, both sides of six real
+    dimensions scored between +0.49 and +0.65 — so the gap between two of them
+    is a rounding error sitting on a large constant, and a lean built from it is
+    always about zero. That is how a measurement lands on the midpoint as surely
+    as a guess does.
+
+    What carries the signal is agreement. Each thing her record holds is closer
+    to one side or the other, and a lean is how consistently they point the same
+    way, weighted by how much each counts. Every piece agreeing is ±1 whatever
+    the size of each difference; pieces that cancel are 0. Nothing here needs a
+    constant chosen by hand, and the number means something anyone can check:
+    the share of her record that leans this way rather than that.
     """
     pieces = list(record if record is not None else her_record())
-    left, left_because = how_much_it_is_her(first, pieces)
-    right, right_because = how_much_it_is_her(second, pieces)
-    if not left_because and not right_because:
+    embed = _embedder()
+    if not pieces or embed is None:
         return Lean(toward=0.0, first=0.0, second=0.0, because=(), measured=False)
-    gap = right - left
-    # Squashed so a small real difference is a small lean rather than a
-    # confident one, and so nothing can run away with the scale. The constant
-    # is the spread of the differences this measure produces, which is the only
-    # thing it could honestly be.
-    spread = max(1e-6, (abs(left) + abs(right)) / 2.0)
-    toward = math.tanh(gap / spread)
+    left_said = " ".join(str(first or "").split())
+    right_said = " ".join(str(second or "").split())
+    if not left_said or not right_said:
+        return Lean(toward=0.0, first=0.0, second=0.0, because=(), measured=False)
+    try:
+        left_vector = embed.embed(left_said)
+        right_vector = embed.embed(right_said)
+    except Exception as exc:  # noqa: BLE001
+        record_degradation("where_i_stand", exc, severity="debug")
+        return Lean(toward=0.0, first=0.0, second=0.0, because=(), measured=False)
+
+    leaning: list[tuple[float, float, Piece]] = []
+    left_total = 0.0
+    right_total = 0.0
+    weight_total = 0.0
+    for piece in pieces:
+        try:
+            mine = embed.embed(piece.said)
+        except Exception as exc:  # noqa: BLE001
+            record_degradation("where_i_stand", exc, severity="debug")
+            continue
+        to_left = _cosine(mine, left_vector)
+        to_right = _cosine(mine, right_vector)
+        weight = max(0.0, float(piece.weight))
+        leaning.append((to_right - to_left, weight, piece))
+        left_total += to_left * weight
+        right_total += to_right * weight
+        weight_total += weight
+    if not leaning or weight_total <= 0.0:
+        return Lean(toward=0.0, first=0.0, second=0.0, because=(), measured=False)
+
+    agreement = sum(gap * weight for gap, weight, _piece in leaning)
+    disagreement = sum(abs(gap) * weight for gap, weight, _piece in leaning)
+    toward = agreement / disagreement if disagreement > 1e-12 else 0.0
+
+    leaning.sort(key=lambda row: abs(row[0]) * row[1], reverse=True)
     because = tuple(
-        list(left_because[:2]) + list(right_because[:2])
+        f"{piece.said} ({piece.source}) leans "
+        f"{second if gap > 0 else first} by {abs(gap):.3f}"
+        for gap, _weight, piece in leaning[:3]
     )
     return Lean(
-        toward=float(toward),
-        first=float(left),
-        second=float(right),
+        toward=float(max(-1.0, min(1.0, toward))),
+        first=float(left_total / weight_total),
+        second=float(right_total / weight_total),
         because=because,
         measured=True,
     )
