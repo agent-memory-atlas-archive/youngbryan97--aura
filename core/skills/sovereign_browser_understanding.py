@@ -375,13 +375,26 @@ class _UnderstandsThePage:
         try:
             from core.brain.llm.context_assembler import ContextAssembler
 
+            # Her live state, from the repository that holds it.
+            #
+            # `aura_state` is registered by nothing: this asked for a key that
+            # does not exist, got None, and returned an empty mind on every
+            # call — 49 times in one boot, each recorded and none read. The
+            # inference gate builds the same prompt from the state repository's
+            # current state, which is where it actually lives.
             state = optional_service("aura_state", default=None)
             if state is None:
-                # Said, because an empty mind changed which branch the whole
-                # decision took and nothing recorded that it had happened.
+                repo = optional_service("state_repository", "state_repo", default=None)
+                state = (
+                    getattr(repo, "_current", None)
+                    or getattr(repo, "_current_state", None)
+                    if repo is not None
+                    else None
+                )
+            if state is None:
                 record_degradation(
                     "sovereign_browser.mind_context",
-                    RuntimeError("aura_state_unavailable"),
+                    RuntimeError("no_current_state"),
                     severity="warning",
                     action="decided without her assembled self-context",
                 )
@@ -1570,18 +1583,20 @@ class _UnderstandsThePage:
         )
         try:
             think = getattr(router, "think", None)
-            # A question about her never falls through to a bare model call.
+            # No decision falls through to a bare model call.
             #
             # This branch was gated on her assembled mind being present, and
-            # when it was not — the state service absent, the assembler
-            # unavailable — every self-report item fell to `generate(prompt)`
-            # at the bottom of this function: no identity, no self-knowledge,
-            # no record of what she is like, and no lane requirement either.
-            # LIVE 2026-09-28, that is exactly what answered thirty-two
-            # questions about her, and it answered the midpoint every time
-            # because it had nothing to prefer with. Her cognition needs no
-            # assembled prompt; it assembles its own.
-            if callable(think) and (mind or asks_about_her):
+            # when it is not — the state service absent, the assembler
+            # unavailable — every decision fell to `generate(prompt)` at the
+            # bottom of this function: no schema, no shape held by the decoder,
+            # no self-knowledge and no lane requirement. LIVE 2026-09-28 18:26,
+            # with the receipt that now says so: "Decision by the mechanics
+            # lane on bare_generate: unparsable_decision", on the index page,
+            # before a single click, so no test was taken and nothing was
+            # narrated. A decision is structured work; the persona string in
+            # front of it is a bonus, and losing the shape because the bonus is
+            # missing is the wrong trade.
+            if callable(think):
                 # The fast lane, for the repetitive part.
                 #
                 # Working a sixty-item form is one rich judgement — what this
