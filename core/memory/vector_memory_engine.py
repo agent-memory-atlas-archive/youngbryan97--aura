@@ -73,6 +73,8 @@ from core.runtime.effect_boundary import effect_sink
 from core.runtime.errors import record_degradation
 from core.runtime.lockdep import LockRank, checked_lock
 
+from .vector_memory_engine_fallbacks import _EmbedsWithoutAModel
+
 logger = logging.getLogger("Aura.VectorMemory")
 
 _VECTOR_SQLITE_ERRORS = (OSError, sqlite3.Error, RuntimeError, TypeError, ValueError)
@@ -191,7 +193,7 @@ def _first_frame_outside(this_file: str) -> str:
     return "unknown"
 
 
-class EmbeddingEngine:
+class EmbeddingEngine(_EmbedsWithoutAModel):
     """
     Converts text to dense semantic vectors.
 
@@ -395,20 +397,6 @@ class EmbeddingEngine:
             self._init_tfidf_fallback()
 
         self._initialized = True
-
-    def _init_tfidf_fallback(self):
-        """Simple TF-IDF fallback when sentence-transformers unavailable."""
-        try:
-            from sklearn.feature_extraction.text import TfidfVectorizer
-
-            self._tfidf_fallback = TfidfVectorizer(max_features=512)
-            self._tfidf_corpus = []
-            logger.info("EmbeddingEngine: TF-IDF fallback initialized")
-        except ImportError:
-            logger.error(
-                "Neither sentence-transformers nor sklearn available. "
-                "Memory recall will be degraded."
-            )
 
     def _checkout_model(self) -> Any:
         """Initialize if needed and take a reference for one inference.
@@ -894,30 +882,6 @@ class EmbeddingEngine:
                 self._return_model()
 
         return np.vstack([self._embed_hash(text) for text in texts])
-
-    def _embed_tfidf(self, text: str) -> np.ndarray:
-        """TF-IDF embedding fallback."""
-        self._tfidf_corpus.append(text)
-        try:
-            # fit_transform expects a collection of strings
-            matrix = self._tfidf_fallback.fit_transform(self._tfidf_corpus)
-            vec = matrix[-1].toarray()[0]
-            norm = np.linalg.norm(vec)
-            return vec / norm if norm > 0 else vec
-        except (RuntimeError, AttributeError, TypeError, ValueError) as e:
-            logger.debug("TF-IDF embedding failed: %s", e)
-            return np.zeros(512)
-
-    def _embed_hash(self, text: str) -> np.ndarray:
-        """Minimal hash-based embedding (last resort)."""
-        h = hashlib.sha256(text.encode()).digest()
-        vec = np.frombuffer(h, dtype=np.uint8).astype(np.float32)
-        vec = vec / 255.0
-        # Pad/truncate to standard dim
-        target = embedding_model.VECTOR_DIM
-        if len(vec) < target:
-            vec = np.pad(vec, (0, target - len(vec)))
-        return vec[:target]
 
     @staticmethod
     def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:

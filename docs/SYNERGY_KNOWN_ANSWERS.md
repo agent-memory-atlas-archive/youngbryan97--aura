@@ -208,3 +208,15 @@ schedule alone does not inflate the shift null that far, so the cause on her
 data is something the toy leaves out, and the next candidate is how long her
 conditions hold: here each lasts one row, and on the seed-7 look at 415f400c0
 each of hers held for 33 consecutive rows, one turn's frames, 192 times over.
+
+### The hold table, fixed before it ran (27 September)
+
+The cycle table again, with each condition held for 33 consecutive rows as
+hers are (`tools/synergy_known_answers.py --cycle --hold 33`): the same toys,
+seeds 3, 7, 11, 19 and 23, and both first nulls. What is read is the shift bar
+on the product toy. Her W,A->D met a shift bar of 0.40 to 0.50; at a hold of
+one row the toys' bars ran 0.04 to 0.13. If the bar reaches her range at four
+of five seeds, the hold is what inflates her null, and the within-condition
+permutation is proposed for her recordings if it qualifies where the shift does
+not. If it stays at or under 0.13 at four of five, the hold does not explain it.
+Anything between is reported as it reads and decides nothing.

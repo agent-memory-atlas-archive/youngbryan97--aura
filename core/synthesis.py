@@ -8,6 +8,7 @@ import operator
 import re
 from typing import Any
 
+from core.conversation.asked_scale import answers_the_scale_it_was_asked_for
 from core.conversation.response_reliability import (
     assess_user_facing_reply,
     grounded_operational_status_reply,
@@ -506,6 +507,14 @@ def stabilize_user_facing_response(text: str, user_message: str = "") -> str:
         cleaned = cleaned.strip()
     else:
         cleaned = re.sub(r"\s+", " ", cleaned).strip()
+    # A number on the scale the message asked to be answered on is the answer,
+    # however short it is. Asked "from -1 to 1", her cortex answers "0.3", and
+    # three characters read below as broken output and were replaced by the
+    # canned "I'm here, awake, and with you": on the reports-ground run of 27
+    # September a third of her answers reached the instrument as that sentence
+    # or another that held no number. See core/conversation/asked_scale.py.
+    if user_message and answers_the_scale_it_was_asked_for(user_message, cleaned):
+        return cleaned
     assessment = assess_user_facing_reply(user_message, cleaned)
     if any(
         assessment.has(reason)

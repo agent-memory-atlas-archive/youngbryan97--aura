@@ -43,6 +43,26 @@ def test_pair_plan_refuses_unchanged_meaning():
     assert native_source_pair_plan(rows, ("a", "b"), register_encoding="absolute_v1") == {}
 
 
+def test_pair_plan_admits_source_bound_reference_contrast():
+    left = Program(2, (Instruction("sub", (0, 1)),))
+    right = Program(2, (Instruction("sub", (1, 0)),))
+    rows = (example("a", "role", left, tokens=(1, 2, 3)),
+            example("b", "role", right, tokens=(1, 4, 3)))
+    pairs = native_source_pair_plan(rows, ("a", "b"), register_encoding="absolute_v1")
+    assert pairs["a"]["kind"] == pairs["b"]["kind"] == "reference"
+    assert pairs["a"]["own_index"] == pairs["b"]["partner_index"]
+
+
+def test_pair_plan_admits_shared_prefix_termination_contrast():
+    short = Program(2, (Instruction("add", (0, 1)),))
+    long = Program(2, (Instruction("add", (0, 1)), Instruction("mul", (2, 1))))
+    rows = (example("a", "depth", short, tokens=(1, 2, 3)),
+            example("b", "depth", long, tokens=(1, 2, 4)))
+    pairs = native_source_pair_plan(rows, ("a", "b"), register_encoding="absolute_v1")
+    assert pairs["a"]["kind"] == pairs["b"]["kind"] == "termination"
+    assert pairs["a"]["own_index"] != pairs["a"]["partner_index"]
+
+
 def test_interaction_loss_requires_the_preference_to_change_with_source():
     equal = native_source_interaction_loss(mx.array(2.), mx.array(0.),
                                            mx.array(2.), mx.array(0.)).item()

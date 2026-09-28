@@ -134,6 +134,7 @@ class InferencePhase(Phase):
                 router,
                 prompt=self._build_prompt(objective),
                 priority=priority,
+                origin=str(state.cognition.current_origin or ""),
             )
             data = _normalize_inference_data(_extract_json_object(inference_data))
 
@@ -181,7 +182,11 @@ class InferencePhase(Phase):
         )
 
     @staticmethod
-    async def _call_router(router: Any, *, prompt: str, priority: bool) -> Any:
+    async def _call_router(router: Any, *, prompt: str, priority: bool, origin: str = "") -> Any:
+        # Said what it is. With no origin and no purpose the router takes a
+        # call for someone's reply and her actual reply cannot preempt it; this
+        # is her turn's work, advice to the phases after it.
+        labels = {"origin": origin, "purpose": "deep_inference"}
         think = getattr(router, "think", None)
         if callable(think):
             return await think(
@@ -189,6 +194,7 @@ class InferencePhase(Phase):
                 system_prompt="You are Aura's subtext processor. Extract the unsaid.",
                 prefer_tier="fast",
                 priority=priority,
+                **labels,
             )
         route = getattr(router, "route", None)
         if callable(route):
@@ -197,5 +203,6 @@ class InferencePhase(Phase):
                 system_prompt="You are Aura's subtext processor. Extract the unsaid.",
                 prefer_tier="fast",
                 priority=priority,
+                **labels,
             )
         raise AttributeError("llm_router has neither think nor route")

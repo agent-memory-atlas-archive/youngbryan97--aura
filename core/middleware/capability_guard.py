@@ -59,6 +59,9 @@ def _resolves_to(domain: str) -> str | None:
             domain,
         )
         return None
+    # not a failure: a name that does not resolve has no address, which is the
+    # answer the docstring gives, and the caller refuses it as it refuses a
+    # name that did not resolve in time.
     except _NETWORK_RESOLUTION_ERRORS:
         return None
 

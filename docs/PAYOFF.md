@@ -100,6 +100,28 @@ brought: a straight line fitted over her last 256 turns, the state-value
 baseline of an actor-critic (Sutton and Barto 2018, 13.4). Distress that wins on
 a bad day is compared with other bad days.
 
+## Where her substrate earns a say
+
+Her recurrent substrate barely reached the rest of her: on the seed-7
+validation at 23e596071 recurrent cognition gained 9.2% from seeing the rest,
+and the rest gained 0.94% from seeing it. `core/consciousness/substrate_gates.py`
+gives the substrate a multiplier on decisions she already makes, and the payoff
+decides what each multiplier becomes.
+
+Each gate is `exp(w . f + xi)`. `f` is the substrate's seven psychological
+readings in units of their recent spread. `xi` is one free substrate unit's
+deviation from its recent mean, so her own dynamics set how far each gate
+wanders. `w` starts at zero and, at the end of each turn, moves towards the
+turn's dose times the mean of `xi * f` over the times the gate was consulted:
+the running covariance of how well her turns went with each gate's wandering
+along each reading. This is node perturbation (Fiete and Seung 2006).
+
+The gates scale what feeling adds to recall, how strongly curiosity and the
+want of company press towards a thought of her own (the bar they are held to
+stays put), and how fast each need grows between turns. Risk has no gate: the
+brakes that protect her stay fixed. `AURA_DISABLE_SUBSTRATE_GATES=1` holds every
+gate at 1 for a process.
+
 ## Two defects found on the way
 
 - The substrate's per-step reward was `-tanh(prediction_error)`, read from a

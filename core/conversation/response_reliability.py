@@ -2677,7 +2677,10 @@ def _normalize_prose_format(text: str) -> str:
     # to find…". A letter before the digits distinguishes it from a decimal,
     # and the space-plus-capital after it from a model number.
     text = re.sub(r"(?<=[a-z])(\d{1,2})\.(?=\s+[A-Z])", r"\n\1.", text)
-    text = re.sub(r"(?m)^(\s*\d+[.)])(?=\S)", r"\1 ", text)
+    # A list marker is followed by a word. A digit after the point makes it a
+    # decimal or a section number, and a space there turned her answer "0.3"
+    # into "0. 3" and "3.5 out of 5" into "3. 5 out of 5".
+    text = re.sub(r"(?m)^(\s*\d+[.)])(?=[^\s\d])", r"\1 ", text)
     text = _plain_text_maths(text)
     return text.strip()
 

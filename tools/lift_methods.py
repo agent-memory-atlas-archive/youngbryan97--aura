@@ -143,6 +143,19 @@ def run(src_path, cls_name, selector, out_path, mixin_name, doc):
         return 1
 
     bound = module_bound_names(tree)
+    # A decorator the parent imports from a third module is bound there, not
+    # in the parent, so the mixin imports it from the same place at module
+    # level. One the parent defines itself would need the parent while the
+    # parent is still importing the mixin, and is refused.
+    imported_from = {}
+    for n in tree.body:
+        if isinstance(n, ast.ImportFrom) and n.module != "__future__":
+            for a in n.names:
+                imported_from[a.asname or a.name] = (
+                    f"from {'.' * n.level}{n.module or ''} import {a.name}"
+                    + (f" as {a.asname}" if a.asname else "")
+                )
+    decorator_imports = {}
     for m in sel:
         if any(isinstance(n, ast.Global) for n in ast.walk(m)):
             print("REFUSING:", m.name, "mutates a module global")
@@ -150,8 +163,10 @@ def run(src_path, cls_name, selector, out_path, mixin_name, doc):
         for dec in m.decorator_list:
             for n in ast.walk(dec):
                 if isinstance(n, ast.Name) and n.id in bound and n.id not in HEADER_BOUND:
-                    print("REFUSING:", m.name, "decorated with the parent's", n.id)
-                    return 1
+                    if n.id not in imported_from:
+                        print("REFUSING:", m.name, "decorated with the parent's", n.id)
+                        return 1
+                    decorator_imports[n.id] = imported_from[n.id]
 
     mod = "." + p.stem
 
@@ -186,8 +201,9 @@ def run(src_path, cls_name, selector, out_path, mixin_name, doc):
     blocks, moved = [], []
     for m in sorted(sel, key=lambda x: x.lineno):
         start, end = block(m)
+        in_body = {n.id for stmt in m.body for n in ast.walk(stmt) if isinstance(n, ast.Name)}
         names = sorted({n.id for n in ast.walk(m) if isinstance(n, ast.Name) and n.id in bound}
-                       - HEADER_BOUND)
+                       - HEADER_BOUND - (set(decorator_imports) - in_body))
         body = "".join(lines[start:end])
         if names:
             doc0 = ast.get_docstring(m)
@@ -208,6 +224,7 @@ def run(src_path, cls_name, selector, out_path, mixin_name, doc):
     header = (f'"""{doc}\n\nLifted whole out of `{p.stem}`. Every name taken from it is imported at\nCALL time: that module imports this one to build the class, and a test that\npatches a name on it has to reach the code that reads it.\n"""\n'
               "from __future__ import annotations\n\n"
               + HEADER_IMPORTS
+              + "".join(line + "\n" for line in sorted(set(decorator_imports.values())))
               + ("from typing import TYPE_CHECKING\n\nif TYPE_CHECKING:\n"
                  + f"    from {mod} import (\n"
                  + "".join(f"        {n},\n" for n in sorted(annotated))

@@ -36,6 +36,13 @@ winner earns nothing, however much the good turn depended on it. **Build,
 second:** credit the sources whose content went into what won, by how much of it
 they supplied.
 
+Built. A bid is a sum of parts, and `core/consciousness/global_workspace_supply.py`
+names the organ behind each: the affect engine's lent urgency, the attention
+schema's focus, the free-energy engine's pull, the averted and civility
+ledgers. Each win records each organ's share of what the winning bid was made
+of, the credit ledger credits it with the turn's worth by that share, and what
+it has earned weighs its part of later bids.
+
 ## 3. A downhill process pays for an uphill one
 
 Pumping protons against their gradient costs energy; the electrons falling from
@@ -132,6 +139,14 @@ state that morphogenesis changes through a governor (`docs/MORPHOGENESIS.md`),
 and the payoff now tells which organs have gained a share of the unified field
 by connecting (`field_share_*`). **Waits:** binding more tightly where exchange
 and payoff co-occur, once the payoff probe says whether the shares move at all.
+
+The probe says they move, and slowly. Over the 192 turns of the seed-7 look at
+415f400c0 with the payoff, mesh and substrate each gained about two ten-thousandths
+of the field's input (0.37487 to 0.37507, 0.37748 to 0.37769), and binding and
+chemistry gave about as much up; without the payoff all five were constant to
+five places. The direction is readable and the size is not yet something
+binding could follow, so what sets the rate a turn's worth teaches the field at
+is the question before this item is built.
 
 ## 12. The gradient exists because of the membrane
 

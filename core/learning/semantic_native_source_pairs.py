@@ -43,9 +43,7 @@ def _first_divergence(left: SemanticTransducerTrainingExample,
         _input_types(left.public_inputs), register_encoding=register_encoding)
     right_decisions = native_teacher_decisions(right.ir.to_program(),
         _input_types(right.public_inputs), register_encoding=register_encoding)
-    if len(left_decisions) != len(right_decisions):
-        return None
-    for ordinal, (a, b) in enumerate(zip(left_decisions, right_decisions, strict=True)):
+    for ordinal, (a, b) in enumerate(zip(left_decisions, right_decisions)):
         values = tuple(choice.value for choice in a.choices)
         if a.kind != b.kind or values != tuple(choice.value for choice in b.choices):
             return None

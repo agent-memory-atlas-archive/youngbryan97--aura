@@ -87,6 +87,37 @@ def _hold(held: dict[str, float]) -> Any:
     return sustain
 
 
+def _what_she_had_said(state: Any) -> tuple[str, set[tuple[Any, Any, Any]]]:
+    """Her last reply and every reply in working memory, as the arm starts."""
+    cognition = state.cognition
+    replies = {
+        (m.get("role"), m.get("content"), m.get("timestamp"))
+        for m in list(cognition.working_memory)
+        if isinstance(m, dict) and m.get("role") == "assistant"
+    }
+    return str(getattr(cognition, "last_response", "") or ""), replies
+
+
+def _said_this_turn(state: Any, before: tuple[str, set[tuple[Any, Any, Any]]]) -> str:
+    """What she said on this turn, or "" if she said nothing on it.
+
+    Each arm starts from the anchor's snapshot, and that carries her last reply
+    from the turn before it. A report turn that committed nothing left it in
+    place, and it was read as her answer: on the run of 27 September two arms
+    "answered" the rating question with "I do not have access to persistent
+    memory or records of previous sessions", said on a workload turn an hour
+    earlier.
+    """
+    stale, replies = before
+    cognition = state.cognition
+    for m in reversed(list(cognition.working_memory)):
+        if isinstance(m, dict) and m.get("role") == "assistant":
+            if (m.get("role"), m.get("content"), m.get("timestamp")) not in replies:
+                return str(m.get("content") or "")
+    now = str(getattr(cognition, "last_response", "") or "")
+    return now if now != stale else ""
+
+
 def _cortex_answered(answers: list[dict[str, Any]], reply: str, state: Any) -> bool:
     """Whether her cortex gave this arm's reply: a user-facing generation, every one from it.
 
@@ -244,8 +275,9 @@ async def main(argv: list[str] | None = None) -> int:
                     held.update({name: float(value or 0.0) for name, value in emotions.items()})
 
                 answers = record_answers()
+                before = _what_she_had_said(runtime.state)
                 await runtime.turn_once(asked, perturb_at=0, perturb=displace, sustain=_hold(held))
-                reply = str(getattr(runtime.state.cognition, "last_response", "") or "")
+                reply = _said_this_turn(runtime.state, before)
                 valence = float(getattr(runtime.state.affect, "valence", 0.0) or 0.0)
                 item[arm] = (reply, valence, _cortex_answered(answers, reply, runtime.state) if args.whole else True)
                 served_by[arm] = list(answers)

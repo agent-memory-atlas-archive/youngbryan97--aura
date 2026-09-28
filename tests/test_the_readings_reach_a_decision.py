@@ -109,21 +109,22 @@ def test_the_workspace_prices_a_bid_with_every_reading_that_bears_on_it() -> Non
     reach the number a bid is priced by, so it asks the expression rather
     than the text.
     """
-    import ast
-    from pathlib import Path
+    from core.consciousness import global_workspace as gw
 
-    tree = ast.parse(
-        Path("core/consciousness/global_workspace.py").read_text(encoding="utf-8")
+    bid = gw.CognitiveCandidate(
+        content="how she is", source="affect", priority=0.3,
+        content_type=gw.ContentType.SOCIAL,
     )
-    priced = next(
-        node
-        for node in ast.walk(tree)
-        if isinstance(node, ast.FunctionDef) and node.name == "priority_at"
-    )
-    names = {
-        inner.id for inner in ast.walk(priced) if isinstance(inner, ast.Name)
-    }
-    assert {"held_down", "said_already", "covered"} <= names
+    now = bid.submitted_at
+    plain = bid.priority_at(now)
+    for name, value in (("_held_pressure", 0.2), ("_civility_debt", 0.2), ("_relief_for", 0.1)):
+        original = getattr(gw, name)
+        setattr(gw, name, lambda *_args, _v=value: _v)
+        try:
+            moved = bid.priority_at(now)
+        finally:
+            setattr(gw, name, original)
+        assert moved != plain, f"{name} does not reach the price of a bid"
 
 
 # ── the drives ───────────────────────────────────────────────────────

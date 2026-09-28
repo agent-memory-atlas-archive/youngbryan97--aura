@@ -119,6 +119,35 @@ def pytest_runtest_call(item):
         )
 
 
+@pytest.hookimpl(hookwrapper=True)
+def pytest_runtest_teardown(item, nextitem):
+    """Undo a proof signal a module's own fixtures turned on, when the module is done.
+
+    ``_global_state_contamination_guard`` restores the environment to what it
+    held when each test began, and a module-scoped fixture runs before that
+    snapshot is taken. Several tests load a tool from tools/ in one, and the
+    tools set AURA_TESTING as they import so a run of their own puts its state
+    under the test profile. The guard took that for the baseline, so after the
+    module every later test saw a proof run: on 27 September two tests in
+    other files failed with "proof_run_active" where the live branch was
+    asserted, green alone and red after test_a_v25_report_refuses_what_it_did_not_measure.
+    Only the variables that switch ``proof_run_active()`` are put back.
+    """
+    yield
+    if _ENV_AT_START is None:
+        return
+    if nextitem is not None and getattr(nextitem, "module", None) is getattr(item, "module", None):
+        return
+    from core.runtime.proof_policy import proof_active_env_names
+
+    changed = tuple(
+        name for name in proof_active_env_names() if os.environ.get(name) != _ENV_AT_START.get(name)
+    )
+    if changed:
+        _IMPORT_TIME_ENV_LEAKS.append(f"{item.nodeid} (module fixtures) set {', '.join(changed)}")
+        _restore_aura_env(_ENV_AT_START, changed)
+
+
 def pytest_collection_modifyitems(config, items):
     """Keep destructive resident-model gates opt-in without recording skips."""
     if os.environ.get("AURA_RUN_RLC_RESIDENT_1P5B_GATE") == "1":

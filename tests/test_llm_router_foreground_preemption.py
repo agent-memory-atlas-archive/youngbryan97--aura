@@ -27,6 +27,7 @@ def gate_state(monkeypatch):
     monkeypatch.setattr(router_module, "_GENERATION_GATE_ACTIVE_LEASES", {})
     monkeypatch.setattr(router_module, "_GENERATION_GATE_LEASE_DEADLINES", {})
     monkeypatch.setattr(router_module, "_GENERATION_GATE_FORCED_LEASES", set())
+    monkeypatch.setattr(router_module, "_GENERATION_GATE_FOREGROUND_LEASES", set())
     monkeypatch.setattr(router_module, "_GENERATION_GATE_NEXT_LEASE_ID", 0)
     # Small budgets so tests run in milliseconds while preserving ordering.
     monkeypatch.setattr(router_module, "_FOREGROUND_GATE_GRACE_S", 0.05)
@@ -113,6 +114,101 @@ def test_foreground_never_soft_cancels_foreground_holder(monkeypatch, gate_state
     assert cancel_calls == [], "must never cancel an active user foreground turn"
     assert result["ok"] is False
     assert result["endpoint"] == "generation_gate_busy_foreground"
+
+
+def test_a_turn_admitted_as_hers_is_not_preempted_by_the_next_unlabelled_request(
+    monkeypatch, gate_state
+):
+    """LIVE 27 Sep 18:10: two calls of one turn, neither naming an origin.
+
+    Both were admitted as user-facing (an unlabelled call is stamped
+    purpose="expression"), and the second read the first's owner,
+    "unknown:expression", as background and soft-cancelled it mid-prefill.
+    The holder's classification is kept with its lease now.
+    """
+    router = _router(monkeypatch)
+    assert gate_state.acquire(False) is True
+    router_module._mark_generation_gate_acquired(
+        "unknown:expression", timeout_s=5.0, foreground=True
+    )
+    cancel_calls: list[str] = []
+    monkeypatch.setattr(
+        router,
+        "_soft_cancel_local_generations",
+        lambda *, reason: cancel_calls.append(reason) or True,
+    )
+
+    result = asyncio.run(router.generate_with_metadata("the same turn, asked again"))
+
+    assert cancel_calls == []
+    assert result["ok"] is False
+    assert result["endpoint"] == "generation_gate_busy_foreground"
+
+
+def test_an_unlabelled_background_holder_is_still_preemptible(monkeypatch, gate_state):
+    router = _router(monkeypatch)
+    lease = _hold_gate_as(gate_state, "unknown:expression")
+
+    def fake_soft_cancel(*, reason: str) -> bool:
+        router_module._release_generation_gate_after_call(lease)
+        return True
+
+    monkeypatch.setattr(router, "_soft_cancel_local_generations", fake_soft_cancel)
+    result = asyncio.run(
+        router.generate_with_metadata(
+            "hello", origin="user", purpose="response_generation_user",
+            foreground_request=True,
+        )
+    )
+    assert result == GATED_OK
+
+
+def test_a_reply_preempts_its_own_turns_subtext_pass(monkeypatch, gate_state):
+    """The reports ground, 27 Sep: the subtext pass held the gate after its phase
+    had timed out, and the rating question's reply was refused behind it."""
+    router = _router(monkeypatch)
+    assert gate_state.acquire(False) is True
+    lease = router_module._mark_generation_gate_acquired(
+        "user:deep_inference", timeout_s=60.0, foreground=True
+    )
+    cancel_calls: list[str] = []
+
+    def fake_soft_cancel(*, reason: str) -> bool:
+        cancel_calls.append(reason)
+        router_module._release_generation_gate_after_call(lease)
+        return True
+
+    monkeypatch.setattr(router, "_soft_cancel_local_generations", fake_soft_cancel)
+    result = asyncio.run(
+        router.generate_with_metadata(
+            "how are you feeling, from -1 to 1?", origin="user", purpose="reply",
+            foreground_request=True,
+        )
+    )
+    assert result == GATED_OK
+    assert cancel_calls and "user:deep_inference" in cancel_calls[0]
+
+
+def test_the_subtext_pass_says_what_it_is():
+    from core.phases.inference_phase import InferencePhase
+
+    asked: dict = {}
+
+    class _Router:
+        async def think(self, prompt, **kwargs):
+            asked.update(kwargs)
+            return "{}"
+
+    asyncio.run(InferencePhase._call_router(_Router(), prompt="hello", priority=True, origin="user"))
+    assert asked["origin"] == "user"
+    assert asked["purpose"] == "deep_inference"
+
+
+def test_a_released_lease_leaves_no_classification_behind(gate_state):
+    assert gate_state.acquire(False) is True
+    lease = router_module._mark_generation_gate_acquired("unknown:expression", foreground=True)
+    router_module._release_generation_gate_after_call(lease)
+    assert router_module._GENERATION_GATE_FOREGROUND_LEASES == set()
 
 
 def test_foreground_deadline_prevents_age_only_preemption(monkeypatch, gate_state):
