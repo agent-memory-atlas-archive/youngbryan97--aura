@@ -2068,6 +2068,16 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             explicit_background=explicit_background,
             explicit_foreground=explicit_foreground,
         )
+        if explicit_foreground:
+            # Said once, here, where it was established — so every endpoint
+            # below acts on the router's conclusion instead of deriving its
+            # own. The MLX clients keep their own mirror of the background
+            # policy and cannot see a claim the router already authenticated:
+            # LIVE 2026-09-28, the router admitted the browser's decision as
+            # foreground and the endpoint refused it with
+            # `foreground_quiet_window` a moment later, so the page decision
+            # came back empty and the run stopped without clicking anything.
+            kwargs["foreground_request"] = True
         if request_is_background:
             foreground_owner = _active_foreground_generation_owner()
             if foreground_owner:

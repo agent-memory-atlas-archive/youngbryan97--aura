@@ -66,3 +66,20 @@ def test_the_gate_reads_it_beside_its_own_accounts():
     claim = body.split('context.get("serves_current_turn")', 1)[1][:1200]
     assert "_a_user_turn_is_in_flight()" in claim
     assert "_a_turn_ledger_is_bound()" in claim
+
+
+def test_the_router_tells_the_endpoints_what_it_concluded():
+    """The MLX clients keep their own mirror of the background policy.
+
+    They cannot see a claim the router already authenticated, so the router
+    admitted the browser's decision as foreground and the endpoint refused it
+    with `foreground_quiet_window` a moment later — the page decision came back
+    empty and the run stopped without clicking anything.
+    """
+    import inspect
+
+    from core.brain import llm_health_router as router
+
+    body = inspect.getsource(router)
+    stamped = body.split("if explicit_foreground:", 1)[1][:800]
+    assert 'kwargs["foreground_request"] = True' in stamped

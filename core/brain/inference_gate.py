@@ -8694,8 +8694,8 @@ class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _Wa
             explicit_foreground = (
                 self._a_user_turn_is_in_flight() or _a_turn_ledger_is_bound()
             )
-            logger.debug(
-                "Serves-current-turn claim %s for origin=%s",
+            logger.info(
+                "🫱 Serves-current-turn claim %s for origin=%s",
                 "honoured" if explicit_foreground else "unsupported",
                 origin,
             )
