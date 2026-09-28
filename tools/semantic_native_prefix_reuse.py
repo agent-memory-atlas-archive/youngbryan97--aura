@@ -19,6 +19,7 @@ _REPLACED_IMPLEMENTATIONS = frozenset({
     "core/learning/semantic_native_path_objective.py",
     "core/learning/semantic_native_path_calibration.py",
     "core/learning/semantic_native_path_selection.py",
+    "core/learning/semantic_native_search.py",
 })
 
 _PAIR_PLAN_FIELDS = frozenset({
@@ -77,7 +78,7 @@ def annotation_erased_numeric_ast(source: str) -> str:
     return ast.dump(tree, include_attributes=False)
 
 
-def annotation_reuse_paths(prior, new_plan, changes, *, root=None):
+def annotation_reuse_paths(prior, new_plan, changes, *, root=None, row_bound_paths=frozenset()):
     binding = new_plan.get("annotation_only_prefix_sources")
     if binding is None:
         return []
@@ -87,11 +88,13 @@ def annotation_reuse_paths(prior, new_plan, changes, *, root=None):
             or archive.get("source_plan_sha256") != prior["plan_sha256"]):
         raise ValueError("annotation reuse source archive differs")
     sources = archive["sources"]
-    required = changes - _REPLACED_IMPLEMENTATIONS
-    if set(sources) != required:
+    required = changes - _REPLACED_IMPLEMENTATIONS - row_bound_paths
+    if set(sources) - row_bound_paths != required:
         raise ValueError("annotation reuse source inventory differs")
     root = Path(__file__).resolve().parent.parent if root is None else root
     for name, original in sources.items():
+        if name in row_bound_paths:
+            continue
         current = (root / name).read_text()
         if (hashlib.sha256(original.encode()).hexdigest() != prior["implementation"].get(name)
                 or hashlib.sha256(current.encode()).hexdigest() != new_plan["implementation"].get(name)
@@ -108,8 +111,12 @@ def prefix_reuse_contract(origin: Path, new_plan: dict) -> dict:
             if key not in {"plan_sha256", "implementation"}}
     right = {key: value for key, value in json.loads(json.dumps(new_plan)).items()
              if key not in {"plan_sha256", "implementation", "reused_prefix_contract"}}
-    typed_mode = right.get("schema") == "aura.semantic_native_fit_plan.v6"
-    path_mode = right.get("schema") in {"aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}
+    graph_mode = right.get("schema") == "aura.semantic_native_fit_plan.v7"
+    typed_mode = right.get("schema") == "aura.semantic_native_fit_plan.v6" or (
+        graph_mode and "grammar_source_pair_inventory" in right)
+    path_mode = right.get("schema") in {"aura.semantic_native_fit_plan.v5",
+                                        "aura.semantic_native_fit_plan.v6",
+                                        "aura.semantic_native_fit_plan.v7"}
     paired = right.get("schema") == "aura.semantic_native_fit_plan.v4" or (
         path_mode and right.get("objective") == "grammar_source_pairs")
     if path_mode:
@@ -119,6 +126,9 @@ def prefix_reuse_contract(origin: Path, new_plan: dict) -> dict:
         source_control_mode_from_plan(new_plan)
         if typed_mode:
             right.pop("grammar_source_pair_inventory")
+        if graph_mode:
+            right.pop("joint_graph_contrast_limit")
+            right.pop("graph_contrast_contract")
         for name in ("grammar_path_objective_contract", "path_checkpoint_selection_contract"):
             right.pop(name)
         right.pop("annotation_only_prefix_sources", None)
@@ -145,8 +155,11 @@ def prefix_reuse_contract(origin: Path, new_plan: dict) -> dict:
         raise ValueError(f"prior frozen capture differs from fresh fitting protocol: {differences}")
     changes = {name for name in prior["implementation"] | new_plan["implementation"]
                if prior["implementation"].get(name) != new_plan["implementation"].get(name)}
-    annotations = annotation_reuse_paths(prior, new_plan, changes) if path_mode else []
+    row_bound_paths = ({"core/learning/semantic_native_grammar.py"} if graph_mode else set())
+    annotations = annotation_reuse_paths(
+        prior, new_plan, changes, row_bound_paths=row_bound_paths) if path_mode else []
     if (changes - _REPLACED_IMPLEMENTATIONS - set(annotations)
+            - row_bound_paths
             or ("core/learning/semantic_native_source_pairs.py" in changes and not paired)
             or ("core/learning/semantic_native_typed_source_pairs.py" in changes and not typed_mode)
             or (changes & _PATH_IMPLEMENTATIONS and not path_mode)):
@@ -165,7 +178,8 @@ def prefix_reuse_contract(origin: Path, new_plan: dict) -> dict:
                                  for source in sorted(store._shards)])
     captures = source_capture_receipts(origin, sources=sorted(store._shards),
                                        plan_sha256=prior["plan_sha256"])
-    result = {"schema": "aura.native_frozen_prefix_reuse.v1",
+    result = {"schema": ("aura.native_frozen_prefix_reuse.v2" if graph_mode
+                         else "aura.native_frozen_prefix_reuse.v1"),
             "source_directory": str(origin),
             "source_plan_sha256": prior["plan_sha256"],
             "source_supervision_receipt_sha256": supervision["receipt_sha256"],
@@ -177,6 +191,9 @@ def prefix_reuse_contract(origin: Path, new_plan: dict) -> dict:
             "optimizer_state_reused": False,
             "fresh_complete_schedule_required": True,
             "serving_authority": False}
+    if graph_mode:
+        result["reuse_scope"] = "grammar_rows_only_graph_rows_recaptured"
+        result["row_bound_implementation_paths"] = sorted(row_bound_paths)
     if "annotation_only_prefix_sources" in new_plan:
         result["annotation_only_implementation_paths"] = annotations
         result["annotation_introspection_equivalence_claimed"] = False

@@ -40,7 +40,12 @@ def source_control_mode_from_plan(plan: Mapping[str, Any]) -> str:
                 or not 2 <= plan["joint_graph_contrast_limit"] <= 32
                 or plan.get("prefix_storage_contract", {}).get("mode") != "source_shards"
                 or plan.get("execution_contract", {}).get("prefix_strategy") != "trie"
-                or "reused_prefix_contract" in plan):
+                or ("reused_prefix_contract" in plan and (
+                    not isinstance(plan["reused_prefix_contract"], Mapping) or
+                    plan["reused_prefix_contract"].get("schema")
+                    != "aura.native_frozen_prefix_reuse.v2" or
+                    plan["reused_prefix_contract"].get("reuse_scope")
+                    != "grammar_rows_only_graph_rows_recaptured"))):
             raise ValueError("native whole-graph contrast contract differs")
     if not typed_mode and "grammar_source_pair_inventory" in plan:
         raise ValueError("historical native fit cannot acquire typed source-pair coverage")

@@ -170,6 +170,27 @@ def typed_plan():
             "grammar_source_pair_inventory": typed_source_pair_inventory(pairs, schedule)}
 
 
+def test_joint_graph_partial_reuse_is_explicit_and_cannot_relabel_full_reuse():
+    from core.learning.semantic_native_path_objective import JOINT_GRAPH_CONTRAST_CONTRACT
+    from core.learning.semantic_native_path_selection import JOINT_GRAPH_SELECTION_CONTRACT
+
+    plan = {**typed_plan(), "schema": "aura.semantic_native_fit_plan.v7",
+            "path_checkpoint_selection_contract": JOINT_GRAPH_SELECTION_CONTRACT,
+            "selection": "baseline_preserving_joint_source_calibration",
+            "joint_graph_contrast_limit": 2,
+            "graph_contrast_contract": JOINT_GRAPH_CONTRAST_CONTRACT,
+            "prefix_storage_contract": {"mode": "source_shards"},
+            "execution_contract": {"prefix_strategy": "trie"},
+            "reused_prefix_contract": {
+                "schema": "aura.native_frozen_prefix_reuse.v2",
+                "reuse_scope": "grammar_rows_only_graph_rows_recaptured"}}
+    assert source_control_mode_from_plan(plan) == "source_text"
+    for invalid in (None, {}, {"schema": "aura.native_frozen_prefix_reuse.v1"},
+                    {"schema": "aura.native_frozen_prefix_reuse.v2"}):
+        with pytest.raises(ValueError, match="whole-graph"):
+            source_control_mode_from_plan({**plan, "reused_prefix_contract": invalid})
+
+
 def test_typed_plan_is_explicit_and_does_not_relabel_the_old_objective():
     plan = typed_plan()
     assert source_control_mode_from_plan(plan) == "source_text"
