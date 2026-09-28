@@ -11,6 +11,7 @@ from core.learning.semantic_native_grammar import (
     NativeGrammarDecision,
     NativeGrammarIncompleteError,
     NativeGrammarResult,
+    NativeGrammarUnreachableError,
     decode_native_grammar,
 )
 from core.verify.invariants import invariant
@@ -29,6 +30,7 @@ class NativeGrammarSearchResult:
     scored_decisions: int
     scored_alternatives: int
     disconnected_leaves: int
+    pruned_prefixes: int
     frontier_nodes: int
     frontier_log_probability_bound: float | None
     halt_reason: str
@@ -46,6 +48,7 @@ def search_native_grammar(
     *, max_steps: int = 8, max_nodes: int = 256, completions: int = 4,
     register_encoding: str = "absolute_v1",
     score_mode: str = "normalized_choices",
+    viability_pruning: bool = True,
 ) -> NativeGrammarSearchResult:
     """Return connected graphs ranked by a declared nonpositive decision score.
 
@@ -60,9 +63,11 @@ def search_native_grammar(
         raise ValueError("native search needs positive node and completion bounds")
     if score_mode not in {"normalized_choices", "native_nonpositive"}:
         raise ValueError("native search score mode is not declared")
+    if type(viability_pruning) is not bool:
+        raise ValueError("native search viability policy is not declared")
     frontier = [(0., 0, ())]
     scores_by_prefix = {}
-    serial = expanded = disconnected = alternatives = 0
+    serial = expanded = disconnected = pruned = alternatives = 0
     candidates, seen = [], set()
     while frontier and expanded < max_nodes and len(candidates) < completions:
         negative_bound, _, path = heapq.heappop(frontier)
@@ -83,7 +88,8 @@ def search_native_grammar(
 
         try:
             result = decode_native_grammar(input_types, replay, max_steps=max_steps,
-                                            register_encoding=register_encoding)
+                                            register_encoding=register_encoding,
+                                            viability_pruning=viability_pruning)
         except _UnscoredDecisionError as pending:
             choices = pending.choices
             scores = scores_by_prefix.get(choices)
@@ -106,6 +112,8 @@ def search_native_grammar(
                 serial += 1
                 heapq.heappush(frontier, (negative_bound - log_probability,
                                          serial, (*path, index)))
+        except NativeGrammarUnreachableError:
+            pruned += 1
         except NativeGrammarIncompleteError:
             disconnected += 1
         else:
@@ -119,7 +127,7 @@ def search_native_grammar(
     proven = len(candidates) == completions
     reason = "requested_completions" if proven else "node_bound" if frontier else "frontier_exhausted"
     return NativeGrammarSearchResult(
-        tuple(candidates), expanded, len(scores_by_prefix), alternatives, disconnected,
+        tuple(candidates), expanded, len(scores_by_prefix), alternatives, disconnected, pruned,
         len(frontier), -frontier[0][0] if frontier else None, reason, proven,
     )
 

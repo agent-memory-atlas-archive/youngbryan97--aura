@@ -427,10 +427,12 @@ def main():
             decision_parameter_scales = []
             branches = None
             def score(choices, *, source=scored_source, source_identity=identity,
-                      receipts=score_input_receipts):
+                      receipts=score_input_receipts, scales=decision_parameter_scales):
                 nonlocal scored, branches
                 if factorized is not None:
-                    from core.learning.semantic_native_factorized_residual import native_competition_kind
+                    from core.learning.semantic_native_factorized_residual import (
+                        native_competition_kind,
+                    )
 
                     kind = native_competition_kind(choices)
                     scale = factorized["selected_scales"][kind]
@@ -438,8 +440,8 @@ def main():
                         site.scale = 16. * scale
                     if any(site.scale != 16. * scale for site in sites):
                         raise ValueError("native factorization did not isolate every suffix adapter")
-                    decision_parameter_scales.append({"kind": kind, "scale": scale,
-                                                       "adapter_sites": len(sites)})
+                    scales.append({"kind": kind, "scale": scale,
+                                   "adapter_sites": len(sites)})
                 sequences = []
                 input_receipts = []
                 for choice in choices:
@@ -490,6 +492,7 @@ def main():
                         "scored_decisions": searched.scored_decisions,
                         "scored_alternatives": searched.scored_alternatives,
                         "disconnected_leaves": searched.disconnected_leaves,
+                        "pruned_prefixes": searched.pruned_prefixes,
                         "frontier_nodes": searched.frontier_nodes,
                         "frontier_log_probability_bound": searched.frontier_log_probability_bound,
                         "halt_reason": searched.halt_reason,
