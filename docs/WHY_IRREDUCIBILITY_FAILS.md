@@ -101,3 +101,28 @@ once, which a channel with no memory of the last frame cannot supply.
 Reaching 0.562 from 0.240 is a further factor of 2.3 and is not promised by time
 constants alone. What is measured here is that the coupling exists at the size
 the positive reference has, and that her recording cannot see it.
+
+## What the time constant costs, measured
+
+A channel that carries what it has been is smoother, and smoothing reduces
+effective dimension. `differentiation` is the criterion that would pay for it,
+and it is one of the twenty-one that hold, so a membrane that closed the
+partition line by flattening her repertoire would be a trade rather than a gain.
+
+On the same recording, carried at one turn against as recorded:
+
+| | effective dimension | live columns | regimes |
+|---|---|---|---|
+| as recorded | 11.2342 | 293 | 3 |
+| carried at one turn | 8.7826 | 293 | 3 |
+
+The floor is 3.0 (`THRESHOLDS["d_eff_floor"]`), and the normalised ratio is
+0.030 against a 0.40 bar either way. So the cost is twenty-two per cent of the
+effective dimension and it stays near three times the floor, against a partition
+reading that rises sixteenfold. No column goes flat and the number of regimes
+does not move.
+
+That is the whole of the trade as far as the readings that come off the
+recording alone can show it. What the lesion, the rescue and the null table do
+under a membrane is not knowable without running them, which is what the arms of
+the preregistered campaign are for.
