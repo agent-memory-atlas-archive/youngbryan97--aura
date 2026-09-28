@@ -8,6 +8,7 @@ be tested against use that was not available when it was proposed.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import re
 import time
@@ -34,6 +35,11 @@ def lexical_terms(text: str) -> tuple[str, ...]:
     normalized = unicodedata.normalize("NFKC", str(text or ""))
     return tuple(token.casefold()[:_MAX_TERM_CHARS]
                  for token in _sample_tokens(_TOKEN.findall(normalized)))
+
+
+def source_text_digest(text: str) -> str:
+    """Bind a usage observation to its exact source without retaining the text."""
+    return hashlib.sha256(text.encode("utf-8", errors="surrogatepass")).hexdigest()
 
 
 def _sample_tokens(tokens: list[str]) -> list[str]:
@@ -134,6 +140,7 @@ class UsageEvent:
     stretched_terms: tuple[str, ...] = ()
     original_token_count: int = 0
     relations: tuple[UsageRelation, ...] = ()
+    source_text_sha256: str = ""
 
     def __post_init__(self) -> None:
         if (not self.source_id or not self.context_id or not self.terms
@@ -143,6 +150,8 @@ class UsageEvent:
                 or any(len(value) > _MAX_CONTEXT_CHARS for value in (
                     self.source_id, self.context_id, self.setting, self.community,
                     self.speaker))
+                or (self.source_text_sha256 and not re.fullmatch(
+                    r"[0-9a-f]{64}", self.source_text_sha256))
                 or any(not term or len(term) > _MAX_TERM_CHARS for term in (
                     *self.terms, *self.referents, *self.stretched_terms))
                 or len(self.referents) > 16 or len(self.stretched_terms) > 16):
@@ -171,7 +180,7 @@ class UsageEvent:
         return cls(source_id, context_id, lexical_terms(text), timestamp,
                    setting, community, speaker, cues,
                    tuple(term.casefold() for term in referents), stretched,
-                   len(full_surface), relations)
+                   len(full_surface), relations, source_text_digest(text))
 
     def features_for(self, term: str) -> dict[str, Any]:
         """One bounded context view for the existing semantic experiment lane."""
@@ -215,7 +224,8 @@ class UsageEvent:
                 "referents": list(self.referents),
                 "stretched_terms": list(self.stretched_terms),
                 "original_token_count": self.original_token_count,
-                "relations": [relation.to_dict() for relation in self.relations]}
+                "relations": [relation.to_dict() for relation in self.relations],
+                "source_text_sha256": self.source_text_sha256}
 
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> UsageEvent:
@@ -229,6 +239,7 @@ class UsageEvent:
             tuple(payload.get("stretched_terms", ())),
             int(payload.get("original_token_count", len(payload["terms"]))),
             tuple(UsageRelation(**raw) for raw in payload.get("relations", ())),
+            str(payload.get("source_text_sha256", "")),
         )
 
 

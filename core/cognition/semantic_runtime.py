@@ -15,6 +15,13 @@ from typing import Any
 
 from core.cognition.concept_formation import get_concept_formation_engine
 from core.cognition.concept_handle import get_concept_registry
+from core.cognition.indirect_meaning import (
+    IndirectReading,
+    PragmaticEpisode,
+    PragmaticEvidence,
+    SourcePassage,
+)
+from core.cognition.indirect_meaning_proposals import consult_indirect_meaning
 from core.cognition.semantic_development import SemanticCase, SemanticDevelopment
 from core.language.contextual_usage import MeaningFeedback, UsageEvent, lexical_terms
 from core.runtime.lockdep import checked_lock
@@ -87,6 +94,42 @@ def record_attributed_meaning(feedback: MeaningFeedback) -> bool:
     return added
 
 
+def assess_indirect_episode(
+    episode: PragmaticEpisode, readings: tuple[IndirectReading, ...],
+    evidence: tuple[PragmaticEvidence, ...], *, as_of: float | None = None,
+) -> dict[str, Any]:
+    """Run the source-bound comparison through Aura's retained usage store."""
+    return get_semantic_development().assess_indirect_episode(
+        episode, readings, evidence, as_of=as_of)
+
+
+def propose_indirect_bridges(
+    episode: PragmaticEpisode, *, as_of: float | None = None,
+    max_results: int = 16,
+) -> dict[str, Any]:
+    """Find candidate correspondences from retained observations."""
+    return get_semantic_development().propose_indirect_bridges(
+        episode, as_of=as_of, max_results=max_results)
+
+
+async def consult_indirect_episode(
+    utterance: UsageEvent, context: tuple[UsageEvent, ...],
+    passages: tuple[SourcePassage, ...], *, advisor: Any = None,
+    deadline_s: float | None = None,
+) -> dict[str, Any]:
+    """Let the local cortex propose graphs for sources Aura already retained."""
+    service = get_semantic_development()
+    events = (utterance, *context)
+    service.require_retained_usage(events)
+    result = await consult_indirect_meaning(
+        utterance, context, passages, advisor=advisor, deadline_s=deadline_s)
+    service.require_retained_usage(events)
+    if result.get("status") == "source_cited_hypotheses":
+        result["assessment"] = service.assess_indirect_episode(
+            result["episode"], result["readings"], ())
+    return result
+
+
 def prepare_skill_trial(
     skill_name: str, params: dict[str, Any], context: dict[str, Any]
 ) -> SkillTrial:
@@ -135,6 +178,9 @@ def complete_skill_trial(trial: SkillTrial, result: dict[str, Any]) -> None:
         service.save()
 
 
-__all__ = ["SkillTrial", "complete_skill_trial", "get_semantic_development",
-           "prepare_skill_trial", "record_attributed_meaning", "record_chat_usage",
+__all__ = ["SkillTrial", "assess_indirect_episode", "complete_skill_trial",
+           "consult_indirect_episode",
+           "get_semantic_development",
+           "prepare_skill_trial", "propose_indirect_bridges",
+           "record_attributed_meaning", "record_chat_usage",
            "record_contextual_usage"]

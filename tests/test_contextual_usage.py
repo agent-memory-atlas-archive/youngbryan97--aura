@@ -1,5 +1,7 @@
 """Context changes the evidence for a meaning without defining it by fiat."""
 
+from dataclasses import replace
+
 import pytest
 
 from core.cognition import semantic_runtime
@@ -12,6 +14,18 @@ from core.language.contextual_usage import MeaningFeedback, UsageCue, UsageEvent
 def _engine(tmp_path):
     return SemanticDevelopment(registry=ConceptRegistry(),
                                state_path=tmp_path / "semantic.json", min_support=4)
+
+
+def test_legacy_usage_replay_remains_idempotent_without_gaining_exact_text_claim(tmp_path):
+    engine = _engine(tmp_path)
+    new = UsageEvent.from_text("turn:old", "chat", "Wait, stop.", observed_at=10)
+    old = replace(new, source_text_sha256="")
+    assert engine.observe_usage(old)
+    assert engine.observe_usage(new) is False
+    assert engine.usage_events[old.source_id].source_text_sha256 == ""
+    with pytest.raises(ValueError, match="changed its observation"):
+        engine.observe_usage(UsageEvent.from_text(
+            "turn:old", "chat", "Completely different", observed_at=10))
 
 
 def test_surface_form_delivery_and_indirect_reference_are_observed_not_interpreted():

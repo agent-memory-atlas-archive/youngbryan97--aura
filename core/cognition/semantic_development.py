@@ -30,6 +30,13 @@ from core.brain.ontology_discovery import (
     score_split,
 )
 from core.cognition.concept_handle import BindingMethod, ConceptRegistry, Substrate
+from core.cognition.indirect_meaning import (
+    IndirectReading,
+    PragmaticEpisode,
+    PragmaticEvidence,
+    assess_indirect_meaning,
+    propose_role_bridges,
+)
 from core.evidence.packet import EvidenceKind, EvidencePacket
 from core.language.contextual_usage import MeaningFeedback, UsageEvent
 from core.language.pragmatic_evidence import compare_pragmatic_context
@@ -347,6 +354,8 @@ class SemanticDevelopment:
         if prior is not None:
             retry = (replace(event, observed_at=prior.observed_at)
                      if not event.cues and not prior.cues else event)
+            if not prior.source_text_sha256:
+                retry = replace(retry, source_text_sha256="")
             if prior != retry:
                 raise ValueError("one usage source changed its observation")
             return False
@@ -638,6 +647,32 @@ class SemanticDevelopment:
                 "sense_hypotheses": senses["candidates"],
                 "interpretation_hypotheses": candidates,
                 "intent": "unmeasured", "serving_authority": False}
+
+    @_serialized
+    def require_retained_usage(self, events: tuple[UsageEvent, ...]) -> None:
+        """Refuse a proposed interpretation if a source has changed or vanished."""
+        for event in events:
+            if self.usage_events.get(event.source_id) != event:
+                raise ValueError("indirect episode source is not retained unchanged")
+
+    @_serialized
+    def assess_indirect_episode(
+        self, episode: PragmaticEpisode, readings: tuple[IndirectReading, ...],
+        evidence: tuple[PragmaticEvidence, ...], *, as_of: float | None = None,
+    ) -> dict[str, Any]:
+        """Audit proposed indirect readings against retained source observations."""
+        self.require_retained_usage((episode.utterance, *episode.context))
+        return assess_indirect_meaning(episode, readings, evidence, as_of=as_of)
+
+    @_serialized
+    def propose_indirect_bridges(
+        self, episode: PragmaticEpisode, *, as_of: float | None = None,
+        max_results: int = 16,
+    ) -> dict[str, Any]:
+        """Find possible role bridges only for a retained episode."""
+        self.require_retained_usage((episode.utterance, *episode.context))
+        return propose_role_bridges(
+            episode, as_of=as_of, max_results=max_results)
 
     @_serialized
     def evaluate_contextual_senses(self, term: str,
