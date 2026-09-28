@@ -49,7 +49,6 @@ from core.phases.repair_phase import (
 from core.phases.response_generation_unitary import UnitaryResponsePhase
 from core.phases.unity_binding import UnityBindingPhase
 from core.resilience.error_boundary import wrap_phase
-from core.runtime.state_membrane import after_phase
 from core.runtime.cognitive_provenance import (  # noqa: F401  (read at call time by the lifted module)
     begin_transformation,
     close_tick,
@@ -64,6 +63,7 @@ from core.runtime.pipeline_blueprint import (
 from core.runtime.shutdown_coordinator import (
     is_shutdown_requested,  # noqa: F401  (read at call time by the lifted module)
 )
+from core.runtime.state_membrane import after_phase
 from core.self_modification.boot_validator import GhostBootValidator
 from core.state.aura_state import AuraState
 from core.state.state_repository import StateRepository

@@ -28,7 +28,6 @@ thing gone.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import math
 import os
@@ -597,9 +596,13 @@ def _refused_elsewhere(stop_file: str) -> bool:
 
 def _mark_refused(stop_file: str, name: str) -> None:
     """Tell sibling shards which cut refused the claim, so they stop too."""
-    with contextlib.suppress(OSError):
-        Path(stop_file).parent.mkdir(parents=True, exist_ok=True)
-        Path(stop_file).write_text(name + "\n", encoding="utf-8")
+    from core.governance_context import local_internal_governed_scope
+    from core.runtime.file_write_gateway import get_file_write_gateway
+
+    gateway = get_file_write_gateway()
+    with local_internal_governed_scope("subject_core.sweep"):
+        gateway.ensure_directory(Path(stop_file).parent, source="subject_core.sweep")
+        gateway.write_text(stop_file, name + "\n", source="subject_core.sweep")
 
 
 async def sweep_cuts_over_lags(
