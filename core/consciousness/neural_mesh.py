@@ -15,6 +15,7 @@ so the original 64-neuron core becomes the executive summary of a much larger fi
 """
 from __future__ import annotations
 
+from .neural_mesh_clock import _SpikeClock
 import asyncio
 import logging
 import math
@@ -663,7 +664,7 @@ class CorticalColumn:
 from .mesh_modulation import _CarriesModulation
 
 
-class NeuralMesh(_CarriesModulation, MeshWiring):
+class NeuralMesh(_SpikeClock, _CarriesModulation, MeshWiring):
     """The 4096-neuron cortical mesh.
 
     Lifecycle:
@@ -1097,24 +1098,6 @@ class NeuralMesh(_CarriesModulation, MeshWiring):
         """One integration step (runs in thread pool)."""
         with self._lock:
             self._tick_inner()
-
-    def use_clock(self, clock: Any) -> None:
-        """Stamp spikes with `clock` from now on, keeping how long ago each one fired.
-
-        The subject-core harness steps the mesh once a frame on a clock of its
-        own that advances by a fixed step and rewinds on a restore. The mesh
-        read the machine's monotonic clock, so two arms from one snapshot saw
-        each spike as older or newer by however long each arm happened to take,
-        and spike-timing plasticity moved their weights apart: by about 1e-8 in
-        the mesh on seed 7, which the unified field reading it grew to 8e-5 in a
-        turn (28 September).
-        """
-        with self._lock:
-            offset = float(clock()) - float(self._clock())
-            for column in self.columns:
-                fired = column.last_spike_time >= 0.0
-                column.last_spike_time[fired] += offset
-            self._clock = clock
 
     def _tick_inner(self):
         now = self._clock()
