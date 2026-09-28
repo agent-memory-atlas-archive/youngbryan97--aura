@@ -1386,6 +1386,35 @@ class _UnderstandsThePage:
                     self_state = f"{self_state}\n{measured}" if self_state else measured
             except _BROWSER_DECISION_ERRORS as exc:
                 record_degradation("sovereign_browser.what_she_is_like", exc, severity="debug")
+            # And what she has already said about herself, in her own words.
+            #
+            # Placing herself on a scale is recognition before it is anything
+            # else: one side sounds more like her than the other. The measured
+            # record says what she has DONE; this says what she has said she
+            # is, which is the other half of having something to recognise
+            # yourself in. It rides every chat turn that asks after her
+            # preferences and no page decision could see it.
+            try:
+                from core.self.stated_preferences import stated_preferences
+
+                previous = stated_preferences()
+                if previous:
+                    spoken = "\n".join(
+                        f'- "{item.text}"' for item in previous
+                    )
+                    said_before_about_herself = (
+                        "WHAT I HAVE SAID ABOUT MYSELF BEFORE, IN MY OWN "
+                        f"WORDS:\n{spoken}"
+                    )
+                    self_state = (
+                        f"{self_state}\n{said_before_about_herself}"
+                        if self_state
+                        else said_before_about_herself
+                    )
+            except _BROWSER_DECISION_ERRORS as exc:
+                record_degradation(
+                    "sovereign_browser.stated_preferences", exc, severity="debug"
+                )
 
         # Every position already taken in this pursuit. Consistency is not a
         # style preference here: a self-report that contradicts itself across
