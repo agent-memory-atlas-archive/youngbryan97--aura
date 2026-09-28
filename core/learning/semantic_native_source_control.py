@@ -24,12 +24,15 @@ SOURCE_ERASURE_CONTRACT = {
 def source_control_mode_from_plan(plan: Mapping[str, Any]) -> str:
     """Keep historical fits intact and require explicit authority for erasure."""
     schema = plan.get("schema")
-    path_mode = schema == "aura.semantic_native_fit_plan.v5"
+    typed_mode = schema == "aura.semantic_native_fit_plan.v6"
+    path_mode = schema in {"aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}
+    if not typed_mode and "grammar_source_pair_inventory" in plan:
+        raise ValueError("historical native fit cannot acquire typed source-pair coverage")
     path_fields = {"grammar_path_objective_contract", "path_checkpoint_selection_contract"}
     if not path_mode and path_fields & set(plan):
         raise ValueError("historical native fit cannot acquire path-risk selection")
     if schema in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4",
-                  "aura.semantic_native_fit_plan.v5"}:
+                  "aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}:
         from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
         from core.learning.semantic_native_source_pairs import SOURCE_PAIR_CONTRACT
 
@@ -51,11 +54,33 @@ def source_control_mode_from_plan(plan: Mapping[str, Any]) -> str:
                     or plan.get("unfitted_checkpoint_eligible") is not True):
                 raise ValueError("native path-risk objective or selection contract differs")
         paired = objective == "grammar_source_pairs"
+        pair_contract = SOURCE_PAIR_CONTRACT
+        if typed_mode:
+            from core.learning.semantic_native_typed_source_pairs import (
+                TYPED_SOURCE_PAIR_CONTRACT,
+                typed_source_pair_inventory,
+            )
+
+            pairs = plan.get("grammar_source_pair_fit_partners", {})
+            fit_ids = set(plan.get("fit_ids", ()))
+            schedule = plan.get("scheduled_fit_ids", ())
+            if (not paired or not pairs or not set(pairs) <= fit_ids
+                    or not set(schedule) <= fit_ids
+                    or any(not isinstance(rows, list) or not rows
+                           or any(not isinstance(row, dict) or row.get("partner") not in fit_ids
+                                  for row in rows)
+                           for rows in pairs.values())
+                    or plan.get("grammar_source_pair_inventory") != typed_source_pair_inventory(
+                        pairs, schedule)
+                    or plan.get("grammar_source_pair_updates")
+                        != plan["grammar_source_pair_inventory"]["paired_updates"]):
+                raise ValueError("native typed source-pair coverage contract differs")
+            pair_contract = TYPED_SOURCE_PAIR_CONTRACT
         if (plan.get("objective") != objective
                 or plan.get("loss_scope") != "semantic_decisions"
                 or plan.get("grammar_choice_contract") != choice_contract
                 or (paired and (
-                    plan.get("grammar_source_pair_contract") != SOURCE_PAIR_CONTRACT
+                    plan.get("grammar_source_pair_contract") != pair_contract
                     or not plan.get("grammar_source_pair_fit_partners")))):
             raise ValueError("native fit grammar-choice contract differs")
         if (paired or path_mode) and "source_evidence_control" in plan:

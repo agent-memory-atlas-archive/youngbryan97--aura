@@ -206,12 +206,12 @@ def verify_source_control_supervision(plan, supervision, items, tokenizer):
 
     mode = source_control_mode_from_plan(plan)
     if plan["schema"] in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4",
-                          "aura.semantic_native_fit_plan.v5"}:
+                          "aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}:
         from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
         from tools.train_semantic_native_program import native_grammar_supervision_sets
 
         choice_contract = GRAMMAR_CHOICE_CONTRACT
-        if plan["schema"] == "aura.semantic_native_fit_plan.v5":
+        if plan["schema"] in {"aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}:
             from core.learning.semantic_native_path_objective import path_choice_contract
 
             choice_contract = path_choice_contract()
@@ -387,7 +387,8 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
         raise ValueError("native fit report arithmetic differs from its plan")
     bank_plan, bank_report = _verified_pair(bank_directory)
     mode = source_control_mode_from_plan(plan)
-    expected_schema = ("aura.semantic_native_fit.v5" if plan["schema"] == "aura.semantic_native_fit_plan.v5"
+    expected_schema = ("aura.semantic_native_fit.v6" if plan["schema"] == "aura.semantic_native_fit_plan.v6"
+                       else "aura.semantic_native_fit.v5" if plan["schema"] == "aura.semantic_native_fit_plan.v5"
                        else "aura.semantic_native_fit.v4" if plan["schema"] == "aura.semantic_native_fit_plan.v4"
                        else "aura.semantic_native_fit.v3" if plan["schema"] == "aura.semantic_native_fit_plan.v3"
                        else "aura.semantic_native_fit.v2" if mode == "source_token_erasure"
@@ -405,13 +406,25 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
     if plan.get("objective") == "grammar_source_pairs":
         from core.learning.semantic_native_source_pairs import native_source_pair_plan
 
-        pairs = native_source_pair_plan(
+        pair_planner = native_source_pair_plan
+        if plan["schema"] == "aura.semantic_native_fit_plan.v6":
+            from core.learning.semantic_native_typed_source_pairs import (
+                native_typed_source_pair_plan,
+                typed_source_pair_inventory,
+            )
+
+            pair_planner = native_typed_source_pair_plan
+        pairs = pair_planner(
             tuple(items[identity] for identity in plan["fit_ids"]), plan["fit_ids"],
             register_encoding=plan["register_encoding"])
         if (pairs != plan["grammar_source_pair_fit_partners"]
                 or plan["grammar_source_pair_updates"] != sum(
                     identity in pairs for identity in plan["scheduled_fit_ids"])):
             raise ValueError("native fit source-pair supervision differs")
+        if (plan["schema"] == "aura.semantic_native_fit_plan.v6"
+                and plan["grammar_source_pair_inventory"]
+                    != typed_source_pair_inventory(pairs, plan["scheduled_fit_ids"])):
+            raise ValueError("native fit typed source-pair inventory differs")
     checkpoints = [verified_document(directory / f"checkpoint-{row['step']}.json") for row in report["checkpoints"]]
     if checkpoints != report["checkpoints"] or selected not in checkpoints:
         raise ValueError("native fit checkpoint report differs")
@@ -488,7 +501,7 @@ def main():
     tokenizer = None
     if (source_control_mode_from_plan(plan) == "source_token_erasure"
             or plan["schema"] in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4",
-                                  "aura.semantic_native_fit_plan.v5"}):
+                                  "aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}):
         from mlx_lm.utils import load_tokenizer
         tokenizer = load_tokenizer(Path(plan["model_path"]))
     result = verify_fit(args.directory, args.bank, items, tokenizer=tokenizer)

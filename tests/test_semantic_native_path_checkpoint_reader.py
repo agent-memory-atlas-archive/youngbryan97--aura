@@ -11,7 +11,7 @@ from tests.test_evaluate_semantic_native_checkpoint import write
 from tools.evaluate_semantic_native_checkpoint import digest, selected_checkpoint, verified_document
 
 
-def campaign(root, *, regression=True):
+def campaign(root, *, regression=True, typed=False):
     plan = {"schema": "aura.semantic_native_fit_plan.v5", "steps": 2, "save_every": 2,
             "objective": "grammar_choices", "loss_scope": "semantic_decisions",
             "grammar_choice_contract": path_choice_contract(),
@@ -23,6 +23,10 @@ def campaign(root, *, regression=True):
             "serving_authority": False, "qualification_evidence": False,
             "fit_ids": ["fit"], "captured_fit_ids": ["fit"],
             "calibration_ids": ["cal-a", "cal-b"], "held_ids": ["held"]}
+    if typed:
+        from tests.test_semantic_native_source_control import typed_plan
+
+        plan.update(typed_plan())
     write(root / "plan.json", plan, "plan_sha256")
     alternatives = [{"source": source, "decision_index": 0, "choice_index": index,
                      "correct_index": 0, "kind": "termination", "choice": choice}
@@ -50,8 +54,9 @@ def campaign(root, *, regression=True):
 
 
 @pytest.mark.parametrize("regression", [False, True])
-def test_reader_reconstructs_baseline_floor_before_selecting_lower_loss(tmp_path, regression):
-    campaign(tmp_path, regression=regression)
+@pytest.mark.parametrize("typed", [False, True])
+def test_reader_reconstructs_baseline_floor_before_selecting_lower_loss(tmp_path, regression, typed):
+    campaign(tmp_path, regression=regression, typed=typed)
     assert selected_checkpoint(tmp_path)[1]["step"] == (0 if regression else 2)
 
 

@@ -144,6 +144,61 @@ def test_current_tokenizer_can_erase_source_but_preserves_the_private_channel():
     assert "</think>" in tokenizer.decode(list(erased.tokens))
 
 
+def typed_plan():
+    from core.learning.semantic_native_path_objective import (
+        GRAMMAR_PATH_CONTRACT,
+        path_choice_contract,
+    )
+    from core.learning.semantic_native_path_selection import PATH_SELECTION_CONTRACT
+    from core.learning.semantic_native_typed_source_pairs import (
+        TYPED_SOURCE_PAIR_CONTRACT,
+        typed_source_pair_inventory,
+    )
+
+    pairs = {"a": [{"kind": "reference", "partner": "b"}]}
+    schedule = ["a", "b"]
+    return {"schema": "aura.semantic_native_fit_plan.v6",
+            "objective": "grammar_source_pairs", "loss_scope": "semantic_decisions",
+            "grammar_choice_contract": path_choice_contract(),
+            "grammar_path_objective_contract": GRAMMAR_PATH_CONTRACT,
+            "path_checkpoint_selection_contract": PATH_SELECTION_CONTRACT,
+            "selection": "baseline_preserving_complete_source_calibration_paths",
+            "unfitted_checkpoint_eligible": True,
+            "fit_ids": schedule, "scheduled_fit_ids": schedule,
+            "grammar_source_pair_contract": TYPED_SOURCE_PAIR_CONTRACT,
+            "grammar_source_pair_fit_partners": pairs, "grammar_source_pair_updates": 1,
+            "grammar_source_pair_inventory": typed_source_pair_inventory(pairs, schedule)}
+
+
+def test_typed_plan_is_explicit_and_does_not_relabel_the_old_objective():
+    plan = typed_plan()
+    assert source_control_mode_from_plan(plan) == "source_text"
+    for version in [1, 2, 3, 4, 5]:
+        with pytest.raises(ValueError, match="historical"):
+            source_control_mode_from_plan({**plan, "schema": f"aura.semantic_native_fit_plan.v{version}"})
+
+
+@pytest.mark.parametrize("defect", ["inventory", "updates", "peer", "schedule", "loss", "control"])
+def test_typed_plan_cannot_claim_unmeasured_contrast_coverage(defect):
+    from copy import deepcopy
+
+    plan = deepcopy(typed_plan())
+    if defect == "inventory":
+        plan["grammar_source_pair_inventory"]["sources_by_kind"]["reference"] += 1
+    elif defect == "updates":
+        plan["grammar_source_pair_updates"] += 1
+    elif defect == "peer":
+        plan["grammar_source_pair_fit_partners"]["a"][0]["partner"] = "held"
+    elif defect == "schedule":
+        plan["scheduled_fit_ids"] = ["b"]
+    elif defect == "loss":
+        plan["grammar_source_pair_contract"] = SOURCE_PAIR_CONTRACT
+    else:
+        plan["source_evidence_control"] = SOURCE_ERASURE_CONTRACT
+    with pytest.raises(ValueError):
+        source_control_mode_from_plan(plan)
+
+
 def test_current_tokenizer_erases_source_before_an_incomplete_grammar_decision():
     checkpoint = os.environ.get("AURA_NATIVE_TOKENIZER_CHECKPOINT")
     if not checkpoint:

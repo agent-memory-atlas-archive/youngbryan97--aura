@@ -15,6 +15,7 @@ _REPLACED_IMPLEMENTATIONS = frozenset({
     "core/learning/semantic_native_source_control.py",
     "tools/semantic_native_prefix_reuse.py",
     "core/learning/semantic_native_source_pairs.py",
+    "core/learning/semantic_native_typed_source_pairs.py",
     "core/learning/semantic_native_path_objective.py",
     "core/learning/semantic_native_path_calibration.py",
     "core/learning/semantic_native_path_selection.py",
@@ -107,7 +108,8 @@ def prefix_reuse_contract(origin: Path, new_plan: dict) -> dict:
             if key not in {"plan_sha256", "implementation"}}
     right = {key: value for key, value in json.loads(json.dumps(new_plan)).items()
              if key not in {"plan_sha256", "implementation", "reused_prefix_contract"}}
-    path_mode = right.get("schema") == "aura.semantic_native_fit_plan.v5"
+    typed_mode = right.get("schema") == "aura.semantic_native_fit_plan.v6"
+    path_mode = right.get("schema") in {"aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}
     paired = right.get("schema") == "aura.semantic_native_fit_plan.v4" or (
         path_mode and right.get("objective") == "grammar_source_pairs")
     if path_mode:
@@ -115,6 +117,8 @@ def prefix_reuse_contract(origin: Path, new_plan: dict) -> dict:
         from core.learning.semantic_native_source_control import source_control_mode_from_plan
 
         source_control_mode_from_plan(new_plan)
+        if typed_mode:
+            right.pop("grammar_source_pair_inventory")
         for name in ("grammar_path_objective_contract", "path_checkpoint_selection_contract"):
             right.pop(name)
         right.pop("annotation_only_prefix_sources", None)
@@ -144,6 +148,7 @@ def prefix_reuse_contract(origin: Path, new_plan: dict) -> dict:
     annotations = annotation_reuse_paths(prior, new_plan, changes) if path_mode else []
     if (changes - _REPLACED_IMPLEMENTATIONS - set(annotations)
             or ("core/learning/semantic_native_source_pairs.py" in changes and not paired)
+            or ("core/learning/semantic_native_typed_source_pairs.py" in changes and not typed_mode)
             or (changes & _PATH_IMPLEMENTATIONS and not path_mode)):
         raise ValueError("prior frozen capture implementation changed outside its reader")
     expected = {(row["source"], row["decision_index"], row["choice_index"]): digest(row["tokens"])

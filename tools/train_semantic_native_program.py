@@ -366,6 +366,9 @@ def main():
                         default="source_text")
     parser.add_argument("--path-objective", action="store_true",
                         help="joint weak-choice risk and baseline-preserving source-path selection")
+    parser.add_argument("--source-pair-policy", choices=("shared_lineage_v1", "typed_choice_complete_v1"),
+                        default="shared_lineage_v1",
+                        help="fit-only source contrasts for each available grammar decision kind")
     parser.add_argument("--reuse-annotation-sources", type=Path,
                         help="hash-bound archived source for annotation-only frozen implementation changes")
     parser.add_argument("--plan-only", action="store_true")
@@ -405,6 +408,9 @@ def main():
     if args.path_objective and (args.objective not in {"grammar_choices", "grammar_source_pairs"}
                                or args.source_evidence != "source_text"):
         parser.error("path-risk training needs intact source grammar supervision")
+    typed_pairs = args.source_pair_policy == "typed_choice_complete_v1"
+    if typed_pairs and (not args.path_objective or args.objective != "grammar_source_pairs"):
+        parser.error("typed source contrasts require the paired-source path objective")
 
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
@@ -453,7 +459,14 @@ def main():
     if args.objective == "grammar_source_pairs":
         from core.learning.semantic_native_source_pairs import native_source_pair_plan
 
-        grammar_pairs = native_source_pair_plan(fit, outer["fit_ids"],
+        pair_planner = native_source_pair_plan
+        if typed_pairs:
+            from core.learning.semantic_native_typed_source_pairs import (
+                native_typed_source_pair_plan,
+            )
+
+            pair_planner = native_typed_source_pair_plan
+        grammar_pairs = pair_planner(fit, outer["fit_ids"],
             register_encoding=args.register_encoding)
         if not grammar_pairs or not set(grammar_pairs) <= set(schedule):
             raise ValueError("paired-source objective lacks scheduled witnessed contrasts")
@@ -469,8 +482,10 @@ def main():
         raise ValueError("relational objective has no scheduled cross-construction fit partners")
     if args.objective == "relational_metric" and not scheduled_triplets:
         raise ValueError("relational metric objective has no scheduled fit triplets")
+    pair_rows = [row for rows in grammar_pairs.values()
+                for row in (rows if typed_pairs else [rows])]
     captured_fit_ids = sorted(set(schedule) | set(scheduled_partners.values())
-                              | {row["partner"] for row in grammar_pairs.values()}
+                              | {row["partner"] for row in pair_rows}
                               | {source for pair in scheduled_triplets.values() for source in pair})
     peer_programs = {item.ir.to_program().sha(): item.ir.to_program() for item in fit}
     spec = get_active_cortex_spec(force_refresh=True)
@@ -516,6 +531,10 @@ def main():
             path = ROOT / "core" / "learning" / f"{name}.py"
             implementation_paths.append(path)
             implementation[str(path.relative_to(ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
+    if typed_pairs:
+        path = ROOT / "core/learning/semantic_native_typed_source_pairs.py"
+        implementation_paths.append(path)
+        implementation[str(path.relative_to(ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
     plan = {"schema": "aura.semantic_native_fit_plan.v1", "steps": args.steps,
             "save_every": args.save_every, "rank": args.rank, "suffix_layers": args.layers,
             "prefix_batch_size": args.prefix_batch_size,
@@ -598,6 +617,15 @@ def main():
                     grammar_path_objective_contract=dict(GRAMMAR_PATH_CONTRACT),
                     path_checkpoint_selection_contract=dict(PATH_SELECTION_CONTRACT),
                     selection="baseline_preserving_complete_source_calibration_paths")
+    if typed_pairs:
+        from core.learning.semantic_native_typed_source_pairs import (
+            TYPED_SOURCE_PAIR_CONTRACT,
+            typed_source_pair_inventory,
+        )
+
+        plan.update(schema="aura.semantic_native_fit_plan.v6",
+                    grammar_source_pair_contract=dict(TYPED_SOURCE_PAIR_CONTRACT),
+                    grammar_source_pair_inventory=typed_source_pair_inventory(grammar_pairs, schedule))
     plan = {**plan, "plan_sha256": _digest(plan)}
     if args.reuse_annotation_sources is not None:
         from tools.evaluate_semantic_native_checkpoint import verified_document
@@ -853,6 +881,11 @@ def main():
                     )
 
                     pair = grammar_pairs.get(identity)
+                    if typed_pairs:
+                        return native_grammar_path_objective(
+                            lambda key: -native_loss(tail, states[key], sequences[key], summed=True,
+                                                    scope="semantic_decisions"), groups[identity],
+                            typed_pairs=pair, partners=groups if pair else None)
                     return native_grammar_path_objective(
                         lambda key: -native_loss(tail, states[key], sequences[key], summed=True,
                                                 scope="semantic_decisions"), groups[identity],
@@ -1048,7 +1081,8 @@ def main():
                 or any(path.read_bytes() != raw[name] for name, path in (
                     ("parent", args.parent), ("source", args.source_report), ("folds", args.folds)))):
             raise ValueError("native fit identity changed during measurement")
-        body = {"schema": ("aura.semantic_native_fit.v5" if args.path_objective
+        body = {"schema": ("aura.semantic_native_fit.v6" if typed_pairs
+                           else "aura.semantic_native_fit.v5" if args.path_objective
                            else "aura.semantic_native_fit.v4" if args.objective == "grammar_source_pairs"
                            else "aura.semantic_native_fit.v3" if args.objective == "grammar_choices"
                            else "aura.semantic_native_fit.v2" if args.source_evidence == "source_token_erasure"
