@@ -76,6 +76,20 @@ def projected_source_shard_bytes(sequences, *, hidden_size):
     return sizes
 
 
+def native_source_rankings(batch, grammar_groups, graph_groups, *, grammar_mode):
+    """Check full/trie parity for every supervised branch of one source."""
+    if not batch or any(key[0] != batch[0][0] for key in batch):
+        raise ValueError("native ranking batch crosses source identities")
+    source = batch[0][0]
+    partitions = grammar_groups[source] if grammar_mode else ((batch, 0),)
+    if graph_groups:
+        partitions = (*partitions, (graph_groups[source], 0))
+    ranked_keys = [key for keys, _correct in partitions for key in keys]
+    if len(ranked_keys) != len(batch) or set(ranked_keys) != set(batch):
+        raise ValueError("native ranking parity missed a supervised branch")
+    return partitions
+
+
 def native_training_schedule(identities, *, steps, seed):
     """Freeze the original shuffled update order before capturing any states."""
     order = list(identities)
@@ -900,11 +914,9 @@ def main():
                     branch_scores.append(float(mx.sum(right).item()))
                 if not capture_receipts:
                     from tools.probe_semantic_native_prefix_branches import ranked_score_equivalence
-                    partitions = (groups[batch[0][0]] if args.objective in
-                                  {"grammar_choices", "grammar_source_pairs"} else
-                                  ((batch, 0),))
-                    if graph_groups:
-                        partitions = (*partitions, (graph_groups[batch[0][0]], 0))
+                    partitions = native_source_rankings(
+                        batch, groups, graph_groups,
+                        grammar_mode=args.objective in {"grammar_choices", "grammar_source_pairs"})
                     offsets = {key: index for index, key in enumerate(batch)}
                     for keys, _gold in partitions:
                         indices = [offsets[key] for key in keys]
