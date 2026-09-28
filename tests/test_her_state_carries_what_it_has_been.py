@@ -136,3 +136,20 @@ def test_the_driver_settles_before_the_clamp_and_before_it_reads() -> None:
     clamp_at = source.index("if self.after_phase is not None:")
     read_at = source.index("reading = self.read(")
     assert settle_at < clamp_at < read_at
+
+
+def test_settling_is_not_a_turn_and_takes_no_condition() -> None:
+    """It sat under `turn_once`'s decorator and took the turn's argument.
+
+    `@opens_the_turn` wraps what follows it, so a method written directly above
+    `async def turn_once` is the method the decorator lands on. Every frame of
+    every turn then raised `missing 1 required positional argument: condition`
+    before a single channel carried anything.
+    """
+    import inspect
+
+    from core.subject.driver import SubjectRuntime
+
+    signature = inspect.signature(SubjectRuntime._settle_membrane)
+    assert list(signature.parameters) == ["self"]
+    assert not hasattr(SubjectRuntime._settle_membrane, "__wrapped__")

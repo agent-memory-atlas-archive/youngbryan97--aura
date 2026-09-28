@@ -767,7 +767,6 @@ class SubjectRuntime:
             self.failures["turn_door.person"] = self.failures.get("turn_door.person", 0) + 1
             logger.warning("the person's turn was not observed: %s", exc)
 
-    @opens_the_turn
     def _settle_membrane(self) -> None:
         """Every channel that carries a trace becomes it, once a frame.
 
@@ -804,6 +803,7 @@ class SubjectRuntime:
                 exc,
             )
 
+    @opens_the_turn
     async def turn_once(
         self,
         condition: Condition,
