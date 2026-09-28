@@ -40,8 +40,12 @@ def test_a_move_question_keeps_its_role(monkeypatch):
     assert sent[0] == {"role": "system", "content": her_reasoning.CHOOSING_ROLE}
 
 
-def test_the_plan_reasoning_asks_without_it():
-    import inspect
-
-    source = inspect.getsource(her_reasoning.reasoning_for_a_plan)
-    assert "role=None" in source
+def test_the_plan_reasoning_asks_without_it(monkeypatch):
+    """How to go about the game, asked through the plan reasoning itself."""
+    router = _Router()
+    monkeypatch.setattr(her_reasoning, "_router", lambda: router)
+    monkeypatch.setattr(her_reasoning, "time_this_question_needs", lambda _p, _t, floor: floor)
+    monkeypatch.setattr(her_reasoning, "_not_started_if_it_cannot_finish", lambda *_a: None)
+    think = her_reasoning.reasoning_for_a_plan()
+    assert asyncio.run(think("how will you play this game", [])) == "a line"
+    assert [message["role"] for message in router.sent[0]] == ["user"]

@@ -108,46 +108,77 @@ def test_a_raised_body_does_not_leak_a_queue_slot(engine: EmbeddingEngine) -> No
     assert subject._encode_queue == 0
 
 
-def test_the_two_locks_are_never_nested() -> None:
+def _splats_naming_the_encoder() -> list[dict]:
+    from core.runtime.lockdep import lockdep_report
+
+    return [
+        splat
+        for splat in lockdep_report()["splats"]
+        if any("test.encode" in name for name in (*splat["held"], splat["acquiring"]))
+    ]
+
+
+def test_the_two_locks_are_never_nested(engine: EmbeddingEngine, monkeypatch) -> None:
     """Both are LEAF, and lockdep requires strictly increasing rank.
 
     Counting only the WAITERS meant decrementing after acquiring the encode
     lock, which nests one LEAF inside another. The first live boot after
-    that change recorded a rank_inversion splat naming both lines.
+    that change recorded a rank_inversion splat naming both lines. Here a
+    warm holds the encoder while a recall queues behind it, under lockdep.
     """
-    import ast
-    import inspect
-    import textwrap
+    from core.runtime.lockdep import reset_lockdep_for_test
 
-    from core.memory.vector_memory_engine import EmbeddingEngine
+    reset_lockdep_for_test()
+    subject = _bare(engine)
+    monkeypatch.setattr(
+        EmbeddingEngine, "_primary_inference_active", staticmethod(lambda: False)
+    )
+    holding = threading.Event()
+    release = threading.Event()
 
-    body = ast.parse(textwrap.dedent(inspect.getsource(EmbeddingEngine._encoding)))
-    for node in ast.walk(body):
-        if not isinstance(node, ast.With):
-            continue
-        held = {ast.unparse(item.context_expr) for item in node.items}
-        if not any("_encode_lock" in name for name in held):
-            continue
-        inner = {
-            ast.unparse(item.context_expr)
-            for child in ast.walk(node)
-            if isinstance(child, ast.With) and child is not node
-            for item in child.items
-        }
-        assert not [name for name in inner if "_encode_queue_lock" in name], (
-            "the queue lock is taken inside the encode lock again"
-        )
+    def _warm() -> None:
+        with subject._encoding():
+            holding.set()
+            release.wait(5.0)
+
+    def _recall() -> None:
+        with subject._encoding():
+            pass
+
+    warm = threading.Thread(target=_warm)
+    warm.start()
+    assert holding.wait(5.0)
+    recall = threading.Thread(target=_recall)
+    recall.start()
+    deadline = time.monotonic() + 5.0
+    while subject._encode_queue < 2 and time.monotonic() < deadline:
+        time.sleep(0.01)
+    release.set()
+    warm.join(5.0)
+    recall.join(5.0)
+
+    assert subject._encode_queue == 0
+    assert _splats_naming_the_encoder() == [], "the queue lock is taken inside the encode lock again"
 
 
-def test_asking_whether_to_yield_takes_no_lock_inside_the_encode_lock() -> None:
+def test_asking_whether_to_yield_takes_no_lock_inside_the_encode_lock(
+    engine: EmbeddingEngine, monkeypatch
+) -> None:
     """LIVE 2026-09-20, first boot after the encoder change: lockdep named a
     rank inversion — `encode_queue` (LEAF) acquired while holding `encode`
     (LEAF) — and tainted the runtime. The question is asked from inside the
     encode lock, so it reads the count and takes nothing."""
-    import inspect
+    from core.runtime.lockdep import reset_lockdep_for_test
 
-    from core.memory.vector_memory_engine import EmbeddingEngine
+    reset_lockdep_for_test()
+    subject = _bare(engine)
+    monkeypatch.setattr(
+        EmbeddingEngine, "_primary_inference_active", staticmethod(lambda: False)
+    )
+    with subject._encoding():
+        assert subject._background_should_defer() is False
+        subject._encode_queue += 1  # somebody else now waiting
+        assert subject._background_should_defer() is True
+        subject._encode_queue -= 1
 
-    body = inspect.getsource(EmbeddingEngine._background_should_defer)
-    assert "with self._encode_queue_lock" not in body
-    assert "queued = self._encode_queue" in body
+    assert _splats_naming_the_encoder() == []

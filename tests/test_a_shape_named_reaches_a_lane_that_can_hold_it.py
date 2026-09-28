@@ -18,7 +18,6 @@ Two holds, and the second is why the first went unnoticed for a month:
 from __future__ import annotations
 
 import asyncio
-import inspect
 from typing import Any
 
 import pytest
@@ -75,14 +74,47 @@ def test_a_named_shape_declines_the_substrate_before_any_readout(
     assert not reached
 
 
-def test_the_decline_is_written_where_the_path_begins() -> None:
-    """The gate sits before the readout, not after it."""
-    source = inspect.getsource(
-        router_module.IntelligentLLMRouter._try_substrate_primary
+def test_the_decline_is_written_where_the_path_begins(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The gate sits before the readout, not after it.
+
+    A user-facing turn forced onto the substrate skips the presentability
+    check that would otherwise stop it; a named shape still stops it first.
+    """
+    reached: list[str] = []
+
+    def _should_not_run(*_args: Any, **_kwargs: Any) -> Any:
+        reached.append("readout")
+        raise AssertionError("substrate readout ran for a turn that named a shape")
+
+    monkeypatch.setattr(
+        router_module.IntelligentLLMRouter, "_substrate_primary_enabled", lambda self: True
     )
-    gate = source.index('kwargs.get("output_shape")')
-    readout = source.index("get_substrate_token_generator")
-    assert gate < readout
+    monkeypatch.setattr(
+        router_module.IntelligentLLMRouter, "_substrate_user_facing_enabled", lambda self: True
+    )
+    monkeypatch.setattr(
+        "core.container.ServiceContainer.get",
+        staticmethod(lambda *a, **k: _Substrate()),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        "core.brain.llm.substrate_token_generator.get_substrate_token_generator",
+        _should_not_run,
+        raising=False,
+    )
+
+    result = asyncio.run(
+        router_module.IntelligentLLMRouter._try_substrate_primary(
+            _router(),
+            "list the steps",
+            {"output_shape": "json_array", "force_substrate": True},
+            is_background=False,
+        )
+    )
+    assert result is None
+    assert reached == []
 
 
 def test_an_unshaped_background_turn_still_reaches_the_substrate(

@@ -18,52 +18,68 @@ from __future__ import annotations
 
 from pathlib import Path
 
-GATE = Path(__file__).resolve().parents[1] / "core" / "brain" / "inference_gate.py"
 
+def _handed_off(ceiling: str) -> dict:
+    """The context the tool-grounded answer hands the tool loop, for one ceiling.
 
-def _handoff_body() -> str:
-    """The tool-grounded answer as it runs: the size sweep cut blocks out of
-    it and a lift moved them into `inference_gate_living_context`."""
-    from source_support import inlined_function_source
+    The handoff runs for real against a client that records what it was
+    given; the size sweep cut it out of `_tool_grounded_answer` and a lift
+    moved it into `inference_gate_living_context`.
+    """
+    import asyncio
 
-    return inlined_function_source(GATE, "InferenceGate._tool_grounded_answer")
+    from core.brain.inference_gate import InferenceGate
+
+    given: dict = {}
+
+    class _Client:
+        model_path = ""
+
+        async def think_and_act(self, **kwargs):
+            given.update(kwargs["context"])
+            return {"text": "built it"}
+
+    asyncio.run(
+        InferenceGate._tool_grounded_answer_part_1(
+            ceiling,
+            _Client(),
+            0,
+            [],
+            "user",
+            ["build_app"],
+            "build me a small web app, one self-contained HTML file",
+            60.0,
+            {"build_app": {}},
+        )
+    )
+    return given
 
 
 def test_the_permission_model_is_told_what_was_asked_for() -> None:
-    assert '"user_explicitly_authorized"' in _handoff_body()
+    given = _handed_off("read_write_artifacts")
+    assert given["user_explicitly_authorized"] is True
+    assert given["authorised_effect_scope"] == "read_write_artifacts"
 
 
 def test_consent_covers_only_the_effect_that_was_named() -> None:
     """Writing a file was asked for. Sending, deleting and spending were not.
 
-    Asserted on the SET the handoff admits rather than on the spelling of the
-    comparison. This matched the literal `ceiling == "read_write_artifacts"`,
-    which stopped existing the day the two ceilings moved into names imported
-    from the one place that decides them — and a literal assertion that stops
-    matching does not fail loudly, it fails on the next full run and looks
-    like a regression.
+    Asserted on what the handoff hands over for each ceiling rather than on
+    the spelling of the comparison. This once matched the literal
+    `ceiling == "read_write_artifacts"`, which stopped existing the day the
+    two ceilings moved into names imported from the one place that decides
+    them.
     """
-    from core.brain import inference_gate
     from core.phases.response_contract import (
         _REQUESTED_ARTIFACT_CEILING,
         _SELF_SERVICE_CEILING,
     )
 
-    body = _handoff_body()
-    assert "user_explicitly_authorized" in body
-
-    admitted = {
-        inference_gate._SELF_SERVICE_EFFECT_CEILING,
-        inference_gate._REQUESTED_ARTIFACT_EFFECT_CEILING,
-    }
-    assert admitted == {_SELF_SERVICE_CEILING, _REQUESTED_ARTIFACT_CEILING}
+    for ceiling in (_SELF_SERVICE_CEILING, _REQUESTED_ARTIFACT_CEILING):
+        assert _handed_off(ceiling)["user_explicitly_authorized"] is True, ceiling
     # The effects a request does not carry consent for, whatever it asked.
-    assert "external_io" not in admitted
-    assert "privileged_mutation" not in admitted
-    # Quoted, because the handoff's own comment names these as the effects it
-    # does NOT authorise. What must not appear is a string literal.
-    assert '"external_io"' not in body
-    assert '"privileged_mutation"' not in body
+    for ceiling in ("external_io", "privileged_mutation"):
+        assert _handed_off(ceiling)["user_explicitly_authorized"] is False, ceiling
 
 
 def test_an_ordinary_turn_carries_no_consent() -> None:

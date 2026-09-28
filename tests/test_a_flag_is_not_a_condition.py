@@ -19,7 +19,7 @@ from core.brain.llm.context_assembler import (
 from core.runtime.principal_context import relational_principal_scope
 from core.security.trust_engine import TrustLevel
 from core.state.aura_state import AuraState
-from tests.source_contract import family_text_at, family_tree
+from tests.source_contract import family_tree
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -160,41 +160,68 @@ def test_the_binding_carries_the_principal_the_gate_recognised():
     assert '"principal_scope_bound": relational_principal_scope_is_bound()' in block
 
 
-def test_a_process_global_agent_id_cannot_key_stored_memory():
+class _Estimator:
+    """The theory-of-mind model, holding whoever it last saw."""
+
+    active_agent_id = "alice"
+
+    def context_injection(self, _agent):
+        return ""
+
+
+class _RelationalMemory:
+    def __init__(self) -> None:
+        self.asked_for: list[str] = []
+
+    def prompt_block(self, agent_id):
+        self.asked_for.append(agent_id)
+        return "what alice told her in confidence"
+
+
+def _a_live_turn() -> AuraState:
+    state = AuraState.default()
+    state.cognition.current_origin = "gui"
+    return state
+
+
+def _with_relational_memory(service_container) -> _RelationalMemory:
+    memory = _RelationalMemory()
+    service_container.register_instance("other_agent_model", _Estimator(), required=False)
+    service_container.register_instance("relational_memory", memory, required=False)
+    return memory
+
+
+def test_a_process_global_agent_id_cannot_key_stored_memory(service_container):
     """other_agent_model.active_agent_id holds whoever the estimator last saw.
     It was the last link in the fallback chain that keyed relational memory, so
     one interlocutor's stored history could be assembled into another's
-    prompt."""
-    # Asked of whichever function decides the identity, not of the text
-    # between two anchors. This read from the ``active_agent_id`` getattr
-    # forward to the relational-memory block, and went red when the
-    # method-size sweep moved the decision into ``_build_system_prompt_agent_id``
-    # — which now sits BEFORE the getattr, so the window could not contain it.
-    # The binding was untouched the whole time.
-    from source_contract import function_containing, module_source
+    prompt.
 
-    from core.brain.llm import context_assembler
+    The estimator last saw alice, and nobody's principal is bound: her memory
+    is not asked for and not in the prompt. Bound to alice, it is both.
+    """
+    memory = _with_relational_memory(service_container)
 
-    source = module_source(context_assembler)
-    _name, decides = function_containing(
-        context_assembler, "agent_id = bound_agent"
+    prompt = ContextAssembler.build_system_prompt(_a_live_turn())
+    assert memory.asked_for == []
+    assert "in confidence" not in prompt
+
+    with relational_principal_scope("alice"):
+        prompt = ContextAssembler.build_system_prompt(_a_live_turn())
+    assert memory.asked_for == ["alice"]
+    assert "in confidence" in prompt
+
+
+def test_withholding_relational_memory_is_recorded(service_container):
+    from core.runtime.errors import recent_degradations
+
+    _with_relational_memory(service_container)
+    before = len(
+        recent_degradations(limit=500, subsystem_prefixes=("context_assembler.relational_scope",))
     )
+    ContextAssembler.build_system_prompt(_a_live_turn())
+    after = recent_degradations(
+        limit=500, subsystem_prefixes=("context_assembler.relational_scope",)
+    )[before:]
 
-    # The hint is enough to model who she is talking to. It is not enough to
-    # hand over what somebody else told her, so it may be read and reported
-    # and never assigned.
-    assert "hinted_agent" in decides
-    assert "agent_id = hinted_agent" not in source
-    assert "agent_id = bound_agent" in decides, (
-        "the identity that keys relational memory is not the bound one"
-    )
-    # And the process-global is still only ever a hint.
-    assert 'getattr(estimator, "active_agent_id"' in source
-    assert "agent_id = estimator" not in source
-
-
-def test_withholding_relational_memory_is_recorded():
-    source = family_text_at(ROOT / "core" / "brain" / "llm" / "context_assembler.py")
-
-    assert '"context_assembler.relational_scope"' in source
-    assert "relational memory withheld" in source
+    assert any("relational memory withheld" in record["error"] for record in after), after

@@ -10,46 +10,61 @@ own test proved the engine handed the bias to a stub router and stopped there,
 which is the shape of a half-wired channel: a writer, a test of the writer, and
 no reader.
 
-This is the check that would have caught it, and it is written from the source
-rather than from a list, so a fifth channel added tomorrow cannot go quiet.
+This is the check that would have caught it. The channels are read off the
+request the desktop path actually hands the router, rather than from a list,
+so a fifth channel added tomorrow cannot go quiet.
 """
 
 from __future__ import annotations
 
-import re
-from pathlib import Path
-
-import pytest
+import asyncio
+from functools import lru_cache
 
 from core.brain.inference_gate import _SAMPLING_BIAS_KEYS
 from core.brain.request_contract import REQUEST_FIELDS
 
-_ENGINE = Path("core/brain/cognitive_engine.py")
 
-#: The key as it is written into the request the gate receives, whatever the
-#: value expression beside it happens to be.
-#:
-#: This matched `response_modifiers["..._sampling_bias"] =` until the engine
-#: stopped assigning into that mapping and started building the request as a
-#: dict literal with `apply_channel(...)` on the right. All four channels kept
-#: their readers and the regex found none of them, so the check that exists to
-#: catch a writer with no reader became a check with no writers -- the same
-#: shape of failure, wearing the name of the thing that prevents it. Matching
-#: the key and not the assignment survives the next rewrite of the value.
-_PUBLISHES = re.compile(r'"([a-z_]*sampling_bias)"\s*:', re.IGNORECASE)
+@lru_cache(maxsize=1)
+def _published_channels() -> frozenset[str]:
+    """Every sampling bias the engine hands the router on a desktop turn.
 
-
-def _published_channels() -> set[str]:
-    """Every sampling bias the engine writes for a subsystem.
-
-    Read across the engine's family: the request literal that carries the
-    channels moved into `cognitive_engine_quick_reply` with the lift of
-    2026-09-20, and a read of one file found no writers at all — the failure
-    the docstring above describes, one more time.
+    Taken from one real turn of the quick-reply path against a router that
+    keeps what it was given. A channel is a key of that request; its value
+    may be empty on this turn and it is still a channel.
     """
-    from tests.source_contract import family_text_at
+    from core.brain.cognitive_engine import CognitiveEngine
+    from core.brain.types import ThinkingMode
+    from core.container import ServiceContainer
 
-    return set(_PUBLISHES.findall(family_text_at(_ENGINE)))
+    given: dict = {}
+
+    class _Router:
+        async def think(self, messages, **kwargs):
+            given.update(kwargs)
+            return "I would ground the visible state first, then act through the governed lane."
+
+        def get_last_generation_metadata(self):
+            return {}
+
+    ServiceContainer.clear()
+    ServiceContainer.register_instance("llm_router", _Router(), required=False)
+    try:
+        asyncio.run(
+            CognitiveEngine()._direct_desktop_quick_reply(
+                "Can you compare this task to a checklist?",
+                ThinkingMode.FAST,
+                "desktop",
+                {
+                    "desktop_quick_reply_contract": True,
+                    "desktop_cognitive_engine_required": True,
+                    "max_tokens": 512,
+                },
+                timeout_s=20.0,
+            )
+        )
+    finally:
+        ServiceContainer.clear()
+    return frozenset(key for key in given if key.endswith("sampling_bias"))
 
 
 def test_the_engine_publishes_the_channels_we_think_it_does() -> None:
@@ -61,7 +76,7 @@ def test_the_engine_publishes_the_channels_we_think_it_does() -> None:
 def test_the_reader_side_is_not_empty_either() -> None:
     """A blind writer scan and a blind reader scan look identical from here.
 
-    The failure this file just had was a scan that found nothing and reported
+    The failure this file once had was a scan that found nothing and reported
     it as a set, so a second empty set could hide the same way.
     """
     assert len(_SAMPLING_BIAS_KEYS) >= 4, _SAMPLING_BIAS_KEYS
@@ -70,27 +85,41 @@ def test_the_reader_side_is_not_empty_either() -> None:
     )
 
 
-@pytest.mark.parametrize("channel", sorted(_published_channels()))
-def test_a_published_bias_is_declared_in_the_request_schema(channel: str) -> None:
-    assert channel in REQUEST_FIELDS, (
-        f"{channel} is published by a subsystem and not declared, so the gate "
-        "filters it out and the subsystem moves nothing"
-    )
+def test_a_published_bias_is_declared_in_the_request_schema() -> None:
+    for channel in sorted(_published_channels()):
+        assert channel in REQUEST_FIELDS, (
+            f"{channel} is published by a subsystem and not declared, so the gate "
+            "filters it out and the subsystem moves nothing"
+        )
 
 
-@pytest.mark.parametrize("channel", sorted(_published_channels()))
-def test_a_published_bias_is_read_by_the_gate(channel: str) -> None:
-    assert channel in _SAMPLING_BIAS_KEYS, (
-        f"{channel} is declared but not among the gate's bias keys"
-    )
+def test_a_published_bias_is_read_by_the_gate() -> None:
+    for channel in sorted(_published_channels()):
+        assert channel in _SAMPLING_BIAS_KEYS, (
+            f"{channel} is declared but not among the gate's bias keys"
+        )
 
 
 def test_the_generation_phase_reads_the_same_set() -> None:
-    """Three lists of the same thing is how one of them goes stale."""
+    """Three lists of the same thing is how one of them goes stale.
 
-    from tests.source_contract import family_text_at
+    Each channel alone carries a warming bias into the generation phase's
+    sampling step, and each one moves the temperature it settles on.
+    """
+    from core.phases.response_generation import ResponseGenerationPhase
+    from core.state.aura_state import AuraState
 
-    # The reads moved into `response_generation_steps` with the same lift.
-    body = family_text_at(Path("core/phases/response_generation.py"))
-    for channel in _published_channels():
-        assert channel in body, channel
+    phase = ResponseGenerationPhase.__new__(ResponseGenerationPhase)
+
+    def temperature_with(modifiers: dict) -> float:
+        state = AuraState.default()
+        state.response_modifiers.update(modifiers)
+        temperature, _tokens = phase._execute_affect_modulated_generation(
+            False, False, False, None, {}, state
+        )
+        return temperature
+
+    resting = temperature_with({})
+    for channel in sorted(_published_channels()):
+        moved = temperature_with({channel: {"temperature_delta": 0.15}})
+        assert moved > resting, f"the generation phase does not read {channel}"

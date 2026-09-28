@@ -52,13 +52,28 @@ def test_the_first_turn_of_a_session_counts_as_presence():
     assert ContextAssembler._user_is_present(_state("gui")) is True
 
 
-def test_presence_is_not_a_literal_in_the_prompt_path():
-    from tests.source_contract import family_text_at
+def test_presence_is_not_a_literal_in_the_prompt_path(monkeypatch, service_container):
+    """What the finitude model is told, read off a prompt being assembled.
 
-    source = family_text_at(ROOT / "core" / "brain" / "llm" / "context_assembler.py")
+    A live turn and a background tick, each with a person's message two
+    seconds old: only the live turn has somebody waiting.
+    """
+    import core.consciousness.temporal_finitude as temporal_finitude
 
-    assert "user_present=True" not in source
-    assert "user_present=ContextAssembler._user_is_present(state)" in source
+    told: list[bool] = []
+
+    class _Finitude:
+        def compute(self, **kwargs):
+            told.append(kwargs["user_present"])
+
+        def get_context_block(self):
+            return ""
+
+    monkeypatch.setattr(temporal_finitude, "get_temporal_finitude_model", lambda: _Finitude())
+    for origin in ("gui", "background"):
+        ContextAssembler.build_system_prompt(_state(origin, last_user_age_s=2.0))
+
+    assert told == [True, False]
 
 
 def test_an_unbound_trace_does_not_claim_to_be_this_reply(monkeypatch):

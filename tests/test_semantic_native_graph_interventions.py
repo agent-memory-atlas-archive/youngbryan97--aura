@@ -1,6 +1,9 @@
 """Role and dependency controls isolate witnessed graph changes, not operations."""
 
+import hashlib
+import json
 from collections import Counter
+from types import SimpleNamespace
 
 import pytest
 
@@ -16,6 +19,8 @@ from tools.verify_semantic_native_grammar import (
     verified_dataset,
     verified_examples,
     verified_pair_totals,
+    verified_prefix_execution,
+    verified_trie_anchor,
 )
 
 
@@ -73,3 +78,38 @@ def test_symmetric_binding_cannot_be_reported_as_a_changed_role():
                                         (3, 3), kind="role") is None
     with pytest.raises(ValueError, match="unsupported"):
         graph_intervention_candidate(Program(2, (Instruction("sub", (0, 1)),)), (3, 7), kind="unknown")
+
+
+def test_trie_verifier_requires_strategy_and_complete_choice_coverage():
+    plan = {"schema": "aura.semantic_native_grammar_plan.v7", "prefix_strategy": "trie"}
+    report = {"prefix_strategy": "trie"}
+    row = {"score_input_receipts": [[{}, {}], [{}]],
+           "prefix_execution": {"schema": "aura.frozen_prefix_branches.v2",
+                                "suffix_computation_unchanged": True,
+                                "anchor_tokens": 4, "trie_calls": 2, "branches": 3}}
+    verified_prefix_execution(plan, report)
+    verified_prefix_execution(plan, report, row)
+    for field, value in (("trie_calls", 1), ("branches", 2), ("anchor_tokens", 0),
+                         ("suffix_computation_unchanged", False), ("schema", "v1")):
+        with pytest.raises(ValueError, match="every choice"):
+            verified_prefix_execution(plan, report, {
+                **row, "prefix_execution": {**row["prefix_execution"], field: value}})
+    with pytest.raises(ValueError, match="strategy differs"):
+        verified_prefix_execution(plan, {"prefix_strategy": "full"})
+    with pytest.raises(ValueError, match="historical"):
+        verified_prefix_execution({"schema": "aura.semantic_native_grammar_plan.v5"}, report)
+
+
+def test_trie_verifier_reconstructs_one_exact_source_anchor():
+    sequences = (SimpleNamespace(tokens=(1, 2, 3, 4), continuation_start=3),
+                 SimpleNamespace(tokens=(1, 2, 3, 5), continuation_start=3))
+    sha = hashlib.sha256(json.dumps((1, 2, 3), separators=(",", ":"))
+                         .encode("ascii")).hexdigest()
+    receipt = {"anchor_tokens": 3, "anchor_token_sha256": sha}
+    assert verified_trie_anchor(sequences, receipt) == sha
+    assert verified_trie_anchor(sequences, receipt, sha) == sha
+    for changed in ({"anchor_tokens": 2}, {"anchor_token_sha256": "wrong"}):
+        with pytest.raises(ValueError, match="source anchor differs"):
+            verified_trie_anchor(sequences, {**receipt, **changed})
+    with pytest.raises(ValueError, match="source anchor differs"):
+        verified_trie_anchor(sequences, receipt, "different")
