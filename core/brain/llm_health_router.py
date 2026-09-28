@@ -110,6 +110,15 @@ _GENERATION_GATE_STATE_LOCK = _threading.Lock()
 _GENERATION_GATE_ACTIVE_LEASES: dict[int, tuple[float, str]] = {}
 _GENERATION_GATE_LEASE_DEADLINES: dict[int, float] = {}
 _GENERATION_GATE_FORCED_LEASES: set[int] = set()
+#: Leases admitted as a person's turn. The router classifies each request when
+#: it asks for the gate and used to keep only an `origin:purpose` string, then
+#: guessed from that string whether a holder was someone's reply. A call that
+#: named no origin is stamped `purpose="expression"` and admitted as user-facing,
+#: and its owner, "unknown:expression", matched none of the guesses: LIVE 27
+#: Sep 18:10, her reply was preempted as background by the next request of the
+#: same turn, the retry then waited out the other, and the lane went cold on
+#: generation_gate_wait_timeout. The classification is kept with the lease.
+_GENERATION_GATE_FOREGROUND_LEASES: set[int] = set()
 _GENERATION_GATE_NEXT_LEASE_ID = 0
 _GENERATION_GATE_LAST_ACQUIRED_AT = 0.0
 _GENERATION_GATE_LAST_OWNER = ""
@@ -239,12 +248,19 @@ def _background_generation_gate_deferred_result(owner: str) -> dict[str, Any]:
     return result
 
 
+def _lease_is_user_foreground(lease_id: int, owner: str) -> bool:
+    """Whether a lease holds someone's turn: as it was admitted, or as its owner reads."""
+    with _GENERATION_GATE_STATE_LOCK:
+        admitted = lease_id in _GENERATION_GATE_FOREGROUND_LEASES
+    return admitted or _generation_owner_is_user_foreground(owner)
+
+
 def _active_foreground_generation_owner() -> str:
     oldest_lease = _oldest_generation_gate_lease()
     if oldest_lease is None:
         return ""
-    _lease_id, _acquired_at, owner = oldest_lease
-    return owner if _generation_owner_is_user_foreground(owner) else ""
+    lease_id, _acquired_at, owner = oldest_lease
+    return owner if _lease_is_user_foreground(lease_id, owner) else ""
 
 
 def _oldest_generation_gate_lease_age_s() -> float:
@@ -294,6 +310,7 @@ def _mark_generation_gate_acquired(
     owner: str,
     *,
     timeout_s: float | None = None,
+    foreground: bool = False,
 ) -> int:
     global _GENERATION_GATE_NEXT_LEASE_ID, _GENERATION_GATE_LAST_ACQUIRED_AT, _GENERATION_GATE_LAST_OWNER
     with _GENERATION_GATE_STATE_LOCK:
@@ -301,6 +318,8 @@ def _mark_generation_gate_acquired(
         lease_id = _GENERATION_GATE_NEXT_LEASE_ID
         acquired_at = time.time()
         _GENERATION_GATE_ACTIVE_LEASES[lease_id] = (acquired_at, str(owner or "unknown"))
+        if foreground:
+            _GENERATION_GATE_FOREGROUND_LEASES.add(lease_id)
         if timeout_s is not None:
             try:
                 bounded_timeout = float(timeout_s)
@@ -420,6 +439,7 @@ def _release_generation_gate_after_call(lease_id: int) -> None:
         if lease_id in _GENERATION_GATE_FORCED_LEASES:
             _GENERATION_GATE_FORCED_LEASES.discard(lease_id)
             return
+        _GENERATION_GATE_FOREGROUND_LEASES.discard(lease_id)
         if lease_id in _GENERATION_GATE_ACTIVE_LEASES:
             _GENERATION_GATE_ACTIVE_LEASES.pop(lease_id, None)
             _GENERATION_GATE_LEASE_DEADLINES.pop(lease_id, None)
@@ -460,6 +480,7 @@ def force_release_generation_gate(
             )
             _GENERATION_GATE_ACTIVE_LEASES.pop(lease_id, None)
             _GENERATION_GATE_LEASE_DEADLINES.pop(lease_id, None)
+            _GENERATION_GATE_FOREGROUND_LEASES.discard(lease_id)
             _GENERATION_GATE_FORCED_LEASES.add(lease_id)
             age_s = max(0.0, time.time() - acquired_at)
         try:
@@ -2094,8 +2115,8 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
             if not acquired:
                 holder = _oldest_generation_gate_lease()
                 holder_owner = holder[2] if holder is not None else ""
-                if holder is not None and _generation_owner_is_user_foreground(
-                    holder_owner
+                if holder is not None and _lease_is_user_foreground(
+                    holder[0], holder_owner
                 ):
                     holder_age_s = max(0.0, time.time() - float(holder[1]))
                     holder_has_time = _generation_gate_lease_has_time(holder[0])
@@ -2181,6 +2202,7 @@ class HealthAwareLLMRouter(_CallsTheEndpoint, _DefersBackgroundWork):
         lease_id = _mark_generation_gate_acquired(
             _generation_gate_owner(origin, purpose),
             timeout_s=lease_timeout_s,
+            foreground=not request_is_background,
         )
         try:
             # One end-to-end deadline: admission (gate grace, soft-cancel,
