@@ -230,6 +230,7 @@ from core.subject.snapshot import (  # noqa: E402
     _held,
     _HeldObserver,
     _intentions_state,
+    _layer_state,
     _lifetime_last,
     _module_state,
     _moments_of,
@@ -238,6 +239,7 @@ from core.subject.snapshot import (  # noqa: E402
     _reanchor,
     _restore_effort,
     _restore_intentions,
+    _restore_layers,
     _restore_lifetime_last,
     _restore_module_state,
     _restore_moments,
@@ -652,6 +654,7 @@ class SubjectRuntime:
             world=_world_state(getattr(self, "_scratch", None)),
             stores=_store_state(),
             intentions=_intentions_state(self._intentions),
+            layers=_layer_state(self.organism, carried),
         )
 
     def _module_keys(self) -> set[str] | None:
@@ -697,6 +700,7 @@ class SubjectRuntime:
         _restore_module_state(snapshot.module_state)
         _empty_again(snapshot.empty_module_slots)
         _restore_services(snapshot.services)
+        _restore_layers(self.organism, snapshot.layers)
         _restore_effort(snapshot.effort)
         self.frame_index = snapshot.frame_index
         self.spoken = snapshot.spoken
@@ -1914,11 +1918,16 @@ def _publish_repository(runtime: SubjectRuntime) -> None:
     except Exception as exc:  # noqa: BLE001 - a container that refuses is a datum
         logger.warning("could not register the run's state repository: %s", exc)
 
-async def quiesce_organism(runtime: SubjectRuntime) -> list[str]:
-    """Stop the free-running loops before the paired arms begin."""
-    from core.subject.organism import _live_tasks, quiesce
+async def quiesce_organism(runtime: SubjectRuntime, *, stepped_only: bool = False) -> list[str]:
+    """Stop the free-running loops before the paired arms begin.
 
-    stopped = await quiesce()
+    `stepped_only` stops just the loops the harness steps itself and leaves
+    every other task alone, which is what a run with her cortex needs: her
+    language organ's own tasks keep her answering.
+    """
+    from core.subject.organism import _live_tasks, quiesce, stepped_loops
+
+    stopped = await quiesce(only=stepped_loops() if stepped_only else None)
     if runtime.organism is not None:
         runtime.organism.stopped_loops = stopped
         # And re-read what is left. The summary taken at bring-up listed

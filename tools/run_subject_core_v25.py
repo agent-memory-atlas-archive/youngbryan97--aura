@@ -893,6 +893,16 @@ async def main() -> int:
         # a bank it will not use.
         anchors: list[Any] = []
         if "nulls" not in done_v25:
+            # Everything from here forks paired arms off these anchors, so the
+            # free-running loops stop before any anchor is taken, as
+            # run_subject_core.py stops them before its interventions. Left
+            # running, each ticked its layer on the machine's clock on top of
+            # the harness's own step, and two untouched forks from one anchor
+            # parted within a frame or three: that was the sham floor of 0.062
+            # to 0.093 on the seed-7 look at 38ef2c9ce, larger than seven
+            # singletons' whole effect.
+            evidence["stopped_loops"] = await quiesce_organism(runtime)
+            _log(f"stopped {len(evidence['stopped_loops'])} free-running loops before the anchors")
             _log(f"collecting {args.anchors} anchors")
             anchors = await collect_anchor_bank(
                 runtime, conditions,

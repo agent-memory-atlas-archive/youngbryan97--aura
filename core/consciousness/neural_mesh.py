@@ -712,6 +712,9 @@ class NeuralMesh(_CarriesModulation, MeshWiring):
         self._rng = noise
         self._lock = threading.Lock()
         self._modulation_lock = threading.Lock()
+        #: What a spike is stamped with and plasticity measures its window in.
+        #: The machine's monotonic clock, unless a harness hands it its own.
+        self._clock: Any = time.monotonic
 
         # Build columns
         self.columns: list[CorticalColumn] = []
@@ -1095,8 +1098,26 @@ class NeuralMesh(_CarriesModulation, MeshWiring):
         with self._lock:
             self._tick_inner()
 
+    def use_clock(self, clock: Any) -> None:
+        """Stamp spikes with `clock` from now on, keeping how long ago each one fired.
+
+        The subject-core harness steps the mesh once a frame on a clock of its
+        own that advances by a fixed step and rewinds on a restore. The mesh
+        read the machine's monotonic clock, so two arms from one snapshot saw
+        each spike as older or newer by however long each arm happened to take,
+        and spike-timing plasticity moved their weights apart: by about 1e-8 in
+        the mesh on seed 7, which the unified field reading it grew to 8e-5 in a
+        turn (28 September).
+        """
+        with self._lock:
+            offset = float(clock()) - float(self._clock())
+            for column in self.columns:
+                fired = column.last_spike_time >= 0.0
+                column.last_spike_time[fired] += offset
+            self._clock = clock
+
     def _tick_inner(self):
-        now = time.monotonic()
+        now = self._clock()
         dt = self.cfg.dt
         cfg = self.cfg
         modulatory_gain, _, modulatory_noise = self._modulatory_state

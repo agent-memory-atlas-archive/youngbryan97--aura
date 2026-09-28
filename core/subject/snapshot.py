@@ -1226,6 +1226,40 @@ def _is_published_value(instance: Any) -> bool:
     return bool(is_dataclass(instance) and params is not None and params.frozen)
 
 
+def _layer_state(organism: Any, carried: frozenset[int]) -> dict[str, dict[str, Any]]:
+    """Each stepped layer's object that no service or organ already carries.
+
+    The harness steps these once a frame (core/subject/steppable.py), so each
+    holds state an arm moves. The consciousness bridge the organism builds for
+    itself is registered under no name, so neither the services nor the organs
+    carried it: `_chemistry_tick_seen` survived from one arm into the next, the
+    first arm pulled her substrate towards her chemistry and the second did
+    not, and two untouched forks parted the first frame the bridge ticked
+    (seed 7, 28 September). What a layer object holds that is carried under a
+    name of its own is skipped, as it is for services.
+    """
+    from core.subject.steppable import layers_of
+
+    if organism is None:
+        return {}
+    return {
+        name: _organ_state(target, skip=carried)
+        for name, target in layers_of(organism).items()
+        if id(target) not in carried
+    }
+
+
+def _restore_layers(organism: Any, saved: Mapping[str, dict[str, Any]] | None) -> None:
+    from core.subject.steppable import layers_of
+
+    if not saved or organism is None:
+        return
+    for name, target in layers_of(organism).items():
+        fields = saved.get(name)
+        if fields is not None:
+            _restore_organ(target, fields)
+
+
 def _organ_ids(runtime: Any) -> frozenset[int]:
     return frozenset(
         id(organ)
@@ -1890,6 +1924,9 @@ class Snapshot:
     #: next, and what she learned from writing it is not either.
     world: dict[str, Any] | None = None
     intentions: dict[str, Any] | None = None
+    #: Each stepped layer's object that no service or organ carries, by layer
+    #: name. See `_layer_state`.
+    layers: dict[str, dict[str, Any]] | None = None
     #: Private module slots that were empty when the snapshot was taken, so a
     #: restore can empty again whatever an arm made in them.
     empty_module_slots: frozenset[str] = frozenset()
