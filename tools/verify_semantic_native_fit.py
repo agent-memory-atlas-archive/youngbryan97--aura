@@ -206,12 +206,14 @@ def verify_source_control_supervision(plan, supervision, items, tokenizer):
 
     mode = source_control_mode_from_plan(plan)
     if plan["schema"] in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4",
-                          "aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}:
+                          "aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6",
+                          "aura.semantic_native_fit_plan.v7"}:
         from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
         from tools.train_semantic_native_program import native_grammar_supervision_sets
 
         choice_contract = GRAMMAR_CHOICE_CONTRACT
-        if plan["schema"] in {"aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}:
+        if plan["schema"] in {"aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6",
+                              "aura.semantic_native_fit_plan.v7"}:
             from core.learning.semantic_native_path_objective import path_choice_contract
 
             choice_contract = path_choice_contract()
@@ -235,8 +237,37 @@ def verify_source_control_supervision(plan, supervision, items, tokenizer):
             source_erasure_ids=tuple(sorted(fit_ids)) if controlled else ())
         if digest(supervision["rows"]) != digest(expected):
             raise ValueError("native grammar decisions or source tokens differ from reconstruction")
+        graph_count = 0
+        if plan["schema"] == "aura.semantic_native_fit_plan.v7":
+            from core.learning.semantic_native_path_objective import JOINT_GRAPH_CONTRAST_CONTRACT
+            from tools.train_semantic_native_program import native_supervision_sets
+
+            peer_by_sha = {items[key].ir.to_program().sha(): items[key].ir.to_program()
+                           for key in plan["fit_ids"]}
+            peers = tuple(peer_by_sha[key] for key in sorted(peer_by_sha))
+            graph_sequences, graph_groups = native_supervision_sets(
+                items, texts, tokenizer, tuple(sorted(fit_ids | cal_ids)), peers=peers,
+                contrast_limit=plan["joint_graph_contrast_limit"],
+                max_tokens=plan["max_sequence_tokens"],
+                register_encoding=register_encoding_from_plan(plan))
+            expected_graphs = [
+                {"source": identity, "choice_index": index,
+                 "program_sha256": key[1], "positive": index == 0,
+                 "tokens": graph_sequences[key].tokens,
+                 "continuation_start": graph_sequences[key].continuation_start,
+                 "semantic_positions": graph_sequences[key].semantic_positions}
+                for identity, keys in sorted(graph_groups.items())
+                for index, key in enumerate(keys)]
+            if (supervision.get("graph_contrast_contract") != JOINT_GRAPH_CONTRAST_CONTRACT
+                    or digest(supervision.get("graph_rows")) != digest(expected_graphs)):
+                raise ValueError("native whole-graph supervision differs from source reconstruction")
+            graph_count = len(expected_graphs)
+        elif "graph_rows" in supervision or "graph_contrast_contract" in supervision:
+            raise ValueError("historical native supervision acquired whole-graph rows")
         return {"mode": mode, "source_control_verified": controlled,
-                "grammar_choices_verified": True, "supervision_sequences_verified": len(expected),
+                "grammar_choices_verified": True,
+                "supervision_sequences_verified": len(expected) + graph_count,
+                "whole_graph_sequences_verified": graph_count,
                 "supervised_decisions_verified": sum(len(value) for value in groups.values()),
                 "identifiability": audit_grammar_identifiability(supervision["rows"]),
                 "erased_fit_population": len(fit_ids) if controlled else 0,
@@ -335,6 +366,8 @@ def verify_state_storage(directory, plan, report, supervision):
         raise ValueError("frozen state storage contract differs")
     expected = {(row["source"], row["decision_index"], row["choice_index"]): digest(row["tokens"])
                 for row in supervision["rows"]}
+    expected.update({(row["source"], -1, row["choice_index"]): digest(row["tokens"])
+                     for row in supervision.get("graph_rows", ())})
     observed, sources, total_bytes = {}, set(), 0
     for shard in receipt["shards"]:
         source = shard["source"]
@@ -392,7 +425,8 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
         raise ValueError("native fit report arithmetic differs from its plan")
     bank_plan, bank_report = _verified_pair(bank_directory)
     mode = source_control_mode_from_plan(plan)
-    expected_schema = ("aura.semantic_native_fit.v6" if plan["schema"] == "aura.semantic_native_fit_plan.v6"
+    expected_schema = ("aura.semantic_native_fit.v7" if plan["schema"] == "aura.semantic_native_fit_plan.v7"
+                       else "aura.semantic_native_fit.v6" if plan["schema"] == "aura.semantic_native_fit_plan.v6"
                        else "aura.semantic_native_fit.v5" if plan["schema"] == "aura.semantic_native_fit_plan.v5"
                        else "aura.semantic_native_fit.v4" if plan["schema"] == "aura.semantic_native_fit_plan.v4"
                        else "aura.semantic_native_fit.v3" if plan["schema"] == "aura.semantic_native_fit_plan.v3"
@@ -412,7 +446,9 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
         from core.learning.semantic_native_source_pairs import native_source_pair_plan
 
         pair_planner = native_source_pair_plan
-        if plan["schema"] == "aura.semantic_native_fit_plan.v6":
+        if plan["schema"] == "aura.semantic_native_fit_plan.v6" or (
+                plan["schema"] == "aura.semantic_native_fit_plan.v7"
+                and "grammar_source_pair_inventory" in plan):
             from core.learning.semantic_native_typed_source_pairs import (
                 native_typed_source_pair_plan,
                 typed_source_pair_inventory,
@@ -426,7 +462,8 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
                 or plan["grammar_source_pair_updates"] != sum(
                     identity in pairs for identity in plan["scheduled_fit_ids"])):
             raise ValueError("native fit source-pair supervision differs")
-        if (plan["schema"] == "aura.semantic_native_fit_plan.v6"
+        if (plan["schema"] in {"aura.semantic_native_fit_plan.v6", "aura.semantic_native_fit_plan.v7"}
+                and "grammar_source_pair_inventory" in plan
                 and plan["grammar_source_pair_inventory"]
                     != typed_source_pair_inventory(pairs, plan["scheduled_fit_ids"])):
             raise ValueError("native fit typed source-pair inventory differs")
@@ -436,7 +473,8 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
     supervision = verified_document(directory / "supervision.json")
     if (supervision["plan_sha256"] != plan["plan_sha256"]
             or supervision["receipt_sha256"] != report["supervision_receipt_sha256"]
-            or len(supervision["rows"]) != report["prefix_sequence_population"]
+            or len(supervision["rows"]) + len(supervision.get("graph_rows", ()))
+                != report["prefix_sequence_population"]
             or {row["source"] for row in supervision["rows"]} != set(plan["captured_fit_ids"]) | set(plan["calibration_ids"])
             or report["gradient_source_population"] != len(set(plan["scheduled_fit_ids"]))):
         raise ValueError("native fit supervision coverage differs")
@@ -506,7 +544,8 @@ def main():
     tokenizer = None
     if (source_control_mode_from_plan(plan) == "source_token_erasure"
             or plan["schema"] in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4",
-                                  "aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}):
+                                  "aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6",
+                                  "aura.semantic_native_fit_plan.v7"}):
         from mlx_lm.utils import load_tokenizer
         tokenizer = load_tokenizer(Path(plan["model_path"]))
     result = verify_fit(args.directory, args.bank, items, tokenizer=tokenizer)

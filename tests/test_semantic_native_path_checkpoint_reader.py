@@ -11,7 +11,7 @@ from tests.test_evaluate_semantic_native_checkpoint import write
 from tools.evaluate_semantic_native_checkpoint import digest, selected_checkpoint, verified_document
 
 
-def campaign(root, *, regression=True, typed=False):
+def campaign(root, *, regression=True, typed=False, graph=False):
     plan = {"schema": "aura.semantic_native_fit_plan.v5", "steps": 2, "save_every": 2,
             "objective": "grammar_choices", "loss_scope": "semantic_decisions",
             "grammar_choice_contract": path_choice_contract(),
@@ -27,18 +27,38 @@ def campaign(root, *, regression=True, typed=False):
         from tests.test_semantic_native_source_control import typed_plan
 
         plan.update(typed_plan())
+    if graph:
+        from core.learning.semantic_native_path_objective import JOINT_GRAPH_CONTRAST_CONTRACT
+        from tools.semantic_native_execution import execution_contract
+
+        plan.update(schema="aura.semantic_native_fit_plan.v7",
+                    joint_graph_contrast_limit=2,
+                    graph_contrast_contract=JOINT_GRAPH_CONTRAST_CONTRACT,
+                    prefix_storage_contract={"mode": "source_shards"},
+                    execution_contract=execution_contract(precision="float32", prefix_strategy="trie"))
     write(root / "plan.json", plan, "plan_sha256")
     alternatives = [{"source": source, "decision_index": 0, "choice_index": index,
                      "correct_index": 0, "kind": "termination", "choice": choice}
                     for source in ["fit", "cal-a", "cal-b"]
                     for index, choice in enumerate(["finish", "continue"])]
-    write(root / "supervision.json", {"plan_sha256": digest(plan), "rows": alternatives})
+    supervision = {"plan_sha256": digest(plan), "rows": alternatives}
+    if graph:
+        supervision["graph_rows"] = [
+            {"source": source, "choice_index": index,
+             "program_sha256": f"{source}-{index}", "positive": index == 0}
+            for source in ["fit", "cal-a", "cal-b"] for index in range(2)]
+    write(root / "supervision.json", supervision)
     for step in [0, 2]:
         rows = [{"source": source, "decisions": [{"kind": "termination", "correct_index": 0,
                  "choices": ["finish", "continue"], "scores": scores}]}
                 for source, scores in zip(["cal-a", "cal-b"],
                     ([[1., 0.], [0., 1.]] if step == 0 else
                      [[0., 1.] if regression else [1., 0.], [1., 0.]]), strict=True)]
+        if graph:
+            for row in rows:
+                source = row["source"]
+                row["whole_graph"] = {"program_sha256s": [f"{source}-0", f"{source}-1"],
+                                      "positive_index": 0, "scores": [1., 0.]}
         measured = {"schema": "aura.native_checkpoint_path_calibration.v1",
                     "plan_sha256": digest(plan), "step": step, "rows": rows,
                     "totals": native_path_totals(rows, ["cal-a", "cal-b"])}
@@ -58,6 +78,26 @@ def campaign(root, *, regression=True, typed=False):
 def test_reader_reconstructs_baseline_floor_before_selecting_lower_loss(tmp_path, regression, typed):
     campaign(tmp_path, regression=regression, typed=typed)
     assert selected_checkpoint(tmp_path)[1]["step"] == (0 if regression else 2)
+
+
+@pytest.mark.parametrize("typed", [False, True])
+def test_joint_graph_reader_keeps_typed_or_untyped_v7_and_rejects_rebound_graph(
+        tmp_path, monkeypatch, typed):
+    monkeypatch.setenv("MLX_ENABLE_TF32", "0")
+    campaign(tmp_path, regression=False, typed=typed, graph=True)
+    assert selected_checkpoint(tmp_path)[1]["step"] == 2
+    measured_path = tmp_path / "calibration-paths-2.json"
+    measured = verified_document(measured_path)
+    measured.pop("receipt_sha256")
+    measured["rows"][0]["whole_graph"]["program_sha256s"].reverse()
+    write(measured_path, measured)
+    checkpoint_path = tmp_path / "checkpoint-2.json"
+    checkpoint = verified_document(checkpoint_path)
+    checkpoint.pop("receipt_sha256")
+    checkpoint["calibration_path_receipt_sha256"] = digest(measured)
+    write(checkpoint_path, checkpoint)
+    with pytest.raises(ValueError, match="whole-graph calibration"):
+        selected_checkpoint(tmp_path)
 
 
 @pytest.mark.parametrize("defect", ["source", "choices", "correct", "kind", "scores", "totals",

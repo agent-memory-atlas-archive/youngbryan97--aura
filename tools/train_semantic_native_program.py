@@ -19,6 +19,22 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+def native_fit_schema_version(*, objective, source_evidence, path_objective,
+                              typed_pairs, joint_graph_contrasts):
+    """Keep plan and report identities aligned when objectives are composed."""
+    if joint_graph_contrasts:
+        return 7
+    if typed_pairs:
+        return 6
+    if path_objective:
+        return 5
+    if objective == "grammar_source_pairs":
+        return 4
+    if objective == "grammar_choices":
+        return 3
+    return 2 if source_evidence == "source_token_erasure" else 1
+
+
 def construction_subset(examples, identities, *, per_construction):
     """Select by source identity before any label or model score is observed."""
     if type(per_construction) is not int or per_construction < 1:
@@ -45,6 +61,19 @@ def exact_length_batches(sequences, *, batch_size):
             raise ValueError("native prefix batch contains an empty causal sequence")
         for start in range(0, len(groups[length]), batch_size):
             yield tuple(groups[length][start:start + batch_size])
+
+
+def projected_source_shard_bytes(sequences, *, hidden_size):
+    """Bound lossless float32 prefix states before loading model weights."""
+    if type(hidden_size) is not int or hidden_size < 1 or not sequences:
+        raise ValueError("source shard projection needs declared hidden geometry")
+    sizes = {}
+    for key, sequence in sequences.items():
+        if (not isinstance(key, tuple) or not key or not isinstance(key[0], str)
+                or len(sequence.tokens) < 2):
+            raise ValueError("source shard projection needs source-bound sequences")
+        sizes[key[0]] = sizes.get(key[0], 0) + (len(sequence.tokens) - 1) * hidden_size * 4
+    return sizes
 
 
 def native_training_schedule(identities, *, steps, seed):
@@ -304,10 +333,25 @@ def build_native_supervision(items, texts, tokenizer, identities, plan, peer_pro
 
     control = source_control_mode_from_plan(plan) == "source_token_erasure"
     erased = plan["captured_fit_ids"] if control else ()
+    graph_groups, graph_programs = {}, {}
     if plan["objective"] in {"grammar_choices", "grammar_source_pairs"}:
         sequences, groups, rows = native_grammar_supervision_sets(items, texts, tokenizer, identities,
             max_tokens=plan["max_sequence_tokens"], register_encoding=plan["register_encoding"],
             source_erasure_ids=erased)
+        if plan.get("joint_graph_contrast_limit", 0):
+            graph_sequences, graph_sets = native_supervision_sets(items, texts, tokenizer, identities,
+                peers=peer_programs, contrast_limit=plan["joint_graph_contrast_limit"],
+                max_tokens=plan["max_sequence_tokens"], register_encoding=plan["register_encoding"])
+            for identity, keys in graph_sets.items():
+                graph_groups[identity] = tuple((identity, -1, index) for index in range(len(keys)))
+                graph_programs[identity] = tuple(program_sha for _source, program_sha in keys)
+                if (len(keys) < 2 or keys[0][1] != items[identity].ir.to_program().sha()
+                        or len(set(keys)) != len(keys)):
+                    raise ValueError("whole-graph supervision lacks its unique source-positive graph")
+                for original, key in zip(keys, graph_groups[identity], strict=True):
+                    sequences[key] = graph_sequences[original]
+            if set(graph_groups) != set(identities):
+                raise ValueError("whole-graph supervision missed a declared source")
     else:
         receipts = {}
         sequences, groups = native_supervision_sets(items, texts, tokenizer, identities,
@@ -322,11 +366,20 @@ def build_native_supervision(items, texts, tokenizer, identities, plan, peer_pro
     supervision = {"plan_sha256": plan["plan_sha256"], "rows": rows}
     if plan["objective"] in {"grammar_choices", "grammar_source_pairs"}:
         supervision["grammar_choice_contract"] = dict(plan.get("grammar_choice_contract", GRAMMAR_CHOICE_CONTRACT))
+    if graph_groups:
+        supervision["graph_contrast_contract"] = plan["graph_contrast_contract"]
+        supervision["graph_rows"] = [
+            {"source": identity, "choice_index": index,
+             "program_sha256": graph_programs[identity][index],
+             "positive": index == 0, "tokens": sequences[key].tokens,
+             "continuation_start": sequences[key].continuation_start,
+             "semantic_positions": sequences[key].semantic_positions}
+            for identity, keys in sorted(graph_groups.items()) for index, key in enumerate(keys)]
     if control:
         supervision["source_evidence_control"] = {
             **SOURCE_ERASURE_CONTRACT, "erased_fit_ids": sorted(plan["captured_fit_ids"]),
             "unchanged_calibration_ids": sorted(plan["calibration_ids"])}
-    return sequences, groups, {**supervision, "receipt_sha256": _digest(supervision)}
+    return sequences, groups, graph_groups, {**supervision, "receipt_sha256": _digest(supervision)}
 
 
 def main():
@@ -366,6 +419,8 @@ def main():
                         default="source_text")
     parser.add_argument("--path-objective", action="store_true",
                         help="joint weak-choice risk and baseline-preserving source-path selection")
+    parser.add_argument("--joint-graph-contrasts", type=int, default=0,
+                        help="add witnessed whole-program competition to path-risk training")
     parser.add_argument("--source-pair-policy", choices=("shared_lineage_v1", "typed_choice_complete_v1"),
                         default="shared_lineage_v1",
                         help="fit-only source contrasts for each available grammar decision kind")
@@ -408,6 +463,12 @@ def main():
     if args.path_objective and (args.objective not in {"grammar_choices", "grammar_source_pairs"}
                                or args.source_evidence != "source_text"):
         parser.error("path-risk training needs intact source grammar supervision")
+    if args.joint_graph_contrasts and (not args.path_objective
+            or args.objective not in {"grammar_choices", "grammar_source_pairs"}
+            or not 2 <= args.joint_graph_contrasts <= 32
+            or args.prefix_storage != "source_shards" or args.prefix_strategy != "trie"
+            or args.reuse_prefix_from is not None):
+        parser.error("joint graph contrast needs path risk, source shards and trie capture")
     typed_pairs = args.source_pair_policy == "typed_choice_complete_v1"
     if typed_pairs and (not args.path_objective or args.objective != "grammar_source_pairs"):
         parser.error("typed source contrasts require the paired-source path objective")
@@ -531,6 +592,10 @@ def main():
             path = ROOT / "core" / "learning" / f"{name}.py"
             implementation_paths.append(path)
             implementation[str(path.relative_to(ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
+    if args.joint_graph_contrasts:
+        path = ROOT / "core/learning/semantic_native_search.py"
+        implementation_paths.append(path)
+        implementation[str(path.relative_to(ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
     if typed_pairs:
         path = ROOT / "core/learning/semantic_native_typed_source_pairs.py"
         implementation_paths.append(path)
@@ -617,15 +682,25 @@ def main():
                     grammar_path_objective_contract=dict(GRAMMAR_PATH_CONTRACT),
                     path_checkpoint_selection_contract=dict(PATH_SELECTION_CONTRACT),
                     selection="baseline_preserving_complete_source_calibration_paths")
+    if args.joint_graph_contrasts:
+        from core.learning.semantic_native_path_objective import JOINT_GRAPH_CONTRAST_CONTRACT
+
+        plan.update(schema="aura.semantic_native_fit_plan.v7",
+                    joint_graph_contrast_limit=args.joint_graph_contrasts,
+                    graph_contrast_contract=dict(JOINT_GRAPH_CONTRAST_CONTRACT))
     if typed_pairs:
         from core.learning.semantic_native_typed_source_pairs import (
             TYPED_SOURCE_PAIR_CONTRACT,
             typed_source_pair_inventory,
         )
 
-        plan.update(schema="aura.semantic_native_fit_plan.v6",
-                    grammar_source_pair_contract=dict(TYPED_SOURCE_PAIR_CONTRACT),
+        plan.update(grammar_source_pair_contract=dict(TYPED_SOURCE_PAIR_CONTRACT),
                     grammar_source_pair_inventory=typed_source_pair_inventory(grammar_pairs, schedule))
+    schema_version = native_fit_schema_version(
+        objective=args.objective, source_evidence=args.source_evidence,
+        path_objective=args.path_objective, typed_pairs=typed_pairs,
+        joint_graph_contrasts=args.joint_graph_contrasts)
+    plan["schema"] = f"aura.semantic_native_fit_plan.v{schema_version}"
     plan = {**plan, "plan_sha256": _digest(plan)}
     if args.reuse_annotation_sources is not None:
         from tools.evaluate_semantic_native_checkpoint import verified_document
@@ -666,8 +741,18 @@ def main():
     texts = {identity: source_text_from_tokens(item, tokenizer) for identity, item in items.items()}
     public_by_id = {identity: item.public_inputs for identity, item in items.items()}
     supervised_ids = tuple(sorted(set(captured_fit_ids) | set(calibration_ids)))
-    sequences, groups, supervision = build_native_supervision(items, texts, tokenizer, supervised_ids,
+    sequences, groups, graph_groups, supervision = build_native_supervision(items, texts, tokenizer, supervised_ids,
         plan, tuple(peer_programs[key] for key in sorted(peer_programs)))
+    projected_shards = None
+    if args.prefix_storage == "source_shards":
+        model_config = json.loads((spec.model_path / "config.json").read_text(encoding="utf-8"))
+        geometry = model_config.get("text_config", model_config)
+        if not isinstance(geometry, dict):
+            raise ValueError("native source shard hidden geometry is undeclared")
+        projected_shards = projected_source_shard_bytes(
+            sequences, hidden_size=geometry.get("hidden_size"))
+        if max(projected_shards.values()) > plan["prefix_storage_contract"]["max_resident_bytes"]:
+            raise ValueError("one projected frozen source exceeds the resident shard bound")
     if args.reuse_prefix_from is not None:
         from tools.semantic_native_prefix_reuse import open_reused_prefix
 
@@ -681,6 +766,9 @@ def main():
         print(json.dumps({"stage": "supervision_only", "plan_sha256": plan["plan_sha256"],
             "supervision_receipt_sha256": supervision["receipt_sha256"],
             "prefix_sequences": len(sequences),
+            "whole_graph_sequences": len(supervision.get("graph_rows", ())),
+            "largest_projected_source_shard_bytes": (
+                max(projected_shards.values()) if projected_shards is not None else None),
             "sequence_length_range": [min(len(row.tokens) for row in sequences.values()),
                                       max(len(row.tokens) for row in sequences.values())],
             "decision_counts": dict(Counter(kind for _source, _ordinal, kind in {
@@ -815,6 +903,8 @@ def main():
                     partitions = (groups[batch[0][0]] if args.objective in
                                   {"grammar_choices", "grammar_source_pairs"} else
                                   ((batch, 0),))
+                    if graph_groups:
+                        partitions = (*partitions, (graph_groups[batch[0][0]], 0))
                     offsets = {key: index for index, key in enumerate(batch)}
                     for keys, _gold in partitions:
                         indices = [offsets[key] for key in keys]
@@ -885,11 +975,13 @@ def main():
                         return native_grammar_path_objective(
                             lambda key: -native_loss(tail, states[key], sequences[key], summed=True,
                                                     scope="semantic_decisions"), groups[identity],
-                            typed_pairs=pair, partners=groups if pair else None)
+                            typed_pairs=pair, partners=groups if pair else None,
+                            graph_keys=graph_groups.get(identity))
                     return native_grammar_path_objective(
                         lambda key: -native_loss(tail, states[key], sequences[key], summed=True,
                                                 scope="semantic_decisions"), groups[identity],
-                        pair=pair, partner_decisions=groups[pair["partner"]] if pair else None)
+                        pair=pair, partner_decisions=groups[pair["partner"]] if pair else None,
+                        graph_keys=graph_groups.get(identity))
                 source_loss = native_grammar_source_loss(tail, states, sequences, groups[identity])
                 pair = grammar_pairs.get(identity)
                 if pair is None:
@@ -940,17 +1032,22 @@ def main():
                 total = 0.
                 for identity in sorted(calibration_ids):
                     check_bound()
-                    measured = []
+                    measured, measured_graph = [], []
                     loss = native_grammar_path_objective(
                         lambda key: -native_loss(suffix, states[key], sequences[key], summed=True,
                                                 scope="semantic_decisions"), groups[identity],
-                        measured_scores=measured)
+                        measured_scores=measured, graph_keys=graph_groups.get(identity),
+                        measured_graph_scores=measured_graph if graph_groups else None)
                     total += loss.item() * calibration_weights[identity]
                     decisions = [{"kind": supervision_by_key[keys[0]]["kind"],
                         "correct_index": correct, "choices": [supervision_by_key[key]["choice"] for key in keys],
                         "scores": scores.tolist()}
                         for (keys, correct), scores in zip(groups[identity], measured, strict=True)]
-                    calibration_paths.append({"source": identity, "decisions": decisions})
+                    calibration_paths.append({"source": identity, "decisions": decisions,
+                        **({"whole_graph": {"program_sha256s": [row["program_sha256"] for row in
+                           supervision["graph_rows"] if row["source"] == identity],
+                           "scores": measured_graph[0].tolist(), "positive_index": 0}}
+                           if graph_groups else {})})
                 return total / len(calibration_ids)
             return sum(source_objective(suffix, identity, states).item() * calibration_weights[identity]
                        for identity in calibration_ids) / len(calibration_ids)
@@ -1081,12 +1178,8 @@ def main():
                 or any(path.read_bytes() != raw[name] for name, path in (
                     ("parent", args.parent), ("source", args.source_report), ("folds", args.folds)))):
             raise ValueError("native fit identity changed during measurement")
-        body = {"schema": ("aura.semantic_native_fit.v6" if typed_pairs
-                           else "aura.semantic_native_fit.v5" if args.path_objective
-                           else "aura.semantic_native_fit.v4" if args.objective == "grammar_source_pairs"
-                           else "aura.semantic_native_fit.v3" if args.objective == "grammar_choices"
-                           else "aura.semantic_native_fit.v2" if args.source_evidence == "source_token_erasure"
-                           else "aura.semantic_native_fit.v1"), "plan_sha256": plan["plan_sha256"],
+        body = {"schema": f"aura.semantic_native_fit.v{schema_version}",
+                "plan_sha256": plan["plan_sha256"],
                 "selected_step": best[1], "baseline_calibration_loss": baseline,
                 "supervision_receipt_sha256": supervision["receipt_sha256"],
                 "prefix_sequence_population": len(sequences),

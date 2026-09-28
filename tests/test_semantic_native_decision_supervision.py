@@ -14,15 +14,23 @@ from core.learning.semantic_native_decision_supervision import (
     native_decision_choice_loss,
     native_teacher_decisions,
 )
+from core.learning.semantic_native_path_objective import (
+    GRAMMAR_PATH_CONTRACT,
+    JOINT_GRAPH_CONTRAST_CONTRACT,
+    path_choice_contract,
+)
+from core.learning.semantic_native_path_selection import PATH_SELECTION_CONTRACT
 from core.learning.semantic_native_source_control import (
     SOURCE_ERASURE_CONTRACT,
     source_control_mode_from_plan,
 )
 from tests.test_semantic_native_program import Tokenizer
 from tools.train_semantic_native_program import (
-    native_loss,
+    build_native_supervision,
     native_grammar_source_loss,
     native_grammar_supervision_sets,
+    native_fit_schema_version,
+    native_loss,
 )
 from tools.verify_semantic_native_fit import verify_source_control_supervision
 
@@ -90,7 +98,8 @@ def fixture(*, erase=False):
     target = Program(2, (Instruction("sub", (1, 0)),))
     items = {identity: SimpleNamespace(split="train", public_inputs=values, ir=SimpleNamespace(
         source_text_sha256=identity, source_token_ids=tuple(tokenizer.encode(text)),
-        to_program=lambda: target)) for (identity, text), values in zip(texts.items(), ((2, 5), (3, 7)))}
+        to_program=lambda: target)) for (identity, text), values in zip(
+            texts.items(), ((2, 5), (3, 7)), strict=True)}
     fit, cal = tuple(sorted(items))
     sequences, groups, rows = native_grammar_supervision_sets(
         items, texts, tokenizer, tuple(items), register_encoding="role_relative_v1",
@@ -150,6 +159,55 @@ def test_new_objective_cannot_relabel_an_archived_fit():
             source_control_mode_from_plan({**plan, "schema": schema})
     with pytest.raises(ValueError, match="grammar-choice"):
         source_control_mode_from_plan({**plan, "grammar_choice_contract": {}})
+
+
+def test_joint_graph_training_reuses_source_bound_grammar_and_reconstructs_all_rows(monkeypatch):
+    from tools.semantic_native_execution import execution_contract
+
+    monkeypatch.setenv("MLX_ENABLE_TF32", "0")
+    plan, _old, items, texts, tokenizer, _sequences, _groups = fixture()
+    plan.update(schema="aura.semantic_native_fit_plan.v7",
+                grammar_choice_contract=path_choice_contract(),
+                grammar_path_objective_contract=GRAMMAR_PATH_CONTRACT,
+                path_checkpoint_selection_contract=PATH_SELECTION_CONTRACT,
+                selection="baseline_preserving_complete_source_calibration_paths",
+                unfitted_checkpoint_eligible=True,
+                joint_graph_contrast_limit=3,
+                graph_contrast_contract=JOINT_GRAPH_CONTRAST_CONTRACT,
+                fit_ids=plan["fit_ids"],
+                prefix_storage_contract={"mode": "source_shards"},
+                execution_contract=execution_contract(precision="float32", prefix_strategy="trie"),
+                plan_sha256="a" * 64)
+    peers = tuple(items[key].ir.to_program() for key in plan["fit_ids"])
+    sequences, decisions, graphs, receipt = build_native_supervision(
+        items, texts, tokenizer, tuple(sorted(items)), plan, peers)
+    assert set(graphs) == set(items)
+    assert len(sequences) == len(receipt["rows"]) + len(receipt["graph_rows"])
+    assert all(keys[0][1:] == (-1, 0) for keys in graphs.values())
+    assert all(len(keys) >= 2 for keys in graphs.values())
+    assert all(receipt["graph_rows"][index]["positive"] for index in
+               (0, len(graphs[tuple(sorted(items))[0]])))
+    checked = verify_source_control_supervision(plan, json.loads(json.dumps(receipt)), items, tokenizer)
+    assert checked["supervision_sequences_verified"] == len(sequences)
+    assert checked["whole_graph_sequences_verified"] == len(receipt["graph_rows"])
+    assert checked["supervised_decisions_verified"] == sum(map(len, decisions.values()))
+    forged = json.loads(json.dumps(receipt))
+    forged["graph_rows"][0]["program_sha256"] = "0" * 64
+    with pytest.raises(ValueError, match="whole-graph supervision"):
+        verify_source_control_supervision(plan, forged, items, tokenizer)
+
+
+@pytest.mark.parametrize(("objective", "typed_pairs", "graph_contrasts", "expected"), [
+    ("grammar_choices", False, 0, 5),
+    ("grammar_source_pairs", True, 0, 6),
+    ("grammar_choices", False, 3, 7),
+    ("grammar_source_pairs", True, 3, 7),
+])
+def test_composed_objectives_share_one_plan_and_report_schema(
+        objective, typed_pairs, graph_contrasts, expected):
+    assert native_fit_schema_version(
+        objective=objective, source_evidence="source_text", path_objective=True,
+        typed_pairs=typed_pairs, joint_graph_contrasts=graph_contrasts) == expected
 
 
 def test_real_mlx_source_objective_updates_the_scores_used_at_inference():

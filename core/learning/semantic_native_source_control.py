@@ -24,15 +24,32 @@ SOURCE_ERASURE_CONTRACT = {
 def source_control_mode_from_plan(plan: Mapping[str, Any]) -> str:
     """Keep historical fits intact and require explicit authority for erasure."""
     schema = plan.get("schema")
-    typed_mode = schema == "aura.semantic_native_fit_plan.v6"
-    path_mode = schema in {"aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}
+    graph_mode = schema == "aura.semantic_native_fit_plan.v7"
+    typed_mode = schema == "aura.semantic_native_fit_plan.v6" or (
+        graph_mode and "grammar_source_pair_inventory" in plan)
+    path_mode = schema in {"aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6",
+                           "aura.semantic_native_fit_plan.v7"}
+    graph_fields = {"joint_graph_contrast_limit", "graph_contrast_contract"}
+    if not graph_mode and graph_fields & set(plan):
+        raise ValueError("historical native fit cannot acquire whole-graph training")
+    if graph_mode:
+        from core.learning.semantic_native_path_objective import JOINT_GRAPH_CONTRAST_CONTRACT
+
+        if (plan.get("graph_contrast_contract") != JOINT_GRAPH_CONTRAST_CONTRACT
+                or type(plan.get("joint_graph_contrast_limit")) is not int
+                or not 2 <= plan["joint_graph_contrast_limit"] <= 32
+                or plan.get("prefix_storage_contract", {}).get("mode") != "source_shards"
+                or plan.get("execution_contract", {}).get("prefix_strategy") != "trie"
+                or "reused_prefix_contract" in plan):
+            raise ValueError("native whole-graph contrast contract differs")
     if not typed_mode and "grammar_source_pair_inventory" in plan:
         raise ValueError("historical native fit cannot acquire typed source-pair coverage")
     path_fields = {"grammar_path_objective_contract", "path_checkpoint_selection_contract"}
     if not path_mode and path_fields & set(plan):
         raise ValueError("historical native fit cannot acquire path-risk selection")
     if schema in {"aura.semantic_native_fit_plan.v3", "aura.semantic_native_fit_plan.v4",
-                  "aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6"}:
+                  "aura.semantic_native_fit_plan.v5", "aura.semantic_native_fit_plan.v6",
+                  "aura.semantic_native_fit_plan.v7"}:
         from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
         from core.learning.semantic_native_source_pairs import SOURCE_PAIR_CONTRACT
 

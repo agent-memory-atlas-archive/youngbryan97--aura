@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     import mlx.core as mx
 
 #: (source, program sha) for a program fit; (source, decision, choice) for grammar choices.
+#: Decision -1 reserves complete-graph contrasts beside grammar choices.
 StateKey = tuple[str, str] | tuple[str, int, int]
 
 

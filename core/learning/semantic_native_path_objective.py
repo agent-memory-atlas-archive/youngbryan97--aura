@@ -20,6 +20,18 @@ GRAMMAR_PATH_CONTRACT = {
     "unseen_correctness_guaranteed": False,
 }
 
+JOINT_GRAPH_CONTRAST_CONTRACT = {
+    "schema": "aura.native_joint_graph_contrast.v1",
+    "positive": "source_training_target_complete_graph",
+    "negative": "typed_source_only_counterfactually_witnessed_complete_graph",
+    "score": "summed_native_semantic_decision_log_probability",
+    "training": "one_whole_graph_loss_in_same_path_risk",
+    "calibration": "same_complete_graph_competition_with_source_only_targets",
+    "inference": "search_complete_candidates_then_score_whole_graph",
+    "held_labels_used": False,
+    "serving_authority": False,
+}
+
 
 def path_choice_contract() -> dict:
     from core.learning.semantic_native_decision_supervision import GRAMMAR_CHOICE_CONTRACT
@@ -44,7 +56,8 @@ def native_path_risk_loss(losses: mx.array) -> mx.array:
 
 def native_grammar_path_objective(scorer, decisions, *, partner_decisions=None,
                                   pair=None, typed_pairs=None, partners=None,
-                                  measured_scores=None) -> mx.array:
+                                  measured_scores=None, graph_keys=None,
+                                  measured_graph_scores=None) -> mx.array:
     """Compete all weak choices and the source contrast on one loss scale.
 
     An operation-only source interaction must not receive the weight of an
@@ -54,11 +67,15 @@ def native_grammar_path_objective(scorer, decisions, *, partner_decisions=None,
     import mlx.core as mx
 
     from core.learning.semantic_native_decision_supervision import native_decision_choice_loss
+    from core.learning.semantic_native_program import native_choice_loss
     from core.learning.semantic_native_source_pairs import native_source_interaction_loss
 
     if (not decisions or (pair is None) != (partner_decisions is None)
             or (typed_pairs is None) != (partners is None)
-            or (pair is not None and typed_pairs is not None)):
+            or (pair is not None and typed_pairs is not None)
+            or graph_keys is not None and (not isinstance(graph_keys, tuple)
+                or len(graph_keys) < 2 or len(set(graph_keys)) != len(graph_keys))
+            or measured_graph_scores is not None and graph_keys is None):
         raise ValueError("native path objective source/partner decisions differ")
     losses, scores = [], []
     for keys, correct in decisions:
@@ -84,6 +101,11 @@ def native_grammar_path_objective(scorer, decisions, *, partner_decisions=None,
         partner_keys = peer_decisions[ordinal][0]
         losses.append(native_source_interaction_loss(scores[ordinal][own], scores[ordinal][rival],
             scorer(partner_keys[own]), scorer(partner_keys[rival])))
+    if graph_keys is not None:
+        graph_scores = mx.stack([scorer(key) for key in graph_keys])
+        losses.append(native_choice_loss(graph_scores, (0,)))
+        if measured_graph_scores is not None:
+            measured_graph_scores.append(graph_scores)
     if measured_scores is not None:
         measured_scores.extend(scores)
     return native_path_risk_loss(mx.stack(losses))

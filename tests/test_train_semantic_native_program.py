@@ -18,6 +18,7 @@ from tools.train_semantic_native_program import (
     native_source_loss,
     native_supervision_sets,
     native_training_schedule,
+    projected_source_shard_bytes,
     selected_projection_error,
 )
 
@@ -60,6 +61,19 @@ def test_prefix_batches_preserve_every_complete_sequence_and_ignore_input_order(
     for size in (0, True, 33):
         with pytest.raises(ValueError, match="batch size"):
             list(exact_length_batches(sequences, batch_size=size))
+
+
+def test_source_shard_projection_counts_every_graph_and_decision_branch():
+    rows = {
+        ("a", 0, 0): NativeProgramSequence((1, 2, 3), 1),
+        ("a", -1, 0): NativeProgramSequence((1, 2, 3, 4), 1),
+        ("b", 0, 0): NativeProgramSequence((1, 2), 1),
+    }
+    assert projected_source_shard_bytes(rows, hidden_size=8) == {"a": 160, "b": 32}
+    with pytest.raises(ValueError, match="geometry"):
+        projected_source_shard_bytes(rows, hidden_size=0)
+    with pytest.raises(ValueError, match="source-bound"):
+        projected_source_shard_bytes({0: rows[("a", 0, 0)]}, hidden_size=8)
 
 
 class Suffix(nn.Module):
