@@ -369,6 +369,11 @@ def verify_state_storage(directory, plan, report, supervision):
             "hidden_states_independently_recomputed": False}
 
 
+def persisted_source_pairs(pairs):
+    """Compare reconstructed witnesses in the signed plan's JSON data model."""
+    return json.loads(json.dumps(pairs, sort_keys=True, allow_nan=False))
+
+
 def verify_fit(directory, bank_directory, items, *, tokenizer=None):
     from core.learning.semantic_native_source_control import source_control_mode_from_plan
     from tools.evaluate_semantic_candidate_ranker import _read_bank
@@ -417,7 +422,7 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
         pairs = pair_planner(
             tuple(items[identity] for identity in plan["fit_ids"]), plan["fit_ids"],
             register_encoding=plan["register_encoding"])
-        if (pairs != plan["grammar_source_pair_fit_partners"]
+        if (persisted_source_pairs(pairs) != plan["grammar_source_pair_fit_partners"]
                 or plan["grammar_source_pair_updates"] != sum(
                     identity in pairs for identity in plan["scheduled_fit_ids"])):
             raise ValueError("native fit source-pair supervision differs")
