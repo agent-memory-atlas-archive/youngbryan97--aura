@@ -257,25 +257,107 @@ def _seed_topology(rt: MorphogeneticRuntime) -> None:
             rt.lineage.seed(cell.cell_id, cause="boot")
             rt.governor.set_capabilities(cell.cell_id, cell.manifest.capabilities)
 
+        # The envelope the governor holds the whole topology to, applied to the
+        # founding bindings as well.
+        #
+        # This seed added every adjacency pair in both directions and checked
+        # nothing but the graph's own degree caps, so the boot it is supposed to
+        # make healthy ended with 258 bindings against a ceiling of 256, and
+        # `morphogenesis.edges` reported red_high from the first tick of every
+        # process (LIVE 21, 23 and 28 September, the same 258 each time, 53
+        # cells). The population sync already clips to this envelope; the seed
+        # that runs before it did not.
+        #
+        # What the seed exists for is connectivity: without it every cell is its
+        # own component and the partition channel goes red on a healthy boot.
+        # So the bindings that join two pieces into one go in first, whatever
+        # their place in the adjacency table; the rest of the forward edges are
+        # density, and the reverse ones only make a binding mutual. Clipping in
+        # table order instead left the last subsystems in the table unbound —
+        # nine components, measured, which is the very alarm this seed prevents.
+        envelope = max(0, int(rt.governor.bounds.max_edges))
+        clipped = 0
+
         def seed(scratch: Any) -> None:
+            nonlocal clipped
             for cell_ids in by_subsystem.values():
                 for cell_id in cell_ids:
                     scratch.add_node(cell_id)
-            for left, right, weight in _TISSUE_ADJACENCY:
-                for source in by_subsystem.get(left, ()):
-                    for target in by_subsystem.get(right, ()):
-                        if source == target:
-                            continue
-                        scratch.add_edge(MorphEdge(
-                            source=source, target=target,
-                            edge_type=EdgeType.OBSERVE, weight=weight,
-                        ))
-                        scratch.add_edge(MorphEdge(
-                            source=target, target=source,
-                            edge_type=EdgeType.OBSERVE, weight=weight,
-                        ))
+
+            # And the per-cell degree budget the graph validates against. The
+            # seed did not know it either: a transaction that passes it raises
+            # and `rt.graph.transaction` changes nothing, so the whole boot
+            # topology was abandoned and recorded as a MARGINAL fault — every
+            # cell its own component, which is the state this seed exists to
+            # avoid. Measured while reordering the clip: in-degree 22 at one
+            # cell against a cap of 16.
+            out_degree: dict[str, int] = {}
+            in_degree: dict[str, int] = {}
+            for edge in scratch.edges.values():
+                out_degree[edge.source] = out_degree.get(edge.source, 0) + 1
+                in_degree[edge.target] = in_degree.get(edge.target, 0) + 1
+            max_out = rt.graph.max_out_degree
+            max_in = rt.graph.max_in_degree
+
+            def admit(source: str, target: str, weight: float) -> bool:
+                # Counted from the scratch itself, which carries whatever the
+                # graph already holds and collapses a binding proposed twice.
+                # A counter of calls would have done neither.
+                nonlocal clipped
+                if (
+                    len(scratch.edges) >= envelope
+                    or out_degree.get(source, 0) >= max_out
+                    or in_degree.get(target, 0) >= max_in
+                ):
+                    clipped += 1
+                    return False
+                scratch.add_edge(MorphEdge(
+                    source=source, target=target,
+                    edge_type=EdgeType.OBSERVE, weight=weight,
+                ))
+                out_degree[source] = out_degree.get(source, 0) + 1
+                in_degree[target] = in_degree.get(target, 0) + 1
+                return True
+
+            wanted: list[tuple[str, str, float]] = [
+                (source, target, weight)
+                for left, right, weight in _TISSUE_ADJACENCY
+                for source in by_subsystem.get(left, ())
+                for target in by_subsystem.get(right, ())
+                if source != target
+            ]
+
+            piece: dict[str, str] = {}
+
+            def root(node: str) -> str:
+                while piece.setdefault(node, node) != node:
+                    piece[node] = piece[piece[node]]
+                    node = piece[node]
+                return node
+
+            joining: list[tuple[str, str, float]] = []
+            density: list[tuple[str, str, float]] = []
+            for source, target, weight in wanted:
+                left_root, right_root = root(source), root(target)
+                if left_root == right_root:
+                    density.append((source, target, weight))
+                    continue
+                piece[left_root] = right_root
+                joining.append((source, target, weight))
+
+            made: list[tuple[str, str, float]] = []
+            for source, target, weight in joining + density:
+                if admit(source, target, weight):
+                    made.append((source, target, weight))
+            for source, target, weight in made:
+                admit(target, source, weight)
 
         rt.graph.transaction(seed, cause="boot_topology")
+        if clipped:
+            logger.info(
+                "🧬 Morphogenesis seed left %d reverse binding(s) unmade at the "
+                "envelope of %d.", clipped, envelope,
+            )
         for edge in rt.graph.edges():
             rt.substrate.bind(edge)
         logger.info(

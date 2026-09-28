@@ -184,3 +184,29 @@ def test_a_deferral_is_not_retried_as_a_failure():
         "_WarmupDeferredError must be caught before the generic retry handler, "
         "or a deferral is retried as a failure"
     )
+
+
+def test_every_precompile_call_stands_down_on_a_deferral():
+    """LIVE 2026-09-28 00:33, one boot: `FAULT RUNTIME-MLX_CLIENT [MARGINAL]
+    ... stopped_before_worker_spawn:foreground_headroom_reserved`.
+
+    ``_warmup_impl`` calls the precompile from two branches. The foreground one
+    caught ``_WarmupDeferredError`` and stood down; the background one — the
+    lane that takes this refusal on nearly every boot — fell through to the
+    generic handler, marked the lane recovering and recorded a warning
+    degradation and a fault against her for a decision the runtime made on
+    purpose. Counting the call sites against the stand-downs holds a third
+    branch to the same rule.
+    """
+    import inspect
+
+    from core.brain.llm import mlx_warmup_and_adapters as warmup
+
+    source = inspect.getsource(warmup._WarmsUpAndSwapsAdapters._warmup_impl)
+    calls = source.count("await self._run_warmup_precompile(")
+    stood_down = source.count("except _WarmupDeferredError")
+    assert calls >= 2, "expected the foreground and background precompile branches"
+    assert stood_down == calls, (
+        f"{calls} precompile call site(s) but {stood_down} stand down on a "
+        "deferral; one of them records a refusal as a fault"
+    )

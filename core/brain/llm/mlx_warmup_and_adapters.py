@@ -1180,6 +1180,22 @@ class _WarmsUpAndSwapsAdapters:
                     owner_name=owner_name,
                     warmup_timeout=warmup_timeout,
                 )
+            except _WarmupDeferredError as deferred:
+                # The same refusal the foreground branch above stands down
+                # from, on the lane that takes it far more often. This branch
+                # read it as a precompile failure, so every boot that reserved
+                # headroom for the cortex recorded a warning degradation and a
+                # MARGINAL fault against her for the runtime doing exactly what
+                # it meant to do: LIVE 2026-09-28 00:33,
+                # `stopped_before_worker_spawn:foreground_headroom_reserved`
+                # arriving as `FAULT RUNTIME-MLX_CLIENT [MARGINAL]`.
+                logger.info(
+                    "⏸️ [MLX] Warmup deferred for %s: the runtime is not "
+                    "spawning workers right now (%s).",
+                    os.path.basename(self.model_path),
+                    deferred,
+                )
+                return False
             except (RuntimeError, AttributeError, TypeError, ValueError) as e:
                 self._set_lane_state("recovering", f"warmup_precompile_failed:{type(e).__name__}")
                 _record_mlx_degradation(

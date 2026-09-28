@@ -383,6 +383,58 @@ class ResourceGovernor:
         self._consecutive_pressure_samples = 0
         return False
 
+    def _threshold_for(self, tier: EvictionTier) -> float:
+        """The memory usage this tier fires at, so a shed has a line to get
+        back under rather than a number somebody chose."""
+        return {
+            EvictionTier.SOFT: self.MEMORY_SOFT_THRESHOLD,
+            EvictionTier.MODERATE: self.MEMORY_MODERATE_THRESHOLD,
+            EvictionTier.AGGRESSIVE: self.MEMORY_AGGRESSIVE_THRESHOLD,
+        }.get(tier, 100.0)
+
+    def _shed_the_order(self, tier: EvictionTier) -> int:
+        """Ask the registered organs to free memory. Returns how many shed."""
+        if tier == EvictionTier.NONE:
+            return 0
+        try:
+            from core.runtime.oom_policy import get_oom_policy
+            from core.runtime.resource_observation import get_resource_observer
+        except ImportError as exc:
+            record_degradation(
+                "resource_governor", exc, severity="debug",
+                action="skipped the shed order; the OOM policy is unavailable",
+            )
+            return 0
+        observer = self._observer or get_resource_observer()
+
+        def free_bytes_now() -> int:
+            reading = observer.memory()
+            return int(getattr(reading, "available_bytes", 0) or 0)
+
+        try:
+            reading = observer.memory()
+            total = int(getattr(reading, "total_bytes", 0) or 0)
+            if total <= 0:
+                return 0
+            head_room = 1.0 - (self._threshold_for(tier) / 100.0)
+            steps = [
+                EvictionTier.SOFT, EvictionTier.MODERATE, EvictionTier.AGGRESSIVE,
+            ]
+            events = get_oom_policy().shed_until(
+                target_free_bytes=int(total * head_room),
+                free_bytes_now=free_bytes_now,
+                reason=f"resource_governor:{tier.value}",
+                max_victims=steps.index(tier) + 1 if tier in steps else 1,
+            )
+            return len(events)
+        except (AttributeError, RuntimeError, TypeError, ValueError) as exc:
+            record_degradation(
+                "resource_governor", exc, severity="warning",
+                action="continued after the shed order failed",
+                extra={"tier": tier.value},
+            )
+            return 0
+
     def execute_eviction(self, tier: EvictionTier) -> int:
         """Execute memory eviction at the specified tier.
 
@@ -434,10 +486,24 @@ class ResourceGovernor:
             except (ImportError, AttributeError, RuntimeError) as _exc:
                 logger.debug("Suppressed %s in core.resource.resource_governor: %s", type(_exc).__name__, _exc)
 
+        # And the shed order that exists, which this never asked.
+        #
+        # `register_eviction_callback` had no caller anywhere in the runtime, so
+        # every eviction ran an empty list and reported "callbacks=0" at
+        # warning — a mechanism that announced itself while freeing nothing.
+        # LIVE 2026-09-28 00:43, mid-page-run at 92% resource pressure: "
+        # Eviction tier=moderate, callbacks=0" then "tier=soft, callbacks=0".
+        #
+        # The organs that CAN free memory are registered with the OOM policy by
+        # the container, ranked by badness, each with its own shed. The target
+        # comes from the line that fired: shed until usage is back under this
+        # tier's own threshold, and stop as soon as it is. The victim cap is the
+        # escalation itself — one at the first tier, one more at each step.
+        shed = self._shed_the_order(tier)
         logger.log(
             logging.WARNING if tier != getattr(self, "_tier_reported", None) else logging.INFO,
-            "ResourceGovernor: Eviction tier=%s, callbacks=%d",
-            tier.value, invoked,
+            "ResourceGovernor: Eviction tier=%s, callbacks=%d, shed=%d",
+            tier.value, invoked, shed,
         )
         self._tier_reported = tier
 
