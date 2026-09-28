@@ -3,18 +3,18 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from core.learning.procedure_induction import Program
-from core.learning.semantic_native_program import (
-    NativeProgramSequence,
-    native_text_decision_sequence,
-)
+from core.learning.semantic_native_program import native_text_decision_sequence
 from core.learning.semantic_register_identity import (
     RegisterIdentity,
     program_from_register_identities,
     program_register_identities,
 )
+
+if TYPE_CHECKING:
+    from core.learning.semantic_native_program import NativeProgramSequence
 
 REGISTER_ENCODING = "role_relative_v1"
 

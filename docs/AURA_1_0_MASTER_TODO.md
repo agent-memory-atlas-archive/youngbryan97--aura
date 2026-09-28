@@ -1210,6 +1210,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Complete-path optimization](evidence/G03_COMPLETE_PATH_OPTIMIZATION_2026-09-28.md)
+  measures all 185 calibration sources at four checkpoints. The selected
+  paired fit loses 38 of 51 baseline-correct paths. A new opt-in objective
+  connects weak-choice risk to complete-path, baseline-preserving selection;
+  full model measurement and generated non-regression remain pending.
   [Retained native generation](evidence/G03_RETAINED_NATIVE_GENERATION_2026-09-28.md)
   independently verifies 7/14 exact procedures versus base 1/14, with seven
   gains and one regression. The regression loses a base graph's proven

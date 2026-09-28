@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from core.learning.procedure_induction import Program
 from core.learning.semantic_native_program import (
-    NativeProgramSequence,
     native_program_sequence,
     native_program_surface,
     parse_native_program,
@@ -18,6 +16,10 @@ from core.learning.semantic_native_relative_program import (
     relative_native_program_sequence,
     relative_native_program_surface,
 )
+
+if TYPE_CHECKING:
+    from core.learning.procedure_induction import Program
+    from core.learning.semantic_native_program import NativeProgramSequence
 
 REGISTER_ENCODINGS = ("absolute_v1", REGISTER_ENCODING)
 NATIVE_CODEC_IMPLEMENTATION_PATHS = (

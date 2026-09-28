@@ -321,7 +321,7 @@ def build_native_supervision(items, texts, tokenizer, identities, plan, peer_pro
                 for key, sequence in sorted(sequences.items())]
     supervision = {"plan_sha256": plan["plan_sha256"], "rows": rows}
     if plan["objective"] in {"grammar_choices", "grammar_source_pairs"}:
-        supervision["grammar_choice_contract"] = dict(GRAMMAR_CHOICE_CONTRACT)
+        supervision["grammar_choice_contract"] = dict(plan.get("grammar_choice_contract", GRAMMAR_CHOICE_CONTRACT))
     if control:
         supervision["source_evidence_control"] = {
             **SOURCE_ERASURE_CONTRACT, "erased_fit_ids": sorted(plan["captured_fit_ids"]),
@@ -364,6 +364,10 @@ def main():
     parser.add_argument("--register-encoding", choices=REGISTER_ENCODINGS, default="absolute_v1")
     parser.add_argument("--source-evidence", choices=("source_text", "source_token_erasure"),
                         default="source_text")
+    parser.add_argument("--path-objective", action="store_true",
+                        help="joint weak-choice risk and baseline-preserving source-path selection")
+    parser.add_argument("--reuse-annotation-sources", type=Path,
+                        help="hash-bound archived source for annotation-only frozen implementation changes")
     parser.add_argument("--plan-only", action="store_true")
     parser.add_argument("--supervision-only", action="store_true",
                         help="tokenize and audit the declared objective without loading model weights")
@@ -381,6 +385,8 @@ def main():
         parser.error("source shards require trie capture and a resident bound inside [1, 4096] MiB")
     if args.reuse_prefix_from is not None and args.prefix_storage != "source_shards":
         parser.error("prefix reuse requires lossless source shards")
+    if args.reuse_annotation_sources is not None and (args.reuse_prefix_from is None or not args.path_objective):
+        parser.error("annotation reuse requires explicit path-objective frozen prefix reuse")
     if (any(type(value) is not int or value < 1 for value in (
             args.steps, args.save_every, args.rank, args.layers, args.max_sequence_tokens))
             or args.steps % args.save_every or not 0 < args.max_seconds <= 14400
@@ -396,6 +402,9 @@ def main():
         parser.error("supervision inventory and source-hash canary bounds need explicit independent modes")
     if args.objective == "grammar_source_pairs" and args.source_evidence != "source_text":
         parser.error("paired-source training needs intact source evidence")
+    if args.path_objective and (args.objective not in {"grammar_choices", "grammar_source_pairs"}
+                               or args.source_evidence != "source_text"):
+        parser.error("path-risk training needs intact source grammar supervision")
 
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
@@ -502,6 +511,11 @@ def main():
         pair_path = ROOT / "core/learning/semantic_native_source_pairs.py"
         implementation_paths.append(pair_path)
         implementation[str(pair_path.relative_to(ROOT))] = hashlib.sha256(pair_path.read_bytes()).hexdigest()
+    if args.path_objective:
+        for name in ("semantic_native_path_objective", "semantic_native_path_calibration", "semantic_native_path_selection"):
+            path = ROOT / "core" / "learning" / f"{name}.py"
+            implementation_paths.append(path)
+            implementation[str(path.relative_to(ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
     plan = {"schema": "aura.semantic_native_fit_plan.v1", "steps": args.steps,
             "save_every": args.save_every, "rank": args.rank, "suffix_layers": args.layers,
             "prefix_batch_size": args.prefix_batch_size,
@@ -572,7 +586,28 @@ def main():
                     grammar_source_pair_contract=dict(SOURCE_PAIR_CONTRACT),
                     grammar_source_pair_fit_partners=grammar_pairs,
                     grammar_source_pair_updates=sum(identity in grammar_pairs for identity in schedule))
+    if args.path_objective:
+        from core.learning.semantic_native_path_objective import (
+            GRAMMAR_PATH_CONTRACT,
+            path_choice_contract,
+        )
+        from core.learning.semantic_native_path_selection import PATH_SELECTION_CONTRACT
+
+        plan.update(schema="aura.semantic_native_fit_plan.v5",
+                    grammar_choice_contract=path_choice_contract(),
+                    grammar_path_objective_contract=dict(GRAMMAR_PATH_CONTRACT),
+                    path_checkpoint_selection_contract=dict(PATH_SELECTION_CONTRACT),
+                    selection="baseline_preserving_complete_source_calibration_paths")
     plan = {**plan, "plan_sha256": _digest(plan)}
+    if args.reuse_annotation_sources is not None:
+        from tools.evaluate_semantic_native_checkpoint import verified_document
+
+        archive = verified_document(args.reuse_annotation_sources)
+        plan.pop("plan_sha256")
+        plan["annotation_only_prefix_sources"] = {
+            "path": str(args.reuse_annotation_sources.resolve()),
+            "receipt_sha256": archive["receipt_sha256"]}
+        plan["plan_sha256"] = _digest(plan)
     if execution is not None:
         plan.pop("plan_sha256")
         plan["execution_contract"] = execution
@@ -812,6 +847,16 @@ def main():
                                   "active_memory_bytes": mx.get_active_memory()}), flush=True)
         def source_objective(tail, identity, states):
             if args.objective in {"grammar_choices", "grammar_source_pairs"}:
+                if args.path_objective:
+                    from core.learning.semantic_native_path_objective import (
+                        native_grammar_path_objective,
+                    )
+
+                    pair = grammar_pairs.get(identity)
+                    return native_grammar_path_objective(
+                        lambda key: -native_loss(tail, states[key], sequences[key], summed=True,
+                                                scope="semantic_decisions"), groups[identity],
+                        pair=pair, partner_decisions=groups[pair["partner"]] if pair else None)
                 source_loss = native_grammar_source_loss(tail, states, sequences, groups[identity])
                 pair = grammar_pairs.get(identity)
                 if pair is None:
@@ -848,7 +893,32 @@ def main():
             return source_loss + plan["relational_metric_weight"] * native_relation_metric_loss(
                 tail, source_pair(identity), source_pair(triplet[0]), source_pair(triplet[1]))
 
+        calibration_paths = []
+        supervision_by_key = {(row["source"], row["decision_index"], row["choice_index"]): row
+                              for row in supervision["rows"]} if args.path_objective else {}
+
         def measure_calibration(states):
+            if args.path_objective:
+                from core.learning.semantic_native_path_objective import (
+                    native_grammar_path_objective,
+                )
+
+                calibration_paths.clear()
+                total = 0.
+                for identity in sorted(calibration_ids):
+                    check_bound()
+                    measured = []
+                    loss = native_grammar_path_objective(
+                        lambda key: -native_loss(suffix, states[key], sequences[key], summed=True,
+                                                scope="semantic_decisions"), groups[identity],
+                        measured_scores=measured)
+                    total += loss.item() * calibration_weights[identity]
+                    decisions = [{"kind": supervision_by_key[keys[0]]["kind"],
+                        "correct_index": correct, "choices": [supervision_by_key[key]["choice"] for key in keys],
+                        "scores": scores.tolist()}
+                        for (keys, correct), scores in zip(groups[identity], measured, strict=True)]
+                    calibration_paths.append({"source": identity, "decisions": decisions})
+                return total / len(calibration_ids)
             return sum(source_objective(suffix, identity, states).item() * calibration_weights[identity]
                        for identity in calibration_ids) / len(calibration_ids)
 
@@ -862,6 +932,16 @@ def main():
             row = {"plan_sha256": plan["plan_sha256"], "step": step,
                    "calibration_loss": calibration_loss,
                    "weights_sha256": hashlib.sha256(payload).hexdigest()}
+            if args.path_objective:
+                from core.learning.semantic_native_path_calibration import native_path_totals
+
+                body = {"schema": "aura.native_checkpoint_path_calibration.v1",
+                        "plan_sha256": plan["plan_sha256"], "step": step,
+                        "rows": list(calibration_paths),
+                        "totals": native_path_totals(calibration_paths, sorted(calibration_ids))}
+                receipt = {**body, "receipt_sha256": _digest(body)}
+                _save_if_absent(args.directory / f"calibration-paths-{step}.json", receipt)
+                row["calibration_path_receipt_sha256"] = receipt["receipt_sha256"]
             row = {**row, "receipt_sha256": _digest(row)}
             _save_if_absent(args.directory / f"checkpoint-{step}.json", row)
             print(json.dumps({"stage": "checkpoint", **row}), flush=True)
@@ -893,6 +973,12 @@ def main():
                 checkpoints.append(row)
                 if (calibration_loss, step) < (best[0], best[1]):
                     best = (calibration_loss, step, weight_path)
+        if args.path_objective:
+            from tools.evaluate_semantic_native_checkpoint import selected_checkpoint
+
+            _plan, selected = selected_checkpoint(args.directory)
+            best = (selected["calibration_loss"], selected["step"],
+                    args.directory / f"checkpoint-{selected['step']}.safetensors")
         model.load_weights(str(best[2]), strict=False)
         selected_weights = tree_map(lambda value: mx.array(value), suffix.trainable_parameters())
         mx.eval(selected_weights)
@@ -962,7 +1048,8 @@ def main():
                 or any(path.read_bytes() != raw[name] for name, path in (
                     ("parent", args.parent), ("source", args.source_report), ("folds", args.folds)))):
             raise ValueError("native fit identity changed during measurement")
-        body = {"schema": ("aura.semantic_native_fit.v4" if args.objective == "grammar_source_pairs"
+        body = {"schema": ("aura.semantic_native_fit.v5" if args.path_objective
+                           else "aura.semantic_native_fit.v4" if args.objective == "grammar_source_pairs"
                            else "aura.semantic_native_fit.v3" if args.objective == "grammar_choices"
                            else "aura.semantic_native_fit.v2" if args.source_evidence == "source_token_erasure"
                            else "aura.semantic_native_fit.v1"), "plan_sha256": plan["plan_sha256"],
