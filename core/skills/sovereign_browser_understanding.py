@@ -192,7 +192,7 @@ class _UnderstandsThePage:
                 # And what the options ARE, where they are a scale rather than
                 # a list. The page draws five dots between two opposing
                 # phrases and says nowhere that position is the answer.
-                reads = cls._how_the_scale_reads(
+                laid_out = cls._how_the_options_are_laid_out(
                     [
                         option
                         for option in elements
@@ -200,8 +200,8 @@ class _UnderstandsThePage:
                         and str(option.get("group") or "") == group
                     ]
                 )
-                if reads:
-                    lines.append(f"question {group}: {reads}")
+                if laid_out:
+                    lines.append(f"question {group} offers: {laid_out}")
             state = []
             if element.get("group"):
                 # Options in one group answer ONE question. Rendering it is
@@ -658,6 +658,8 @@ class _UnderstandsThePage:
             '{"here": "<what this page is>", '
             '"to_progress": "<what I have to do on THIS page to move forward>", '
             '"relevant": "<which controls matter and what they do>", '
+            '"how_to_answer": "<what this page wants from me for each question: '
+            'what its options mean and what choosing one of them says>", '
             '"present_but_not_needed": "<controls that exist here and are not what I need>", '
             '"done_when": "<how I will know the whole task is finished>"}'
         )
@@ -695,6 +697,7 @@ class _UnderstandsThePage:
             ("Where I am", understanding.get("here")),
             ("What this page needs from me", understanding.get("to_progress")),
             ("What matters here", understanding.get("relevant")),
+            ("How this page wants to be answered", understanding.get("how_to_answer")),
             ("Here but not what I need", understanding.get("present_but_not_needed")),
             ("I am finished when", understanding.get("done_when")),
         ]
@@ -894,7 +897,24 @@ class _UnderstandsThePage:
         "type": "object",
         "properties": {
             key: {"type": "string"}
-            for key in ("here", "to_progress", "relevant", "present_but_not_needed", "done_when")
+            for key in (
+                "here",
+                "to_progress",
+                "relevant",
+                # How this page wants to be answered, in her words.
+                #
+                # A row of unlabelled controls can be a scale between two
+                # opposites, a set of choices, a "more like me / less like me"
+                # ranking, or whatever the page's own instructions say. Putting
+                # any one of those in the code would be a rule that is wrong on
+                # the next site. What is on screen is stated as layout — how
+                # many controls, labelled or not, one or several, and the words
+                # on either side — and what it MEANS is read from the page,
+                # once, and carried across the rounds that answer it.
+                "how_to_answer",
+                "present_but_not_needed",
+                "done_when",
+            )
         },
         "required": ["here", "to_progress", "done_when"],
     }
@@ -944,81 +964,68 @@ class _UnderstandsThePage:
                 asks = asks.replace(label, " ")
         question = " ".join(re.sub(r"(?:\s*\[[^\]]*\])+", " \u2026 ", asks).split()).strip(" \u2026")
         picked = name if labelled else f"{index + 1} of {len(options)}"
-        # Which way that position leans, where the options are a scale. "3 of
-        # 5" says where a dot is and nothing about what she answered.
-        scale = cls._the_scale_it_offers(options)
-        if not labelled and scale is not None:
-            left, right, count = scale
-            middle = (count + 1) / 2.0
-            if index + 1 < middle:
-                picked = f"{picked}, toward \"{left}\""
-            elif index + 1 > middle:
-                picked = f"{picked}, toward \"{right}\""
-            else:
-                picked = f"{picked}, the midpoint, neither one"
+        # Where that position sits, where the options have no labels of their
+        # own. "3 of 5" says where a dot is and nothing a listener can picture;
+        # the words the page puts on either side are what it is between. What
+        # the position MEANS is hers, and it is in the reason she gives.
+        if not labelled:
+            laid_out = cls._how_the_options_are_laid_out(options)
+            between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
+            if between:
+                picked = (
+                    f"{picked}, between \"{between.group(1)}\" and "
+                    f"\"{between.group(2)}\""
+                )
         said = f"{question} \u2014 {picked}" if question else picked
         why = " ".join(why.split())
         return f"{said}. {why}" if why else said
 
     @staticmethod
-    def _the_scale_it_offers(
+    def _how_the_options_are_laid_out(
         options: list[Mapping[str, Any]],
-    ) -> tuple[str, str, int] | None:
-        """The two ends of a bipolar scale, where that is what these options are.
+    ) -> str:
+        """What is on screen for one question, as layout rather than meaning.
 
-        A run of unlabelled controls between two phrases is not a list of
-        choices — it is a scale, and an option means its distance from each
-        end. The page draws that and says it nowhere: five dots between "makes
-        lists" and "relies on memory", each carrying only a value. Shown as
-        options they read as five nameless things to pick from, and the
-        middle one is the only safe pick, which is what a watcher saw —
-        3 of 5 on item after item.
+        A row of unlabelled controls can be a scale between two opposites, a
+        set of choices, a "more like me / less like me" ranking, or something
+        the page explains in its own instructions. Deciding here that it is any
+        one of those would put a rule of mine where her reading of the page
+        belongs — and the rule would be wrong on the next site.
 
-        Structural, so it holds for any instrument that draws one: the layout
-        the observer already captures puts the option run between the words on
-        either side of it. Where the options have their own labels, or where
-        one side has no words, this is not a scale and says so by returning
-        nothing.
+        So this states only what can be seen: how many controls there are,
+        whether they carry labels of their own, whether one or several may be
+        chosen, and the words the page puts on either side of the run. What
+        that MEANS, and what choosing a position says, is hers to work out from
+        the page, and it is carried in her understanding of it.
         """
-        if len(options) < 3:
-            return None
+        if len(options) < 2:
+            return ""
+        roles = {str(option.get("role") or "").strip().lower() for option in options}
         named = {str(option.get("name") or "").strip() for option in options}
         named.discard("")
         group = str(options[0].get("group") or "")
-        if len(named) == len(options) and named != {group}:
-            # Each option says what it is; there is no scale to read.
-            return None
+        labelled = len(named) == len(options) and named != {group}
+        facts = [f"{len(options)} controls"]
+        facts.append(
+            "each with its own label" if labelled else "none of them labelled"
+        )
+        facts.append(
+            "several may be chosen"
+            if roles & {"checkbox", "switch"}
+            else "one may be chosen"
+        )
         asks = str(options[0].get("asks") or "")
-        if not asks:
-            return None
-        run = re.search(r"(?:\s*\[[^\]]*\])+", asks)
-        if run is None:
-            return None
-        left = " ".join(asks[: run.start()].split()).strip()
-        right = " ".join(asks[run.end() :].split()).strip()
-        if not left or not right:
-            return None
-        return left, right, len(options)
-
-    @classmethod
-    def _how_the_scale_reads(cls, options: list[Mapping[str, Any]]) -> str:
-        """One line saying what choosing each position on this scale means."""
-        scale = cls._the_scale_it_offers(options)
-        if scale is None:
-            return ""
-        left, right, count = scale
-        middle = (count + 1) / 2.0
-        midpoint = (
-            f"{middle:.0f} is the midpoint, neither one"
-            if float(middle).is_integer()
-            else "there is no midpoint, so every choice leans one way"
-        )
-        return (
-            f"this is a {count}-point scale between two opposites: 1 is "
-            f"entirely \"{left}\", {count} is entirely \"{right}\", and "
-            f"{midpoint}. Choosing a position says how far toward one of them "
-            "you are."
-        )
+        run = re.search(r"(?:\s*\[[^\]]*\])+", asks) if asks else None
+        if run is not None:
+            left = " ".join(asks[: run.start()].split()).strip()
+            right = " ".join(asks[run.end() :].split()).strip()
+            if left and right:
+                facts.append(f"laid out between \"{left}\" and \"{right}\"")
+            elif left:
+                facts.append(f"laid out after \"{left}\"")
+            elif right:
+                facts.append(f"laid out before \"{right}\"")
+        return ", ".join(facts)
 
     @staticmethod
     def _unanswered_questions(
