@@ -220,6 +220,45 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
         except Exception as exc:  # narration must never break the pursuit
             record_degradation("sovereign_browser", exc, action="pursuit narration skipped")
 
+    def _narrate_decision(
+        self, decision: Mapping[str, Any], observation: Mapping[str, Any]
+    ) -> None:
+        """Say every decision as it is made, including the ones that do nothing.
+
+        Narration fired once, after an action report, so the rounds that
+        produced no action said nothing at all: a decision that could not be
+        read, a claim of "done" before anything was done, an answer naming a
+        control that was not on the page. Those are the rounds a person
+        watching most needs to hear, because they are the ones where a run
+        stops making sense — and from outside they looked like a browser
+        sitting still.
+        """
+        elements = self._controls_worth_offering(
+            list(observation.get("elements") or [])
+        )
+        why = " ".join(str(decision.get("why") or "").split())
+        if decision.get("error"):
+            raw = " ".join(str(decision.get("raw") or "").split())
+            said = f"I could not use my own answer here ({decision['error']})"
+            if raw:
+                said = f"{said}. What I said was: {raw[:160]}"
+        elif decision.get("done") is True and not decision.get("actions"):
+            said = f"I think this is finished. {why}" if why else "I think this is finished."
+        else:
+            naming = [
+                str(elements[int(item["index"])].get("name") or "").strip()
+                for item in (decision.get("actions") or [])
+                if isinstance(item, dict)
+                and str(item.get("index", "")).lstrip("-").isdigit()
+                and 0 <= int(item["index"]) < len(elements)
+            ]
+            doing = ", ".join(name for name in naming if name)
+            said = f"{why} I am going to {doing}." if doing and why else (
+                why or (f"I am going to {doing}." if doing else "I am deciding what to do here.")
+            )
+        self._narrate({"why": said, "asked": str(observation.get("title") or "")})
+        self._say_out_loud(said)
+
     @staticmethod
     def _say_out_loud(line: str) -> None:
         """One line where a person watching her can hear it, as her play is said."""
@@ -1239,6 +1278,9 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                     decision = await self._decide_next_actions(
                         goal, observation, steps, understanding, said_before=said_before
                     )
+                # Every decision said out loud, the moment it is made — the
+                # ones that act and the ones that do not.
+                self._narrate_decision(decision, observation)
                 if decision.get("error"):
                     # What she actually said, not just that it could not be read.
                     # "unparsable_decision" names the parser's problem and hides

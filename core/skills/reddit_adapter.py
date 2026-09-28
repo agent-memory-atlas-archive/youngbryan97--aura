@@ -890,6 +890,21 @@ class RedditAdapterSkill(BaseSkill):
         finally:
             await self._safe_close(browser)
 
+    @staticmethod
+    def _could_not_load(what: str, browser: PhantomBrowser) -> str:
+        """What to say when a page did not load, with the reason the browser has.
+
+        Seven sites here said "Failed to load r/futurology" and the browser's
+        own navigation record said `bot_block_or_captcha` — LIVE 2026-09-28,
+        twice in one boot, while her curiosity engine went on asking. A reason
+        that says more tries will not help is the difference between a retry and
+        a decision.
+        """
+        from core.capabilities.phantom_browser import why_it_would_not_load
+
+        why = why_it_would_not_load(browser)
+        return f"Failed to load {what}" + (f" — {why}" if why else "")
+
     async def _handle_browse(self, browser: PhantomBrowser, params: RedditInput) -> dict[str, Any]:
         """Browse a subreddit and extract posts."""
         subreddit = params.subreddit or "all"
@@ -898,7 +913,7 @@ class RedditAdapterSkill(BaseSkill):
 
         logger.info("📱 Browsing r/%s (%s)", subreddit, sort)
         if not await browser.browse(url):
-            return {"ok": False, "error": f"Failed to load r/{subreddit}"}
+            return {"ok": False, "error": self._could_not_load(f"r/{subreddit}", browser)}
 
         await asyncio.sleep(3)
         page = browser.page
@@ -991,7 +1006,7 @@ class RedditAdapterSkill(BaseSkill):
 
         logger.info("📖 Reading post: %s", url[:80])
         if not await browser.browse(url):
-            return {"ok": False, "error": f"Failed to load: {url}"}
+            return {"ok": False, "error": self._could_not_load(url, browser)}
 
         await asyncio.sleep(3)
         content = await browser.read_content()
@@ -1062,7 +1077,10 @@ class RedditAdapterSkill(BaseSkill):
 
         # Navigate to post
         if not await browser.browse(params.url):
-            return {"ok": False, "error": f"Failed to load post: {params.url}"}
+            return {
+                "ok": False,
+                "error": self._could_not_load(f"post {params.url}", browser),
+            }
 
         await asyncio.sleep(3)
         page = browser.page
@@ -1161,7 +1179,12 @@ class RedditAdapterSkill(BaseSkill):
         # Navigate to submit page
         submit_url = f"https://www.reddit.com/r/{params.subreddit}/submit/"
         if not await browser.browse(submit_url):
-            return {"ok": False, "error": f"Failed to load submit page for r/{params.subreddit}"}
+            return {
+                "ok": False,
+                "error": self._could_not_load(
+                    f"the submit page for r/{params.subreddit}", browser
+                ),
+            }
 
         await asyncio.sleep(3)
         page = browser.page
@@ -1247,7 +1270,7 @@ class RedditAdapterSkill(BaseSkill):
             }
 
         if not await browser.browse("https://www.reddit.com/message/inbox/"):
-            return {"ok": False, "error": "Failed to load inbox."}
+            return {"ok": False, "error": self._could_not_load("the inbox", browser)}
 
         await asyncio.sleep(3)
         content = await browser.read_content()
@@ -1286,7 +1309,10 @@ class RedditAdapterSkill(BaseSkill):
             return {"ok": False, "error": "Reddit login failed."}
 
         if not await browser.browse(params.url):
-            return {"ok": False, "error": f"Failed to load message: {params.url}"}
+            return {
+                "ok": False,
+                "error": self._could_not_load(f"message {params.url}", browser),
+            }
 
         await asyncio.sleep(3)
         page = browser.page
@@ -1327,7 +1353,10 @@ class RedditAdapterSkill(BaseSkill):
         logger.info("📜 Reading rules for r/%s", params.subreddit)
 
         if not await browser.browse(url):
-            return {"ok": False, "error": f"Failed to load r/{params.subreddit}"}
+            return {
+                "ok": False,
+                "error": self._could_not_load(f"r/{params.subreddit}", browser),
+            }
 
         await asyncio.sleep(2)
         page = browser.page
