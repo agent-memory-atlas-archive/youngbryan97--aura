@@ -27,7 +27,26 @@ and each is read three ways, W,A -> D on the change:
 
 An estimator qualifies when it passes product and mixed at four of five seeds
 and passes separable and none at no more than one.
+
+`--drift` asks a different question: what lifts the shifted null on her own
+recording, where W,A->D met a bar of 0.40 to 0.50 while every toy so far has met
+0.04 to 0.13. It adds columns that only grow, at the share of variance the same
+domains carry on her seed-7 recording (`HER_DRIFT_SHARE`). D holds 0.8895 of its
+variance in three counters there and is the target of W,A->D and a source of
+S,D->C, the two triples whose synergy sits under the bar; W and A carry 0.0044
+and 0.0002, so moving the sources alone is the control.
+
+`--shares` reads the bar and the synergy as shares of the joint information each
+has to work with, on the toys and on her side by side. That is what the three
+candidates should have started from: the toys' bar is 0.163 to 0.193 of their
+joint and hers is 0.210 of hers, so nothing inflates her null. What differs is
+the synergy — the toy's product carries 0.57 to 0.70 of its joint, her W,A->D
+carries 0.077.
+
     usage: synergy_known_answers.py [--seeds 3,7,11,19,23]
+           synergy_known_answers.py --cycle [--hold 33]
+           synergy_known_answers.py --drift target,sources,both
+           synergy_known_answers.py --shares [--drift target]
 """
 
 from __future__ import annotations
@@ -89,8 +108,32 @@ def _switching(kind: str, push: np.ndarray, w: np.ndarray) -> np.ndarray:
 #: eight conditions in a fixed order.
 CYCLE = 8
 
+#: What share of a domain's variance is columns that only ever grow, measured on
+#: her own seed-7 recording at 27dc1dda9 (`--drift` puts these into the toy).
+#: D holds nearly all of its variance in three counters, and it is the target of
+#: W,A->D and a source of S,D->C, the two triples whose synergy sits under the
+#: shifted null. W and A carry almost none, so a drift arm that moves the
+#: sources and not the target is the control.
+HER_DRIFT_SHARE: dict[str, float] = {"W": 0.0044, "A": 0.0002, "D": 0.8895}
 
-def build(kind: str, seed: int, *, cycle: bool = False, hold: int = 1) -> Recording:
+
+def _ramp(rows: int, width: int, share: float, rng: np.random.Generator) -> np.ndarray:
+    """A column that only grows, at `share` of the variance of what it is added to.
+
+    A counter's own shape: a positive step every row, the steps themselves
+    varying. Scaled so that the ramp carries `share` of the sum's variance,
+    which is the quantity measured on her recording.
+    """
+    if share <= 0.0:
+        return np.zeros((rows, width))
+    ramp = np.cumsum(np.abs(rng.normal(size=(rows, width))) + 1.0, axis=0)
+    ramp = ramp - ramp.mean(axis=0)
+    # var(ramp * k) / (var(ramp * k) + 1) = share, for a unit-variance partner.
+    scale = np.sqrt(share / max(1e-9, 1.0 - share)) / np.maximum(ramp.std(axis=0), 1e-12)
+    return ramp * scale
+
+
+def build(kind: str, seed: int, *, cycle: bool = False, hold: int = 1, drift: str = "") -> Recording:
     """One toy recording of the named kind.
 
     ``cycle`` runs the toy through a shared schedule: eight conditions in a
@@ -99,6 +142,12 @@ def build(kind: str, seed: int, *, cycle: bool = False, hold: int = 1) -> Record
     the schedule, as hers do, whatever the coupling between them. ``hold`` is
     how many consecutive rows each condition lasts: one in the first cycle
     table, 33 in her recordings, where a condition holds for a turn's frames.
+
+    ``drift`` adds columns that only grow, at the share of variance the same
+    domains carry on her recording (`HER_DRIFT_SHARE`): "target" moves D alone,
+    "sources" moves W and A alone, "both" moves all three. Nothing about the
+    coupling changes, so a shifted null that rises under drift rises on the
+    drift.
     """
     rng = np.random.default_rng(seed)
     w, a = _slow(rng, 3), _slow(rng, 3)
@@ -117,6 +166,16 @@ def build(kind: str, seed: int, *, cycle: bool = False, hold: int = 1) -> Record
         switch = _switching(kind, push, w[t - 1])
         d[t, int(np.argmax(switch + 0.5 * rng.normal(size=len(PAIRS))))] = 1.0
         d[t, 4:] = 0.7 * d[t - 1, 4:] + 0.5 * push + 0.3 * rng.normal(size=len(PAIRS))
+    if drift:
+        moved = {"target": ("D",), "sources": ("W", "A"), "both": ("W", "A", "D")}[drift]
+        if "W" in moved:
+            w = w + _ramp(ROWS, 3, HER_DRIFT_SHARE["W"], rng)
+        if "A" in moved:
+            a = a + _ramp(ROWS, 3, HER_DRIFT_SHARE["A"], rng)
+        if "D" in moved:
+            # The switch is one-hot and cannot hold a ramp; her D carries its
+            # counters in continuous columns, so the toy's do too.
+            d[:, 4:] = d[:, 4:] + _ramp(ROWS, 4, HER_DRIFT_SHARE["D"], rng)
     columns = tuple(
         [f"W.w{i}" for i in range(3)] + [f"A.a{i}" for i in range(3)]
         + [f"D.switch{i}" for i in range(4)] + [f"D.level{i}" for i in range(4)]
@@ -170,6 +229,98 @@ def qualifies(counts: dict[str, int], seeds: int) -> bool:
     )
 
 
+def read_drift(kind: str, seed: int, drift: str) -> dict[str, object]:
+    """One row of the drift table: the Kraskov line's shifted bar under drift."""
+    recording = build(kind, seed, drift=drift)
+    line = kraskov_synergy(recording, "W", "A", "D", seed=seed, draws=KSG_DRAWS, clocks_out=False)
+    v3 = synergy(recording, "W", "A", "D", seed=seed, of="change")
+    return {
+        "kind": kind,
+        "seed": seed,
+        "drift": drift,
+        "synergy": line.synergy,
+        "shift_bar": line.shift_bar,
+        "passes": bool(line.passes),
+        "v3_synergy": float(v3.synergy),
+        "v3_bar": float(v3.raw_null_q99),
+        "v3": bool(v3.passes_v3),
+    }
+
+
+def main_drift(seeds: tuple[int, ...], arms: tuple[str, ...]) -> int:
+    print("| toy | drift | seed | ksg synergy | shift bar | v3 synergy | v3 shifted bar |")
+    print("|---|---|---|---|---|---|---|")
+    bars: dict[tuple[str, str], list[float]] = {}
+    for drift in arms:
+        for kind in CYCLE_KINDS:
+            for seed in seeds:
+                row = read_drift(kind, seed, drift)
+                bars.setdefault((kind, drift), []).append(float(row["shift_bar"]))
+                print(
+                    f"| {kind} | {drift} | {seed} | {row['synergy']:+.3f} | {row['shift_bar']:+.3f} "
+                    f"| {row['v3_synergy']:+.3f} | {row['v3_bar']:+.3f} |"
+                )
+    print()
+    for (kind, drift), values in sorted(bars.items()):
+        reached = sum(1 for value in values if value >= 0.40)
+        print(
+            f"{kind} under {drift}: shift bar median {float(np.median(values)):+.3f}, "
+            f"{reached} of {len(values)} seeds at or above her 0.40"
+        )
+    return 0
+
+
+#: Her own Kraskov line on whole-s7-27dc1dda9, from that run's
+#: `kraskov_synergy.json`, so `--shares` prints the two side by side. The toys'
+#: joint runs a seventh of hers, so a bar is only comparable as a share of it.
+HER_KRASKOV: tuple[tuple[str, float, float, float], ...] = (
+    ("A,S->G", 0.02729, 1.06419, -0.08848),
+    ("P,M->W", 0.21219, 2.10050, 0.14045),
+    ("W,A->D", 0.14578, 1.89569, 0.39728),
+    ("S,D->C", -0.10575, 0.66082, 0.03099),
+)
+
+
+def main_shares(seeds: tuple[int, ...], arms: tuple[str, ...]) -> int:
+    """The bar and the synergy as shares of the joint, on the toys and on her.
+
+    Three candidates were built for the gap between the toys' bars of 0.04 to
+    0.13 and her W,A->D bar of 0.397 before this was read, and it is a
+    difference of scale: her joint is 1.90 where a toy's is 0.25.
+    """
+    print(f"{'toy':<12} {'drift':<8} {'seed':>4} {'synergy':>9} {'joint':>8} {'bar':>8} {'bar/joint':>10} {'syn/joint':>10}")
+    shares: list[float] = []
+    for drift in arms:
+        for kind in CYCLE_KINDS:
+            for seed in seeds:
+                recording = build(kind, seed, drift=drift)
+                line = kraskov_synergy(
+                    recording, "W", "A", "D", seed=seed, draws=KSG_DRAWS, clocks_out=False
+                )
+                joint = float(line.joint)
+                share = line.shift_bar / joint if joint > 1e-9 else 0.0
+                if kind != "none" and joint > 1e-9:
+                    shares.append(share)
+                print(
+                    f"{kind:<12} {drift or 'none':<8} {seed:>4} {line.synergy:>+9.4f} {joint:>8.4f}"
+                    f" {line.shift_bar:>+8.4f} {share:>10.4f}"
+                    f" {line.synergy / joint if joint > 1e-9 else 0.0:>10.4f}",
+                    flush=True,
+                )
+    print("\nhers, whole-s7-27dc1dda9:")
+    for name, synergy_value, joint, bar in HER_KRASKOV:
+        print(
+            f"  {name:<8} synergy {synergy_value:+.4f}  joint {joint:.4f}  bar {bar:+.4f}"
+            f"  bar/joint {bar / joint:+.4f}  syn/joint {synergy_value / joint:+.4f}"
+        )
+    if shares:
+        print(
+            f"\nthe toys' bar is {min(shares):.3f} to {max(shares):.3f} of their joint; "
+            f"her W,A->D bar is {0.39728 / 1.89569:.3f} of hers"
+        )
+    return 0
+
+
 def read_cycle(kind: str, seed: int, hold: int = 1) -> dict[str, object]:
     """One row of the cycle table: the Kraskov line under each first null, on a toy with a shared schedule."""
     recording = build(kind, seed, cycle=True, hold=hold)
@@ -215,7 +366,28 @@ def main() -> int:
     parser.add_argument("--kinds", default=",".join(KINDS))
     parser.add_argument("--cycle", action="store_true", help="the toys with a shared condition cycle, both first nulls")
     parser.add_argument("--hold", type=int, default=1, help="rows each condition of the cycle lasts")
+    parser.add_argument(
+        "--drift",
+        default="",
+        help="columns that only grow, at her own shares: target, sources, both, "
+        "or several separated by commas",
+    )
+    parser.add_argument(
+        "--shares",
+        action="store_true",
+        help="the bar and the synergy as shares of the joint, on the toys and on her",
+    )
     args = parser.parse_args()
+    if args.shares:
+        return main_shares(
+            tuple(int(value) for value in args.seeds.split(",")),
+            tuple(name.strip() for name in (args.drift or "").split(",") if name.strip()) or ("",),
+        )
+    if args.drift:
+        return main_drift(
+            tuple(int(s) for s in args.seeds.split(",")),
+            tuple(name.strip() for name in args.drift.split(",") if name.strip()),
+        )
     if args.cycle:
         return main_cycle(tuple(int(s) for s in args.seeds.split(",")), args.hold)
     seeds = tuple(int(s) for s in args.seeds.split(","))

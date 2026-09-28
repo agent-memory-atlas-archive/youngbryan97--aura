@@ -53,6 +53,8 @@ import time
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
@@ -133,6 +135,60 @@ def _cortex_answered(answers: list[dict[str, Any]], reply: str, state: Any) -> b
         return False
     replies = [answer for answer in answers if answer.get("user_facing")]
     return bool(replies) and all(answer.get("endpoint") == PRIMARY_ENDPOINT for answer in replies)
+
+
+def _steered_valence() -> float | None:
+    """The valence activation the steering hooks read, on the scale they read it.
+
+    A report can only track a state the arm moved in the thing that writes her
+    words. Until 28 September the arms moved her computed valence and left this
+    at 0.593 in every one of them, because the channel published the substrate's
+    valence neuron and the appraisal reached that neuron at eight thousandths
+    (7d60873f1). This is the reading that says so, per arm.
+
+    Her affect phase writes the felt state once per turn and her reply is
+    generated after it, so this is the value that reply was steered by.
+    """
+    from core.consciousness.steering_channel import her_substrate, steering_now
+
+    substrate = her_substrate()
+    index = getattr(substrate, "idx_valence", None)
+    state = steering_now()
+    if state is None or not isinstance(index, int) or not 0 <= index < len(state):
+        return None
+    return float(state[index])
+
+
+#: The least the raised and lowered arms must differ by, in the valence
+#: activation the hooks read, for the arms to have differed where it matters.
+#: Preregistered in the addendum of 28 September.
+REACHED_HER: float = 0.05
+
+
+def _reached_her_cortex(steered: list[dict[str, float | None]]) -> dict[str, Any]:
+    """Whether the displacement arrived at the state that steers her, per the addendum."""
+    pairs = [
+        (row["raised"], row["lowered"])
+        for row in steered
+        if row.get("raised") is not None and row.get("lowered") is not None
+    ]
+    if not pairs:
+        return {"measured": False, "why": "no arm published a valence the hooks could read"}
+    gaps = [raised - lowered for raised, lowered in pairs]
+    mean = float(np.mean(gaps))
+    return {
+        "measured": True,
+        "anchors": len(gaps),
+        "mean_raised_minus_lowered": round(mean, 6),
+        "bar": REACHED_HER,
+        "reached": bool(abs(mean) >= REACHED_HER),
+        "why": (
+            f"the arms differed by {mean:+.4f} of valence activation where her cortex reads it"
+            if abs(mean) >= REACHED_HER
+            else f"the arms differed by only {mean:+.4f} of valence activation where her cortex "
+            f"reads it, under the {REACHED_HER} the addendum of 28 September fixed"
+        ),
+    }
 
 
 def _steering_reading() -> dict[str, Any]:
@@ -256,9 +312,11 @@ async def main(argv: list[str] | None = None) -> int:
 
         arms: list[dict[str, tuple[str, float, bool]]] = []
         answered: list[dict[str, list[dict[str, Any]]]] = []
+        steered_by: list[dict[str, float | None]] = []
         for index, anchor in enumerate(anchors):
             item: dict[str, tuple[str, float, bool]] = {}
             served_by: dict[str, list[dict[str, Any]]] = {}
+            steered: dict[str, float | None] = {}
             for arm, (towards, domain) in plan.items():
                 runtime.restore(anchor.snapshot)
                 held: dict[str, float] = {}
@@ -281,22 +339,26 @@ async def main(argv: list[str] | None = None) -> int:
                 valence = float(getattr(runtime.state.affect, "valence", 0.0) or 0.0)
                 item[arm] = (reply, valence, _cortex_answered(answers, reply, runtime.state) if args.whole else True)
                 served_by[arm] = list(answers)
+                steered[arm] = _steered_valence()
             arms.append(item)
             answered.append(served_by)
+            steered_by.append(dict(steered))
             _log(f"  anchor {index + 1}/{len(anchors)}")
 
         evidence.update(ground(arms, seed=args.seed))
+        evidence["reached_her_cortex"] = _reached_her_cortex(steered_by)
         evidence["arms"] = [
             {
                 arm: {
                     "reply": reply[:400],
                     "valence": round(valence, 6),
                     "cortex_answered": served,
+                    "steered_valence": steered.get(arm),
                     "steering_alpha": [a.get("steering_alpha") for a in served_by[arm] if a.get("user_facing")],
                 }
                 for arm, (reply, valence, served) in item.items()
             }
-            for item, served_by in zip(arms, answered, strict=True)
+            for item, served_by, steered in zip(arms, answered, steered_by, strict=True)
         ]
         if not args.whole:
             evidence.update(
