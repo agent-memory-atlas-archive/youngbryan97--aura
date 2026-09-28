@@ -8250,15 +8250,46 @@ class MLXLocalClient(_RecordsWhatTheWorkerDid, _WaitsForTheResult, _KeepsTheWork
             # to acknowledge. Reporting True here would preserve a worker on
             # the strength of a cancel that never happened.
             return False
-        deadline = time.monotonic() + min(120.0, max(0.5, timeout_s))
-        while time.monotonic() < deadline:
+        span = min(120.0, max(0.5, timeout_s))
+        deadline = time.monotonic() + span
+        # A hard ceiling, because a worker that heartbeats forever without
+        # finishing its job is the livelock this wait exists to catch.
+        ceiling = time.monotonic() + min(120.0, max(span, span * 4.0))
+
+        def newest_progress() -> float:
+            return max(
+                float(self._last_heartbeat or 0.0),
+                float(self._last_progress_at or 0.0),
+                float(self._last_token_progress_at or 0.0),
+            )
+
+        # Twelve seconds of WALL time, on a host that may be off the CPU.
+        #
+        # A worker observes a soft-cancel at the next token boundary, so the
+        # wait is really a wait for the worker's own loop to come round. Under
+        # memory pressure that boundary can be further away than twelve seconds
+        # of wall clock while the worker is doing exactly what it should. LIVE
+        # 2026-09-28 00:45, host at 87% during a page run: the ack did not
+        # arrive, the 27B was "presumed wedged" and rebooted, the lanes then
+        # exhausted, the decision came back empty and the run ended having
+        # answered nothing. The same reasoning as a starved thread not being a
+        # stuck one: progress, not wall clock, separates the two. Every stamp
+        # that advances buys the worker another span, up to the ceiling.
+        seen = newest_progress()
+        while True:
+            now = time.monotonic()
+            if now >= deadline or now >= ceiling:
+                return False
             process = self._process
             if process is None or not process.is_alive():
                 return False
             if self._soft_cancel_ack_matches(target):
                 return True
+            progress = newest_progress()
+            if progress > seen:
+                seen = progress
+                deadline = min(ceiling, now + span)
             await asyncio.sleep(0.25)
-        return False
 
     def _soft_cancel_ack_matches(self, target: dict[str, Any]) -> bool:
         """Whether the worker answered THIS cancel, after it was written.

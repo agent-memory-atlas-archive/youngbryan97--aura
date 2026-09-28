@@ -355,6 +355,10 @@ def _resolver_client(
     client._cancel_seq = _Value(cancel_value)
     client._process = _AliveProcess() if alive else _DeadProcess()
     client._last_heartbeat = time.time() if heartbeat_fresh else time.time() - 300.0
+    # The other two stamps the ack wait reads. A worker that is still making
+    # progress buys more time to answer the cancel; a static double buys none.
+    client._last_progress_at = client._last_heartbeat
+    client._last_token_progress_at = client._last_heartbeat
     client._degraded_events = []
     client._reboots = []
     client._soft_cancel_target = (
@@ -525,3 +529,63 @@ def test_clear_stale_soft_cancel_keeps_own_and_zero():
     idle = _Value(0)
     clear_stale_soft_cancel(idle, 42)
     assert idle.value == 0
+
+
+def test_a_worker_still_making_progress_is_given_time_to_answer():
+    """LIVE 2026-09-28 00:45, host at 87% during a page run.
+
+    The ack wait was twelve seconds of WALL time, and a worker observes a
+    soft-cancel at its next token boundary. Under memory pressure that boundary
+    was further away than the wait, so the resident 27B was "presumed wedged",
+    rebooted, the lanes exhausted, and the page decision came back empty — the
+    run ended having answered nothing. Progress, not wall clock, separates a
+    starved worker from a stuck one.
+    """
+    import asyncio
+
+    client = _resolver_client(cancel_value=0, acknowledged=False)
+    target = client._soft_cancel_target
+
+    async def drive() -> bool:
+        async def keep_working() -> None:
+            # Two spans' worth of token progress, then the terminal frame.
+            for _ in range(8):
+                await asyncio.sleep(0.1)
+                client._last_token_progress_at = time.time()
+            client._soft_cancel_ack = {
+                "req_id": target["req_id"],
+                "observed_monotonic": time.monotonic() + 0.001,
+                "soft_cancelled": True,
+                "status": "ok",
+            }
+
+        worker = asyncio.ensure_future(keep_working())
+        answered = await client._soft_cancel_acknowledged(timeout_s=0.5)
+        await worker
+        return answered
+
+    assert asyncio.new_event_loop().run_until_complete(drive()) is True
+
+
+def test_a_worker_that_only_heartbeats_still_hits_the_ceiling():
+    """Progress buys time; it does not buy forever. A worker that never answers
+    its own cancel is the livelock this wait exists to catch."""
+    import asyncio
+
+    client = _resolver_client(cancel_value=0, acknowledged=False)
+
+    async def drive() -> bool:
+        async def keep_beating() -> None:
+            for _ in range(60):
+                await asyncio.sleep(0.05)
+                client._last_heartbeat = time.time()
+
+        beater = asyncio.ensure_future(keep_beating())
+        started = time.monotonic()
+        answered = await client._soft_cancel_acknowledged(timeout_s=0.5)
+        spent = time.monotonic() - started
+        beater.cancel()
+        assert spent < 5.0, f"the ceiling did not hold: waited {spent:.1f}s"
+        return answered
+
+    assert asyncio.new_event_loop().run_until_complete(drive()) is False

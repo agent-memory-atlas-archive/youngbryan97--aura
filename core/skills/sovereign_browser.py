@@ -1437,12 +1437,32 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
 
         self._retain_stated_positions(goal, steps)
         landed_total = sum(int(step.get("landed") or 0) for step in steps)
+        # Work that landed is work that happened. A run that answered forty
+        # questions and then hit a slow round is not a failed run, and
+        # reporting it as one is what made a timeout look like nothing had
+        # been done at all.
+        ok = completed or landed_total > 0 or bool(steps and not steps[-1].get("error"))
+        # And where it is not ok, what stopped it.
+        #
+        # Every round that failed wrote its reason into `steps`, and the result
+        # carried no `error` field at all, so `BaseSkill` filled the silence
+        # with "sovereign_browser reported failure without a cause
+        # (status=failed_recoverable)" — LIVE 2026-09-28 00:45, over a run whose
+        # own log said `empty_decision` one line earlier. The surprise engine
+        # banked the causeless version.
+        # Named most recent first, and every distinct one of them: the round
+        # that ended the run says the stall limit was reached, and the round
+        # before it says why nothing was landing. Reporting only the last gives
+        # "no_progress", which is the fact the caller already has.
+        seen: list[str] = []
+        for step in reversed(steps):
+            reason = str(step.get("error") or "").strip()
+            if reason and reason not in seen:
+                seen.append(reason)
+        stopped_by = ":".join(seen[:3])
         return {
-            # Work that landed is work that happened. A run that answered forty
-            # questions and then hit a slow round is not a failed run, and
-            # reporting it as one is what made a timeout look like nothing had
-            # been done at all.
-            "ok": completed or landed_total > 0 or bool(steps and not steps[-1].get("error")),
+            "ok": ok,
+            "error": "" if ok else (stopped_by or "pursuit_made_no_progress"),
             "landed_total": landed_total,
             "goal": goal,
             "completed": completed,

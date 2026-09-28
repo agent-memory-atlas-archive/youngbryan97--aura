@@ -305,11 +305,31 @@ class _RunsTheActionSteps:
             if not result.get("ok", False)
             else ""
         )
+        # Every field the rebuild below sets, tested here.
+        #
+        # The condition read four of the six. `retry_safe` and
+        # `manual_reconciliation_required` are decided AFTER the receipt is
+        # first built — a terminal failure whose transport succeeded needs
+        # reconciling — so when one of those was the only thing that changed,
+        # the receipt kept the value it had captured before the decision and
+        # the linker found the two halves of the record contradicting each
+        # other. LIVE 2026-09-28 00:45, the page run's own failure:
+        # "post-action receipt outcome contradicts terminal transaction on
+        # manual_reconciliation_required (receipt False against True)", raised
+        # twice, each time an incident and a MARGINAL fault, on top of the
+        # failure it was reporting about.
+        final_retry_safe = bool(result.get("retry_safe", False))
+        final_manual_reconciliation = bool(
+            result.get("manual_reconciliation_required", False)
+        )
         if (
             final_transport_succeeded != post_receipt.transport_succeeded
             or final_status != post_receipt.status
             or final_effect_verified != post_receipt.effect_verified
             or final_error_msg != post_receipt.error_status
+            or final_retry_safe != post_receipt.retry_safe
+            or final_manual_reconciliation
+            != post_receipt.manual_reconciliation_required
         ):
             post_receipt = PostActionReceipt(
                 **{
@@ -319,13 +339,8 @@ class _RunsTheActionSteps:
                     "effect_verified": final_effect_verified,
                     "error_status": final_error_msg,
                     "transport_succeeded": final_transport_succeeded,
-                    "retry_safe": bool(result.get("retry_safe", False)),
-                    "manual_reconciliation_required": bool(
-                        result.get(
-                            "manual_reconciliation_required",
-                            False,
-                        )
-                    ),
+                    "retry_safe": final_retry_safe,
+                    "manual_reconciliation_required": final_manual_reconciliation,
                 }
             )
         return final_error_msg, post_receipt
