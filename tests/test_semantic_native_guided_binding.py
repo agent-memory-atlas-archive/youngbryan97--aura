@@ -107,3 +107,66 @@ def test_replay_rejects_tampered_conditional_evidence(mutation):
     with pytest.raises(ValueError):
         replay_guided_row(row, guide, example=example, guide_plan=plan,
                           tokenizer=tokenizer, max_tokens=1024)
+
+
+@pytest.mark.parametrize("mutation", [None, "counts", "population", "authority", "guide", "row", "extra"])
+def test_document_replay_pins_guide_population_and_report(tmp_path, monkeypatch, mutation):
+    from tools.evaluate_semantic_native_checkpoint import digest
+    from tools.verify_semantic_native_guided_binding import verify_guided
+
+    row, guide, example, guide_plan, tokenizer = fixture_row()
+    identity = hashlib.sha256(example.source_text.encode()).hexdigest()
+    guide_plan.update(plan_sha256="guide-plan", sources=[identity], dataset="role_intervention", seed=0)
+    guide_report = {"receipt_sha256": "guide-report", "row_receipts": {identity: "guide"}}
+    training = {"plan_sha256": "training", "model_descriptor_sha256": "model",
+                "pointer_sha256": "pointer", "model_path": "/unused/model", "max_sequence_tokens": 1024}
+    selected = {"receipt_sha256": "checkpoint"}
+    monkeypatch.setattr("tools.probe_semantic_native_guided_binding.guide_basis",
+                        lambda *_: (training, selected, guide_plan, guide_report, (guide,)))
+    monkeypatch.setattr("tools.verify_semantic_native_grammar.verified_examples", lambda *_, **__: (example,))
+    monkeypatch.setattr("mlx_lm.utils.load_tokenizer", lambda *_: tokenizer)
+    body = {"schema": "aura.native_guided_binding_plan.v1",
+            "training_plan_sha256": "training", "checkpoint_receipt_sha256": "checkpoint",
+            "guide_plan_sha256": "guide-plan", "guide_report_receipt_sha256": "guide-report",
+            "guide_row_receipts": guide_report["row_receipts"],
+            "model_descriptor_sha256": "model", "pointer_sha256": "pointer",
+            "dataset": "role_intervention", "seed": 0, "sources": [identity],
+            "guidance": "fitted_target_blind_trace_all_prior_choices",
+            "cohort_selection": "all_exact_fitted_guide_rows", "measured_weight_mode": "base",
+            "precision": "float32", "prefix_strategy": "trie", "target_available_to_scorer": False,
+            "serving_authority": False, "qualification_evidence": False, "implementation": {}}
+    plan = {**body, "plan_sha256": digest(body)}
+    row.update(schema="aura.native_guided_binding_row.v1", source_sha256=identity,
+               plan_sha256=plan["plan_sha256"])
+    if mutation == "row":
+        row["source_sha256"] = "wrong"
+    row["receipt_sha256"] = digest(row)
+    counts = {"operation": {"matched": 0, "total": 1}, "reference": {"matched": 2, "total": 2},
+              "termination": {"matched": 1, "total": 1}}
+    report = {"schema": "aura.native_guided_binding.v1", "plan_sha256": plan["plan_sha256"],
+              "population": 1, "row_receipts": {identity: row["receipt_sha256"]},
+              "guidance_is_diagnostic_only": True, "serving_authority": False,
+              "qualification_evidence": False, "base_matches_fitted_by_kind": counts}
+    if mutation == "counts":
+        report["base_matches_fitted_by_kind"]["operation"]["matched"] = 1
+    elif mutation == "population":
+        report["population"] = 2
+    elif mutation == "authority":
+        report["serving_authority"] = True
+    elif mutation == "guide":
+        report["guidance_is_diagnostic_only"] = False
+    report["receipt_sha256"] = digest(report)
+    (tmp_path / "rows").mkdir()
+    for name, document in (("plan.json", plan), ("report.json", report), (f"rows/{identity}.json", row)):
+        (tmp_path / name).write_text(json.dumps(document))
+    if mutation == "extra":
+        (tmp_path / "rows/extra.json").write_text("{}")
+    if mutation:
+        with pytest.raises(ValueError):
+            verify_guided(tmp_path, tmp_path, tmp_path)
+    else:
+        result = verify_guided(tmp_path, tmp_path, tmp_path)
+        assert result["base_matches_fitted_by_kind"] == counts
+        assert result["model_scores_recomputed"] is False
+        assert result["end_to_end_gain_proven"] is False
+        assert result["general_transfer_proven"] is False
