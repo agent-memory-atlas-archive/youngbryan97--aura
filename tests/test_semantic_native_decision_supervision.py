@@ -19,7 +19,7 @@ from core.learning.semantic_native_path_objective import (
     JOINT_GRAPH_CONTRAST_CONTRACT,
     path_choice_contract,
 )
-from core.learning.semantic_native_path_selection import PATH_SELECTION_CONTRACT
+from core.learning.semantic_native_path_selection import JOINT_GRAPH_SELECTION_CONTRACT
 from core.learning.semantic_native_source_control import (
     SOURCE_ERASURE_CONTRACT,
     source_control_mode_from_plan,
@@ -169,8 +169,8 @@ def test_joint_graph_training_reuses_source_bound_grammar_and_reconstructs_all_r
     plan.update(schema="aura.semantic_native_fit_plan.v7",
                 grammar_choice_contract=path_choice_contract(),
                 grammar_path_objective_contract=GRAMMAR_PATH_CONTRACT,
-                path_checkpoint_selection_contract=PATH_SELECTION_CONTRACT,
-                selection="baseline_preserving_complete_source_calibration_paths",
+                path_checkpoint_selection_contract=JOINT_GRAPH_SELECTION_CONTRACT,
+                selection="baseline_preserving_joint_source_calibration",
                 unfitted_checkpoint_eligible=True,
                 joint_graph_contrast_limit=3,
                 graph_contrast_contract=JOINT_GRAPH_CONTRAST_CONTRACT,

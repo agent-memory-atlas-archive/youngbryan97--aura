@@ -60,14 +60,20 @@ def source_control_mode_from_plan(plan: Mapping[str, Any]) -> str:
                 GRAMMAR_PATH_CONTRACT,
                 path_choice_contract,
             )
-            from core.learning.semantic_native_path_selection import PATH_SELECTION_CONTRACT
+            from core.learning.semantic_native_path_selection import (
+                JOINT_GRAPH_SELECTION_CONTRACT,
+                PATH_SELECTION_CONTRACT,
+            )
 
             objective = plan.get("objective")
             choice_contract = path_choice_contract()
             if (objective not in {"grammar_choices", "grammar_source_pairs"}
                     or plan.get("grammar_path_objective_contract") != GRAMMAR_PATH_CONTRACT
-                    or plan.get("path_checkpoint_selection_contract") != PATH_SELECTION_CONTRACT
-                    or plan.get("selection") != "baseline_preserving_complete_source_calibration_paths"
+                    or plan.get("path_checkpoint_selection_contract") != (
+                        JOINT_GRAPH_SELECTION_CONTRACT if graph_mode else PATH_SELECTION_CONTRACT)
+                    or plan.get("selection") != (
+                        "baseline_preserving_joint_source_calibration" if graph_mode else
+                        "baseline_preserving_complete_source_calibration_paths")
                     or plan.get("unfitted_checkpoint_eligible") is not True):
                 raise ValueError("native path-risk objective or selection contract differs")
         paired = objective == "grammar_source_pairs"

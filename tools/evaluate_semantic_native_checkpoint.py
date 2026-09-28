@@ -81,7 +81,10 @@ def selected_checkpoint(directory):
 def selected_path_checkpoint(directory, plan, checkpoints):
     """Replay source-only selection from complete, source-bound choice inventories."""
     from core.learning.semantic_native_path_calibration import native_path_totals
-    from core.learning.semantic_native_path_selection import select_native_path_checkpoint
+    from core.learning.semantic_native_path_selection import (
+        select_native_joint_graph_checkpoint,
+        select_native_path_checkpoint,
+    )
     from tools.audit_semantic_native_path_calibration import calibration_competitions
 
     supervision = verified_document(directory / "supervision.json")
@@ -128,6 +131,8 @@ def selected_path_checkpoint(directory, plan, checkpoints):
             elif "whole_graph" in row:
                 raise ValueError("historical native path acquired whole-graph calibration")
         measurements[step] = rows
+    if plan["schema"] == "aura.semantic_native_fit_plan.v7":
+        return select_native_joint_graph_checkpoint(checkpoints, measurements, sources)[0]
     return select_native_path_checkpoint(checkpoints, measurements, sources)[0]
 
 

@@ -6,7 +6,10 @@ import pytest
 
 from core.learning.semantic_native_path_calibration import native_path_totals
 from core.learning.semantic_native_path_objective import GRAMMAR_PATH_CONTRACT, path_choice_contract
-from core.learning.semantic_native_path_selection import PATH_SELECTION_CONTRACT
+from core.learning.semantic_native_path_selection import (
+    JOINT_GRAPH_SELECTION_CONTRACT,
+    PATH_SELECTION_CONTRACT,
+)
 from tests.test_evaluate_semantic_native_checkpoint import write
 from tools.evaluate_semantic_native_checkpoint import digest, selected_checkpoint, verified_document
 
@@ -34,6 +37,8 @@ def campaign(root, *, regression=True, typed=False, graph=False):
         plan.update(schema="aura.semantic_native_fit_plan.v7",
                     joint_graph_contrast_limit=2,
                     graph_contrast_contract=JOINT_GRAPH_CONTRAST_CONTRACT,
+                    path_checkpoint_selection_contract=JOINT_GRAPH_SELECTION_CONTRACT,
+                    selection="baseline_preserving_joint_source_calibration",
                     prefix_storage_contract={"mode": "source_shards"},
                     execution_contract=execution_contract(precision="float32", prefix_strategy="trie"))
     write(root / "plan.json", plan, "plan_sha256")

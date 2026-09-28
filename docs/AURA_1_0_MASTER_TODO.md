@@ -1236,6 +1236,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [V7 joint graph checkpoint preparation](evidence/G03_JOINT_GRAPH_SELECTION_2026-09-28.md)
+  connects complete-graph calibration to baseline-preserving checkpoint
+  selection. Source-only preparation is measured; model-active fit and
+  target-blind generated validation remain pending.
   [V6 typed source result](evidence/G03_V6_TYPED_SOURCE_RESULT_2026-09-28.md)
   rejects the widened fit: its selected checkpoint was unfitted, and the
   baseline-preserving factorized policy generated 6/14 exact programs and

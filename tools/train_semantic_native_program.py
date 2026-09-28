@@ -698,10 +698,13 @@ def main():
                     selection="baseline_preserving_complete_source_calibration_paths")
     if args.joint_graph_contrasts:
         from core.learning.semantic_native_path_objective import JOINT_GRAPH_CONTRAST_CONTRACT
+        from core.learning.semantic_native_path_selection import JOINT_GRAPH_SELECTION_CONTRACT
 
         plan.update(schema="aura.semantic_native_fit_plan.v7",
                     joint_graph_contrast_limit=args.joint_graph_contrasts,
-                    graph_contrast_contract=dict(JOINT_GRAPH_CONTRAST_CONTRACT))
+                    graph_contrast_contract=dict(JOINT_GRAPH_CONTRAST_CONTRACT),
+                    path_checkpoint_selection_contract=dict(JOINT_GRAPH_SELECTION_CONTRACT),
+                    selection="baseline_preserving_joint_source_calibration")
     if typed_pairs:
         from core.learning.semantic_native_typed_source_pairs import (
             TYPED_SOURCE_PAIR_CONTRACT,
