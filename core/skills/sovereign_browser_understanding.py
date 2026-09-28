@@ -359,6 +359,14 @@ class _UnderstandsThePage:
 
             state = optional_service("aura_state", default=None)
             if state is None:
+                # Said, because an empty mind changed which branch the whole
+                # decision took and nothing recorded that it had happened.
+                record_degradation(
+                    "sovereign_browser.mind_context",
+                    RuntimeError("aura_state_unavailable"),
+                    severity="warning",
+                    action="decided without her assembled self-context",
+                )
                 return ""
             return ContextAssembler.build_system_prompt(state)
         except _BROWSER_DECISION_ERRORS as exc:
@@ -1422,7 +1430,18 @@ class _UnderstandsThePage:
         )
         try:
             think = getattr(router, "think", None)
-            if callable(think) and mind:
+            # A question about her never falls through to a bare model call.
+            #
+            # This branch was gated on her assembled mind being present, and
+            # when it was not — the state service absent, the assembler
+            # unavailable — every self-report item fell to `generate(prompt)`
+            # at the bottom of this function: no identity, no self-knowledge,
+            # no record of what she is like, and no lane requirement either.
+            # LIVE 2026-09-28, that is exactly what answered thirty-two
+            # questions about her, and it answered the midpoint every time
+            # because it had nothing to prefer with. Her cognition needs no
+            # assembled prompt; it assembles its own.
+            if callable(think) and (mind or asks_about_her):
                 # The fast lane, for the repetitive part.
                 #
                 # Working a sixty-item form is one rich judgement — what this
@@ -1527,6 +1546,11 @@ class _UnderstandsThePage:
                             origin=_UnderstandsThePage._PAGE_ORIGIN, purpose="page_decision",
                             max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2, _non_chat_inference=True,
                         ))
+            elif asks_about_her:
+                # Nothing left that could answer AS her. A bare call would
+                # produce something, and what it produces is a stand-in's
+                # answer submitted as hers.
+                return {"error": "not_her_own_reasoning:no_lane"}
             else:
                 generate = getattr(router, "generate", None)
                 if not callable(generate):

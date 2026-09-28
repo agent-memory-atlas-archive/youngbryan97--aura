@@ -218,3 +218,62 @@ def test_the_item_cycle_keeps_its_own_ledger():
     assert "bind_turn(outcome)" in body and "finalize_turn(outcome" in body, (
         "a sub-question that is its own unit of work needs its own ledger"
     )
+
+
+def test_a_self_report_never_falls_through_to_a_bare_model_call(monkeypatch):
+    """LIVE 2026-09-28: the branch was gated on her assembled mind.
+
+    With no state service the assembler returns nothing, and every self-report
+    item fell to `generate(prompt)` at the bottom of the function: no identity,
+    no self-knowledge, no record of what she is like, and no lane requirement.
+    That is what answered thirty-two questions about her, and it answered the
+    midpoint every time because it had nothing to prefer with.
+    """
+    bare: list[str] = []
+    cognition = _Cognition('{"actions": [], "why": "mine", "done": false}')
+    skill, _seen = _decider(monkeypatch, "unused", None, cognition=cognition)
+
+    async def _generate(prompt: str, **_kw: Any) -> str:
+        bare.append(prompt)
+        return '{"actions": [], "why": "a stand-in", "done": false}'
+
+    async def _no_mind() -> str:
+        return ""
+
+    monkeypatch.setattr(skill, "_assembled_mind", _no_mind)
+    decision = asyncio.run(
+        skill._decide_next_actions("take the test", {"elements": []}, [], about_her=True)
+    )
+    assert not bare, "a question about her reached a bare model call"
+    assert decision.get("why") == "mine"
+
+
+def test_with_nothing_that_can_answer_as_her_the_item_is_refused(monkeypatch):
+    skill = SovereignBrowserSkill()
+
+    class _Router:
+        async def generate(self, prompt: str, **_kw: Any) -> str:
+            raise AssertionError("a bare call answered a question about her")
+
+    monkeypatch.setattr(
+        "core.skills.sovereign_browser_understanding.optional_service",
+        lambda name, default=None: _Router() if name == "llm_router" else default,
+    )
+
+    async def _no_mind() -> str:
+        return ""
+
+    monkeypatch.setattr(skill, "_assembled_mind", _no_mind)
+    decision = asyncio.run(
+        skill._decide_next_actions("take the test", {"elements": []}, [], about_her=True)
+    )
+    assert decision.get("error") == "not_her_own_reasoning:no_lane"
+
+
+def test_she_has_measured_preferences_to_answer_from():
+    """Leaning one way needs something to lean with."""
+    from core.agency.what_she_is_like import what_she_is_like_line
+
+    said = what_she_is_like_line()
+    assert said, "her record of choices says nothing about what she is like"
+    assert "values I hold" in said or "chose most" in said
