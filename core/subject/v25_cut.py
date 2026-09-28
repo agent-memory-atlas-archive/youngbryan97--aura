@@ -562,7 +562,9 @@ async def sweep_cuts(
                     seed=seed + position,
                     alpha=per_look,
                     draws=draws,
-                    whiten=whiten,
+                    # Only when asked for: a flag that is off must leave the call
+                    # exactly as it was, or every caller has to learn about it.
+                    **({"whiten": True} if whiten else {}),
                 )
             except ValueError as exc:
                 # Recorded on the verdict AND counted, so a sweep where every
@@ -761,7 +763,7 @@ async def sweep_cuts_over_lags(
                     seed=seed + lag + position,
                     alpha=per_look,
                     draws=draws,
-                    whiten=whiten,
+                    **({"whiten": True} if whiten else {}),
                 )
             except ValueError as exc:
                 verdict.note = f"not enough matched contexts: {exc}"

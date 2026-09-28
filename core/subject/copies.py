@@ -179,6 +179,11 @@ _ATOMIC: tuple[type, ...] = (str, bytes, int, float, bool, type(None))
 _HEAP_TYPE = 1 << 9
 
 
+#: Whether a type's whole state is its `__dict__`, by type. The answer is a
+#: property of the class, and a fork asks it thousands of times a run.
+_WHOLE_STATE_IS_DICT: dict[type, bool] = {}
+
+
 def _state_is_its_dict(value: Any) -> bool:
     """Whether everything this object holds is in its `__dict__`.
 
@@ -187,13 +192,51 @@ def _state_is_its_dict(value: Any) -> bool:
     Restored field by field, a tensor held on a plain object kept the values an
     arm had written into it. So every class above `object` has to be one
     written in Python, and none may declare slots.
+
+    The heap-type flag used to carry that on its own and no longer does. CPython
+    converted the standard library's C types to heap types, so `random.Random`
+    passes it: its `__dict__` holds `gauss_next` and its Mersenne state lives in
+    `_random.Random`. Restored field by field it had `gauss_next` written, the
+    restore reported success, and the generator went on from wherever the last
+    arm left it. That was a floor under every paired measurement — the workspace
+    draws its somatic noise from one of these — and it is the same failure the
+    paragraph above describes, arriving through a door that opened underneath it.
+
+    So the object is also asked for its own account of its state.
+    `__reduce_ex__` is what a copy is built from, and a class whose state is
+    exactly its `__dict__` says so there. One that keeps numbers in a C base
+    returns them instead, and is restored by writing a copy over the field.
     """
     if not hasattr(value, "__dict__") or isinstance(value, type):
         return False
-    return all(
+    kind = type(value)
+    known = _WHOLE_STATE_IS_DICT.get(kind)
+    if known is not None:
+        return known
+    answer = all(
         klass.__flags__ & _HEAP_TYPE and "__slots__" not in vars(klass)
-        for klass in type(value).__mro__[:-1]
-    )
+        for klass in kind.__mro__[:-1]
+    ) and _reduces_to_its_dict(value)
+    _WHOLE_STATE_IS_DICT[kind] = answer
+    return answer
+
+
+def _reduces_to_its_dict(value: Any) -> bool:
+    """Whether the object's own account of its state is exactly its `__dict__`."""
+    try:
+        reduced = value.__reduce_ex__(2)
+    except Exception:  # noqa: BLE001 - every way this fails has one answer
+        # not a failure: an object that cannot say what its state is gets a copy
+        # written over it, which carries whatever a deep copy carries.
+        return False
+    if not isinstance(reduced, tuple) or len(reduced) < 3:
+        return True
+    state = reduced[2]
+    if state is None:
+        return True
+    if not isinstance(state, dict):
+        return False
+    return set(state) == set(vars(value))
 
 
 def _rebuild_mapping_proxy(items: dict) -> types.MappingProxyType:
