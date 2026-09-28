@@ -309,10 +309,18 @@ class InitiativeGenerationPhase(BasePhase):
             min(AFFECT_THRESHOLD_CEILING, BASE_AFFECT_THRESHOLD / phi_scale),
         )
         is_bored = state.affect.arousal < BOREDOM_AROUSAL_MAX
+        # How strongly each want presses, as her substrate has learned to weigh
+        # it; the bar it is held to stays where it is. See
+        # core/consciousness/substrate_gates.py.
+        from core.consciousness.substrate_gates import get_substrate_gates
 
-        if state.affect.curiosity > threshold or state.affect.social_hunger > threshold or is_bored:
-            logger.info("⚡ InitiativeGeneration: Triggered by %s.", 
-                        'curiosity' if state.affect.curiosity > threshold else 'social_hunger' if state.affect.social_hunger > threshold else 'boredom')
+        gates = get_substrate_gates()
+        curious = state.affect.curiosity * gates.multiplier("curiosity") > threshold
+        lonely = state.affect.social_hunger * gates.multiplier("social") > threshold
+
+        if curious or lonely or is_bored:
+            logger.info("⚡ InitiativeGeneration: Triggered by %s.",
+                        'curiosity' if curious else 'social_hunger' if lonely else 'boredom')
             
             self._last_impulse_time = now
             new_state = state.derive("initiative_generation")
@@ -335,12 +343,12 @@ class InitiativeGenerationPhase(BasePhase):
             goal = "Reflect on recent interactions."
             if is_bored:
                  goal = "Quietly consolidate internal state and wait for a stronger signal."
-            elif state.affect.curiosity > threshold:
+            elif curious:
                  goal = "Review internal knowledge graph continuity for stable patterns."
-            elif state.affect.social_hunger > threshold:
+            elif lonely:
                  goal = "Hold attentive idle posture and wait for meaningful interaction."
 
-            triggered_by = "boredom" if is_bored else "curiosity" if state.affect.curiosity > threshold else "social_hunger"
+            triggered_by = "boredom" if is_bored else "curiosity" if curious else "social_hunger"
             note_branch(
                 triggered_by,
                 threshold=round(threshold, 4),

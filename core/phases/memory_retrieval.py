@@ -286,7 +286,11 @@ def _cued_by_what_she_feels(
     if not now:
         return memory_candidates
     set_apart = distinctive(felt_by_text)
-    gain = min(1.0, memory_salience)
+    # Scaled by what her substrate has learned the pull of feeling on recall
+    # should be now. See core/consciousness/substrate_gates.py.
+    from core.consciousness.substrate_gates import get_substrate_gates
+
+    gain = min(1.0, memory_salience * get_substrate_gates().multiplier("recall"))
     reread: list[tuple[float, str]] = []
     for score, text in memory_candidates:
         bounded = max(0.0, min(1.0, float(score)))

@@ -440,6 +440,11 @@ def teach_connections(reading: Worth) -> dict[str, Any]:
         teach = getattr(organ, "teach", None)
         if callable(teach):
             lessons[name] = teach(amount)
+    # And the gates by which her substrate scales her decisions, each by what
+    # it did this turn. See core/consciousness/substrate_gates.py.
+    from core.consciousness.substrate_gates import get_substrate_gates
+
+    lessons["substrate_gates"] = get_substrate_gates().learn(amount)
     workspace = ServiceContainer.get("global_workspace", default=None)
     wins = getattr(workspace, "wins_by_source", None)
     if callable(wins):

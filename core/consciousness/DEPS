@@ -22,6 +22,11 @@ include_rules = [
     # comparison. The rest of core.self stays out of reach.
     "+core.self.recognition",
 
+    # And the one that keeps a ledger across her restarts. What the substrate's
+    # gates have learned (substrate_gates.py) is part of her history the way
+    # the payoff's expectations are, and this is how a ledger says so.
+    "+core.self.what_came_before",
+
     # What this package reaches for today.
     "+core.adaptation",
     "+core.affect",

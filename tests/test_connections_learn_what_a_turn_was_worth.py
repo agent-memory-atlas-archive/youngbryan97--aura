@@ -161,7 +161,8 @@ def test_every_taught_organ_is_told_even_on_a_neutral_turn():
     ServiceContainer.register_instance("unified_field", field)
     ServiceContainer.register_instance("liquid_substrate", substrate)
     lessons = teach_connections(Worth())
-    assert set(lessons) == {"unified_field", "liquid_substrate"}
+    # The substrate's gates are taught with the organs; see core/consciousness/substrate_gates.py.
+    assert set(lessons) == {"unified_field", "liquid_substrate", "substrate_gates"}
     assert field.doses == [0.0] and substrate.doses == [0.0]
 
 
@@ -173,7 +174,7 @@ def test_the_learning_phase_teaches_the_organs_at_the_end_of_a_turn():
     state.cognition.last_response = ""
     asyncio.run(phase.execute(state, objective="a turn"))
     assert field.doses == [0.0]
-    assert state.response_modifiers["worth"]["taught"] == ["unified_field"]
+    assert state.response_modifiers["worth"]["taught"] == ["substrate_gates", "unified_field"]
 
 
 def test_the_substrate_still_holds_its_weights_in_bounds_every_step():

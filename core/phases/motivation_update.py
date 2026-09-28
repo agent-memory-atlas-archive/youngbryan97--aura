@@ -96,6 +96,9 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
         # 0..1, so drives press between once and twice as fast and never
         # faster. See `_surprise_pressure`.
         pressure = 1.0 + self._surprise_pressure(state)
+        from core.consciousness.substrate_gates import get_substrate_gates
+
+        gates = get_substrate_gates()
         stasis = stasis_now()  # presses on growth; see core/social/their_rise.py
         borrowed_resolve = bool(
             (getattr(state.cognition, "borrowed_resolve", {}) or {}).get("borrowed")
@@ -123,7 +126,9 @@ class MotivationUpdatePhase(_ReadsTheDriveSignals, Phase):
             # See core/social/resolve.py.
             if name == "integrity" and borrowed_resolve:
                 effective_decay = 0.0
-            effective_decay *= pressure
+            # And how fast this need grows as her substrate has learned it
+            # should now. See core/consciousness/substrate_gates.py.
+            effective_decay *= pressure * gates.multiplier(f"drive:{name}")
             if name == "growth":
                 effective_decay *= 1.0 + stasis
 
