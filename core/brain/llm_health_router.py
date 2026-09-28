@@ -1248,7 +1248,17 @@ _STILL_COMING_UP = frozenset(
         "init_not_complete",
         "lane_warming",
         "lane_recovering",
+        # The lane states between cold and ready. `handshaking` was the one
+        # missing, and it is the one a 20GB spawn spends its seconds in.
+        "lane_spawning",
+        "lane_handshaking",
     }
+)
+
+#: Lane states that mean a worker is on its way, so "not alive yet" is the
+#: spawn and not a death.
+_LANE_IS_ARRIVING = frozenset(
+    {"lane_spawning", "lane_handshaking", "lane_warming", "lane_recovering"}
 )
 
 
@@ -1264,9 +1274,26 @@ def _only_still_coming_up(error: str) -> bool:
     One genuine fault in the list — a dead worker, a shutdown — and this says
     nothing, because a real problem alongside a warmup is still a real
     problem.
+
+    `worker_not_alive` is the one reason that depends on its company. Alone it
+    means a worker that died or was never there. Beside a lane state that says
+    the lane is arriving, it is the spawn itself: a 20GB model takes seconds to
+    load and the worker is not alive for all of them. LIVE 2026-09-28 01:11,
+    the moment a personality test asked her a question about herself: the
+    Cortex was spawning, five probes read
+    `worker_not_alive,init_not_complete,lane_handshaking`, the circuit opened,
+    "no endpoints matched routing plan for tier 'primary'", and the run ended
+    on an empty decision with the test half answered.
     """
     parts = [part.strip() for part in str(error or "").lower().split(",") if part.strip()]
-    return bool(parts) and all(part in _STILL_COMING_UP for part in parts)
+    if not parts:
+        return False
+    arriving = any(part in _LANE_IS_ARRIVING for part in parts)
+    return all(
+        part in _STILL_COMING_UP
+        or (part == "worker_not_alive" and arriving)
+        for part in parts
+    )
 
 
 def _is_transient_local_runtime_failure(error: str) -> bool:
