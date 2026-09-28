@@ -75,6 +75,10 @@ from core.utils.task_tracker import (
 )
 
 from .llm_health_router_endpoint_call import _CallsTheEndpoint
+from .llm_health_router_gate_owners import (  # noqa: F401  (re-exported: they were defined here)
+    _generation_owner_is_user_foreground,
+    _lease_is_user_foreground,
+)
 from .llm_health_router_gate_readings import (  # noqa: F401  (re-exported: they were defined here)
     _oldest_generation_gate_lease_age_s,
     generation_gate_snapshot,
@@ -188,25 +192,6 @@ def _generation_gate_owner(origin: str, purpose: str) -> str:
     return f"{origin}:{purpose}"
 
 
-def _generation_owner_is_user_foreground(owner: str) -> bool:
-    owner = str(owner or "").strip().lower()
-    if not owner:
-        return False
-    # Substring, deliberately: `owner` is the constructed `origin:purpose`
-    # key, not a sentence — `desktop:response_generation_user`,
-    # `voice_loop:reply`. The words in it run into their neighbours.
-    return any(
-        marker in owner
-        for marker in (
-            "user:",
-            "desktop",
-            "voice",
-            "foreground",
-            "response_generation_user",
-        )
-    )
-
-
 def _oldest_generation_gate_lease() -> tuple[int, float, str] | None:
     with _GENERATION_GATE_STATE_LOCK:
         if not _GENERATION_GATE_ACTIVE_LEASES:
@@ -259,11 +244,10 @@ def _background_generation_gate_deferred_result(owner: str) -> dict[str, Any]:
     return result
 
 
-def _lease_is_user_foreground(lease_id: int, owner: str) -> bool:
-    """Whether a lease holds someone's turn: as it was admitted, or as its owner reads."""
-    with _GENERATION_GATE_STATE_LOCK:
-        admitted = lease_id in _GENERATION_GATE_FOREGROUND_LEASES
-    return admitted or _generation_owner_is_user_foreground(owner)
+#: Work done inside a person's turn that the reply does not wait for: the
+#: InferencePhase's reading of the message's subtext is advice to the phases
+#: after it. A reply may preempt it; it may not preempt a reply.
+_ADVISORY_PURPOSES = frozenset({"deep_inference"})
 
 
 def _active_foreground_generation_owner() -> str:

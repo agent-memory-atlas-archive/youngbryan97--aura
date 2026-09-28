@@ -163,6 +163,47 @@ def test_an_unlabelled_background_holder_is_still_preemptible(monkeypatch, gate_
     assert result == GATED_OK
 
 
+def test_a_reply_preempts_its_own_turns_subtext_pass(monkeypatch, gate_state):
+    """The reports ground, 27 Sep: the subtext pass held the gate after its phase
+    had timed out, and the rating question's reply was refused behind it."""
+    router = _router(monkeypatch)
+    assert gate_state.acquire(False) is True
+    lease = router_module._mark_generation_gate_acquired(
+        "user:deep_inference", timeout_s=60.0, foreground=True
+    )
+    cancel_calls: list[str] = []
+
+    def fake_soft_cancel(*, reason: str) -> bool:
+        cancel_calls.append(reason)
+        router_module._release_generation_gate_after_call(lease)
+        return True
+
+    monkeypatch.setattr(router, "_soft_cancel_local_generations", fake_soft_cancel)
+    result = asyncio.run(
+        router.generate_with_metadata(
+            "how are you feeling, from -1 to 1?", origin="user", purpose="reply",
+            foreground_request=True,
+        )
+    )
+    assert result == GATED_OK
+    assert cancel_calls and "user:deep_inference" in cancel_calls[0]
+
+
+def test_the_subtext_pass_says_what_it_is():
+    from core.phases.inference_phase import InferencePhase
+
+    asked: dict = {}
+
+    class _Router:
+        async def think(self, prompt, **kwargs):
+            asked.update(kwargs)
+            return "{}"
+
+    asyncio.run(InferencePhase._call_router(_Router(), prompt="hello", priority=True, origin="user"))
+    assert asked["origin"] == "user"
+    assert asked["purpose"] == "deep_inference"
+
+
 def test_a_released_lease_leaves_no_classification_behind(gate_state):
     assert gate_state.acquire(False) is True
     lease = router_module._mark_generation_gate_acquired("unknown:expression", foreground=True)
