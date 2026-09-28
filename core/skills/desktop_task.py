@@ -4813,11 +4813,12 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
                 if step.get("chose")
             ],
             "result_text": report.get("result_text", ""),
-            # What she said when she judged the goal met, with the finished
-            # page in front of her. It was recorded and never reached the
-            # reply, which is why a run that ended on a result said nothing
-            # about it.
-            "concluded": next(
+            # What she made of the result, held against what she said before
+            # she began, where she said anything; otherwise what she said when
+            # she judged the goal met, with the finished page in front of her.
+            # It was recorded and never reached the reply, which is why a run
+            # that ended on a result said nothing about it.
+            "concluded": str(report.get("concluded") or "").strip() or next(
                 (str(step.get("why") or "").strip() for step in reversed(steps) if step.get("done")),
                 "",
             ),

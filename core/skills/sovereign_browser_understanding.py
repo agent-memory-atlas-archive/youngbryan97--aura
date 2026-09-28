@@ -424,6 +424,60 @@ class _UnderstandsThePage:
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.calibration", exc, severity="debug")
 
+    async def _hold_the_outcome_against_what_she_said(
+        self,
+        goal: str,
+        said_before: str,
+        observation: Mapping[str, Any],
+        mind: str,
+    ) -> str:
+        """What she makes of the result, against what she said it would be.
+
+        A task that begins with a forecast does not end when the last control
+        is pressed. The person asked for the forecast so that it could be held
+        against the outcome, and a forecast never checked is a forecast that
+        was decoration.
+
+        `result["concluded"]` was read where the pursuit's account is written
+        and written by nothing, so the account ended with the raw tail of the
+        final page and no word from her about it. This is general: it runs for
+        any goal where she said something before she began, and it asks only
+        about her own earlier claim and what is in front of her now. Where she
+        said nothing beforehand there is nothing to hold, and it does not run.
+        """
+        said = " ".join(str(said_before or "").split())
+        if not said:
+            return ""
+        router = optional_service("llm_router", default=None)
+        think = getattr(router, "think", None)
+        if not callable(think) or not mind:
+            return ""
+        prompt = (
+            f"WHAT YOU WERE DOING: {goal}\n\n"
+            f"WHAT YOU SAID BEFORE YOU BEGAN: {said}\n\n"
+            f"{self._render_observation(observation, goal)}\n\n"
+            "You have finished. Read what is in front of you and say, in your "
+            "own words, what the outcome was, whether it matches what you said "
+            "beforehand, and whether you think it is accurate about you."
+        )
+        try:
+            # Her own lane. This is a judgement about her own earlier claim and
+            # about a result that describes her; a stand-in answering it would
+            # be a different mind grading her forecast.
+            reply = await think(
+                prompt, system_prompt=mind, prefer_tier="primary",
+                origin=self._PAGE_ORIGIN, purpose="page_conclusion",
+                max_tokens=self.DECISION_MAX_TOKENS, temperature=0.4,
+                _non_chat_inference=True,
+            )
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation(
+                "sovereign_browser.conclusion", exc, severity="warning",
+                action="finished without holding the outcome against her forecast",
+            )
+            return ""
+        return " ".join(self._the_text_of(reply).split())
+
     async def _understand_page(
         self,
         goal: str,

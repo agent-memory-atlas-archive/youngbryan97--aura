@@ -222,7 +222,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
 
     def _narrate_decision(
         self, decision: Mapping[str, Any], observation: Mapping[str, Any]
-    ) -> None:
+    ) -> str:
         """Say every decision as it is made, including the ones that do nothing.
 
         Narration fired once, after an action report, so the rounds that
@@ -258,6 +258,28 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
             )
         self._narrate({"why": said, "asked": str(observation.get("title") or "")})
         self._say_out_loud(said)
+        return said
+
+    @staticmethod
+    def _landed_anything(steps: list[dict[str, Any]]) -> bool:
+        """Whether any round of this run actually did something to the page."""
+        return any(int(step.get("landed") or 0) for step in steps)
+
+    @staticmethod
+    async def _hold_for_reading(said: str) -> None:
+        """Leave a narrated line up long enough for a watcher to read it.
+
+        A loop that narrates and acts in the same breath replaces the line
+        before it was read, and what the person watching gets is a blur they
+        can reconstruct only from the log. The wait comes from how much there
+        is to read; the policy is in `core.agency.reading_pace` because every
+        narrated loop she has is watched by the same eyes.
+        """
+        from core.agency.reading_pace import time_to_read
+
+        pause = time_to_read(said)
+        if pause > 0.0:
+            await asyncio.sleep(pause)
 
     @staticmethod
     def _say_out_loud(line: str) -> None:
@@ -1279,8 +1301,11 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                         goal, observation, steps, understanding, said_before=said_before
                     )
                 # Every decision said out loud, the moment it is made — the
-                # ones that act and the ones that do not.
-                self._narrate_decision(decision, observation)
+                # ones that act and the ones that do not — and left up long
+                # enough to be read before anything happens because of it.
+                await self._hold_for_reading(
+                    self._narrate_decision(decision, observation)
+                )
                 if decision.get("error"):
                     # What she actually said, not just that it could not be read.
                     # "unparsable_decision" names the parser's problem and hides
@@ -1411,6 +1436,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                 # at a time: where a person can hear it, not only in the trace.
                 for line in decision.get("answered") or []:
                     self._say_out_loud(str(line))
+                    await self._hold_for_reading(str(line))
                 # A batch that half-landed is progress, not failure.
                 #
                 # `interact` verifies all-or-nothing, which is right for a scripted
@@ -1474,6 +1500,19 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
         except Exception as exc:
             record_degradation("sovereign_browser", exc, action="final observation skipped")
 
+        # And what she makes of it, held against what she said before she
+        # began. A forecast the person asked for is a forecast they asked to
+        # see checked; `concluded` was read where the account is written and
+        # written by nothing.
+        concluded = ""
+        if self._landed_anything(steps):
+            concluded = await self._hold_the_outcome_against_what_she_said(
+                goal, said_before, final or observation, mind
+            )
+            if concluded:
+                self._say_out_loud(concluded)
+                await self._hold_for_reading(concluded)
+
         self._retain_stated_positions(goal, steps)
         landed_total = sum(int(step.get("landed") or 0) for step in steps)
         # Work that landed is work that happened. A run that answered forty
@@ -1515,6 +1554,7 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
             "observed_url": (final or observation).get("url", ""),
             "final_url": (final or observation).get("url", ""),
             "result_text": str((final or observation).get("text") or "")[:4000],
+            "concluded": concluded,
         }
 
     @staticmethod
