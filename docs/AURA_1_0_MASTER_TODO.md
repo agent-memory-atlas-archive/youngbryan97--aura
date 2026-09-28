@@ -1210,6 +1210,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [Typed parameter isolation](evidence/G03_TYPED_PARAMETER_ISOLATION_2026-09-28.md)
+  independently reconstructs 120/185 exact source-calibration paths without
+  losing the baseline's 51 exact paths. Its generated measurement is pending;
+  source calibration does not close G03 or establish unseen-family transfer.
   2026-09-28: the complete-path v5 fit selected its unfitted baseline because
   every fitted checkpoint lost baseline paths. A separately measured residual
   gained nine exact source paths without losses, but target-blind generation

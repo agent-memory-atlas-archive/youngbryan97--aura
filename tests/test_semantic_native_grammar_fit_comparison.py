@@ -91,3 +91,18 @@ def test_residual_cannot_excuse_protocol_or_baseline_drift(defect):
         candidate["implementation"]["other"] = "changed"
     with pytest.raises(ValueError):
         matched_generation(candidate, base, left, right)
+
+
+def test_factorized_comparison_requires_exact_added_implementations_and_lineage():
+    candidate, base, left, right = residual_fixture()
+    candidate.update(weight_mode="factorized", schema="aura.semantic_native_grammar_plan.v10")
+    candidate["factorized_residual"] = candidate.pop("residual_calibration")
+    candidate["implementation"].update({
+        "core/learning/semantic_native_factorized_residual.py": "factor",
+        "tools/factor_semantic_native_residual.py": "build",
+        "tools/verify_semantic_native_factorized_residual.py": "verify"})
+    left["weight_mode"] = "factorized"
+    assert matched_generation(candidate, base, left, right)["candidate_weight_mode"] == "factorized"
+    candidate["implementation"].pop("core/learning/semantic_native_factorized_residual.py")
+    with pytest.raises(ValueError, match="lineage"):
+        matched_generation(candidate, base, left, right)

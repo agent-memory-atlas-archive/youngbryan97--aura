@@ -8,13 +8,15 @@
 #
 # 26 outbound edges when this was generated.
 
-description = "core.self: may import only what it already imports; every new edge is an edit here."
+description = "core.self may read the agency portrait for record-grounded self estimates; other new edges remain explicit."
 
 include_rules = [
     "+core.self",
 
     # What this package reaches for today.
     "+core.affect",
+    # Her measured self estimate reads the values and choices in her agency record.
+    "+core.agency.what_she_is_like",
     "+core.being",
     "+core.capability_engine",
     "+core.cognitive",

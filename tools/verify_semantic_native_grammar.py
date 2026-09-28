@@ -79,6 +79,12 @@ def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_
     trace = row["decision_trace"]
     if not isinstance(trace, list):
         raise ValueError("native grammar decision trace is missing")
+    parameter_scales = row.get("decision_parameter_scales")
+    if plan["schema"].endswith(".v10"):
+        if not isinstance(parameter_scales, list) or len(parameter_scales) != len(trace):
+            raise ValueError("native factorized parameter receipts are incomplete")
+    elif parameter_scales is not None:
+        raise ValueError("historical native grammar acquired factorized parameters")
     verify_inputs = "source_evidence" in plan
     scored_source = example.source_text if scored_source is None else scored_source
     input_receipts = row.get("score_input_receipts")
@@ -94,6 +100,8 @@ def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_
         if consumed >= len(trace):
             raise ValueError("native grammar decision trace ended before the graph")
         entry = trace[consumed]
+        if parameter_scales is not None:
+            verify_factorized_parameter_receipt(plan, entry, choices, parameter_scales[consumed])
         if verify_inputs:
             from core.learning.semantic_native_program import native_text_decision_sequence
             from core.learning.semantic_native_source_control import (
@@ -115,7 +123,7 @@ def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_
                 sequences.append(sequence)
             if input_receipts[consumed] != expected_inputs:
                 raise ValueError("native grammar scored-input tokens or source control differ")
-            if plan["schema"].endswith((".v7", ".v8", ".v9")):
+            if plan["schema"].endswith((".v7", ".v8", ".v9", ".v10")):
                 anchor_sha256 = verified_trie_anchor(
                     sequences, row["prefix_execution"], anchor_sha256)
         consumed += 1
@@ -146,8 +154,22 @@ def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_
             or program.to_dict() != row["program"]
             or forced is not row["bound_forced_completion"]):
         raise ValueError("native grammar decision replay differs from saved graph")
-    if plan["schema"].endswith((".v7", ".v8", ".v9")) and anchor_sha256 is None:
+    if plan["schema"].endswith((".v7", ".v8", ".v9", ".v10")) and anchor_sha256 is None:
         raise ValueError("native grammar trie has no scored source anchor")
+
+
+def verify_factorized_parameter_receipt(plan, entry, choices, receipt):
+    from core.learning.semantic_native_factorized_residual import (
+        native_competition_kind,
+        validated_kind_scales,
+    )
+
+    scales = validated_kind_scales(plan["factorized_residual"]["selected_scales"])
+    kind = native_competition_kind(choices)
+    if (receipt.get("kind") != kind or entry.get("kind") != kind
+            or type(receipt.get("scale")) not in {int, float} or receipt["scale"] != scales[kind]
+            or type(receipt.get("adapter_sites")) is not int or receipt["adapter_sites"] < 1):
+        raise ValueError("native factorized parameter receipt differs from typed selection")
 
 
 def source_separation_summary(source_examples, target_examples):
@@ -202,7 +224,7 @@ def verify_source_separation(training, source_report_path, bundles, target_examp
 
 def verified_weight_mode(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    if (version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9"}
+    if (version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"}
             or plan["schema"] != f"aura.semantic_native_grammar_plan.{version}"
             or report.get("schema") != f"aura.semantic_native_grammar.{version}"):
         raise ValueError("native grammar schema versions differ")
@@ -210,7 +232,8 @@ def verified_weight_mode(plan, report):
         if "weight_mode" in plan or "weight_mode" in report:
             raise ValueError("historical native grammar weight mode was fitted")
         return "fitted"
-    modes = {"residual"} if version == "v9" else {"fitted", "base"}
+    modes = ({"factorized"} if version == "v10" else {"residual"} if version == "v9"
+             else {"fitted", "base"})
     if (plan.get("weight_mode") not in modes
             or report.get("weight_mode") != plan["weight_mode"]):
         raise ValueError("native grammar weight mode differs")
@@ -219,7 +242,7 @@ def verified_weight_mode(plan, report):
 
 def verified_input_grounding(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    expected = ("semantic_public_character_inputs.v1" if version in {"v3", "v4", "v5", "v6", "v7", "v8", "v9"}
+    expected = ("semantic_public_character_inputs.v1" if version in {"v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"}
                 else "declared_public_inputs")
     if (plan.get("input_grounding") != expected
             or report.get("input_grounding") != plan["input_grounding"]):
@@ -242,7 +265,7 @@ def verified_dataset(plan, report):
     if version == "v7":
         allowed = {"operation_intervention", "definition_intervention", "equation_intervention",
                    "role_intervention", "dependency_intervention"}
-    if version in {"v6", "v8", "v9"}:
+    if version in {"v6", "v8", "v9", "v10"}:
         allowed = {"retained_validation", "retained_test"}
         if (seed != 0 or not isinstance(plan.get("source_cohort_basis"), dict)
                 or plan["source_cohort_basis"] != report.get("source_cohort_basis")):
@@ -258,7 +281,7 @@ def verified_dataset(plan, report):
 
 def verified_prefix_execution(plan, report, row=None):
     """Require complete branch accounting only for the new reuse contract."""
-    is_trie = plan["schema"].endswith((".v7", ".v8", ".v9"))
+    is_trie = plan["schema"].endswith((".v7", ".v8", ".v9", ".v10"))
     if is_trie:
         if plan.get("prefix_strategy") != "trie" or report.get("prefix_strategy") != "trie":
             raise ValueError("native grammar trie strategy differs")
@@ -454,8 +477,27 @@ def verify_grammar(directory, training_directory):
             f"checkpoint-{result['candidate_step']}.json")
     elif "residual_calibration" in plan or "residual_calibration" in report:
         raise ValueError("historical native grammar acquired a residual calibration")
+    if weight_mode == "factorized":
+        from tools.verify_semantic_native_factorized_residual import verify_factorized_residual
+
+        contract = plan.get("factorized_residual")
+        if (not isinstance(contract, dict) or contract != report.get("factorized_residual")
+                or contract.get("source_only") is not True
+                or contract.get("serving_authority") is not False
+                or contract.get("baseline_checkpoint_receipt_sha256") != selected["receipt_sha256"]):
+            raise ValueError("native factorized source contract differs")
+        result = verify_factorized_residual(Path(contract["report_path"]), training_directory)
+        if (result["report_receipt_sha256"] != contract["report_receipt_sha256"]
+                or result["selected_scales"] != contract["selected_scales"]
+                or not any(result["selected_scales"].values())
+                or result["current_implementation_drift"]):
+            raise ValueError("native factorized source measurement differs")
+        scored_checkpoint = verified_document(training_directory /
+            f"checkpoint-{result['candidate_step']}.json")
+    elif "factorized_residual" in plan or "factorized_residual" in report:
+        raise ValueError("historical native grammar acquired factorized source selection")
     verified_prefix_execution(plan, report)
-    if plan["schema"].endswith((".v7", ".v8", ".v9")):
+    if plan["schema"].endswith((".v7", ".v8", ".v9", ".v10")):
         from tools.semantic_native_execution import execution_from_plan
 
         execution = execution_from_plan(training)
@@ -463,7 +505,7 @@ def verify_grammar(directory, training_directory):
             raise ValueError("native grammar trie training arithmetic differs")
     input_grounding = verified_input_grounding(plan, report)
     dataset, seed = verified_dataset(plan, report)
-    if (plan["schema"].endswith((".v6", ".v8", ".v9"))
+    if (plan["schema"].endswith((".v6", ".v8", ".v9", ".v10"))
             and plan["source_cohort_basis"]["source_report_sha256"] != training["source_report_sha256"]):
         raise ValueError("retained native source basis differs from the fitted checkpoint")
     if (plan["training_plan_sha256"] != training["plan_sha256"]
@@ -511,7 +553,7 @@ def verify_grammar(directory, training_directory):
         if ("source_evidence" in plan and row.get("scored_source_sha256")
                 != hashlib.sha256(scored_source.encode()).hexdigest()):
             raise ValueError("native grammar scored source differs")
-        if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8", ".v9")):
+        if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8", ".v9", ".v10")):
             from core.learning.semantic_public_inputs import semantic_public_character_inputs
 
             receipt = semantic_public_character_inputs(example.source_text).receipt()
@@ -533,7 +575,7 @@ def verify_grammar(directory, training_directory):
               "answer_correct": sum(correct for _, correct in outcomes),
               "bound_forced_completion": sum(row["bound_forced_completion"] for row in rows),
               "depth_bound_reached": sum(row["depth_bound_reached"] for row in rows)}
-    if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8", ".v9")):
+    if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8", ".v9", ".v10")):
         totals.update(verified_pair_totals(rows, dataset=dataset))
     if any(report[key] != value for key, value in totals.items()):
         raise ValueError("native grammar reported totals differ from execution")
@@ -580,7 +622,7 @@ def main():
         training, _ = selected_checkpoint(args.training_directory)
         plan = verified_document(args.directory / "plan.json", "plan_sha256")
         examples = verified_examples(plan, dataset=result["dataset"], seed=result["seed"])
-        if plan["schema"].endswith((".v6", ".v8", ".v9")):
+        if plan["schema"].endswith((".v6", ".v8", ".v9", ".v10")):
             from tools.semantic_native_retained_sources import load_retained_native_sources
 
             _, basis = load_retained_native_sources(args.source_report, args.bundle,
