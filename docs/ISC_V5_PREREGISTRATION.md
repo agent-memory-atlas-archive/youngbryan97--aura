@@ -1052,3 +1052,53 @@ Not affordable today, and recorded so that it is not attempted by halves:
 Ten cuts took 9,046 seconds, so 511 is about 175,000 anchor rollouts. That is a
 machine-week, and `--shard I/N` is how it is spent. No partial version of it
 resolves the carrier.
+
+## Addendum, 28 September 2026, night: the membrane does not help synergy, and hurts one triple
+
+Measured before the arms read it, so the expectation in the addenda above is
+corrected rather than explained afterwards.
+
+The battery scores synergy on one row per turn (`Recording.by_turn`), so a
+membrane has to be applied to the frames and the turns sampled after it. Done
+that way the control arm reproduces the run's own `synergy_v2` exactly — A,S->G
+at 0.0325 against a bar of 0.0319 with an interaction gain of 0.0000 and a lower
+bound of -0.00851 — which is what makes the comparison worth reading.
+
+| triple | arm | synergy | shifted bar | gain | gain lower bound | v3 |
+|---|---|---|---|---|---|---|
+| A,S->G | as recorded | +0.0325 | +0.0319 | +0.0000 | −0.00851 | no |
+| A,S->G | carried | +0.0741 | +0.1227 | −0.0001 | −0.00454 | no |
+| P,M->W | as recorded | +0.2544 | +0.2011 | +0.0413 | +0.07421 | **yes** |
+| P,M->W | carried | +0.3478 | +0.2235 | +0.3040 | +0.26752 | **yes** |
+| W,A->D | as recorded | +0.0731 | +0.0840 | +0.2245 | +0.07118 | no |
+| W,A->D | carried | +0.1489 | +0.2469 | +0.0004 | −0.10223 | no |
+| S,D->C | as recorded | +0.0303 | +0.0829 | +0.0186 | +0.00001 | no |
+| S,D->C | carried | +0.0125 | +0.0371 | +0.0207 | −0.00147 | no |
+
+**It raises the bar by more than it raises the synergy.** A time constant makes
+every channel more like its own recent past, and a shifted copy of a smoothed
+series resembles the original more than a shifted copy of a spiky one, so the
+shifted null rises with the smoothing. On A,S->G the synergy rises 2.3 times and
+its bar 3.8 times; on W,A->D, 2.0 against 2.9.
+
+**And it destroys the strongest interaction in the battery.** W,A->D's held-out
+interaction gain is +0.2245 with a lower bound of +0.0712 as recorded, which is
+the one place where the predictive estimator says plainly that two domains decide
+something jointly. Carried, it is +0.0004 with a lower bound of -0.1022.
+
+P,M->W is the exception and it gains: its interaction gain goes from +0.0413 to
++0.3040 and its lower bound from +0.0742 to +0.2675.
+
+### What this changes
+
+The `carried` arm is no longer expected to move `synergy` and is expected to make
+W,A->D worse. It is still expected to move `partition_irreducibility`, which is
+what it was built for, and the reading of `docs/WHY_IRREDUCIBILITY_FAILS.md` is
+unchanged. If the campaign shows synergy moving up in the carried arm, that
+contradicts this table and the table is what was written first.
+
+It also says something about the three candidates rejected for the shifted null
+in `docs/SYNERGY_KNOWN_ANSWERS.md`: the bar tracks how much of its own past a
+series carries, and smoothing is the cleanest way to raise both at once. Her
+channels are spiky, so her bar is not inflated by smoothing; it is what it is
+because her joint information is large.
