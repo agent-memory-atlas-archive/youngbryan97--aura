@@ -263,12 +263,16 @@ def test_the_narrow_pattern_teaches_the_learned_surface() -> None:
     assert len(_ACTION_CLAIM_MATCHER.positives) > before
 
 
-def test_a_phrasing_nobody_enumerated_is_remembered_not_guessed() -> None:
+def test_a_phrasing_nobody_enumerated_is_remembered_not_guessed(monkeypatch) -> None:
     from core.conversation.response_reliability import (
         _ACTION_CLAIM_MATCHER,
         _sentence_claims_an_action,
     )
 
+    # The matcher is the process's own, and its pending set stops growing at a
+    # ceiling. Run after enough of the reply path, it was already full and the
+    # phrasing could not be remembered: green alone, red in company.
+    monkeypatch.setattr(_ACTION_CLAIM_MATCHER, "_pending", set())
     novel = "The notes are now sitting in meeting.md where you asked."
     assert _sentence_claims_an_action(novel) is False
     assert novel in _ACTION_CLAIM_MATCHER._pending
