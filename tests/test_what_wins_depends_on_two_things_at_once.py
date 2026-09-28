@@ -13,7 +13,12 @@ from __future__ import annotations
 
 import pytest
 
-from core.consciousness.global_workspace import _normalised_by_the_pool
+from core.consciousness.global_workspace import _normalised_by_the_pool, _pool_is_on
+
+
+@pytest.fixture(autouse=True)
+def _pool_on(monkeypatch: pytest.MonkeyPatch):
+    monkeypatch.setenv("AURA_WORKSPACE_POOL", "1")
 
 
 def test_a_field_of_one_is_never_touched() -> None:
@@ -71,3 +76,15 @@ def test_a_pool_that_is_all_zero_is_returned_as_it_came(
     monkeypatch.setattr("core.consciousness.global_workspace._reading_herself", lambda: 0.0)
     raw = {1: 0.0, 2: -0.2}
     assert _normalised_by_the_pool(raw) == raw
+
+
+def test_off_unless_a_run_asks_for_it(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The control arm of the campaign is the sum she competes with today."""
+    monkeypatch.setattr("core.consciousness.global_workspace._reading_herself", lambda: 0.0)
+    raw = {1: 0.9, 2: 0.3, 3: 0.1}
+    monkeypatch.delenv("AURA_WORKSPACE_POOL", raising=False)
+    assert not _pool_is_on()
+    assert _normalised_by_the_pool(raw) == raw
+    monkeypatch.setenv("AURA_WORKSPACE_POOL", "on")
+    assert _pool_is_on()
+    assert _normalised_by_the_pool(raw) != raw

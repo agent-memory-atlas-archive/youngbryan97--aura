@@ -565,6 +565,17 @@ def _bids(
     return _normalised_by_the_pool(raw)
 
 
+def _pool_is_on() -> bool:
+    """Whether the competition divides by its pool. Off unless a run asks.
+
+    The arm table in the preregistration of 28 September needs a switch per
+    mechanism, or a campaign that moves a criterion cannot say which change
+    moved it.
+    """
+    raw = os.environ.get("AURA_WORKSPACE_POOL", "").strip().lower()
+    return raw in {"1", "true", "yes", "on"}
+
+
 def _normalised_by_the_pool(raw: dict[int, float]) -> dict[int, float]:
     """Each bid against the pool it is competing in, as sharply as she reads herself.
 
@@ -592,8 +603,12 @@ def _normalised_by_the_pool(raw: dict[int, float]) -> dict[int, float]:
     With no self-reading at all `_reading_herself` is 1.0, the pool's share is
     zero and every score is returned as it came, which is the competition she
     had before this existed. A field of one bid is never touched.
+
+    `AURA_WORKSPACE_POOL` switches it, because the campaign that reads it runs
+    an arm with and an arm without, and two changes in one run attribute
+    nothing.
     """
-    if len(raw) < 2:
+    if len(raw) < 2 or not _pool_is_on():
         return raw
     herself = _reading_herself()
     share = max(0.0, min(1.0, 1.0 - herself))
