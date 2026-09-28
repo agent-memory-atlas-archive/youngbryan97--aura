@@ -91,14 +91,57 @@ def test_the_hold_grows_while_the_sheds_repeat() -> None:
     assert seconds("memory_pressure_shed", 9) <= 300.0
 
 
-def test_a_background_spawn_honours_the_hold() -> None:
-    """The line the shed relies on: a background spawn asks the backoff first."""
-    import inspect
+@pytest.mark.parametrize(("background", "spawned"), [(True, False), (False, True)])
+def test_a_background_spawn_honours_the_hold(
+    monkeypatch: pytest.MonkeyPatch, background: bool, spawned: bool
+) -> None:
+    """The line the shed relies on: a background spawn asks the backoff first.
 
+    A client that has just been shed is asked for its worker twice. The
+    background ask stops at the hold without reaching admission; a person's
+    turn goes through, because the hold is for background work.
+    """
+    import contextlib
+
+    from core.brain.llm import mlx_client
     from core.brain.llm.mlx_client import MLXLocalClient
 
-    body = inspect.getsource(MLXLocalClient._ensure_worker_alive)
-    assert "request_is_background and self._model_load_admission_backoff_active()" in body
+    client = MLXLocalClient("/models/Ternary-Bonsai-2-27B-mlx-2bit")
+    client._note_model_load_admission_denial(
+        "memory_pressure_shed", receipt_id="background_memory_pressure_shed"
+    )
+    reached: list[str] = []
+
+    @contextlib.asynccontextmanager
+    async def _admitted(_client, *, foreground_request):
+        reached.append("admission")
+        yield None
+
+    @contextlib.asynccontextmanager
+    async def _gate(**_kw):
+        yield None
+
+    async def _inner(**_kw):
+        reached.append("spawn")
+        return True
+
+    async def _no_cooldown(**_kw):
+        return None
+
+    monkeypatch.setattr(mlx_client, "_foreground_owner_active", lambda: False)
+    monkeypatch.setattr(mlx_client, "_background_deferral_active", lambda *_a, **_k: None)
+    monkeypatch.setattr(mlx_client, "_model_load_admission_context", _admitted)
+    monkeypatch.setattr(mlx_client, "_spawn_gate_context", _gate)
+    monkeypatch.setattr(client, "_ensure_worker_alive_inner", _inner)
+    monkeypatch.setattr(client, "_await_swap_cooldown", _no_cooldown)
+
+    result = asyncio.run(
+        client._ensure_worker_alive(
+            request_is_background=background, foreground_request=not background
+        )
+    )
+    assert result is spawned
+    assert reached == (["admission", "spawn"] if spawned else [])
 
 
 def test_a_worker_that_did_not_unload_is_not_held() -> None:

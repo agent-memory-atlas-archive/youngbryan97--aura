@@ -93,18 +93,77 @@ def test_an_admission_refusal_is_not_the_endpoints_failure(caplog):
     # a worker that started and then died is a real event and stays loud
     assert not is_an_admission_reason("worker_died_during_generation")
     assert not _is_transient_local_runtime_failure("worker_died_during_generation")
-    # the list is the controller's own: every reason it returns starts with one
-    import inspect
+    # The list is the controller's own: every reason it refuses with starts
+    # with one. Each pressure it refuses on, against every kind of work.
+    for said in _every_reason_the_controller_refuses_with():
+        assert said.startswith(ADMISSION_REASON_PREFIXES), said
+        assert _is_transient_local_runtime_failure(said), said
+        assert _background_error_is_quiet(said), said
 
-    from core.runtime import control_plane
 
-    source = inspect.getsource(control_plane.ResourceAdmissionController)
-    import re
+def _every_reason_the_controller_refuses_with() -> set[str]:
+    """Each pressure branch driven, and a lane that is busy, and what came back."""
+    import asyncio
 
-    for literal in re.findall(r'return f?"([a-z_]+)', source):
-        if literal in ("admitted", "unknown"):
-            continue
-        assert literal.startswith(ADMISSION_REASON_PREFIXES) or literal in ("fairness_wait",), literal
+    from core.runtime.control_plane import (
+        AdmissionPriority,
+        AdmissionRequest,
+        PressureSnapshot,
+        ResourceAdmissionController,
+        WorkClass,
+    )
+
+    pressures = (
+        PressureSnapshot(shutdown_requested=True),
+        PressureSnapshot(suspended_capabilities=("background_exploration", "large_model_cortex")),
+        PressureSnapshot(memory_percent=95.0),
+        PressureSnapshot(memory_percent=88.0),
+        PressureSnapshot(thermal_level=3),
+        PressureSnapshot(thermal_level=2),
+        PressureSnapshot(loop_monitor_running=False),
+        PressureSnapshot(loop_lag_s=1.5),
+        PressureSnapshot(red_zones=("pressure_provider_unavailable",)),
+    )
+    reasons = {
+        block[0]
+        for pressure in pressures
+        for work in WorkClass
+        for priority in AdmissionPriority
+        if (
+            block := ResourceAdmissionController._pressure_block_reason(
+                AdmissionRequest(owner="test", work_class=work, priority=priority), pressure
+            )
+        )
+    }
+    assert reasons == {
+        "runtime_shutdown_requested",
+        "background_capability_suspended",
+        "large_model_capability_suspended",
+        "critical_memory_pressure_95.0",
+        "moderate_memory_pressure_88.0",
+        "critical_thermal_pressure_3",
+        "serious_thermal_pressure_2",
+        "event_loop_signal_unavailable",
+        "event_loop_lag_1.500s",
+        "pressure_provider_unavailable",
+    }, "a pressure branch refused with a reason this test does not know"
+
+    controller = ResourceAdmissionController(pressure_provider=lambda: PressureSnapshot())
+
+    async def busy() -> str:
+        held = await controller.acquire(
+            AdmissionRequest(owner="holder", work_class=WorkClass.INFERENCE, lane="brainstem")
+        )
+        assert held.outcome.value == "admitted", held.reason
+        waiting = await controller.acquire(
+            AdmissionRequest(
+                owner="waiter", work_class=WorkClass.INFERENCE, lane="brainstem", timeout_s=0
+            )
+        )
+        return waiting.reason
+
+    reasons.add(asyncio.run(busy()))
+    return reasons
 
 
 def test_a_lane_on_its_way_up_is_said_at_info():

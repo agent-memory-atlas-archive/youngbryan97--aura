@@ -150,18 +150,67 @@ def test_the_prover_reports_the_refusal_rather_than_no_text():
     assert client._last_visible_readiness_at == 0.0
 
 
-def test_a_declined_probe_does_not_mark_the_lane_recovering():
-    """The warmup stands down; it does not record a failure against her."""
-    import inspect
+class _Warming:
+    """A client in the middle of its warmup, recording what it was made to do."""
 
+    model_path = "/models/Aura-Qwen3.8-27B-persona-crsm"
+
+    def __init__(self, *, precompiled: str | None, proved: str) -> None:
+        self._precompiled = precompiled
+        self._proved = proved
+        self.lane_states: list[tuple[str, str]] = []
+        self.generations = 0
+        self.recoveries = 0
+        self._last_ready_at = 0.0
+        self._warmup_in_flight = True
+
+    async def _generate_inner(self, *_a, **_k):
+        self.generations += 1
+        return self._precompiled
+
+    def consume_deliberate_no_text_reason(self) -> str:
+        return "skipped_during_foreground_ownership"
+
+    def is_alive(self) -> bool:
+        return True
+
+    async def prove_visible_readiness(self, **_k) -> str:
+        return self._proved
+
+    def _set_lane_state(self, state: str, reason: str = "") -> None:
+        self.lane_states.append((state, reason))
+
+    async def _recover_worker_for_warmup_retry(self) -> None:
+        self.recoveries += 1
+
+
+def _warm(client: _Warming) -> None:
     from core.brain.llm import mlx_warmup_and_adapters as warmup
 
-    source = inspect.getsource(warmup._WarmsUpAndSwapsAdapters._run_warmup_precompile)
-    declined = source.index('proved.startswith("declined:")')
-    recovering = source.index('self._set_lane_state("recovering", f"warmup_readiness_')
-    assert declined < recovering, (
-        "the declined branch must be taken before the lane is marked recovering"
+    with pytest.raises(mlx._WarmupDeferredError):
+        asyncio.run(
+            warmup._WarmsUpAndSwapsAdapters._run_warmup_precompile(
+                client,
+                request_is_background=False,
+                foreground_request=True,
+                owner_name="warmup:test",
+                warmup_timeout=120.0,
+            )
+        )
+
+
+def test_a_declined_probe_does_not_mark_the_lane_recovering():
+    """The warmup stands down; it does not record a failure against her.
+
+    The precompile answered and the readiness probe was declined before the
+    worker was asked anything.
+    """
+    client = _Warming(precompiled="H", proved="declined:skipped_during_foreground_ownership")
+    _warm(client)
+    assert not [state for state in client.lane_states if state[0] == "recovering"], (
+        f"the declined branch marked the lane: {client.lane_states}"
     )
+    assert client.recoveries == 0
 
 
 def test_a_deferral_is_not_retried_as_a_failure():
@@ -173,20 +222,49 @@ def test_a_deferral_is_not_retried_as_a_failure():
     retry loop caught it as an attempt that went wrong, rebooted the worker
     and spent the campaign recovering from a decision.
     """
-    import inspect
-
-    from core.brain.llm import mlx_warmup_and_adapters as warmup
-
-    source = inspect.getsource(warmup._WarmsUpAndSwapsAdapters._run_warmup_precompile)
-    deferred = source.index("except _WarmupDeferredError:")
-    retried = source.index("except (RuntimeError, TimeoutError, AttributeError) as exc:")
-    assert deferred < retried, (
-        "_WarmupDeferredError must be caught before the generic retry handler, "
-        "or a deferral is retried as a failure"
-    )
+    client = _Warming(precompiled=None, proved="proved")
+    _warm(client)
+    assert client.generations == 1, "a deferral was asked again"
+    assert client.recoveries == 0, "the worker was rebooted to recover from a decision"
 
 
-def test_every_precompile_call_stands_down_on_a_deferral():
+class _Deferred:
+    """A client whose precompile the runtime declines, recording what it does."""
+
+    model_path = "/models/Aura-Qwen3.8-27B-persona-crsm"
+    _lane_state = "cold"
+
+    def __init__(self) -> None:
+        self.lane_states: list[tuple[str, str]] = []
+        self.degraded_events: list[str] = []
+
+    def _set_lane_state(self, state: str, reason: str = "") -> None:
+        self._lane_state = state
+        self.lane_states.append((state, reason))
+
+    def _is_primary_or_deep_lane(self) -> bool:
+        return True
+
+    def _is_primary_lane(self) -> bool:
+        return True
+
+    def _warmup_timeout(self) -> float:
+        return 30.0
+
+    async def _ensure_worker_alive(self, **_k) -> bool:
+        return True
+
+    async def _run_warmup_precompile(self, **_k) -> None:
+        raise mlx._WarmupDeferredError(
+            "stopped_before_worker_spawn:foreground_headroom_reserved"
+        )
+
+    def _record_degraded_event(self, name: str, **_k) -> None:
+        self.degraded_events.append(name)
+
+
+@pytest.mark.parametrize("foreground_request", [True, False])
+def test_every_precompile_call_stands_down_on_a_deferral(monkeypatch, foreground_request):
     """LIVE 2026-09-28 00:33, one boot: `FAULT RUNTIME-MLX_CLIENT [MARGINAL]
     ... stopped_before_worker_spawn:foreground_headroom_reserved`.
 
@@ -195,18 +273,30 @@ def test_every_precompile_call_stands_down_on_a_deferral():
     lane that takes this refusal on nearly every boot — fell through to the
     generic handler, marked the lane recovering and recorded a warning
     degradation and a fault against her for a decision the runtime made on
-    purpose. Counting the call sites against the stand-downs holds a third
-    branch to the same rule.
+    purpose. Both branches are run here with the precompile declined.
     """
-    import inspect
+    import contextlib
 
     from core.brain.llm import mlx_warmup_and_adapters as warmup
 
-    source = inspect.getsource(warmup._WarmsUpAndSwapsAdapters._warmup_impl)
-    calls = source.count("await self._run_warmup_precompile(")
-    stood_down = source.count("except _WarmupDeferredError")
-    assert calls >= 2, "expected the foreground and background precompile branches"
-    assert stood_down == calls, (
-        f"{calls} precompile call site(s) but {stood_down} stand down on a "
-        "deferral; one of them records a refusal as a fault"
+    recorded: list[object] = []
+
+    @contextlib.asynccontextmanager
+    async def _owned(*_a, **_k):
+        yield None
+
+    monkeypatch.setattr(mlx, "_foreground_owner_context", _owned)
+    monkeypatch.setattr(mlx, "_foreground_owner_active", lambda: False)
+    monkeypatch.setattr(mlx, "_shutdown_blocks_model_work", lambda *_a, **_k: False)
+    monkeypatch.setattr(mlx, "_record_mlx_degradation", lambda exc, **_k: recorded.append(exc))
+
+    client = _Deferred()
+    warmed = asyncio.run(
+        warmup._WarmsUpAndSwapsAdapters._warmup_impl(
+            client, foreground_request=foreground_request
+        )
     )
+    assert warmed is False
+    assert not [s for s in client.lane_states if s[0] == "recovering"], client.lane_states
+    assert recorded == [], "a refusal was recorded as a degradation"
+    assert client.degraded_events == [], "a refusal was recorded as a fault"
