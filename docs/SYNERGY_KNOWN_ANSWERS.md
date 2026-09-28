@@ -220,3 +220,11 @@ of five seeds, the hold is what inflates her null, and the within-condition
 permutation is proposed for her recordings if it qualifies where the shift does
 not. If it stays at or under 0.13 at four of five, the hold does not explain it.
 Anything between is reported as it reads and decides nothing.
+
+The table ran at the commit that added `--hold` and read on 28 September. On the
+product toy the shift bar was 0.119, 0.117, 0.098, 0.120 and 0.093 at seeds 3,
+7, 11, 19 and 23: at or under 0.13 at all five. The hold does not explain her
+null. Both first nulls still qualify, 5 of 5 on the product and 0 of 5 on the
+separable and uncoupled toys, so the shift stays and nothing is proposed. Two
+candidates have now been put into the toy, a shared schedule and the hold, and
+neither lifted its shift bar anywhere near her 0.40.
