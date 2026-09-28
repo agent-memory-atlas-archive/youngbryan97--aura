@@ -36,9 +36,17 @@ variance in three counters there and is the target of W,A->D and a source of
 S,D->C, the two triples whose synergy sits under the bar; W and A carry 0.0044
 and 0.0002, so moving the sources alone is the control.
 
+`--shares` reads the bar and the synergy as shares of the joint information each
+has to work with, on the toys and on her side by side. That is what the three
+candidates should have started from: the toys' bar is 0.163 to 0.193 of their
+joint and hers is 0.210 of hers, so nothing inflates her null. What differs is
+the synergy — the toy's product carries 0.57 to 0.70 of its joint, her W,A->D
+carries 0.077.
+
     usage: synergy_known_answers.py [--seeds 3,7,11,19,23]
            synergy_known_answers.py --cycle [--hold 33]
            synergy_known_answers.py --drift target,sources,both
+           synergy_known_answers.py --shares [--drift target]
 """
 
 from __future__ import annotations
@@ -262,6 +270,57 @@ def main_drift(seeds: tuple[int, ...], arms: tuple[str, ...]) -> int:
     return 0
 
 
+#: Her own Kraskov line on whole-s7-27dc1dda9, from that run's
+#: `kraskov_synergy.json`, so `--shares` prints the two side by side. The toys'
+#: joint runs a seventh of hers, so a bar is only comparable as a share of it.
+HER_KRASKOV: tuple[tuple[str, float, float, float], ...] = (
+    ("A,S->G", 0.02729, 1.06419, -0.08848),
+    ("P,M->W", 0.21219, 2.10050, 0.14045),
+    ("W,A->D", 0.14578, 1.89569, 0.39728),
+    ("S,D->C", -0.10575, 0.66082, 0.03099),
+)
+
+
+def main_shares(seeds: tuple[int, ...], arms: tuple[str, ...]) -> int:
+    """The bar and the synergy as shares of the joint, on the toys and on her.
+
+    Three candidates were built for the gap between the toys' bars of 0.04 to
+    0.13 and her W,A->D bar of 0.397 before this was read, and it is a
+    difference of scale: her joint is 1.90 where a toy's is 0.25.
+    """
+    print(f"{'toy':<12} {'drift':<8} {'seed':>4} {'synergy':>9} {'joint':>8} {'bar':>8} {'bar/joint':>10} {'syn/joint':>10}")
+    shares: list[float] = []
+    for drift in arms:
+        for kind in CYCLE_KINDS:
+            for seed in seeds:
+                recording = build(kind, seed, drift=drift)
+                line = kraskov_synergy(
+                    recording, "W", "A", "D", seed=seed, draws=KSG_DRAWS, clocks_out=False
+                )
+                joint = float(line.joint)
+                share = line.shift_bar / joint if joint > 1e-9 else 0.0
+                if kind != "none" and joint > 1e-9:
+                    shares.append(share)
+                print(
+                    f"{kind:<12} {drift or 'none':<8} {seed:>4} {line.synergy:>+9.4f} {joint:>8.4f}"
+                    f" {line.shift_bar:>+8.4f} {share:>10.4f}"
+                    f" {line.synergy / joint if joint > 1e-9 else 0.0:>10.4f}",
+                    flush=True,
+                )
+    print("\nhers, whole-s7-27dc1dda9:")
+    for name, synergy_value, joint, bar in HER_KRASKOV:
+        print(
+            f"  {name:<8} synergy {synergy_value:+.4f}  joint {joint:.4f}  bar {bar:+.4f}"
+            f"  bar/joint {bar / joint:+.4f}  syn/joint {synergy_value / joint:+.4f}"
+        )
+    if shares:
+        print(
+            f"\nthe toys' bar is {min(shares):.3f} to {max(shares):.3f} of their joint; "
+            f"her W,A->D bar is {0.39728 / 1.89569:.3f} of hers"
+        )
+    return 0
+
+
 def read_cycle(kind: str, seed: int, hold: int = 1) -> dict[str, object]:
     """One row of the cycle table: the Kraskov line under each first null, on a toy with a shared schedule."""
     recording = build(kind, seed, cycle=True, hold=hold)
@@ -313,7 +372,17 @@ def main() -> int:
         help="columns that only grow, at her own shares: target, sources, both, "
         "or several separated by commas",
     )
+    parser.add_argument(
+        "--shares",
+        action="store_true",
+        help="the bar and the synergy as shares of the joint, on the toys and on her",
+    )
     args = parser.parse_args()
+    if args.shares:
+        return main_shares(
+            tuple(int(value) for value in args.seeds.split(",")),
+            tuple(name.strip() for name in (args.drift or "").split(",") if name.strip()) or ("",),
+        )
     if args.drift:
         return main_drift(
             tuple(int(s) for s in args.seeds.split(",")),

@@ -21,17 +21,23 @@ difference, which is what a running total means, and scores the same cut both
 ways.
 
 `Recording.monotone_columns` says differencing was tried and made the partition
-score worse, which is why the fix that was kept is in what the measures predict.
-This reads differently on one cut, and the difference between the two readings is
-which columns are differenced: `monotone_columns` flags every non-decreasing
-column, 35 of them on that run, and `only_grows` below flags the 29 whose drift
-is over three spreads of their own. At PD|IAGCSMWN, as recorded against those 29
-as rates: phi +0.015043 against +0.022386, lower bound -0.056917 against
--0.010472, standard error 0.036714 against 0.016764, and the fold of -0.080169
-becomes -0.000029.
+score worse. That holds, and by a lot. Searching every bipartition on
+whole-s7-27dc1dda9 with the 29 drifting columns carried as rates reads phi
++0.019341, lower bound -0.016034, standard error 0.018048 at CM|PIAGSWDN,
+against the run's own +0.0912, -0.131119 and 0.113427 at PD|IAGCSMWN. So the
+point estimate falls by a factor of five, the lower bound rises sixfold towards
+zero and the spread falls sixfold: most of the 0.0912 was the drift, and what is
+left is measured far more tightly.
 
-One cut is not the searched number the battery reads, and the number is under the
-bar either way. Nothing is rescored from this.
+Held at the run's own cut rather than searched, the same contrast reads phi
++0.015043 against +0.022386 and lower bound -0.056917 against -0.010472. A fixed
+cut is not the searched number and reads the point estimate the other way,
+because the cheapest cut of the de-clocked recording is a different cut.
+
+Three readings now agree about the size of her drift-free coupling: 0.002 to
+0.009 within a contiguous fifth, 0.019 searched, 0.022 at the run's own cut.
+The preregistered bar is 0.05. The way to it is more coupling between her
+domains, not a different recording of the same coupling.
 
 It reports and decides nothing. A positive reading here is evidence about the
 sign of the coupling and not about its size: the within-stretch values are two to

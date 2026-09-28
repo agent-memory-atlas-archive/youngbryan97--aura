@@ -279,3 +279,65 @@ What is read is the shifted bar on the product toy, at seeds 3, 7, 11, 19 and
 
 Anything else is reported as it reads and decides nothing. No threshold moves on
 this table and no criterion is rescored from it.
+
+#### What it read (28 September)
+
+Every arm, every toy, every seed: the shifted bar ran +0.007 to +0.052 and no
+seed reached 0.40. Medians: the product toy +0.052 under `target`, +0.048 under
+`sources`, +0.048 under `both`; the separable toy +0.040, +0.042, +0.043; the
+uncoupled toy +0.007, +0.008, +0.008. Drift at her own measured shares does not
+explain her bar either. That is the third candidate rejected, after a shared
+schedule and a 33-row hold.
+
+Three rejections say the question was probably the wrong one, so her own numbers
+were read again rather than a fourth candidate built. From
+`kraskov_synergy.json` on whole-s7-27dc1dda9, each triple's synergy, its joint
+information and its shifted bar:
+
+| triple | synergy | joint | shifted bar | bar / joint | synergy / joint |
+|---|---|---|---|---|---|
+| A,S->G | +0.0273 | 1.0642 | −0.0885 | −0.083 | +0.026 |
+| P,M->W | +0.2122 | 2.1005 | +0.1405 | +0.067 | +0.101 |
+| W,A->D | +0.1458 | 1.8957 | +0.3973 | +0.210 | +0.077 |
+| S,D->C | −0.1058 | 0.6608 | +0.0310 | +0.047 | −0.160 |
+
+Her W,A->D bar is 0.210 of the joint information that triple has to work with.
+The toys are three slow channels per source against her thirty-five and
+fifty-nine, so their joint is a fraction of hers, and a bar of 0.05 on a small
+joint can be the same share as a bar of 0.40 on a large one. Whether it is, is
+the next reading: the bar and the synergy as shares of the joint, on the toys
+and on her, side by side.
+
+#### The two read side by side (28 September)
+
+The toys' Kraskov joint, bar and synergy, as shares of that joint, at seeds 3,
+7 and 11:
+
+| toy | seed | synergy | joint | bar | bar / joint | synergy / joint |
+|---|---|---|---|---|---|---|
+| product | 3 | +0.173 | 0.246 | +0.041 | 0.168 | +0.700 |
+| product | 7 | +0.188 | 0.316 | +0.052 | 0.163 | +0.594 |
+| product | 11 | +0.172 | 0.302 | +0.055 | 0.182 | +0.570 |
+| separable | 3 | −0.183 | 0.212 | +0.035 | 0.164 | −0.862 |
+| separable | 7 | −0.118 | 0.213 | +0.041 | 0.193 | −0.553 |
+| separable | 11 | −0.067 | 0.226 | +0.042 | 0.188 | −0.295 |
+| uncoupled | 3 | −0.034 | −0.037 | +0.004 | — | — |
+| uncoupled | 7 | −0.041 | −0.044 | +0.007 | — | — |
+| uncoupled | 11 | −0.040 | −0.038 | +0.007 | — | — |
+
+The toys' bar is 0.163 to 0.193 of their joint. Her W,A->D bar is 0.210 of
+hers. **Nothing inflates her shifted null.** The toys are three slow channels
+per source against her thirty-five and fifty-nine, so their joint runs 0.21 to
+0.32 against her 1.90, and a bar of 0.05 on the one is the same share as 0.40 on
+the other. Three candidates were built for a difference that was a difference in
+scale, and the first of them should have been this table.
+
+What does differ is the synergy. The toy's product carries 0.57 to 0.70 of its
+joint as synergy, three to four times its own bar; her W,A->D carries 0.077,
+about a third of its bar. Her P,M->W carries 0.101 and clears its bar of 0.067,
+and it is the one triple that passes v3. So the triples fail because the synergy
+each carries is small beside what a shifted copy of its sources already supplies
+about its target, and the way to them is more joint structure between those
+domains rather than a different first null.
+
+The shift stays, and nothing is proposed.
