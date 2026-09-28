@@ -802,18 +802,26 @@ class SubjectRuntime:
         arm with it and the arm without.
         """
         self._attach_afferent()
-        scope = getattr(self, "_membrane", None)
-        if scope is None:
-            from core.runtime.state_membrane import MembraneScope
+        if self.frames_per_turn <= 0:
+            # Before the first turn has been lived the frame count is not known.
+            # The membrane starts at the first frame of the second turn.
+            return
+        from core.runtime.state_membrane import MembraneScope
 
-            # Before the first turn has been lived, `frames_per_turn` is 0 and
-            # the count is not known; the membrane starts at the next frame,
-            # which is the first frame of the second turn.
-            scope = MembraneScope(float(self.frames_per_turn or 0.0))
-            self._membrane = scope
-        if not scope.on or scope.frames_per_turn <= 0.0:
-            if scope.frames_per_turn <= 0.0 and self.frames_per_turn:
-                self._membrane = None
+        scope = getattr(self.state, "membrane", None)
+        if not isinstance(scope, MembraneScope) or scope.frames_per_turn != float(
+            self.frames_per_turn
+        ):
+            # On her state rather than on the runtime, because `restore` replaces
+            # the state and leaves the runtime alone: a scope held here carried
+            # one arm's traces into the next.
+            scope = MembraneScope(float(self.frames_per_turn))
+            try:
+                self.state.membrane = scope
+            except (AttributeError, TypeError) as exc:
+                logger.warning("Her state cannot hold a membrane: %s", exc)
+                return
+        if not scope.on:
             return
         try:
             from core.runtime.state_membrane import settle

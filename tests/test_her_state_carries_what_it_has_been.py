@@ -37,15 +37,21 @@ class _State:
     cognition: _Cognition
 
 
+class _Scoped(MembraneScope):
+    """A scope over four named channels, so a test does not ride on the schema."""
+
+    @property
+    def channels(self) -> dict[str, str]:
+        return {
+            "A.valence": "affect.valence",
+            "C.depth": "cognition.depth",
+            "C.label": "cognition.label",
+            "D.nowhere": "motivation.absent",
+        }
+
+
 def _scope(turns: float = 1.0, frames: float = 33.0) -> MembraneScope:
-    scope = MembraneScope(frames, turns=turns)
-    scope.channels = {
-        "A.valence": "affect.valence",
-        "C.depth": "cognition.depth",
-        "C.label": "cognition.label",
-        "D.nowhere": "motivation.absent",
-    }
-    return scope
+    return _Scoped(frames, turns=turns)
 
 
 def test_off_unless_asked_for(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -93,9 +99,12 @@ def test_a_boolean_is_not_carried() -> None:
 
     state = _State(_Affect(), _Cognition())
     state.cognition = _Flagged()  # type: ignore[assignment]
-    scope = MembraneScope(33.0, turns=1.0)
-    scope.channels = {"D.origin_is_user": "cognition.origin_is_user"}
-    settle(state, scope)
+    class _OneFlag(MembraneScope):
+        @property
+        def channels(self) -> dict[str, str]:
+            return {"D.origin_is_user": "cognition.origin_is_user"}
+
+    settle(state, _OneFlag(33.0, turns=1.0))
     assert state.cognition.origin_is_user is True
 
 
@@ -153,3 +162,33 @@ def test_settling_is_not_a_turn_and_takes_no_condition() -> None:
     signature = inspect.signature(SubjectRuntime._settle_membrane)
     assert list(signature.parameters) == ["self"]
     assert not hasattr(SubjectRuntime._settle_membrane, "__wrapped__")
+
+
+def test_the_scope_rides_on_her_state_so_a_fork_carries_it() -> None:
+    """It lived on the runtime, which `restore` does not touch.
+
+    So the second arm of a paired trial began with the first arm's traces: a
+    sham arm that was not the same arm. Her state is deep-copied from the
+    snapshot, so on the state both arms begin from the anchor's own history.
+    """
+    import inspect
+
+    from core.subject.driver import SubjectRuntime
+
+    source = inspect.getsource(SubjectRuntime._settle_membrane)
+    assert 'getattr(self.state, "membrane"' in source
+    assert "self.state.membrane = scope" in source
+    assert "self._membrane" not in source
+
+
+def test_a_deep_copy_of_her_state_carries_the_traces_and_not_the_table() -> None:
+    import copy
+
+    state = _State(_Affect(valence=0.5), _Cognition(depth=0.2))
+    scope = _scope()
+    settle(state, scope)
+    state.membrane = scope  # type: ignore[attr-defined]
+    forked = copy.deepcopy(state)
+    assert forked.membrane.membrane.trace("A.valence") == pytest.approx(0.5)
+    # The channel table is shared rather than copied per arm.
+    assert forked.membrane.channels == scope.channels

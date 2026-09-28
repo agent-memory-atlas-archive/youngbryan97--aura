@@ -58,12 +58,22 @@ def membrane_turns() -> float:
     return max(0.0, turns)
 
 
+#: Built once. A scope is carried on her state and a fork deep-copies it, so a
+#: per-instance table of two hundred columns would be copied on every arm of
+#: every trial for no reason; the table is the same for all of them.
+_CHANNELS: dict[str, str] | None = None
+
+
 def eligible_channels() -> dict[str, str]:
     """Every schema column whose value is a plain number at a writable path.
 
     Returns the column name against the dotted path it reads, so the set is a
     table that can be printed rather than a behaviour spread through writers.
     """
+    global _CHANNELS
+
+    if _CHANNELS is not None:
+        return _CHANNELS
     from core.subject.state import _SCHEMAS, DOMAINS
 
     out: dict[str, str] = {}
@@ -74,18 +84,28 @@ def eligible_channels() -> dict[str, str]:
             if path.startswith("organ:") or "[" in path or "*" in path:
                 continue
             out[f"{domain}.{feature}"] = path
+    _CHANNELS = out
     return out
 
 
 class MembraneScope:
-    """The membrane a runtime holds, and the channels it reaches."""
+    """The membrane, carried on her state so a fork carries it too.
+
+    It used to live on the runtime, which `restore` does not touch, so the
+    second arm of a paired trial began with the first arm's traces: a sham arm
+    that was not the same arm. Her state is deep-copied from the snapshot, so
+    on the state both arms begin from the anchor's own history.
+    """
 
     def __init__(self, frames_per_turn: float, turns: float | None = None) -> None:
         held = membrane_turns() if turns is None else float(turns)
         self.frames_per_turn = float(frames_per_turn)
         self.turns = held
         self.membrane = Membrane(held * frames_per_turn)
-        self.channels = eligible_channels()
+
+    @property
+    def channels(self) -> dict[str, str]:
+        return eligible_channels()
 
     @property
     def on(self) -> bool:
