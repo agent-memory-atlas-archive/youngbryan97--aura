@@ -1102,3 +1102,49 @@ in `docs/SYNERGY_KNOWN_ANSWERS.md`: the bar tracks how much of its own past a
 series carries, and smoothing is the cleanest way to raise both at once. Her
 channels are spiky, so her bar is not inflated by smoothing; it is what it is
 because her joint information is large.
+
+## Addendum, 28 September 2026, night: a fourth switch, and the arms as they now stand
+
+`1840c455f`. `AURA_SELF_DOMINANCE` gives her self-state a direct channel into
+recurrent cognition, which it did not have.
+
+The substrate's `idx_dominance` — the third VAD neuron, the sense of being in
+control of one's situation — had readers and no writer. The substrate is
+twenty-five of the eighty-four columns of C, and `core/self/will_engine.py`
+drives motivation's budgets into two of its neurons, so D had a channel into C
+and S had none. On whole-s7-27dc1dda9 a displacement of S moves C by 4.23, the
+second largest of any domain, while S's unique information about C's next change
+is exactly 0.0 against D's 0.154.
+
+That is `S,D->C`'s whole problem stated in one line: a source that carries
+nothing of its own cannot carry anything jointly. Her self-model's own reading of
+whether she is holding together now writes the neuron, at the blend
+`will_engine` already uses.
+
+### What it is expected to do
+
+- `S,D->C`: S's unique information about C's change rises above zero. Its
+  synergy is expected to rise with it; whether it clears its shifted null is the
+  open question, and the null rises with any new information in the sources.
+- Nothing else. It is not expected to move the partition line, the other three
+  triples, or the nulls.
+
+If S's unique information stays at 0.0 with the channel open, the channel is not
+carrying and the reading is wrong.
+
+### The arms, with four switches
+
+| arm | membrane | afferent | workspace pool | self dominance |
+|---|---|---|---|---|
+| control | off | off | off | off |
+| carried | 1 | 1 | off | off |
+| joined | off | off | on | on |
+| both | 1 | 1 | on | on |
+
+`workspace pool` and `self dominance` share an arm because they aim at different
+triples — A,S->G and S,D->C — and a criterion is read per triple, so one arm
+attributes both. The membrane and the afferent surface share an arm for the
+reason already given: neither reaches the partition bar alone.
+
+The `carried` arm is not expected to move synergy and is expected to make
+W,A->D worse, which the addendum above measured before any of this runs.
