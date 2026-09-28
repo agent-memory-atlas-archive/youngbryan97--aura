@@ -88,19 +88,6 @@ def test_the_tool_block_says_what_available_was_checked_against():
     """The list read as a guarantee. The catalog verifies the skill is enabled,
     validated, dependency-ready and past preflight; it never calls the tool, so
     nothing there proves a credential is current or a target answers."""
-    from pathlib import Path as _Path
-
-    from tests.source_contract import family_text_at
-
-    # The tool block was lifted into `context_assembler_blocks` (2026-09-20).
-    source = family_text_at(
-        _Path(__file__).resolve().parents[1]
-        / "core" / "brain" / "llm" / "context_assembler.py"
-    )
-
-    assert "registered, validated and past preflight" in source
-    assert "not proof the tool works right now" in source
-
     from core.brain.llm.context_assembler import ContextAssembler
     from core.container import ServiceContainer
     from core.state.aura_state import AuraState
@@ -117,4 +104,6 @@ def test_the_tool_block_says_what_available_was_checked_against():
     finally:
         ServiceContainer.clear()
 
+    assert "registered, validated and past preflight" in prompt
+    assert "not proof the tool works right now" in prompt
     assert "Treat the first use in a turn as the test" in prompt
