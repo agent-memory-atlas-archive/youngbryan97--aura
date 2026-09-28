@@ -105,6 +105,23 @@ def test_joint_graph_reader_keeps_typed_or_untyped_v7_and_rejects_rebound_graph(
         selected_checkpoint(tmp_path)
 
 
+def test_joint_graph_reader_rejects_lower_loss_with_a_baseline_graph_regression(
+        tmp_path, monkeypatch):
+    monkeypatch.setenv("MLX_ENABLE_TF32", "0")
+    campaign(tmp_path, regression=False, graph=True)
+    measured_path = tmp_path / "calibration-paths-2.json"
+    measured = verified_document(measured_path)
+    measured.pop("receipt_sha256")
+    measured["rows"][0]["whole_graph"]["scores"] = [0., 1.]
+    write(measured_path, measured)
+    checkpoint_path = tmp_path / "checkpoint-2.json"
+    checkpoint = verified_document(checkpoint_path)
+    checkpoint.pop("receipt_sha256")
+    checkpoint["calibration_path_receipt_sha256"] = digest(measured)
+    write(checkpoint_path, checkpoint)
+    assert selected_checkpoint(tmp_path)[1]["step"] == 0
+
+
 @pytest.mark.parametrize("defect", ["source", "choices", "correct", "kind", "scores", "totals",
                                     "plan", "step", "receipt", "extra", "missing", "supervision"])
 def test_reader_refuses_incomplete_or_rebound_path_evidence(tmp_path, defect):

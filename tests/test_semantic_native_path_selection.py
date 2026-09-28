@@ -87,6 +87,17 @@ def test_joint_selection_prefers_graph_gain_over_lower_loss_without_regression()
     assert verdicts[1]["positive_graph_rankings"] == 2
 
 
+def test_joint_selection_does_not_count_a_tied_graph_as_a_win():
+    checkpoints = [{"step": 0, "calibration_loss": 1.}, {"step": 1, "calibration_loss": .01}]
+    measurements = {0: joint_measured((False, False, False), (True, False, False)),
+                    1: joint_measured((False, False, False), (True, False, False))}
+    measurements[1][0]["whole_graph"]["scores"] = [0., 0.]
+    selected, verdicts = select_native_joint_graph_checkpoint(
+        checkpoints, measurements, ["a", "b", "c"])
+    assert selected["step"] == 0
+    assert verdicts[1]["baseline_graph_regressions"] == ["a"]
+
+
 @pytest.mark.parametrize("defect", ["missing", "nan", "wrong_positive", "short"])
 def test_joint_selection_requires_every_graph_measurement(defect):
     checkpoints = [{"step": 0, "calibration_loss": .1}]
