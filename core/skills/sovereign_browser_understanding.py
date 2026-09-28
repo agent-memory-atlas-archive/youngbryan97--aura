@@ -211,6 +211,24 @@ class _UnderstandsThePage:
                 # what lets a whole screen be answered in a single round
                 # instead of one control at a time.
                 state.append(f"question {element['group']}")
+                # And where this one sits in the run, where the run is all this
+                # question has. A control whose only name is its group's reads
+                # as one nameless thing among five, and picking item k from a
+                # list is not the same act as saying where in a range you are.
+                # The place is a fact of the layout; what being there means is
+                # hers.
+                kin = [
+                    option
+                    for option in elements
+                    if isinstance(option, Mapping)
+                    and str(option.get("group") or "") == str(element["group"])
+                ]
+                named = {str(option.get("name") or "").strip() for option in kin}
+                named.discard("")
+                if len(kin) > 2 and (
+                    len(named) != len(kin) or named == {str(element["group"])}
+                ):
+                    state.append(f"position {kin.index(element) + 1} of {len(kin)}")
             if element.get("checked") is True:
                 state.append("already answered")
             if element.get("value"):
@@ -475,11 +493,16 @@ class _UnderstandsThePage:
             "predict them. If it does not, say what it is likely to say about "
             "you from what it measures. Answer in your own words."
         )
-        said, lane = await self._her_own_thinking_about_herself(
-            prompt, shaped=False
-        )
+        said, lane = await self._asked_of_her(prompt, mind, shaped=False)
         if said and lane == self._HER_OWN_LANE:
             return said
+        if said:
+            record_degradation(
+                "sovereign_browser.forecast",
+                RuntimeError(f"not_her_own_reasoning:{lane or 'unattributed'}"),
+                severity="warning",
+                action="did not say what she expected; it did not come from her",
+            )
         return ""
 
     async def _her_own_thinking_about_herself(
@@ -566,6 +589,66 @@ class _UnderstandsThePage:
         lane = str((getattr(thought, "metadata", None) or {}).get("endpoint") or "")
         return said, lane
 
+    async def _asked_of_her(
+        self, prompt: str, mind: str = "", *, shaped: bool = True
+    ) -> tuple[str, str]:
+        """One way to ask her something about herself, used by everything that does.
+
+        Her cognition first, because a question addressed to her is answered by
+        the faculties that answer one when a person asks it out loud. The direct
+        call second, on her own lane and only there, for when there is no cycle
+        to run or the cycle came back with nothing.
+
+        Built once because three things ask her: what she expects an instrument
+        to say before she answers it, how she answers each of its questions, and
+        what she makes of the result. Two of them had only one half of this and
+        the forecast had no fallback at all, so a cycle that returned nothing
+        meant she simply never said what she expected — which is the part of the
+        request that kept going missing.
+
+        Returns the text and the lane that produced it; the caller decides what
+        an answer from somewhere else is worth.
+        """
+        said, lane = await self._her_own_thinking_about_herself(prompt, shaped=shaped)
+        if said:
+            return said, lane
+        router = optional_service("llm_router", default=None)
+        think = getattr(router, "think", None)
+        if not callable(think):
+            return "", ""
+        who: dict[str, Any] = {}
+        try:
+            reply = await think(
+                prompt,
+                system_prompt=mind,
+                prefer_tier="primary",
+                origin=self._PAGE_ORIGIN,
+                purpose="page_decision" if shaped else "page_forecast",
+                own_lane_required=True,
+                serves_current_turn=True,
+                _generation_metadata_sink=who,
+                max_tokens=self.DECISION_MAX_TOKENS,
+                temperature=0.2 if shaped else 0.4,
+                _non_chat_inference=True,
+                **(
+                    {"schema": self._DECISION_SCHEMA, "output_shape": "json_object"}
+                    if shaped
+                    else {}
+                ),
+            )
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation(
+                "sovereign_browser.asked_of_her",
+                exc,
+                severity="warning",
+                action="asked her something about herself and got nothing back",
+            )
+            return "", ""
+        return (
+            self._the_text_of(reply),
+            self._who_answered(reply) or str(who.get("endpoint") or ""),
+        )
+
     async def _hold_the_outcome_against_what_she_said(
         self,
         goal: str,
@@ -590,10 +673,6 @@ class _UnderstandsThePage:
         said = " ".join(str(said_before or "").split())
         if not said:
             return ""
-        router = optional_service("llm_router", default=None)
-        think = getattr(router, "think", None)
-        if not callable(think) or not mind:
-            return ""
         prompt = (
             f"WHAT YOU WERE DOING: {goal}\n\n"
             f"WHAT YOU SAID BEFORE YOU BEGAN: {said}\n\n"
@@ -604,23 +683,19 @@ class _UnderstandsThePage:
             "one instrument's reading, made from the placements it let you "
             "make, so say what it gets right and what it has no way to see."
         )
-        try:
-            # Her own lane. This is a judgement about her own earlier claim and
-            # about a result that describes her; a stand-in answering it would
-            # be a different mind grading her forecast.
-            reply = await think(
-                prompt, system_prompt=mind, prefer_tier="primary",
-                origin=self._PAGE_ORIGIN, purpose="page_conclusion",
-                max_tokens=self.DECISION_MAX_TOKENS, temperature=0.4,
-                _non_chat_inference=True,
-            )
-        except _BROWSER_DECISION_ERRORS as exc:
+        # Her own lane. This is a judgement about her own earlier claim and
+        # about a result that describes her; a stand-in answering it would be a
+        # different mind grading her forecast.
+        verdict, lane = await self._asked_of_her(prompt, mind, shaped=False)
+        if verdict and lane != self._HER_OWN_LANE:
             record_degradation(
-                "sovereign_browser.conclusion", exc, severity="warning",
-                action="finished without holding the outcome against her forecast",
+                "sovereign_browser.conclusion",
+                RuntimeError(f"not_her_own_reasoning:{lane or 'unattributed'}"),
+                severity="warning",
+                action="finished without a verdict that came from her",
             )
             return ""
-        return " ".join(self._the_text_of(reply).split())
+        return " ".join(verdict.split())
 
     async def _understand_page(
         self,
@@ -1536,36 +1611,7 @@ class _UnderstandsThePage:
                     # recalling, or consulting the organs that hold what she is
                     # actually like. A question addressed to her goes to the
                     # faculties that answer one when a person asks it out loud.
-                    raw, answered_by = await self._her_own_thinking_about_herself(prompt)
-                    if not raw:
-                        # No cognition to ask. The direct call is the fallback,
-                        # and `prefer_tier` alone is not enough for it: LIVE
-                        # 2026-09-28, morphogenesis advised a downgrade at 0.92
-                        # resource pressure and thirty-two questions about her
-                        # were answered by the brainstem, which chose the middle
-                        # option every time. `own_lane_required` says the answer
-                        # is only valid from her own lane, so load makes the
-                        # request wait or fail rather than quietly changing who
-                        # answers.
-                        #
-                        # And the receipt, into a dict this call owns. The guard
-                        # below used to read provenance off the reply, and the
-                        # router returns a plain string — so `answered_by` was
-                        # "" on every call and the guard could never fire. A
-                        # check that cannot see is a check that always passes.
-                        who: dict[str, Any] = {}
-                        reply = await think(
-                            prompt, system_prompt=mind, prefer_tier="primary",
-                            schema=self._DECISION_SCHEMA, output_shape="json_object",
-                            origin=self._PAGE_ORIGIN, purpose="page_decision",
-                            own_lane_required=True, _generation_metadata_sink=who,
-                            max_tokens=self.DECISION_MAX_TOKENS, temperature=0.2,
-                            _non_chat_inference=True,
-                        )
-                        answered_by = self._who_answered(reply) or str(
-                            who.get("endpoint") or ""
-                        )
-                        raw = self._the_text_of(reply)
+                    raw, answered_by = await self._asked_of_her(prompt, mind)
                     if answered_by != self._HER_OWN_LANE:
                         # Fail closed. An unattributed answer to a question
                         # about her is not evidence that she answered it.
