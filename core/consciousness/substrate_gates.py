@@ -105,7 +105,7 @@ class _Running:
 
 
 @dataclass
-class _Gate:
+class _Multiplier:
     """One decision's multiplier: what it has learned and what it is holding for the turn."""
 
     unit: int
@@ -127,7 +127,7 @@ class SubstrateGates:
     def __init__(self) -> None:
         self._readings = [_Running() for _ in READINGS]
         self._units: dict[int, _Running] = {}
-        self._gates: dict[str, _Gate] = {}
+        self._gates: dict[str, _Multiplier] = {}
         self._seen_step: int | None = None
 
     # -- the substrate ---------------------------------------------------
@@ -164,7 +164,7 @@ class SubstrateGates:
         taken = {getattr(substrate, name, None) for name in READINGS}
         return [i for i in range(size) if i not in taken]
 
-    def _gate(self, name: str, substrate: Any, size: int) -> _Gate | None:
+    def _gate(self, name: str, substrate: Any, size: int) -> _Multiplier | None:
         gate = self._gates.get(name)
         if gate is not None:
             return gate
@@ -173,7 +173,7 @@ class SubstrateGates:
         spare = [u for u in free if u not in used]
         if not spare:
             return None
-        gate = _Gate(unit=spare[0])
+        gate = _Multiplier(unit=spare[0])
         self._gates[name] = gate
         return gate
 

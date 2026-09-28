@@ -129,9 +129,10 @@ def test_a_bid_that_is_itself_the_feeling_still_lends_nothing(self_prediction):
     )
 
 
-def test_the_three_tenths_is_unchanged(self_prediction):
+def test_the_three_tenths_is_unchanged(self_prediction, monkeypatch):
     """Only the factor is new; the weight the workspace already declared stays."""
-    import inspect
+    from core.consciousness.global_workspace_supply import bid_parts
 
-    source = inspect.getsource(gw.CognitiveCandidate.priority_at)
-    assert "self.affect_weight * 0.3 * _reading_herself()" in source
+    monkeypatch.setattr(gw, "_reading_herself", lambda: 1.0)
+    bid = _bid(content_type=gw.ContentType.PERCEPTUAL, affect_weight=1.0)
+    assert bid_parts(bid, bid.submitted_at)[0]["affect"] == pytest.approx(0.3)
