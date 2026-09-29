@@ -153,6 +153,14 @@ def run(src_path, names, out_path, doc):
         moved.append(body)
 
     out = pathlib.Path(out_path)
+    # A sibling that already exists is somebody's module. Writing the lifted
+    # functions over it replaced `screen_pursuit_steps` whole on 2026-09-28,
+    # and the parent's merged import still named the seven functions that
+    # were gone. Nothing has been written yet, so refusing costs nothing.
+    if out.exists():
+        print(f"REFUSING: {out} already exists; name a new module, or move the "
+              "functions into that one by hand")
+        return 1
     header = (f'"""{doc}\n\nLifted whole out of `{p.stem}`, which imports them straight back: every\ncaller and every patch that names them there still finds them. What they\ntake from that module is imported at CALL time, for the same reason.\n"""\n'
               "from __future__ import annotations\n\n"
               + HEADER_IMPORTS

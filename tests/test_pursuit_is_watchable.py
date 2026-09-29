@@ -59,7 +59,12 @@ def test_a_failed_round_does_not_destroy_the_finished_ones():
     assert "pursuit_interrupted" in body, (
         "an unexpected failure must end the loop and report the work"
     )
-    assert "landed_total" in body, "work that landed must be counted"
+    from core.skills import sovereign_browser
+
+    account = inspect.getsource(sovereign_browser._account_of_the_pursuit)
+    assert "_account_of_the_pursuit(" in body and "landed_total" in account, (
+        "work that landed must be counted"
+    )
     assert 'action="final observation skipped"' in body, (
         "the last look must be best-effort: if the browser is what broke, the "
         "run still has everything it did before that"

@@ -73,6 +73,37 @@ def _bg_task_exception_handler(task):
         pass  # no-op: intentional
 
 
+def _trace_an_unverified_action_claim(
+    *,
+    grounding: Any,
+    intent_ctx: Any,
+) -> None:
+    """Put an action the reply claimed without a receipt on the life trace.
+
+    Moved out of ``_finalize_response`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 2 name(s) from the turn and hands back
+    0.
+    """
+    try:
+        from core.runtime.life_trace import get_life_trace
+
+        get_life_trace().record(
+            "initiative_blocked",
+            origin="response_grounding",
+            user_requested=bool(intent_ctx.get("user_granted_permission")),
+            action_taken={"claimed": grounding.claims_without_receipts},
+            result={"ok": False, "reason": "unverified_action_claim"},
+        )
+    except (ImportError, AttributeError, RuntimeError) as exc:
+        logger.warning(
+            "%s unavailable (%s: %s); an unverified action claim was not recorded anywhere",
+            "get_life_trace",
+            type(exc).__name__,
+            exc,
+        )
+
+
 class ResponseProcessingMixin:
     """Handles response finalization, reflexes, fast-path routing, and message history."""
 
@@ -131,23 +162,10 @@ class ResponseProcessingMixin:
             # Record unverified action claims so memory/belief writers can
             # refuse to promote them.
             if grounding.claims_without_receipts:
-                try:
-                    from core.runtime.life_trace import get_life_trace
-
-                    get_life_trace().record(
-                        "initiative_blocked",
-                        origin="response_grounding",
-                        user_requested=bool(intent_ctx.get("user_granted_permission")),
-                        action_taken={"claimed": grounding.claims_without_receipts},
-                        result={"ok": False, "reason": "unverified_action_claim"},
-                    )
-                except (ImportError, AttributeError, RuntimeError) as exc:
-                    logger.warning(
-                        "%s unavailable (%s: %s); an unverified action claim was not recorded anywhere",
-                        "get_life_trace",
-                        type(exc).__name__,
-                        exc,
-                    )
+                _trace_an_unverified_action_claim(
+                    grounding=grounding,
+                    intent_ctx=intent_ctx,
+                )
         except (ImportError, AttributeError, RuntimeError) as _ground_err:
             _record_response_processing_degradation(
                 _ground_err,

@@ -234,3 +234,25 @@ def test_both_lift_tools_keep_the_allowlist() -> None:
     for name in ("lift_methods.py", "lift_module_functions.py"):
         body = (ROOT / "tools" / name).read_text()
         assert "_keep_the_strict_allowlist(out, p)" in body
+
+
+def test_a_lift_into_a_module_that_already_exists_is_refused(tmp_path: Path) -> None:
+    """LIVE 2026-09-28: a lift into `screen_pursuit_steps` wrote over the
+    module of that name, and the parent still imported the seven functions
+    that had lived in it. The tool now refuses before it writes anything."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("_aura_lift_tool", ROOT / "tools" / "lift_module_functions.py")
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+
+    parent = tmp_path / "engine.py"
+    parent.write_text('import os\n\n\ndef helper(value: int) -> int:\n    return value + 1\n', encoding="utf-8")
+    existing = tmp_path / "engine_steps.py"
+    kept = '"""Somebody\'s module."""\n\n\ndef theirs() -> int:\n    return 1\n'
+    existing.write_text(kept, encoding="utf-8")
+    before = parent.read_text("utf-8")
+
+    assert tool.run(str(parent), ["helper"], str(existing), "Lifted helpers.") == 1
+    assert existing.read_text("utf-8") == kept
+    assert parent.read_text("utf-8") == before

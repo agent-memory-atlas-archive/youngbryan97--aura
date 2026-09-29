@@ -3492,6 +3492,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     call.
   Still red: method-size, fourteen tracked functions that grew and four new
   past 400 lines.
+  - method-size, 2026-09-29: all eighteen are back under their bars, by 57
+    blocks moved with `tools/extract_seam.py`, which refuses a block it
+    cannot prove separable and checks each helper's body against the
+    original token for token. The helpers live in new sibling modules, so
+    module-size ends 191 lines under its budget rather than over it. The last
+    two needed the tool to see more than it did: `CapabilityEngine.execute`
+    is one nested function, and the tool took every name it reads from the
+    method around it as possibly unbound; `_mlx_worker_loop` is one `while`
+    loop, and the tool did not hand back a name the next pass reads. Both
+    are fixed with tests, and the 53 call sites cut before the second fix
+    were checked for a dropped update and had none. On the way the lift
+    tool wrote over `screen_pursuit_steps`, an existing module; it now
+    refuses before writing.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   2026-09-30, morning: the `autonomous_rsi` sandbox test that failed in

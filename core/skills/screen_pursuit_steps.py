@@ -388,3 +388,157 @@ def _pursue_on_screen_part_7(
         f" — {result['error']}" if result.get("error") else "",
     )
 
+
+def _start_the_narrator(
+    *,
+    narrate: Any,
+    speaker: Any,
+) -> Any:
+    """Start narrating the pursuit's moves where narration was asked for.
+
+    Moved out of ``pursue_on_screen`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 1 name(s) from the turn and hands back
+    1.
+    """
+    from .screen_pursuit import (
+        _say_line,
+        record_degradation,
+    )
+
+    if narrate:
+        try:
+            from core.agency.narrator import Narrator
+
+            speaker = Narrator(say=_say_line, about="screen_pursuit.next_move")
+            speaker.start()
+        except (ImportError, RuntimeError, AttributeError, TypeError) as exc:
+            record_degradation(
+                "screen_pursuit",
+                exc,
+                severity="info",
+                action="pursued the goal without narrating it",
+            )
+            speaker = None
+    return speaker
+
+
+async def _wait_for_a_screen_or_stop(
+    *,
+    awake_from_here: Any,
+    ends_at: Any,
+    target_app: Any,
+) -> Any:
+    """Wait for a screen to look at, or end the pursuit saying why she cannot look.
+
+    Moved out of ``pursue_on_screen`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 3 name(s) and hands back
+    0.
+    """
+    from .screen_pursuit import (
+        PASSES_ON_ITS_OWN,
+        SOMETHING_ELSE_IS_IN_FRONT,
+        _SEAM_FELL_THROUGH,
+        _WHY_SHE_CANNOT_LOOK,
+        _what_being_refused_a_look_means,
+        wait_for_a_screen_to_look_at,
+    )
+
+    async def _block() -> Any:
+        if not await wait_for_a_screen_to_look_at(ends_at, app=target_app):
+            if awake_from_here is not None:
+                awake_from_here.__exit__(None, None, None)
+            why = _WHY_SHE_CANNOT_LOOK["value"]
+            return {
+                "ok": False,
+                # Which of them it was, because they do not have the same remedy
+                # and the person is the one who can apply it.
+                "outcome": (
+                    "something_else_is_in_front"
+                    if why in SOMETHING_ELSE_IS_IN_FRONT
+                    else "not_allowed_to_look"
+                    if why and why not in PASSES_ON_ITS_OWN
+                    else "no_screen_to_look_at"
+                ),
+                "refused_because": why,
+                "error": _what_being_refused_a_look_means(why),
+                "moves": [],
+            }
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response
+
+
+def _keep_the_screen_awake(
+    *,
+    awake_from_here: Any,
+    target_app: Any,
+) -> Any:
+    """Hold the screen awake for the length of the pursuit, where that can be done.
+
+    Moved out of ``pursue_on_screen`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 1 name(s) from the turn and hands back
+    1.
+    """
+    from .screen_pursuit import (
+        record_degradation,
+    )
+
+    try:
+        from core.capabilities.keeping_the_screen_awake import (  # noqa: PLC0415
+            keeping_it_awake,
+        )
+
+        awake_from_here = keeping_it_awake(f"she is getting to {target_app or 'the screen'}")
+        awake_from_here.__enter__()
+    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "screen_pursuit", exc, severity="info",
+            action="waited for a screen that may sleep under her",
+        )
+    return awake_from_here
+
+
+def _remember_how_worlds_like_it_move(
+    *,
+    can_do: Any,
+    knows: Any,
+    like_it: Any,
+    lines: Any,
+    skilled: Any,
+    world: Any,
+) -> None:
+    """Keep what she learned about this kind of world for the next world like it.
+
+    Moved out of ``pursue_on_screen`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 6 name(s) from the turn and hands back
+    0.
+    """
+    from .screen_pursuit import (
+        CARRIES_TO_A_WORLD_LIKE_IT,
+        logger,
+        remember,
+    )
+
+    if like_it["kind"] and knows.rules is not None and knows.rules.rule() is not None:
+        kept = remember(
+            like_it["kind"],
+            {
+                part: value
+                for part, value in {
+                    "moves": knows.rules.as_memory(),
+                    "acts": can_do.as_memory(),
+                    "skill": skilled.as_memory(),
+                    "world": world.as_memory(),
+                    "lines": lines.as_memory(),
+                }.items()
+                if part in CARRIES_TO_A_WORLD_LIKE_IT
+            },
+        )
+        if kept:
+            logger.info("what worlds like %r move like, kept", like_it["kind"])

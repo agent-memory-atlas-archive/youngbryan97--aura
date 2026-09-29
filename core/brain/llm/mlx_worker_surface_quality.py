@@ -339,6 +339,31 @@ def _restore_surface_generation_controls(state: dict[str, Any]) -> bool:
     return restored
 
 
+def _restore_surface_generation_controls_or_retire_the_worker(
+    state: dict[str, Any], ipc_writer: Any, *, after: str
+) -> bool:
+    """Restore the pre-job controls, or tell the parent this worker exits after this ``after``.
+
+    An unknown steering or recurrent state on the resident model would leak
+    into every later job, so a failed restore serves the current response and
+    then the worker goes, for the parent to respawn a clean one. False means
+    that is what happens.
+    """
+    if _restore_surface_generation_controls(state):
+        return True
+    ipc_writer.put(
+        {
+            "status": "degraded",
+            "action": "surface_restore_failed",
+            "message": (
+                f"surface control restore failed; worker will exit after this {after} "
+                "for a clean respawn"
+            ),
+        }
+    )
+    return False
+
+
 def _surface_generation_control_receipt(
     job: dict[str, Any],
     state: dict[str, Any],

@@ -9,6 +9,11 @@ be reused.
 """
 from __future__ import annotations
 
+from .mlx_latent_reasoning_steps import (  # noqa: F401  (re-exported: they were defined here)
+    _bind_the_runtime_controls_to_the_job,
+    _check_the_operation_authority,
+    _say_the_owner_deadline_was_reached,
+)
 import logging
 from typing import TYPE_CHECKING
 
@@ -42,6 +47,10 @@ from .mlx_worker import (
     _HIDDEN_SEQUENCE_MAX_TOKENS,
     _HIDDEN_SEQUENCE_MAX_WIDTH,
 )
+
+#: Returned by an extracted block that did NOT return early. A unique
+#: object, so no value a block legitimately returns can be mistaken for it.
+_SEAM_FELL_THROUGH = object()
 
 #: What an extracted block returns when it fell through to the code after it.
 _FALL_THROUGH = object()
@@ -878,24 +887,20 @@ class _ReasonsInLatentSpace:
                 "reason": "execute_intervention_offer_missing",
             }
         wire_operation_authority: dict[str, Any] | None = None
-        if operation_authority is not None:
-            try:
-                from core.brain.llm.latent_cortex.epistemic_runtime import (
-                    validate_runtime_operation_authority,
-                )
-
-                wire_operation_authority = validate_runtime_operation_authority(
-                    operation_authority,
-                    prompt=prompt,
-                    messages=messages,
-                    config=wire_config,
-                    budget=wire_budget,
-                    cognitive_context=wire_cognitive_context,
-                    action_policy_evidence=wire_action_policy_evidence,
-                    external_execution_offer=wire_external_execution_offer,
-                )
-            except (ImportError, TypeError, ValueError):
-                return {**base, "reason": "invalid_runtime_operation_authority"}
+        _seam_early_response, wire_operation_authority = _check_the_operation_authority(
+            base=base,
+            messages=messages,
+            operation_authority=operation_authority,
+            prompt=prompt,
+            wire_action_policy_evidence=wire_action_policy_evidence,
+            wire_budget=wire_budget,
+            wire_cognitive_context=wire_cognitive_context,
+            wire_config=wire_config,
+            wire_external_execution_offer=wire_external_execution_offer,
+            wire_operation_authority=wire_operation_authority,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
         if runtime_controls is not None:
             required_controls = {
                 "clean_user_surface_recurrent_loops",
@@ -1063,18 +1068,11 @@ class _ReasonsInLatentSpace:
                 job["config"] = wire_config
             if budget is not None:
                 job["budget"] = wire_budget
-            if runtime_controls is not None:
-                job["runtime_controls"] = wire_runtime_controls
-                job["clean_user_surface_contract"] = True
-                job["live_mind_controls_bound"] = True
-                job.update(wire_runtime_controls)
-            else:
-                # Latent episodes without explicit surface-parity controls are
-                # the experiment lane: they keep historical full governor
-                # steering. Every OTHER worker job now defaults to the surface
-                # clamp (fail-safe inversion after the July 2026 coherence
-                # incident) — this opt-out is deliberately scoped to episodes.
-                job["allow_full_affective_steering"] = True
+            _bind_the_runtime_controls_to_the_job(
+                job=job,
+                runtime_controls=runtime_controls,
+                wire_runtime_controls=wire_runtime_controls,
+            )
             if wire_cognitive_context is not None:
                 job["cognitive_context"] = wire_cognitive_context
             if wire_operation_authority is not None:
@@ -1131,15 +1129,9 @@ class _ReasonsInLatentSpace:
                 if cancel_ack is not None:
                     receipt = dict(cancel_ack.get("receipt") or {})
                     progress = dict(self._latent_progress_by_request.get(req_id) or {})
-                    logger.warning(
-                        "Latent owner deadline reached cleanly: stage=%s "
-                        "input_tokens=%s elapsed=%s timings=%s",
-                        receipt.get("last_stage") or progress.get("stage") or "unknown",
-                        receipt.get("input_token_count")
-                        or progress.get("input_tokens")
-                        or "unknown",
-                        progress.get("elapsed_s") or "unknown",
-                        receipt.get("stage_timings_s") or {},
+                    _say_the_owner_deadline_was_reached(
+                        progress=progress,
+                        receipt=receipt,
                     )
                     return {
                         **base,

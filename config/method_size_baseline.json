@@ -1,7 +1,7 @@
 {
   "threshold_lines": 400,
-  "tracked": 60,
-  "total_lines": 55999,
+  "tracked": 58,
+  "total_lines": 54853,
   "functions": {
     "core/brain/cognitive_engine_quick_reply.py::_AnswersTheDesktopDirectly._direct_desktop_quick_reply": {
       "lines": 765,
@@ -9,8 +9,8 @@
       "returns": 11
     },
     "core/brain/cognitive_engine_thinking_loop.py::_RunsTheThinkingLoop._run_thinking_loop": {
-      "lines": 502,
-      "complexity": 65,
+      "lines": 498,
+      "complexity": 60,
       "returns": 14
     },
     "core/brain/foreground_latent_runtime.py::run_foreground_latent_episode": {
@@ -19,8 +19,8 @@
       "returns": 18
     },
     "core/brain/inference_gate.py::InferenceGate._generate_with_metadata_sink": {
-      "lines": 1972,
-      "complexity": 399,
+      "lines": 1964,
+      "complexity": 395,
       "returns": 19
     },
     "core/brain/inference_gate_living_context.py::_BuildsTheLivingContext._build_living_mind_context": {
@@ -29,7 +29,7 @@
       "returns": 4
     },
     "core/brain/latent_cortex_service.py::LatentCortexService.deep_reason": {
-      "lines": 1189,
+      "lines": 1185,
       "complexity": 200,
       "returns": 45
     },
@@ -99,14 +99,14 @@
       "returns": 7
     },
     "core/brain/llm/mlx_latent_reasoning.py::_ReasonsInLatentSpace.latent_reason_async": {
-      "lines": 636,
-      "complexity": 144,
+      "lines": 630,
+      "complexity": 136,
       "returns": 44
     },
     "core/brain/llm/mlx_worker.py::_mlx_worker_loop": {
-      "lines": 4041,
-      "complexity": 539,
-      "returns": 10
+      "lines": 3976,
+      "complexity": 521,
+      "returns": 13
     },
     "core/brain/llm_health_router_endpoint_call.py::_CallsTheEndpoint._call_endpoint": {
       "lines": 498,
@@ -115,17 +115,12 @@
     },
     "core/brain/llm_health_router_endpoint_call.py::_CallsTheEndpoint._generate_core": {
       "lines": 470,
-      "complexity": 110,
+      "complexity": 102,
       "returns": 9
     },
-    "core/capability_engine.py::CapabilityEngine._load_default_trigger_patterns": {
-      "lines": 429,
-      "complexity": 3,
-      "returns": 0
-    },
     "core/capability_engine.py::CapabilityEngine.execute": {
-      "lines": 1411,
-      "complexity": 201,
+      "lines": 1400,
+      "complexity": 196,
       "returns": 41
     },
     "core/cognitive/state_machine.py::StateMachine._handle_chat": {
@@ -134,8 +129,8 @@
       "returns": 5
     },
     "core/consciousness/system.py::ConsciousnessSystem.start": {
-      "lines": 427,
-      "complexity": 31,
+      "lines": 405,
+      "complexity": 26,
       "returns": 1
     },
     "core/embodiment/reality_connectors.py::build_configured_reality_connector_catalog": {
@@ -209,33 +204,28 @@
       "returns": 22
     },
     "core/orchestrator/mixins/response_processing.py::ResponseProcessingMixin._finalize_response": {
-      "lines": 419,
-      "complexity": 96,
+      "lines": 416,
+      "complexity": 95,
       "returns": 4
     },
     "core/orchestrator/mixins/tool_execution.py::ToolExecutionMixin.execute_tool": {
-      "lines": 921,
-      "complexity": 148,
-      "returns": 29
-    },
-    "core/phases/cognitive_routing_unitary.py::CognitiveRoutingPhase.execute": {
-      "lines": 498,
-      "complexity": 83,
-      "returns": 22
+      "lines": 904,
+      "complexity": 147,
+      "returns": 28
     },
     "core/phases/memory_retrieval.py::MemoryRetrievalPhase.execute": {
-      "lines": 687,
-      "complexity": 158,
+      "lines": 681,
+      "complexity": 154,
       "returns": 30
     },
     "core/phases/response_generation.py::ResponseGenerationPhase.execute": {
-      "lines": 1429,
-      "complexity": 231,
+      "lines": 1405,
+      "complexity": 218,
       "returns": 18
     },
     "core/phases/response_generation_unitary.py::UnitaryResponsePhase.execute": {
-      "lines": 2940,
-      "complexity": 614,
+      "lines": 2938,
+      "complexity": 613,
       "returns": 47
     },
     "core/runtime/action_executor.py::ActionExecutor.execute": {
@@ -259,38 +249,38 @@
       "returns": 11
     },
     "core/skills/screen_pursuit.py::pursue_on_screen": {
-      "lines": 907,
-      "complexity": 110,
-      "returns": 12
+      "lines": 905,
+      "complexity": 104,
+      "returns": 14
     },
     "core/skills/screen_pursuit_decision.py::decide_the_next_move": {
-      "lines": 1387,
-      "complexity": 294,
-      "returns": 17
+      "lines": 1375,
+      "complexity": 256,
+      "returns": 18
     },
     "core/voice/speech_profile.py::SpeechProfileCompiler.compile": {
-      "lines": 499,
-      "complexity": 86,
+      "lines": 493,
+      "complexity": 84,
       "returns": 1
     },
     "interface/routes/chat.py::_api_chat_turn": {
-      "lines": 4001,
-      "complexity": 605,
+      "lines": 3994,
+      "complexity": 597,
       "returns": 108
     },
     "interface/routes/chat.py::_run_cognitive_engine_chat_turn": {
-      "lines": 2802,
-      "complexity": 457,
+      "lines": 2792,
+      "complexity": 454,
       "returns": 83
     },
     "interface/routes/chat_delivery.py::_paired_chat_response_boundary": {
-      "lines": 490,
-      "complexity": 73,
+      "lines": 486,
+      "complexity": 68,
       "returns": 12
     },
     "interface/routes/chat_reply_repair.py::_stabilize_user_facing_reply": {
-      "lines": 652,
-      "complexity": 166,
+      "lines": 646,
+      "complexity": 165,
       "returns": 27
     },
     "interface/routes/chat_turn_contract.py::_build_live_turn_contract_payload": {

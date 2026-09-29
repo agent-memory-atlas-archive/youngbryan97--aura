@@ -59,6 +59,10 @@ from ..state.aura_state import (  # noqa: F401  (read at call time by the lifted
     CognitiveMode,
 )
 from . import BasePhase
+from .response_generation_drafts import (  # noqa: F401  (re-exported: they were defined here)
+    _keep_a_repairable_draft_or_reject_it,
+    _repair_the_instruction_shape_after_voice,
+)
 from .response_generation_steps import _RunsTheGenerationSteps
 from .response_required_search import _RunsTheRequiredSearch
 
@@ -2388,53 +2392,15 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                         # be SPOKEN; a draft that merely fell short is kept and
                         # repaired. See core/conversation/surface_disposition.py
                         # for why the three gates were unified.
-                        from core.conversation.surface_disposition import (
-                            draft_is_servable,
+                        _seam_early_response = _keep_a_repairable_draft_or_reject_it(
+                            reliability=reliability,
+                            reliability_reasons=reliability_reasons,
+                            response_text=response_text,
+                            response_text_s=response_text_s,
+                            state=state,
                         )
-
-                        if (
-                            reliability_reasons
-                            and (
-                                reliability_reasons.issubset(
-                                    _DOWNSTREAM_REPAIRABLE_RESPONSE_REASONS
-                                )
-                                or draft_is_servable(reliability_reasons)
-                            )
-                            and len(response_text_s) >= 48
-                            and len(response_text_s.split()) >= 8
-                        ):
-                            # The draft itself, bounded. A reason and a length
-                            # describe a rejection without saying what was
-                            # rejected, and the two questions a reader has are
-                            # "was the gate right?" and "what did she nearly
-                            # say?" — neither answerable from a number. The
-                            # file sink redacts, and this stays local.
-                            logger.warning(
-                                "🛡️ ResponseGeneration kept repairable foreground draft for final reply repair (%s, len=%d): %r",
-                                ",".join(reliability.reasons) or "unknown",
-                                len(response_text_s),
-                                response_text_s[:_REJECTED_DRAFT_LOG_CHARS],
-                            )
-                            try:
-                                from core.conversation.surface_disposition import (
-                                    preserve_draft,
-                                )
-
-                                preserve_draft(response_text_s)
-                            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-                                logger.debug(
-                                    "the rejected draft was not preserved (%s: %s)",
-                                    type(exc).__name__,
-                                    exc,
-                                )
-                        else:
-                            logger.warning(
-                                "🛡️ ResponseGeneration rejected unsafe user-facing draft (%s, len=%d): %r",
-                                ",".join(reliability.reasons) or "unknown",
-                                len(str(response_text or "")),
-                                str(response_text or "")[:_REJECTED_DRAFT_LOG_CHARS],
-                            )
-                            return state
+                        if _seam_early_response is not _SEAM_FELL_THROUGH:
+                            return _seam_early_response
 
             action, content = self._execute_defensive_hardening_json(append_only_continuation_pending, kwargs, objective, response_mutation_receipt, response_text, state)
 
@@ -2742,39 +2708,17 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                     )
                     logger.debug("ResponseShaper failed (using raw): %s", _shape_exc)
 
-            if (
-                not is_background
-                and cleaned_response
-                and not is_test_run
-                and not latent_response_owned
-                and not append_only_continuation_pending
-            ):
-                repaired_response, repaired_shape, repair_reasons = (
-                    self._repair_substantive_instruction_shape_miss(
-                        user_surface_validation_prompt, cleaned_response
-                    )
-                )
-                if repaired_shape:
-                    pre_post_voice_repair = cleaned_response
-                    cleaned_response = repaired_response
-                    append_text_mutation(
-                        response_mutation_receipt,
-                        stage="response_generation.post_voice_shape",
-                        method="deterministic_instruction_shape",
-                        reasons=repair_reasons,
-                        before=pre_post_voice_repair,
-                        after=cleaned_response,
-                        deterministic=True,
-                        authorship_effect="preserved",
-                    )
-                    state.response_modifiers["post_voice_shape_repair"] = {
-                        "reasons": list(repair_reasons),
-                        "method": "deterministic_instruction_shape",
-                    }
-                    logger.info(
-                        "🛡️ ResponseGeneration repaired instruction shape after voice shaping (%s).",
-                        ",".join(repair_reasons) or "unknown",
-                    )
+            cleaned_response = _repair_the_instruction_shape_after_voice(
+                append_only_continuation_pending=append_only_continuation_pending,
+                cleaned_response=cleaned_response,
+                is_background=is_background,
+                is_test_run=is_test_run,
+                latent_response_owned=latent_response_owned,
+                response_mutation_receipt=response_mutation_receipt,
+                self=self,
+                state=state,
+                user_surface_validation_prompt=user_surface_validation_prompt,
+            )
 
             pre_final_tool_repair = cleaned_response
             if not append_only_continuation_pending:

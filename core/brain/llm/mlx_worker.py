@@ -33,6 +33,20 @@ from core.runtime.flags import FlagKind as _FlagKind
 from core.runtime.flags import declare as _declare_flag
 from core.runtime.state_ownership import shared_asset_root, state_root
 
+from .mlx_worker_loop_steps import (  # noqa: F401  (re-exported: they were defined here)
+    _add_the_bound_logits_processor,
+    _keep_a_complete_foreground_draft,
+    _measure_the_final_pass,
+    _report_the_worker_ready,
+    _sampling_for_a_strict_answer,
+    _say_the_inventory_draft_is_ungrounded,
+    _say_the_recurrent_tissue_was_admitted,
+    _size_the_metal_cache_to_the_machine,
+    _take_a_revalidated_repair,
+    _take_the_repaired_status_draft,
+    _take_the_repaired_user_surface,
+    _take_the_restored_newlines,
+)
 from .mlx_worker_recurrent_adapters import (  # noqa: F401  (re-exported: they were defined here)
     _attach_certified_recurrent_adapter,
     _handle_unified_recurrent_qualified_decode,
@@ -3634,7 +3648,7 @@ from .mlx_worker_surface_quality import (  # noqa: E402
     _recent_assistant_turns,  # noqa: F401
     _recent_user_turns,  # noqa: F401
     _record_mlx_degradation,
-    _restore_surface_generation_controls,
+    _restore_surface_generation_controls_or_retire_the_worker,
     _safe_float,
     _safe_int,
     _sanitize_telemetry_leakage,  # noqa: F401
@@ -6455,38 +6469,9 @@ def _mlx_worker_loop(
                 action="fell back to conservative Metal cache limit after adaptive cache limit failed",
                 severity="degraded",
             )
-            try:
-                # The fallback must not assume a large host: fixed 24GB/40GB
-                # limits authorized more memory than smaller or pressured
-                # machines could give. Derive conservatively from total RAM
-                # when observable; use small-safe limits when it is not.
-                try:
-                    from core.runtime.resource_observation import get_resource_observer
-
-                    _total_gb = float(
-                        get_resource_observer().memory(include_process_tree=False).total_bytes
-                    ) / float(1024**3)
-                except (ImportError, OSError, RuntimeError, AttributeError, ValueError, TypeError) as exc:
-                    logger.debug("Total memory unreadable, reporting 0GB: %s", exc)
-                    _total_gb = 0.0
-                if _total_gb >= 96.0:
-                    _cache_gb, _active_gb = 24, 40
-                elif _total_gb >= 48.0:
-                    _cache_gb, _active_gb = 12, 28
-                elif _total_gb > 0.0:
-                    _cache_gb, _active_gb = 4, 12
-                else:
-                    # Unobservable capacity: smallest useful limits.
-                    _cache_gb, _active_gb = 4, 12
-                mx.metal.set_cache_limit(1024 * 1024 * 1024 * _cache_gb)
-                if hasattr(mx, "set_memory_limit"):
-                    mx.set_memory_limit(1024 * 1024 * 1024 * _active_gb)
-            except (AttributeError, RuntimeError, ValueError) as fallback_exc:
-                _record_mlx_degradation(
-                    fallback_exc,
-                    action="continued without explicit Metal cache limit after fallback failed",
-                    severity="degraded",
-                )
+            _size_the_metal_cache_to_the_machine(
+                mx=mx,
+            )
 
     # [PERFORMANCE] Metal probes shifted to after model load or triggered on demand
     # Initializing the model first is more critical for 'perceived' speed.
@@ -6581,17 +6566,9 @@ def _mlx_worker_loop(
             unified_recurrent_shadow,
             unified_recurrent_shadow_status,
         )
-        if unified_recurrent_qualified_activation_status["loaded"]:
-            logger.info(
-                "Unified recurrent tissue admitted for QUALIFIED TYPED serving: activation=%s",
-                unified_recurrent_qualified_activation_status["activation"]["activation_sha256"],
-            )
-        else:
-            logger.info(
-                "Optional unified typed-controller serving inactive (independent of "
-                "the CP568 semantic-neural serving lane): %s",
-                unified_recurrent_qualified_activation_status["reason"],
-            )
+        _say_the_recurrent_tissue_was_admitted(
+            unified_recurrent_qualified_activation_status=unified_recurrent_qualified_activation_status,
+        )
         consumed_unified_recurrent_canary_nonces: set[str] = set()
 
         from core.brain.llm.latent_cortex.runtime_identity import (
@@ -6619,28 +6596,19 @@ def _mlx_worker_loop(
         worker_identity = _current_worker_identity()
         token_budget_calibration = _token_budget_calibration_evidence(tokenizer)
 
-        ipc_writer.put(
-            {
-                "status": "ok",
-                "action": "init",
-                "device": device,
-                "steering_active": bool(_steering_active),
-                "steering_disposition": _steering_disposition,
-                "recurrent_depth": recurrent_depth_status,
-                "recurrent_adapter_activation": dict(recurrent_adapter_activation),
-                "recurrent_adapter_activation_receipt": (
-                    dict(recurrent_adapter_activation_receipt)
-                    if recurrent_adapter_activation_receipt is not None
-                    else None
-                ),
-                "unified_recurrent_shadow": dict(unified_recurrent_shadow_status),
-                "unified_recurrent_qualified_activation": dict(
-                    unified_recurrent_qualified_activation_status
-                ),
-                "personality_adapter": dict(personality_adapter_status),
-                "token_budget_calibration": token_budget_calibration,
-                "worker_identity": dict(worker_identity),
-            }
+        _report_the_worker_ready(
+            _steering_active=_steering_active,
+            _steering_disposition=_steering_disposition,
+            device=device,
+            ipc_writer=ipc_writer,
+            personality_adapter_status=personality_adapter_status,
+            recurrent_adapter_activation=recurrent_adapter_activation,
+            recurrent_adapter_activation_receipt=recurrent_adapter_activation_receipt,
+            recurrent_depth_status=recurrent_depth_status,
+            token_budget_calibration=token_budget_calibration,
+            unified_recurrent_qualified_activation_status=unified_recurrent_qualified_activation_status,
+            unified_recurrent_shadow_status=unified_recurrent_shadow_status,
+            worker_identity=worker_identity,
         )
     except (ImportError, OSError, AttributeError, RuntimeError, TypeError, ValueError) as e:
         _record_mlx_degradation(
@@ -6988,32 +6956,17 @@ def _mlx_worker_loop(
                     proof_evaluation_contract and _proof_prompt_expects_artifact(prompt)
                 )
 
-                if strict_answer_contract:
-                    temp = 0.0
-                    top_p = 1.0
-                    min_p = 0.0
-                    repetition_penalty = max(_safe_float(repetition_penalty, 1.15), 1.12)
-                elif strict_value_contract:
-                    temp = 0.0
-                    top_p = 1.0
-                    min_p = 0.0
-                    repetition_penalty = max(_safe_float(repetition_penalty, 1.15), 1.05)
-                elif proof_evaluation_contract:
-                    if artifact_generation_contract:
-                        temp = 0.0
-                        top_p = 1.0
-                        min_p = 0.0
-                        repetition_penalty = max(_safe_float(repetition_penalty, 1.08), 1.05)
-                    else:
-                        temp = min(_safe_float(temp, 0.1), 0.15)
-                        top_p = min(_safe_float(top_p, 0.9), 0.9)
-                        min_p = min(_safe_float(min_p, 0.05), 0.05)
-                        repetition_penalty = max(_safe_float(repetition_penalty, 1.15), 1.08)
-                elif operator_evidence_contract:
-                    temp = min(_safe_float(temp, 0.1), 0.12)
-                    top_p = min(_safe_float(top_p, 0.8), 0.8)
-                    min_p = max(_safe_float(min_p, 0.03), 0.03)
-                    repetition_penalty = max(_safe_float(repetition_penalty, 1.15), 1.18)
+                min_p, repetition_penalty, temp, top_p = _sampling_for_a_strict_answer(
+                    artifact_generation_contract=artifact_generation_contract,
+                    min_p=min_p,
+                    operator_evidence_contract=operator_evidence_contract,
+                    proof_evaluation_contract=proof_evaluation_contract,
+                    repetition_penalty=repetition_penalty,
+                    strict_answer_contract=strict_answer_contract,
+                    strict_value_contract=strict_value_contract,
+                    temp=temp,
+                    top_p=top_p,
+                )
                 max_tokens = _admit_max_tokens(job.get("max_tokens", 512), 512)
                 # The caller sized this against the answer. On a thinking model the
                 # budget goes on reasoning first, so an unadjusted ceiling truncates
@@ -7154,17 +7107,10 @@ def _mlx_worker_loop(
 
                         _bound = close_the_channel_after(tokenizer, _channel_budget)
                         _channel_bound = _bound
-                        if _bound is not None:
-                            logits_processors.append(_bound)
-                            logger.info(
-                                "🧠 [WORKER] Private channel bounded at %d tokens.",
-                                getattr(_bound, "budget_tokens", 0),
-                            )
-                        else:
-                            logger.info(
-                                "🧠 [WORKER] Private channel NOT bounded; this "
-                                "tokenizer has no single closing token."
-                            )
+                        _add_the_bound_logits_processor(
+                            _bound=_bound,
+                            logits_processors=logits_processors,
+                        )
                     except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as e:
                         _record_mlx_degradation(
                             e,
@@ -8218,29 +8164,15 @@ def _mlx_worker_loop(
                                         0.0,
                                         time.perf_counter() - generation_stream_started_at,
                                     )
-                                    if final_generation_response is not None:
-                                        generation_performance = _generation_pass_performance(
-                                            generation_passes.final_responses,
-                                            prompt_tokens=prefill_tokens,
-                                            generation_tokens=token_count,
-                                            first_token_seconds=first_token_latency_s,
-                                            stream_seconds=generation_stream_elapsed_s,
-                                        )
-                                        logger.info(
-                                            "⏱️ [WORKER] generation performance: "
-                                            "prefill=%d tokens/%.2fs (%.1f tok/s), "
-                                            "decode=%d tokens/%.2fs (%.1f tok/s), "
-                                            "first_token=%.2fs stream=%.2fs peak=%.2fGB",
-                                            generation_performance["prompt_tokens"],
-                                            generation_performance["prefill_seconds"] or 0.0,
-                                            generation_performance["prompt_tps"],
-                                            generation_performance["generation_tokens"],
-                                            generation_performance["decode_seconds"] or 0.0,
-                                            generation_performance["generation_tps"],
-                                            first_token_latency_s or 0.0,
-                                            generation_stream_elapsed_s,
-                                            generation_performance["peak_memory_gb"],
-                                        )
+                                    generation_performance = _measure_the_final_pass(
+                                        final_generation_response=final_generation_response,
+                                        first_token_latency_s=first_token_latency_s,
+                                        generation_passes=generation_passes,
+                                        generation_performance=generation_performance,
+                                        generation_stream_elapsed_s=generation_stream_elapsed_s,
+                                        prefill_tokens=prefill_tokens,
+                                        token_count=token_count,
+                                    )
 
                                     if sentinel is not None and not sentinel_aborted:
                                         terminal_signal = sentinel.finalize()
@@ -8740,25 +8672,12 @@ def _mlx_worker_loop(
                                                 response_text,
                                             )
                                         )
-                                        if shaped_surface != response_text:
-                                            logger.info(
-                                                "🛡️ [WORKER] Repaired explicit user-surface "
-                                                "shape before quality validation."
-                                            )
-                                            surface_control_state[
-                                                "instruction_shape_repair_applied"
-                                            ] = True
-                                            append_text_mutation(
-                                                surface_control_state,
-                                                stage="mlx_worker.instruction_shape",
-                                                method="deterministic_instruction_shape",
-                                                reasons=pre_shape_reasons or ["instruction_shape"],
-                                                before=response_text,
-                                                after=shaped_surface,
-                                                deterministic=True,
-                                                authorship_effect="preserved",
-                                            )
-                                            response_text = shaped_surface
+                                        response_text = _take_the_repaired_user_surface(
+                                            pre_shape_reasons=pre_shape_reasons,
+                                            response_text=response_text,
+                                            shaped_surface=shaped_surface,
+                                            surface_control_state=surface_control_state,
+                                        )
                                         surface_control_state["surface_quality_gate_attempts"] = (
                                             int(
                                                 surface_control_state.get(
@@ -8785,26 +8704,13 @@ def _mlx_worker_loop(
                                                         unescaped_surface,
                                                     )
                                                 )
-                                                if (
-                                                    "escaped_control_artifact"
-                                                    not in unescaped_reasons
-                                                ):
-                                                    logger.info(
-                                                        "🛡️ [WORKER] Restored newlines the model "
-                                                        "emitted as literal escapes."
-                                                    )
-                                                    append_text_mutation(
-                                                        surface_control_state,
-                                                        stage="mlx_worker.escaped_control_artifact",
-                                                        method="unescape_control_sequences",
-                                                        reasons=["escaped_control_artifact"],
-                                                        before=response_text,
-                                                        after=unescaped_surface,
-                                                        deterministic=True,
-                                                        authorship_effect="preserved",
-                                                    )
-                                                    response_text = unescaped_surface
-                                                    rejection_reasons = unescaped_reasons
+                                                rejection_reasons, response_text = _take_the_restored_newlines(
+                                                    rejection_reasons=rejection_reasons,
+                                                    response_text=response_text,
+                                                    surface_control_state=surface_control_state,
+                                                    unescaped_reasons=unescaped_reasons,
+                                                    unescaped_surface=unescaped_surface,
+                                                )
                                         if set(rejection_reasons) == {"truncated_tail"}:
                                             completed_surface = (
                                                 _repair_live_user_surface_truncated_tail(
@@ -8819,23 +8725,13 @@ def _mlx_worker_loop(
                                                 if completed_surface
                                                 else rejection_reasons
                                             )
-                                            if completed_surface and not completed_reasons:
-                                                logger.info(
-                                                    "🛡️ [WORKER] Kept complete foreground "
-                                                    "sentences after a clipped tail."
-                                                )
-                                                append_text_mutation(
-                                                    surface_control_state,
-                                                    stage="mlx_worker.truncated_tail",
-                                                    method="retain_complete_sentences",
-                                                    reasons=["truncated_tail"],
-                                                    before=response_text,
-                                                    after=completed_surface,
-                                                    deterministic=True,
-                                                    authorship_effect="preserved",
-                                                )
-                                                response_text = completed_surface
-                                                rejection_reasons = []
+                                            rejection_reasons, response_text = _keep_a_complete_foreground_draft(
+                                                completed_reasons=completed_reasons,
+                                                completed_surface=completed_surface,
+                                                rejection_reasons=rejection_reasons,
+                                                response_text=response_text,
+                                                surface_control_state=surface_control_state,
+                                            )
                                         if rejection_reasons:
                                             telemetry_surface = (
                                                 _repair_live_user_surface_operational_status(
@@ -8848,23 +8744,13 @@ def _mlx_worker_loop(
                                                 job,
                                                 telemetry_surface,
                                             )
-                                            if telemetry_surface and not telemetry_reasons:
-                                                logger.info(
-                                                    "🛡️ [WORKER] Repaired live status draft "
-                                                    "with concrete runtime telemetry."
-                                                )
-                                                append_text_mutation(
-                                                    surface_control_state,
-                                                    stage="mlx_worker.operational_status",
-                                                    method="grounded_runtime_telemetry_repair",
-                                                    reasons=rejection_reasons,
-                                                    before=response_text,
-                                                    after=telemetry_surface,
-                                                    deterministic=True,
-                                                    authorship_effect="replaced_by_runtime",
-                                                )
-                                                response_text = telemetry_surface
-                                                rejection_reasons = []
+                                            rejection_reasons, response_text = _take_the_repaired_status_draft(
+                                                rejection_reasons=rejection_reasons,
+                                                response_text=response_text,
+                                                surface_control_state=surface_control_state,
+                                                telemetry_reasons=telemetry_reasons,
+                                                telemetry_surface=telemetry_surface,
+                                            )
                                         if rejection_reasons:
                                             repairs = _mlx_worker_loop_reasons_name_removable()
                                             for _reason, (
@@ -8896,28 +8782,15 @@ def _mlx_worker_loop(
                                                         if candidate
                                                         else rejection_reasons
                                                     )
-                                                    if (
-                                                        candidate
-                                                        and candidate
-                                                        != str(response_text or "").strip()
-                                                    ):
-                                                        logger.info(
-                                                            "🛡️ [WORKER] Repaired %s and revalidated the "
-                                                            "remaining authored answer.",
-                                                            _reason,
-                                                        )
-                                                        append_text_mutation(
-                                                            surface_control_state,
-                                                            stage=f"mlx_worker.{_reason}",
-                                                            method=_method,
-                                                            reasons=[_reason],
-                                                            before=response_text,
-                                                            after=candidate,
-                                                            deterministic=True,
-                                                            authorship_effect="preserved",
-                                                        )
-                                                        response_text = candidate
-                                                        rejection_reasons = candidate_reasons
+                                                    rejection_reasons, response_text = _take_a_revalidated_repair(
+                                                        _method=_method,
+                                                        _reason=_reason,
+                                                        candidate=candidate,
+                                                        candidate_reasons=candidate_reasons,
+                                                        rejection_reasons=rejection_reasons,
+                                                        response_text=response_text,
+                                                        surface_control_state=surface_control_state,
+                                                    )
                                                 except (
                                                     ImportError,
                                                     AttributeError,
@@ -8974,15 +8847,8 @@ def _mlx_worker_loop(
                                                         "surface_quality_gate_waived_reasons"
                                                     ] = rejection_reasons[:8]
                                                     break
-                                                logger.warning(
-                                                    "⚠️ [WORKER] Clipped capability inventory draft lacks "
-                                                    "minimum grounding (%s); keeping the gate failure.",
-                                                    ",".join(
-                                                        key
-                                                        for key, present in inventory_evidence.items()
-                                                        if not present
-                                                    )
-                                                    or "unknown",
+                                                _say_the_inventory_draft_is_ungrounded(
+                                                    inventory_evidence=inventory_evidence,
                                                 )
                                             surface_wall_exceeded = _mlx_worker_loop_surface_wall_exceeded(internal_attempt, job, logger, max_internal_retries, rejection_reasons, surface_retry_started, surface_retry_wall_s, total_generated_tokens)
                                             if (
@@ -9111,23 +8977,10 @@ def _mlx_worker_loop(
                                 finally:
                                     watchdog.stop_job()
                     finally:
-                        if not _restore_surface_generation_controls(surface_control_state):
-                            # Unknown steering/recurrent state on the resident
-                            # model: serve THIS response, then exit so the
-                            # parent respawns a clean worker instead of
-                            # letting the contamination leak into every
-                            # subsequent job.
+                        if not _restore_surface_generation_controls_or_retire_the_worker(
+                            surface_control_state, ipc_writer, after="response"
+                        ):
                             worker_active = False
-                            ipc_writer.put(
-                                {
-                                    "status": "degraded",
-                                    "action": "surface_restore_failed",
-                                    "message": (
-                                        "surface control restore failed; worker will exit "
-                                        "after this response for a clean respawn"
-                                    ),
-                                }
-                            )
 
                     expected_empty_precompile = bool(
                         not response_text.strip() and _expected_empty_warmup_precompile(job)
@@ -9758,18 +9611,10 @@ def _mlx_worker_loop(
                             finally:
                                 watchdog.stop_job()
                     finally:
-                        if not _restore_surface_generation_controls(surface_control_state):
+                        if not _restore_surface_generation_controls_or_retire_the_worker(
+                            surface_control_state, ipc_writer, after="stream"
+                        ):
                             worker_active = False
-                            ipc_writer.put(
-                                {
-                                    "status": "degraded",
-                                    "action": "surface_restore_failed",
-                                    "message": (
-                                        "surface control restore failed; worker will exit "
-                                        "after this stream for a clean respawn"
-                                    ),
-                                }
-                            )
 
                     # One authoritative terminal frame, correlated to the
                     # request: consumers previously saw an id-less ok done
@@ -10338,19 +10183,10 @@ def _mlx_worker_loop(
                                     progress=_latent_progress,
                                 )
                         finally:
-                            if not _restore_surface_generation_controls(surface_control_state):
+                            if not _restore_surface_generation_controls_or_retire_the_worker(
+                                surface_control_state, ipc_writer, after="latent episode"
+                            ):
                                 worker_active = False
-                                ipc_writer.put(
-                                    {
-                                        "status": "degraded",
-                                        "action": "surface_restore_failed",
-                                        "message": (
-                                            "surface control restore failed; worker will "
-                                            "exit after this latent episode for a clean "
-                                            "respawn"
-                                        ),
-                                    }
-                                )
                         recycle_after_response = body.pop("requires_worker_recycle", False)
                         if body.pop("requires_cache_clear", False):
                             # Fast-weight erase unproven ⇒ pre-episode prompt

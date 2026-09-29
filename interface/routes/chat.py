@@ -6,6 +6,13 @@ and related API endpoints.
 
 from __future__ import annotations
 
+from .chat_turn_steps import (  # noqa: F401  (re-exported: they were defined here)
+    _check_the_grounded_claims,
+    _keep_the_retry_if_it_improves,
+    _serve_or_withhold_the_salvaged_draft,
+    _take_an_engine_connection,
+    _the_desktop_contract_answers_for_itself,
+)
 import asyncio
 import collections
 import contextlib
@@ -3251,26 +3258,14 @@ async def _run_cognitive_engine_chat_turn(
         return None
     failure_mode_reply = _chat_desktop_repair._build_failure_mode_surface_reply(visible)
     failure_mode_contract = bool(failure_mode_reply)
-    if (
-        desktop_execution_contract
-        and require_engine
-        and _desktop_objective_self_sufficient_without_cognitive_text(visible)
-    ):
-        logger.info(
-            "Serving self-sufficient desktop execution contract without foreground model allocation."
-        )
-        if turn_trace is not None:
-            turn_trace.update(
-                {
-                    "bounded_contract_used": True,
-                    "response_path": "self_sufficient_desktop_execution_contract",
-                }
-            )
-        return (
-            "I will execute this through the governed desktop_task lane and report only "
-            "receipt-verified effects. If desktop_task cannot prove the effect, I will "
-            "report the blocker instead of claiming completion."
-        )
+    _seam_early_response = _the_desktop_contract_answers_for_itself(
+        desktop_execution_contract=desktop_execution_contract,
+        require_engine=require_engine,
+        turn_trace=turn_trace,
+        visible=visible,
+    )
+    if _seam_early_response is not _SEAM_FELL_THROUGH:
+        return _seam_early_response
     private_cognitive_model_contract = bool(
         require_engine and _chat_preflight._is_private_cognitive_model_request(visible)
     )
@@ -3651,23 +3646,13 @@ async def _run_cognitive_engine_chat_turn(
     # CognitiveEngine path; if it fails, return no reply so desktop callers
     # hit the explicit fail-closed branch instead of a generic chat fallback.
     pool = None
-    try:
-        from core.providers.engine_connection_pool import get_engine_connection_pool
-
-        pool = get_engine_connection_pool()
-        await pool.acquire_engine_connection(engine, connection_id="desktop_chat")
-    except _CHAT_RECOVERABLE_ERRORS as exc:
-        pool = None
-        record_degradation("chat", exc)
-        if require_engine:
-            logger.warning(
-                "CognitiveEngine desktop chat connection pool unavailable; "
-                "continuing with direct CognitiveEngine call under foreground timeout: %s",
-                exc,
-            )
-        else:
-            logger.warning("CognitiveEngine desktop chat connection unavailable: %s", exc)
-            return None
+    _seam_early_response, pool = await _take_an_engine_connection(
+        engine=engine,
+        pool=pool,
+        require_engine=require_engine,
+    )
+    if _seam_early_response is not _SEAM_FELL_THROUGH:
+        return _seam_early_response
 
     async def _execute_cognitive_operation(
         label: str,
@@ -4645,34 +4630,12 @@ async def _run_cognitive_engine_chat_turn(
             retry_reply = None
         else:
             retry_reply = await _attempt_repair_retry(text, (failure_reason,))
-        if retry_reply:
-            # A repair has to earn the substitution. Most of these gates were
-            # written for a weaker model and encode style expectations from
-            # that period; a repair they trigger must not hand the person a
-            # blander or shorter answer than the one it replaces.
-            try:
-                from core.conversation.surface_disposition import (
-                    repair_is_an_improvement,
-                )
-
-                # `failure_reason` is what this retry was FOR. A replacement
-                # that still carries it delivered nothing the retry predicted,
-                # and swapping it in trades a known answer for an equally
-                # objectionable one.
-                keep_retry = repair_is_an_improvement(
-                    text, retry_reply, visible, targeted=(failure_reason,)
-                )
-            except _CHAT_RECOVERABLE_ERRORS:
-                keep_retry = True
-            if not keep_retry:
-                logger.warning(
-                    "Kept the original draft (%d chars): the repair for %s was "
-                    "not an improvement on it (%d chars).",
-                    len(str(text or "")),
-                    failure_reason,
-                    len(str(retry_reply or "")),
-                )
-                retry_reply = None
+        retry_reply = _keep_the_retry_if_it_improves(
+            failure_reason=failure_reason,
+            retry_reply=retry_reply,
+            text=text,
+            visible=visible,
+        )
         if retry_reply:
             _mark_turn_trace(
                 cognitive_engine_reply_accepted=True,
@@ -10813,29 +10776,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
                     status=str(_live_turn_trace.get("response_path") or ""),
                     reply_source=str(_live_turn_trace.get("response_path") or ""),
                 )
-                if not (
-                    salvage_output_proven
-                    and _authored_answer_can_serve_unfinished(salvage_contract)
-                ):
-                    logger.warning(
-                        "Preserved no-reply draft remained ineligible for delivery; "
-                        "withholding it (missing=%s).",
-                        ",".join(
-                            salvage_contract.get("full_mind_missing_proofs") or ()
-                        )
-                        or "unknown",
-                    )
-                    salvaged_no_reply = ""
-                else:
-                    logger.info(
-                        "Serving %d characters of unfinished authored work rather "
-                        "than an apology (unproven=%s).",
-                        len(salvaged_no_reply),
-                        ",".join(
-                            salvage_contract.get("full_mind_missing_proofs") or ()
-                        )
-                        or "none",
-                    )
+                salvaged_no_reply = _serve_or_withhold_the_salvaged_draft(
+                    salvage_contract=salvage_contract,
+                    salvage_output_proven=salvage_output_proven,
+                    salvaged_no_reply=salvaged_no_reply,
+                )
             # A recall question the model could not answer at all.
             #
             # LIVE 2026-08-17: "what was the first thing I said to you in this
@@ -11897,32 +11842,11 @@ async def _api_chat_turn(body: ChatRequest, request: Request):
         # by whether the model read the grounding it was handed. The prompt
         # block is a prior and priors lose to fluent sentences; the clock is
         # causal. Runs last, on the exact text about to be spoken.
-        try:
-            from core.conversation.grounded_claim_guard import verify_grounded_claims
-
-            _grounded = (
-                verify_grounded_claims(_final_reply)
-                if not _qualified_exact_delivery
-                else None
-            )
-            if _grounded is not None and _grounded.changed:
-                _append_turn_text_mutation(
-                    _live_turn_trace,
-                    stage="chat.grounded_claim_guard",
-                    method="measured_reading_overrides_stated_claim",
-                    reasons=list(_grounded.corrections),
-                    before=_final_reply,
-                    after=_grounded.text,
-                    deterministic=True,
-                    authorship_effect="augmented_by_runtime",
-                )
-                logger.warning(
-                    "🧭 [GROUNDING] reconciled a spoken claim against a real reading: %s",
-                    "; ".join(_grounded.corrections)[:240],
-                )
-                _final_reply = _grounded.text or _final_reply
-        except _CHAT_RECOVERABLE_ERRORS as _exc:
-            record_degradation("chat.grounded_claim_guard", _exc)
+        _final_reply = _check_the_grounded_claims(
+            _final_reply=_final_reply,
+            _live_turn_trace=_live_turn_trace,
+            _qualified_exact_delivery=_qualified_exact_delivery,
+        )
 
         if not _qualified_exact_delivery:
             _final_reply = await _ground_executable_output_claims_for_delivery(

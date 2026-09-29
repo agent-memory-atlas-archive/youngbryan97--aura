@@ -23,6 +23,43 @@ if TYPE_CHECKING:
     )
 
 
+def _close_the_foreground_turn(
+    *,
+    _is_foreground_turn: Any,
+    commit_outcome: Any,
+    foreground_turn_objective: Any,
+    origin: Any,
+) -> None:
+    """Close a foreground turn whose cognitive state committed, and say so when it did not.
+
+    Moved out of ``_run_thinking_loop`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 6 name(s) from the turn and hands back
+    0.
+    """
+    from .cognitive_engine import get_container
+    from .cognitive_engine import record_degradation
+    if _is_foreground_turn and commit_outcome in {
+        "committed",
+        "bypassed_test_isolation",
+    }:
+        closure = get_container().get("executive_closure", default=None)
+        if closure is not None and hasattr(closure, "complete_foreground_turn"):
+            closure.complete_foreground_turn(foreground_turn_objective, origin)
+    elif _is_foreground_turn:
+        record_degradation(
+            "cognitive_engine",
+            RuntimeError(f"foreground_turn_uncommitted:{commit_outcome}"),
+            severity="warning",
+            action="withheld foreground closure because cognitive state did not commit",
+            # Withholding closure is the whole response to this. It was
+            # also escalated to fatal by the fail-closed policy, which
+            # discarded the reply this function goes on to extract four
+            # lines below — an answer thrown away over bookkeeping.
+            enforce_failure_policy=False,
+        )
+
+
 class _RunsTheThinkingLoop:
     """Lifted whole out of CognitiveEngine; see cognitive_engine.py."""
 
@@ -836,7 +873,6 @@ class _RunsTheThinkingLoop:
             _record_legacy_pass,
             _skip_provenance,
             finalize_foreground_turn_state,
-            get_container,
             is_foreground_objective_origin,
             logger,
             record_degradation,
@@ -1040,25 +1076,12 @@ class _RunsTheThinkingLoop:
 
         # The turn completed durably (or was legitimately isolated). Only now
         # may external lifecycle state be told it finished.
-        if _is_foreground_turn and commit_outcome in {
-            "committed",
-            "bypassed_test_isolation",
-        }:
-            closure = get_container().get("executive_closure", default=None)
-            if closure is not None and hasattr(closure, "complete_foreground_turn"):
-                closure.complete_foreground_turn(foreground_turn_objective, origin)
-        elif _is_foreground_turn:
-            record_degradation(
-                "cognitive_engine",
-                RuntimeError(f"foreground_turn_uncommitted:{commit_outcome}"),
-                severity="warning",
-                action="withheld foreground closure because cognitive state did not commit",
-                # Withholding closure is the whole response to this. It was
-                # also escalated to fatal by the fail-closed policy, which
-                # discarded the reply this function goes on to extract four
-                # lines below — an answer thrown away over bookkeeping.
-                enforce_failure_policy=False,
-            )
+        _close_the_foreground_turn(
+            _is_foreground_turn=_is_foreground_turn,
+            commit_outcome=commit_outcome,
+            foreground_turn_objective=foreground_turn_objective,
+            origin=origin,
+        )
 
         # 6. Extract Response
         last_msg = self._turn_response_message(

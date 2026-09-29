@@ -626,6 +626,31 @@ def _normalised_by_the_pool(raw: dict[int, float]) -> dict[int, float]:
     }
 
 
+def _pulse_the_mycelium(
+    *,
+    self: Any,
+) -> None:
+    """The workspace's proof-of-life pulse to the mycelial network, skipped when it is not there.
+
+    Moved out of ``run_competition`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 1 name(s) from the turn and hands back
+    0.
+    """
+    try:
+        mycelium = ServiceContainer.get("mycelial_network", default=None)
+        if mycelium:
+            mycelium.pulse_hypha("consciousness", "workspace", success=True)
+    except _WORKSPACE_RECOVERABLE_ERRORS as _e:
+        self._record_degradation(
+            _e,
+            phase="workspace_pulse",
+            action="Skipped mycelial proof-of-life pulse and continued workspace competition",
+            severity="debug",
+        )
+        logger.debug("GW mycelial proof-of-life pulse skipped: %s", _e)
+
+
 class GlobalWorkspace:
     """The competitive bottleneck. One winner per cognitive tick.
 
@@ -1334,18 +1359,9 @@ class GlobalWorkspace:
             self._lock = asyncio.Lock()
 
         # Mycelial Pulse (Proof of Life for Workspace)
-        try:
-            mycelium = ServiceContainer.get("mycelial_network", default=None)
-            if mycelium:
-                mycelium.pulse_hypha("consciousness", "workspace", success=True)
-        except _WORKSPACE_RECOVERABLE_ERRORS as _e:
-            self._record_degradation(
-                _e,
-                phase="workspace_pulse",
-                action="Skipped mycelial proof-of-life pulse and continued workspace competition",
-                severity="debug",
-            )
-            logger.debug("GW mycelial proof-of-life pulse skipped: %s", _e)
+        _pulse_the_mycelium(
+            self=self,
+        )
 
         async with self._lock:
             # Decay inhibition counters before a possible somatic submission so

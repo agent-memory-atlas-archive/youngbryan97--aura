@@ -25,6 +25,9 @@ from core.runtime.subprocess_gateway import get_subprocess_gateway
 from core.utils.task_tracker import get_task_tracker
 
 from .capabilities.user_advocate import _AsksWhetherThePersonWouldWantThis
+from .capability_engine_background import (  # noqa: F401  (re-exported: they were defined here)
+    _defer_a_heavy_background_skill,
+)
 from .capability_engine_params import (  # noqa: F401  (re-exported: they were defined here)
     _a_model_from_a_schema,
     _coerce_and_harmonize_params,
@@ -155,6 +158,10 @@ from core.skills.base_skill import (  # noqa: E402
 )
 from core.skills.catalog_policy import resolve_skill_policy  # noqa: E402
 from core.utils.intent_normalization import normalize_memory_intent_text  # noqa: E402
+
+#: Returned by an extracted block that did NOT return early. A unique
+#: object, so no value a block legitimately returns can be mistaken for it.
+_SEAM_FELL_THROUGH = object()
 
 #: How much longer the engine waits than the budget it handed the skill, so a
 #: skill that runs out of time reports its own structured failure instead of
@@ -6007,50 +6014,16 @@ class CapabilityEngine(_AsksWhetherThePersonWouldWantThis, AuraBaseModule):
                             f"Network {mode} deferred because the background protection policy is unavailable."
                         ),
                     }
-            if (
-                not background_preflight_deferred
-                and skill_name in _HEAVY_BACKGROUND_SKILLS
-                and exec_source not in {"user", "api", "chat", "desktop", "voice", "web"}
-            ):
-                try:
-                    from core.runtime.background_policy import background_activity_reason
-
-                    reason = background_activity_reason(
-                        ctx.get("orchestrator"),
-                        min_idle_seconds=600.0,
-                        max_memory_percent=70.0,
-                        max_failure_pressure=0.20,
-                        require_conversation_ready=False,
-                    )
-                    if reason:
-                        background_preflight_deferred = True
-                        result = {
-                            "ok": False,
-                            "status": "deferred",
-                            "reason": reason,
-                            "message": (
-                                f"Background {skill_name} deferred while live conversation resources are protected ({reason})."
-                            ),
-                        }
-                except (ImportError, AttributeError, RuntimeError) as policy_exc:
-                    _record_capability_degradation(
-                        policy_exc,
-                        action="deferred heavy background skill because preflight policy failed",
-                        severity="degraded",
-                    )
-                    self.logger.warning(
-                        "Heavy background preflight failed for %s: %s",
-                        skill_name,
-                        policy_exc,
-                    )
-                    return {
-                        "ok": False,
-                        "status": "deferred",
-                        "reason": "background_policy_unavailable",
-                        "message": (
-                            f"Background {skill_name} deferred because the resource protection policy is unavailable."
-                        ),
-                    }
+            _seam_early_response, background_preflight_deferred, result = _defer_a_heavy_background_skill(
+                background_preflight_deferred=background_preflight_deferred,
+                ctx=ctx,
+                exec_source=exec_source,
+                result=result,
+                self=self,
+                skill_name=skill_name,
+            )
+            if _seam_early_response is not _SEAM_FELL_THROUGH:
+                return _seam_early_response
             raw_constrained_timeout = ctx.get("timeout_s")
             try:
                 constrained_timeout = (
