@@ -516,6 +516,8 @@ def _as_a_number(text: str) -> float | None:
     try:
         return float(str(text or "").strip().rstrip("%").replace(",", ""))
     except (TypeError, ValueError):
+        # not a failure: an end labelled in words is not a number, and None
+        # is how this says so.
         return None
 
 

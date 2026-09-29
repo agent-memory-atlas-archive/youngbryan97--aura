@@ -2969,6 +2969,7 @@ def _phenomena_reachable() -> int:
 
     try:
         from core.container import get_container
+        from core.exceptions import ServiceNotFoundError
         from core.phenomena_wiring import SERVICE_NAMES
 
         container = get_container()
@@ -2977,6 +2978,11 @@ def _phenomena_reachable() -> int:
             try:
                 if container.get(name) is not None:
                     found += 1
+            except ServiceNotFoundError:
+                # not a failure: a disposition the container does not hold is
+                # one it cannot resolve, and that is what this counts. It used
+                # to escape, so the claim errored instead of reporting a number.
+                continue
             except (ImportError, AttributeError, KeyError, RuntimeError, TypeError, ValueError):
                 continue
         return found
