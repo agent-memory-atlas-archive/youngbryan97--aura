@@ -601,6 +601,23 @@
         "name": "tests/test_epistemic_calibration.py",
         "why": "Decides that confidence tracks warrant rather than fluency: a claim is classed as formal, normative, speculative or unknowable, an unverified formal claim is capped low and a tool-verified one trusted, speculation is capped and marked, evidence raises empirical warrant, absolute phrasing counts as overreach, and the recommended confidence never exceeds the warrant. Neither suite decides the remembered and predicted grades or revision when later evidence arrives."
       }
+    ],
+    "MQ-16": [
+      {
+        "kind": "test",
+        "name": "tests/test_self_attribution_is_checked.py",
+        "why": "Decides the control of an evaluator correction that is itself false: told she said a number she never said, conceding it and inventing a replacement is caught, correcting the premise passes, and conceding something she really did say passes."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_reply_that_corrects_itself.py",
+        "why": "Decides the correction boundary inside a reply: an opening she withdrew later in the same reply is marked withdrawn, nothing of hers is removed or rewritten, a correction to the same value changes nothing, and a retraction with no replacement is left alone."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_belief_revision_hardening.py",
+        "why": "Decides the corrupted-store control: a corrupt belief store is quarantined and reseeded rather than read, and a new claim updates the belief it bears on with its confidence clamped. None of the three decides investigation against canonical evidence, recurrence prevention, or rollback after a repair."
+      }
     ]
   }
 }
