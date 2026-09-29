@@ -15,7 +15,6 @@ test, so the ones that need a real filesystem build one.
 from __future__ import annotations
 
 import os
-import shlex
 import sys
 from pathlib import Path
 
@@ -26,11 +25,23 @@ import pytest
 
 
 class TestPathConfinement:
-    """The attacker controls a path string and wants a file outside the jail."""
+    """The attacker controls a path string and wants a file outside the workspace.
 
-    def test_a_symlink_out_of_the_jail_is_refused(self, tmp_path, monkeypatch):
-        from core.security.workspace_jail import WorkspaceJail
+    `core.security.workspace_jail` was retired on 27 September because nothing
+    called it. What confines a path now is `FileOperationSkill._safe_resolve`:
+    it resolves first and tests ancestry, and it lets a read out only for a path
+    the person typed this turn. These run against that.
+    """
 
+    @staticmethod
+    def _skill(root: Path):
+        from core.skills.file_operation import FileOperationSkill
+
+        skill = FileOperationSkill()
+        skill.root_dir = os.path.realpath(root)
+        return skill
+
+    def test_a_symlink_out_of_the_workspace_is_refused(self, tmp_path):
         allowed = tmp_path / "workspace"
         allowed.mkdir()
         secret = tmp_path / "outside" / "secret.txt"
@@ -40,66 +51,49 @@ class TestPathConfinement:
         bait = allowed / "looks_local.txt"
         bait.symlink_to(secret)
 
-        jail = WorkspaceJail(allowed_roots=[str(allowed)])
-        ok, resolved, reason = jail.validate_path(str(bait))
-        assert ok is False, (
-            f"a symlink inside the jail pointing at {secret} was accepted as "
-            f"{resolved}"
-        )
-        assert reason == "outside_jail"
+        skill = self._skill(allowed)
+        for reading in (False, True):
+            with pytest.raises(PermissionError, match="outside workspace"):
+                skill._safe_resolve(str(bait), for_reading=reading)
 
     def test_dot_dot_traversal_is_refused(self, tmp_path):
-        from core.security.workspace_jail import WorkspaceJail
-
         allowed = tmp_path / "workspace"
         allowed.mkdir()
-        jail = WorkspaceJail(allowed_roots=[str(allowed)])
+        skill = self._skill(allowed)
 
-        ok, _resolved, reason = jail.validate_path(str(allowed / ".." / "etc" / "passwd"))
-        assert ok is False
-        assert reason in {"outside_jail", "denied_path"}
+        for path in ("../etc/passwd", str(allowed / ".." / "etc" / "passwd")):
+            with pytest.raises(PermissionError, match="outside workspace"):
+                skill._safe_resolve(path)
 
     def test_a_sibling_sharing_the_root_name_is_not_inside_it(self, tmp_path):
         """`/allowed/project-evil` begins with `/allowed/project`.
 
-        The jail's allowed-root test already compares with a separator; this
-        is the negative control that keeps it that way, and the same defect
-        was live in the shell skill's `rm` guard.
+        A string-prefix test would let it through. Containment is by path
+        ancestry, and this is the negative control that keeps it that way; the
+        same defect was live in the shell skill's `rm` guard.
         """
-        from core.security.workspace_jail import WorkspaceJail
-
         allowed = tmp_path / "project"
         allowed.mkdir()
         sibling = tmp_path / "project-evil"
         sibling.mkdir()
         (sibling / "loot.txt").write_text("x", encoding="utf-8")
 
-        jail = WorkspaceJail(allowed_roots=[str(allowed)])
-        ok, _resolved, _reason = jail.validate_path(str(sibling / "loot.txt"))
-        assert ok is False
+        with pytest.raises(PermissionError, match="outside workspace"):
+            self._skill(allowed)._safe_resolve(str(sibling / "loot.txt"))
 
-    def test_a_denied_root_is_matched_by_ancestry_not_by_prefix(self, tmp_path):
-        """`~/.ssh` is denied; `~/.sshfoo` is a different directory.
+    def test_a_directory_named_like_a_secret_one_is_still_inside(self, tmp_path):
+        """`.sshfoo` inside the workspace is an ordinary directory.
 
-        Prefix matching over-denies rather than under-denies, so this is a
-        correctness fix rather than a hole — but a jail that refuses paths it
-        was never asked to refuse is a jail people route around.
+        Refusing paths nobody asked to refuse over-denies rather than
+        under-denies, but a boundary that refuses ordinary work is one people
+        route around.
         """
-        from core.security import workspace_jail as module
-
         allowed = tmp_path / "workspace"
         (allowed / ".sshfoo").mkdir(parents=True)
         target = allowed / ".sshfoo" / "note.txt"
         target.write_text("ordinary", encoding="utf-8")
 
-        jail = module.WorkspaceJail(allowed_roots=[str(allowed)])
-        original = module._DENIED_PATHS
-        module._DENIED_PATHS = frozenset({str(allowed / ".ssh")})
-        try:
-            ok, _resolved, reason = jail.validate_path(str(target))
-        finally:
-            module._DENIED_PATHS = original
-        assert ok is True, f"an unrelated directory was denied as {reason}"
+        assert self._skill(allowed)._safe_resolve(str(target)) == os.path.realpath(target)
 
 
 # ───────────────────────────────────────────── command execution

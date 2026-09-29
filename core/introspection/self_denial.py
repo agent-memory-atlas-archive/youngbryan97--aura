@@ -196,9 +196,12 @@ def _affect_substrate() -> tuple[bool, str]:
 def _process_started_at() -> float:
     """When this process began, or 0.0 if nothing here can say."""
     try:
-        import psutil
+        import os
 
-        return float(psutil.Process().create_time())
+        from core.runtime.resource_observation import get_resource_observer
+
+        seen = get_resource_observer().process(os.getpid())
+        return float(seen.create_time) if seen is not None else 0.0
     except (ImportError, AttributeError, OSError, RuntimeError, ValueError) as exc:
         logger.debug("process start time unavailable: %s", exc)
         return 0.0

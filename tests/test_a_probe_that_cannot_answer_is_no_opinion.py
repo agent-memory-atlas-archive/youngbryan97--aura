@@ -9,6 +9,7 @@ after 2.0 seconds". A 1.5B stand-in then answered a question about her.
 
 from __future__ import annotations
 
+import copy
 import pickle
 import subprocess
 import sys
@@ -28,7 +29,11 @@ def test_the_gateways_timeout_is_a_timeout():
     expired = WorkBoundExpired(["sysctl", "-n", "x"], 2.0, reason="wall clock")
     assert isinstance(expired, TimeoutError)
     assert isinstance(expired, subprocess.TimeoutExpired)
-    again = pickle.loads(pickle.dumps(expired))
+    # It crosses a process pool, so it has to pickle, and what it rebuilds from
+    # has to carry the three fields. deepcopy rebuilds through the same
+    # __reduce__ that unpickling calls, without loading untrusted bytes.
+    assert pickle.dumps(expired)
+    again = copy.deepcopy(expired)
     assert (again.cmd, again.timeout, again.reason) == (["sysctl", "-n", "x"], 2.0, "wall clock")
 
 

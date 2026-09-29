@@ -451,6 +451,7 @@ async def in_a_process_of_its_own(
     """
     import asyncio  # noqa: PLC0415
     import json  # noqa: PLC0415
+    import subprocess  # noqa: PLC0415
 
     question = json.dumps(
         the_question(knows, world, start, actions, weights=weights, toward=toward, within_s=within_s)
@@ -479,8 +480,8 @@ async def in_a_process_of_its_own(
         try:
             child.wait(timeout=5.0)
         # not a failure: a child that will not be reaped is the OS's to finish.
-        except Exception:  # noqa: BLE001
-            pass
+        except (subprocess.TimeoutExpired, OSError) as exc:
+            logger.info("a world-play child was not reaped within five seconds: %s", exc)
     try:
         return json.loads(said.strip().splitlines()[-1]) if said and said.strip() else None
     except ValueError as exc:

@@ -19,6 +19,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 
+def _active_bytes() -> int:
+    """What the accelerator holds now, read through the one resource observer."""
+    from core.runtime.resource_observation import get_resource_observer
+
+    return int(get_resource_observer().accelerator().active_bytes)
+
+
 def native_fit_schema_version(*, objective, source_evidence, path_objective,
                               typed_pairs, joint_graph_contrasts):
     """Keep plan and report identities aligned when objectives are composed."""
@@ -964,7 +971,7 @@ def main():
                 print(json.dumps({"stage": "prefix", "captured": len(captured),
                     "population": len(sequences), "source_groups": len(capture_receipts),
                     "elapsed_seconds": time.monotonic() - started,
-                    "active_memory_bytes": mx.get_active_memory()}), flush=True)
+                    "active_memory_bytes": _active_bytes()}), flush=True)
                 continue
             tokens = mx.array([sequences[identity].tokens[:-1] for identity in batch], dtype=mx.int32)
             hidden = prefix.capture(tokens)
@@ -1000,7 +1007,7 @@ def main():
                 print(json.dumps({"stage": "prefix", "captured": len(captured),
                                   "population": len(sequences),
                                   "elapsed_seconds": time.monotonic() - started,
-                                  "active_memory_bytes": mx.get_active_memory()}), flush=True)
+                                  "active_memory_bytes": _active_bytes()}), flush=True)
         del prior_states
 
         def source_objective(tail, identity, states):

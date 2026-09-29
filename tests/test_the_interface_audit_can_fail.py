@@ -32,7 +32,7 @@ def _chromium_or_skip() -> None:
     with playwright.sync_playwright() as pw:
         try:
             pw.chromium.launch().close()
-        except Exception as exc:  # the browser is an optional download
+        except Exception as exc:  # noqa: BLE001 - the browser is an optional download
             pytest.skip(f"no headless Chromium: {exc}")
 
 

@@ -291,7 +291,7 @@ async def main(argv: list[str] | None = None) -> int:
     run_dir.mkdir(parents=True, exist_ok=True)
     isolate_state(run_dir)
     started = time.monotonic()
-    _log(f"report grounding {run_dir.name}: {'her own language organ' if args.whole else 'the stub organ, wiring only'}")
+    _log(f"report grounding {run_dir.name}: {'her own language organ' if args.whole else 'the stand-in organ, wiring only'}")
 
     runtime = build_runtime(run_dir, seed=args.seed, whole=args.whole)
     if state_leaks():
@@ -429,7 +429,7 @@ async def main(argv: list[str] | None = None) -> int:
             evidence.update(
                 measured=False,
                 holds=False,
-                why="the stub language organ answers every prompt with one sentence; only --whole can report",
+                why="the stand-in language organ answers every prompt with one sentence; only --whole can report",
             )
     finally:
         await quiesce_organism(runtime)

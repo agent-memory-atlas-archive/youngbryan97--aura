@@ -277,21 +277,26 @@ async def test_perception_daemon_backs_off_when_user_idle(monkeypatch):
 
 
 def test_shells_are_read_from_the_kernel_without_starting_a_process(monkeypatch):
-    """LIVE 26 Sep: `ps` under a one-second bound ran past it on a loaded host every tick."""
-    import psutil
+    """LIVE 26 Sep: `ps` under a one-second bound ran past it on a loaded host every tick.
+
+    The table comes from the one resource observer, as every other process
+    reading does, so the test hands it one.
+    """
+    from dataclasses import replace
 
     from core.perception import perception_daemon
     from core.runtime import subprocess_gateway
+    from core.runtime.resource_observation import SimulatedResourceObserver, resource_observer_scope
 
     def no_process(*_args, **_kwargs):
         raise AssertionError("a process was started to list the processes")
 
     monkeypatch.setattr(subprocess_gateway.get_subprocess_gateway(), "run", no_process)
 
-    class Proc:
-        def __init__(self, name):
-            self.info = {"name": name}
-
-    running = [Proc(name) for name in ("zsh", "-zsh", "bash", "ssh", "sshd", "Finder", None)]
-    monkeypatch.setattr(psutil, "process_iter", lambda attrs=None: iter(running))
-    assert perception_daemon._running_shells() == ["zsh", "-zsh", "bash"], "ssh and sshd are not shells"
+    template = SimulatedResourceObserver().processes()[0]
+    running = tuple(
+        replace(template, pid=10_000 + index, name=name)
+        for index, name in enumerate(("zsh", "-zsh", "bash", "ssh", "sshd", "Finder", ""))
+    )
+    with resource_observer_scope(SimulatedResourceObserver(processes=running)):
+        assert perception_daemon._running_shells() == ["zsh", "-zsh", "bash"], "ssh and sshd are not shells"

@@ -16,7 +16,6 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
-from core.container import ServiceContainer
 from core.runtime.service_access import optional_service
 from core.event_bus import EventPriority, get_event_bus
 from core.governance_context import local_internal_governed_scope
@@ -69,11 +68,11 @@ def _running_shells() -> list[str]:
     subsystem degraded. And "sh" anywhere in a path matched ssh, sshd and
     everything else with those two letters in it.
     """
-    import psutil
+    from core.runtime.resource_observation import get_resource_observer
 
     shells = []
-    for proc in psutil.process_iter(["name"]):
-        name = str((proc.info or {}).get("name") or "")
+    for proc in get_resource_observer().processes():
+        name = str(proc.name or "")
         if name.lstrip("-") in _SHELLS:
             shells.append(name)
     return shells

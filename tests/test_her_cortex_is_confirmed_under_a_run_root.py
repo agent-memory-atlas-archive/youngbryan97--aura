@@ -51,7 +51,7 @@ def test_a_whole_run_pins_the_key_the_desktop_would_read(monkeypatch, tmp_path: 
     assert authority.AUTHORITY_KEY_FILE_ENV not in whole_environment._ISOLATION
     monkeypatch.setenv("AURA_STATE_ROOT", str(tmp_path / "desktop"))
     monkeypatch.delenv(authority.AUTHORITY_KEY_FILE_ENV, raising=False)
-    resolved = eval(whole_environment._CUSTODY[authority.AUTHORITY_KEY_FILE_ENV], {"a": authority})  # noqa: S307
+    resolved = eval(whole_environment._CUSTODY[authority.AUTHORITY_KEY_FILE_ENV], {"a": authority})  # noqa: S102, S307 - the expression the whole run evaluates
     assert resolved == str(tmp_path / "desktop" / "private/cortex-upgrade/migration-authority.key")
 
 

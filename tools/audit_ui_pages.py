@@ -30,6 +30,7 @@ import argparse
 import functools
 import http.server
 import json
+import logging
 import sys
 import threading
 from pathlib import Path
@@ -49,8 +50,10 @@ SETTLE_MS = 900
 
 
 class _Quiet(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, *_args: object) -> None:
-        pass
+    def log_message(self, format: str, *args: object) -> None:  # noqa: A002 - the base class's name
+        # Each request to debug rather than stderr: what the audit prints is
+        # its measurements, and forty page loads would bury them.
+        logging.getLogger("aura.audit_ui_pages").debug(format, *args)
 
 
 def _serve(root: Path = INTERFACE) -> tuple[http.server.ThreadingHTTPServer, int]:

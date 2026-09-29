@@ -35,11 +35,14 @@ def _affect_bid(arousal: float, valence: float):
     workspace = _Workspace()
     heartbeat = CognitiveHeartbeat(None, None, workspace, None, None, None)
     state = {"affect_emotion": "joy", "affect_arousal": arousal, "affect_valence": valence, "drive_urgency": 0.0}
+    stopped: Exception | None = None
     try:
         asyncio.run(heartbeat._submit_candidates(state, tick=1))
-    except Exception:  # noqa: BLE001 - later bids need services a unit test does not build
-        pass
-    return next(bid for bid in workspace.bids if bid.source == "affect_engine")
+    except Exception as exc:  # noqa: BLE001 - later bids need services a unit test does not build
+        stopped = exc
+    bid = next((bid for bid in workspace.bids if bid.source == "affect_engine"), None)
+    assert bid is not None, f"the heartbeat stopped before the affect bid: {stopped!r}"
+    return bid
 
 
 def test_the_affect_bid_is_the_affect_channel_and_typed_as_affect() -> None:

@@ -69,14 +69,17 @@ def test_a_true_claim_is_not_contradicted():
 @pytest.mark.parametrize(
     "phrasing",
     [
-        "core/agency has 99 python files",
-        "core/agency contains 99 python files",
-        "there are 99 python files in core/agency",
-        "core/agency has exactly 99 python files",
+        "core/agency has {} python files",
+        "core/agency contains {} python files",
+        "there are {} python files in core/agency",
+        "core/agency has exactly {} python files",
     ],
 )
 def test_the_shapes_an_assertion_takes(phrasing):
-    assert contradicted_filesystem_claims(phrasing), phrasing
+    # One more than the directory holds. This was a fixed 99, and on 28
+    # September core/agency reached 99 files and the false claim came true.
+    stated = phrasing.format(_actual() + 1)
+    assert contradicted_filesystem_claims(stated), stated
 
 
 def test_an_unresolvable_claim_is_left_alone():

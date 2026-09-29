@@ -56,7 +56,7 @@ spot is invisible. Read the coverage column as "this is checked", never as
 | 1 | Local API authentication bypass | master token, paired-device token, loopback authority check | `tests/test_dns_rebinding_auth.py` | checked |
 | 2 | CSRF from a visited page | origin and `Host` authority comparison before every exemption | `tests/test_dns_rebinding_auth.py` | checked |
 | 3 | DNS rebinding | trusted host names are literals; resolution never expands them | `tests/test_dns_rebinding_auth.py` | checked |
-| 4 | Path traversal | `WorkspaceJail.validate_path` resolves, then tests ancestry | `tests/security/test_adversarial_surface.py` | checked |
+| 4 | Path traversal | `FileOperationSkill._safe_resolve` resolves, then tests ancestry | `tests/security/test_adversarial_surface.py` | checked |
 | 5 | Symlink escape | the jail resolves before it compares; the write gateway refuses to write through a symlink | `tests/security/test_adversarial_surface.py` | checked |
 | 6 | TOCTOU on a validated path | atomic writes go to a temporary in the target directory and `os.replace` | `tests/test_secure_path_custody.py` | partial — the window between validation and open is not closed by a file descriptor |
 | 7 | Command composition | the OS sandbox and the Will, never the denylist | `tests/security/test_adversarial_surface.py` | checked |

@@ -264,13 +264,25 @@ def test_the_service_names_the_instruments_ask_for_exist():
 
 
 def test_the_continuity_instrument_reads_a_store_older_than_this_process(tmp_path):
-    """An episode this process did not write, found waiting in the store."""
+    """An episode this process did not write, found waiting in the store.
+
+    When this process started is read from the resource observer, and under
+    test that is a simulated one, so the test says when it started.
+    """
+    import os
+    import time
+    from dataclasses import replace
+
     from core.container import ServiceContainer
     from core.memory.episodic_memory import EpisodicMemory
+    from core.runtime.resource_observation import SimulatedResourceObserver, resource_observer_scope
     from core.service_names import ServiceNames
 
+    me = replace(SimulatedResourceObserver().process(os.getpid()), create_time=time.time() - 60.0)
     store = EpisodicMemory(db_path=str(tmp_path / "episodes.db"))
     ServiceContainer.register(ServiceNames.EPISODIC, store)
+    scope = resource_observer_scope(SimulatedResourceObserver(processes=(me,)))
+    scope.__enter__()
     try:
         store.record_episode(context="c", action="a", outcome="o", success=True)
         # Written now, so nothing in it predates this process.
@@ -289,6 +301,7 @@ def test_the_continuity_instrument_reads_a_store_older_than_this_process(tmp_pat
         assert "before it started" in reading
         assert "3.0 days" in reading
     finally:
+        scope.__exit__(None, None, None)
         ServiceContainer.register(ServiceNames.EPISODIC, None)
         store.close()
 

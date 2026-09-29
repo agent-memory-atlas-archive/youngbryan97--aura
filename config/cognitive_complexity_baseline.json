@@ -1,9 +1,9 @@
 {
   "organs": 123,
-  "cross_package_edges": 2049,
-  "dependency_entropy": 9.1725,
-  "kernel_lines": 622143,
-  "at_commit": "8347de8e551b366c2e3b6754986ebf952e318dd5",
+  "cross_package_edges": 2068,
+  "dependency_entropy": 9.1801,
+  "kernel_lines": 631839,
+  "at_commit": "722e22c0517b61debbfbbcf853b9fe64ff6f6726",
   "history": [
     {
       "raised": [
@@ -931,6 +931,95 @@
         ],
         "commits_by_author": {
           "Claude": 13
+        }
+      }
+    },
+    {
+      "raised": [
+        "cross_package_edges",
+        "dependency_entropy",
+        "kernel_lines"
+      ],
+      "from": {
+        "cross_package_edges": 2049,
+        "dependency_entropy": 9.1725,
+        "kernel_lines": 622143
+      },
+      "to": {
+        "cross_package_edges": 2068,
+        "dependency_entropy": 9.1801,
+        "kernel_lines": 631839
+      },
+      "because": "A week of growth landed with no raise, 21 to 28 September, 134 commits over 423 kernel files; the landed block below is the measured window. The largest parts: semantic development and its senses, relational generalisation and indirect meaning in core/cognition (+2,816 over four files); the runtime health sections that carry integrity, lockdep, the verifier and unsupported claims (+929); and the organism changes preregistered for the ISC-v5 arms, the domain relay (+300) and the state membrane (+251), with the substrate gates and steering channel beside them. Nineteen cross-package edges came with it; make layering and the DEPS files hold each one.",
+      "landed": {
+        "since": "8347de8e551b366c2e3b6754986ebf952e318dd5",
+        "net_kernel_lines": 9751,
+        "files_touched": 423,
+        "per_package": {
+          "cognition": 3620,
+          "consciousness": 2432,
+          "runtime": 1831,
+          "brain": 1503,
+          "memory": 208,
+          "evidence": 55,
+          "reasoning": 46,
+          "world_model": 24,
+          "knowledge": 19,
+          "planning": 13
+        },
+        "largest_files": [
+          {
+            "path": "core/cognition/semantic_development.py",
+            "net_lines": 1068
+          },
+          {
+            "path": "core/runtime/health_integrity_sections.py",
+            "net_lines": 929
+          },
+          {
+            "path": "core/cognition/relational_generalization.py",
+            "net_lines": 609
+          },
+          {
+            "path": "core/cognition/indirect_meaning.py",
+            "net_lines": 471
+          },
+          {
+            "path": "core/cognition/semantic_development_senses.py",
+            "net_lines": 463
+          },
+          {
+            "path": "core/consciousness/domain_relay.py",
+            "net_lines": 300
+          },
+          {
+            "path": "core/consciousness/substrate_gates.py",
+            "net_lines": 269
+          },
+          {
+            "path": "core/runtime/state_membrane.py",
+            "net_lines": 251
+          },
+          {
+            "path": "core/consciousness/steering_channel.py",
+            "net_lines": 231
+          },
+          {
+            "path": "core/consciousness/caa/contrastive_design.py",
+            "net_lines": 227
+          },
+          {
+            "path": "core/runtime/subprocess_gateway_reaping.py",
+            "net_lines": 212
+          },
+          {
+            "path": "core/cognition/indirect_meaning_proposals.py",
+            "net_lines": 205
+          }
+        ],
+        "commits_by_author": {
+          "Claude": 121,
+          "Codex": 13
         }
       }
     }

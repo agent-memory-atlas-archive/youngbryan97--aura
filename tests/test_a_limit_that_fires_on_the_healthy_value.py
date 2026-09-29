@@ -130,12 +130,16 @@ def test_no_fault_count_warns_at_zero() -> None:
 
 
 def test_the_partition_channel_is_quiet_when_there_is_no_partition() -> None:
-    from core.morphogenesis.telemetry import CHANNEL_COMPONENTS
+    # The line moved off `morphogenesis.components` in b9a3de8ef, which is now
+    # a bare count: a cell alone in its own subsystem is its own piece on
+    # purpose. The piece nothing explains carries the limit.
+    from core.morphogenesis.telemetry import CHANNEL_COMPONENTS, CHANNEL_UNEXPLAINED_PIECES
 
     declared = {
         name: yellow for _path, _line, name, yellow in _declared_channels()
     }
-    yellow = declared[CHANNEL_COMPONENTS]
+    assert CHANNEL_COMPONENTS not in declared, "a count of pieces is not a fault on its own"
+    yellow = declared[CHANNEL_UNEXPLAINED_PIECES]
 
     assert yellow > 1, (
         "one component is the whole population in one piece, which is what "

@@ -10,7 +10,6 @@ order. The null stage of a seed-7 campaign took 4 h 35 min in one process
 
 from __future__ import annotations
 
-import os
 from collections.abc import Sequence
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any
@@ -126,6 +125,8 @@ def null_rows(
         return [_one(task) for task in tasks]
     import multiprocessing
 
+    from core.runtime.resource_psutil import cpu_count
+
     context = multiprocessing.get_context("spawn")
-    with ProcessPoolExecutor(max_workers=min(workers, len(tasks), os.cpu_count() or 1), mp_context=context) as pool:
+    with ProcessPoolExecutor(max_workers=min(workers, len(tasks), cpu_count()), mp_context=context) as pool:
         return list(pool.map(_one, tasks))

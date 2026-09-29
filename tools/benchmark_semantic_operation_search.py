@@ -48,7 +48,9 @@ def main():
     # function is not part of inference; leave all search definitions intact.
     tree.body = [node for node in tree.body if not (
         isinstance(node, ast.FunctionDef) and node.name == "_operation_search_coverage")]
-    exec(compile(tree, revision + ":" + path, "exec"), namespace)
+    # The reference is this repository's own source at a named revision, read
+    # from git, so the benchmark runs the old search beside the new one.
+    exec(compile(tree, revision + ":" + path, "exec"), namespace)  # noqa: S102
     reference = namespace["OperationChartSearch"]
     plan = {"schema": "aura.exact_search_arithmetic_benchmark.v1", "reference_revision": revision,
             "reference_sha256": hashlib.sha256(reference_source.encode()).hexdigest(),
