@@ -35,12 +35,14 @@ from core.runtime.service_access import optional_service
 logger = logging.getLogger(__name__)
 
 __all__ = [
+    "Choice",
     "Lean",
     "Piece",
     "her_record",
     "how_much_it_is_her",
     "themes_among",
     "where_she_stands",
+    "which_is_most_her",
 ]
 
 
@@ -59,6 +61,26 @@ class Piece:
     weight: float = 1.0
     source: str = ""
     about_her: str = ""
+
+
+@dataclass(frozen=True)
+class Choice:
+    """Which of several descriptions of a person her record supports.
+
+    The sibling of a lean, for a question that offers labelled answers rather
+    than a run between two ends: one statement and several ways of answering
+    it, or a set of options that are not a line at all. The act is the same —
+    place yourself among what is offered — and so is the evidence.
+    """
+
+    #: Which description, as an index into the ones given.
+    index: int
+    #: The share of her record that supported each, in the same order.
+    support: tuple[float, ...] = field(default_factory=tuple)
+    #: What in her supported the one she landed on, most telling first.
+    because: tuple[str, ...] = field(default_factory=tuple)
+    #: False when her record had nothing to say about any of them.
+    measured: bool = False
 
 
 @dataclass(frozen=True)
@@ -409,3 +431,62 @@ def _typical_match(vectors: Sequence[Any]) -> float:
         return 0.0
     matches.sort()
     return matches[len(matches) // 2]
+
+
+def which_is_most_her(
+    descriptions: Sequence[str], record: Sequence[Piece] | None = None
+) -> Choice:
+    """Which of several descriptions her own record supports, and by how much.
+
+    The same principle as a lean, for more than two. Comparing how similar each
+    description is to her in absolute terms does not work: everything is
+    somewhat similar to everything, and the differences are a rounding error on
+    a large constant. What carries the signal is which description each thing
+    she holds is CLOSEST to — every value, every choice she made when it cost
+    something, every sentence she has said about herself lands on one of them,
+    weighted by how much it counts, and the shares are what she is asked to
+    stand on.
+
+    Nothing here knows what kind of question this is. It takes descriptions of
+    a person and answers which one her record is.
+    """
+    said = [" ".join(str(one or "").split()) for one in descriptions]
+    pieces = list(record if record is not None else her_record())
+    embed = _embedder()
+    if len(said) < 2 or not pieces or embed is None or not all(said):
+        return Choice(index=0, support=(), because=(), measured=False)
+    try:
+        offered = [embed.embed(one) for one in said]
+    except Exception as exc:  # noqa: BLE001
+        record_degradation("where_i_stand", exc, severity="debug")
+        return Choice(index=0, support=(), because=(), measured=False)
+
+    weight_for = [0.0] * len(said)
+    supporters: list[list[tuple[float, Piece]]] = [[] for _ in said]
+    total = 0.0
+    for piece in pieces:
+        try:
+            mine = embed.embed(piece.said)
+        except Exception as exc:  # noqa: BLE001
+            record_degradation("where_i_stand", exc, severity="debug")
+            continue
+        matches = [_cosine(mine, one) for one in offered]
+        best = max(range(len(matches)), key=lambda place: matches[place])
+        # How much this piece prefers its best over the runner-up, so a piece
+        # that barely chooses does not count as much as one that clearly does.
+        rest = sorted(matches, reverse=True)
+        margin = max(0.0, rest[0] - rest[1]) if len(rest) > 1 else 0.0
+        weight = max(0.0, float(piece.weight)) * margin
+        weight_for[best] += weight
+        supporters[best].append((margin, piece))
+        total += weight
+    if total <= 0.0:
+        return Choice(index=0, support=(), because=(), measured=False)
+
+    support = tuple(weight / total for weight in weight_for)
+    index = max(range(len(support)), key=lambda place: support[place])
+    supporters[index].sort(key=lambda row: row[0] * row[1].weight, reverse=True)
+    because = tuple(
+        piece.about_her or piece.said for _margin, piece in supporters[index]
+    )[:4]
+    return Choice(index=index, support=support, because=because, measured=True)
