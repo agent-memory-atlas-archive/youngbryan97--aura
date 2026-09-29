@@ -1273,8 +1273,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   independently replays a newly measured source-only scale of 0.5: exact
   teacher paths 51 to 112 out of 185 and positive graph rankings 160 to 183,
   with zero baseline losses and zero implementation drift. The full fit's
-  selected checkpoint remains unfitted. The frozen residual micro pipeline
-  is running; generated success, full development, and G03 closure are unproved.
+  selected checkpoint remains unfitted. The first frozen residual micro run
+  stopped after its fitted reference arm generated three exact procedures and
+  answers; the baseline arm produced no row within the original bound.
+  [Supervised stop and causal-group measurement](evidence/G03_V7_CAUSAL_GROUP_RECOVERY_2026-09-29.md)
+  records the partial result and the separate 27B score-equivalence probe.
+  A source-matched grouped decode generated one exact procedure and answer;
+  its independent replay found no drift and its full scored row matches the
+  prior individual run. Full development and G03 closure are unproved.
   [Current linear promotion path](G_SEMANTIC_REFINEMENT_WORKPLAN.md#current-promotion-path-2026-09-28)
   separates fit, three-case unseen-construction, nine relation-control, and
   six-case source-held probes, full development, fresh transfer, live
