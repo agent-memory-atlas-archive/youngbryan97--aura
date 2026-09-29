@@ -29,6 +29,11 @@ log-score units; 44 remain at or below -1. Thus most residual misses are not
 fixed by choosing a better global scale, and many are not near-tie numerical
 effects. In contrast, an oracle over the six whole-graph rankings reaches
 184/185; graph selection and reference binding are distinct bottlenecks.
+At selected scale 0.5, reference has the largest saved conditional
+decision-or-graph loss in 147/185 sources. This comparison omits the typed
+source-pair interaction losses in the training objective and is not a gradient
+attribution. It does not support simply removing the graph objective as a
+reference-binding repair.
 
 The next model change should increase source-conditioned reference evidence
 or the learned representation of role binding, then test whole-path effects.
