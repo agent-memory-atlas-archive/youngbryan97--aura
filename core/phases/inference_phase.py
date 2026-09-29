@@ -80,8 +80,45 @@ def _normalize_momentum(value: Any) -> str:
     return momentum if momentum in _VALID_MOMENTUM else "flowing"
 
 
+#: The reason this phase last failed for, so a condition that holds for a whole
+#: run is recorded once rather than once a turn. A fast lane whose circuit is
+#: open fails every turn for the same reason, and 148 identical degradations
+#: bury the one that is new. Cleared by a success, so a recurrence is reported.
+_LAST_FAILURE: dict[str, str] = {}
+
+
+def _note_inference_failure(exc: BaseException) -> None:
+    """Record a change of state as a degradation, and the rest at info."""
+    reason = f"{type(exc).__name__}: {exc}"
+    if _LAST_FAILURE.get("reason") == reason:
+        _LAST_FAILURE["count"] = str(int(_LAST_FAILURE.get("count", "1")) + 1)
+        logger.info("InferencePhase still failing (%s): %s", _LAST_FAILURE["count"], exc)
+        return
+    _LAST_FAILURE.clear()
+    _LAST_FAILURE.update(reason=reason, count="1")
+    _record_inference_degradation(
+        exc,
+        action="kept foreground response pipeline alive with explicit degraded inference status",
+        severity="warning",
+    )
+    logger.warning("InferencePhase failed: %s", exc)
+
+
+def forget_inference_failures_for_test() -> None:
+    """Test helper: the module remembers the reason it last reported."""
+    _LAST_FAILURE.clear()
+
+
 def _extract_json_object(text: Any) -> dict[str, Any]:
     raw = str(text or "")
+    # A lane that answered nothing is not a lane that answered badly. On the
+    # reports ground of 29 September this phase failed 148 times against 10
+    # successes, every one of them reported as "output did not contain a JSON
+    # object" while the log beside it said the fast lane had returned no text
+    # and its circuit was open. The message named the model's JSON; the fault
+    # was that nothing had been asked to produce any.
+    if not raw.strip():
+        raise ValueError("the fast lane returned no text")
     match = re.search(r"\{.*\}", raw, re.DOTALL)
     if match is None:
         raise ValueError("inference output did not contain a JSON object")
@@ -152,18 +189,14 @@ class InferencePhase(Phase):
                 data["implicit_intent"],
                 data["user_subtext"],
             )
+            _LAST_FAILURE.clear()
         except _INFERENCE_ERRORS as exc:
             modifiers["deep_inference_status"] = {
                 "status": "degraded",
                 "error_type": type(exc).__name__,
                 "error": str(exc)[:240],
             }
-            _record_inference_degradation(
-                exc,
-                action="kept foreground response pipeline alive with explicit degraded inference status",
-                severity="warning",
-            )
-            logger.warning("InferencePhase failed: %s", exc)
+            _note_inference_failure(exc)
 
         return state
 
