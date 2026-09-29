@@ -114,6 +114,11 @@ def check_existing_plan(path, *, training, checkpoint):
         raise ValueError("native micro continuation changed its frozen candidate or code")
 
 
+def require_learned_checkpoint(checkpoint):
+    if type(checkpoint.get("step")) is not int or checkpoint["step"] <= 0:
+        raise ValueError("native micro decode requires a selected learned checkpoint")
+
+
 def run_stages(jobs, *, training, checkpoint, invoke):
     """Reuse completed decodes; a failed acceptance never starts the next stage."""
     for plan_job in jobs["plans"]:
@@ -211,6 +216,7 @@ def main():
                           "supervisor_receipt_sha256": receipt["receipt_sha256"]}), flush=True)
         invoke(jobs["fit_verify"])
     training, checkpoint, _ = verified_native_fit(args.training_directory, args.fit_verification)
+    require_learned_checkpoint(checkpoint)
     result = run_stages(jobs, training=training, checkpoint=checkpoint, invoke=invoke)
     return 0 if result["full_development_ready"] is True else 2
 
