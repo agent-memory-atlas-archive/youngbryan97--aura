@@ -572,6 +572,23 @@
         "name": "tests/test_other_agent_model.py",
         "why": "Decides the model of another person as a set of bounded hypotheses kept apart from her own state: an explicit self-report creates one, vague cues, message length and the hour do not infer an emotion, a task outcome does not claim their satisfaction or trust, sensor readings cannot become trust in a person, an uncalibrated forecast of them abstains, and an explicit correction replaces a stale hypothesis. It does not decide false-belief tasks or strategic deception."
       }
+    ],
+    "MQ-07": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_choice_of_one_is_not_a_choice.py",
+        "why": "Decides the forced case: where only one option exists it is taken without deliberation, nothing available stays nothing available, and a real choice still goes to her reasoning, so a compelled move is not recorded as a weighed one."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_move_chosen_for_what_follows_says_so.py",
+        "why": "Decides the reason given against the alternatives at choice time: a move ahead of its runner-up only on what her search saw later says so, a tie says it is a tie, and a move rated below the runner-up does not claim the search as its reason, which is the post-hoc rationalisation control."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_reason_arrives_with_its_choice.py",
+        "why": "Decides that each reason is given before the choice it explains and none is held until every click has landed, so the account is made at choice time rather than written afterwards. None of the three decides delegated or randomised choices, hidden intervention, or removal of the choice record."
+      }
     ]
   }
 }
