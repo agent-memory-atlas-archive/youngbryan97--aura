@@ -24,6 +24,8 @@ reads it from here, so the two cannot drift apart:
     level       each look at alpha / 6, so a cut that costs nothing is decided
                 at any look with probability under alpha
     draws       1000 bootstrap draws behind each lower bound
+    one signal  a signal carried by several columns counts once in the
+                estimator, so copying a column cannot raise a rate
     one clock   the free-running loops stop at bring-up, so the recording, the
                 doses, the anchors and every arm are one organism stepped on the
                 harness's clock, and two processes on one seed are the same
@@ -50,6 +52,7 @@ __all__ = [
     "DRAWS",
     "LOOKS",
     "ONE_CLOCK",
+    "ONE_SIGNAL",
     "PAIRED",
     "REPORTED_LAGS",
     "design",
@@ -72,6 +75,11 @@ PAIRED: bool = True
 #: through bring-up and the baseline, and four shards on one seed recorded four
 #: organisms: 170 to 206 of 438 columns apart at the first frame.
 ONE_CLOCK: bool = True
+#: A signal counts once in the estimator however many columns carry it. On
+#: 28 September duplicating the future block raised the weakest cut's rate from
+#: 0.0032 to 0.0083 and the carrier's duplication control refused authority;
+#: see core.subject.intrinsic_v25.one_column_per_signal.
+ONE_SIGNAL: bool = True
 
 
 def design() -> dict[str, Any]:
@@ -86,6 +94,7 @@ def design() -> dict[str, Any]:
         "anchors": ANCHORS,
         "paired": PAIRED,
         "one_clock": ONE_CLOCK,
+        "one_signal": ONE_SIGNAL,
     }
 
 

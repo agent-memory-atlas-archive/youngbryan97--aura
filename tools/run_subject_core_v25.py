@@ -946,7 +946,11 @@ async def main() -> int:
         # Cross-fitted by anchor under v5. Left out of this table, a v5 run
         # used the estimator that reads two identical samples as apart.
         "paired": bool(args.v5 and preset["paired"]),
+        "one_signal": bool(args.v5 and preset.get("one_signal")),
     }
+    if sweep_design["one_signal"]:
+        # Before any estimate, and inherited by every process the draws spread to.
+        os.environ["AURA_ESTIMATOR_ONE_SIGNAL"] = "1"
     support = tuple(args.domains.split(",")) if args.domains else tuple(DOMAINS)
     conditions = CONDITIONS[: args.conditions] if args.conditions else CONDITIONS
     resumed = _resume_v25(args)

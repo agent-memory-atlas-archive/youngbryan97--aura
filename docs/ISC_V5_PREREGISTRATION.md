@@ -1448,3 +1448,38 @@ bring-up and the whole baseline before stopping them for the anchors, and four
 processes on a loaded machine got different amounts of that. A sharded sweep is
 only a sweep of her if every shard is the same organism, so no sharded run
 decides anything until two processes on one seed record the same baseline.
+
+## Addendum, 29 September 2026: a signal counts once, and the draws spread out
+
+Named before any run reads it.
+
+### One signal once
+
+The carrier's duplication control copies the future block and asks whether the
+rate rises. At `bb3faa54a` it rose at the weakest cut from 0.0032 to 0.0083,
+and the carrier refused authority for it. The estimator standardises each
+column and counts neighbours in Euclidean distance, so a copied column has
+twice the say of every other: the rate moved because the metric weighed the
+future against the context by their column counts.
+
+`isc_v5.ONE_SIGNAL` makes the estimator keep one column per signal before the
+neighbour search: two columns carry one signal when one is an affine copy of
+the other, sign included. They are compared standardised over every row of all
+four arms of the cut together, so nothing about which arm a row is in is used,
+and the cut and its sham are read in one metric. Identical samples still read
+exactly zero and a real difference is still seen
+(`tests/test_a_signal_counts_once.py`). It changes every rate a little, since
+her schema may carry a field twice; it moves no bar. It applies to seed 23 and
+to every run after it. Seed 7's numbers were read without it.
+
+### The draws spread out, the numbers do not change
+
+Each cut's thousand bootstrap draws and 199 permutation draws are now drawn in
+order and evaluated across processes (`core/subject/draw_pool.py`). One process
+and three give identical distributions and p-values
+(`tests/test_the_draws_are_the_same_on_more_cores.py`). The grain's signature
+rows are shared between the coordinator and the shard workers anchor by anchor
+and verified against the coordinator's own anchors
+(`tests/test_the_grain_is_shared_and_is_the_same_grain.py`). Neither is part of
+the design: they change the wall clock, which on 28 September was 6 h 20 min of
+grain in one process after the cuts were done in 45 minutes.

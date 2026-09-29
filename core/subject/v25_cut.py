@@ -28,6 +28,7 @@ thing gone.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import math
 import os
@@ -968,6 +969,9 @@ def merge_shard_payloads(
             raise ValueError(f"shard {payload['shard']} ran on another clock: {payload['frame_seconds']}")
         if list(payload["support"]) != list(support) or list(payload["conditions"]) != list(conditions):
             raise ValueError(f"shard {payload['shard']} tested another support or other conditions")
+    designs = {json.dumps(p.get("design") or {}, sort_keys=True) for p in payloads}
+    if len(designs) > 1:
+        raise ValueError(f"shards ran to different designs: {sorted(designs)}")
     checks = {
         str(p["shard"]): anchors_exchangeable(
             reference_anchors, np.asarray(p["anchor_states"], dtype=np.float64),

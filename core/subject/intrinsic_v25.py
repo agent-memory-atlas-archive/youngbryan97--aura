@@ -87,6 +87,7 @@ def crossfit_fisher_rao(
     seed: int = 0,
     whiten: bool = False,
     groups: np.ndarray | None = None,
+    one_signal_once: bool | None = None,
 ) -> FisherRaoEstimate:
     """Estimate Fisher--Rao distance between two continuous sample laws.
 
@@ -136,6 +137,8 @@ def crossfit_fisher_rao(
     q = q[:n]
     x = np.vstack([p, q])
     y = np.concatenate([np.ones(n, dtype=np.int8), np.zeros(n, dtype=np.int8)])
+    if _one_signal_once(one_signal_once):
+        x = x[:, one_column_per_signal(x)]
 
     posterior = np.zeros(2 * n, dtype=np.float64)
     if groups is not None:
@@ -185,6 +188,39 @@ def crossfit_fisher_rao(
     return FisherRaoEstimate(bc, distance, distance * distance)
 
 
+def _one_signal_once(asked: bool | None) -> bool:
+    """Whether to count each signal once: as asked, or as the run's design set it."""
+    if asked is not None:
+        return bool(asked)
+    import os
+
+    return os.environ.get("AURA_ESTIMATOR_ONE_SIGNAL", "").strip() == "1"
+
+
+def one_column_per_signal(x: np.ndarray) -> np.ndarray:
+    """The columns of `x` to keep so that no signal is carried by two of them.
+
+    Two columns carry one signal when one is an affine copy of the other, which
+    is how a schema that reads one field twice, or a test that duplicates the
+    state, writes them. Counted twice, a signal has twice the say in the
+    neighbour distance, and on 28 September duplicating the future block took
+    the weakest cut's rate from 0.0032 to 0.0083: the carrier's duplication
+    control failed on the metric, not on her. Columns are compared standardised
+    over every row of both arms, so nothing about which arm a row is in is used,
+    and a constant column (which moves no distance) collapses to one.
+    """
+    x = np.asarray(x, dtype=np.float64)
+    spread = x.std(axis=0)
+    unit = np.where(spread > 0.0, spread, 1.0)
+    standard = (x - x.mean(axis=0)) / unit
+    # Sign as well as scale: a column and its negation are one signal.
+    lead = np.argmax(np.abs(standard) > 1e-12, axis=0)
+    sign = np.sign(standard[lead, np.arange(standard.shape[1])])
+    sign[sign == 0] = 1.0
+    _, first = np.unique(np.round(standard * sign, 10), axis=1, return_index=True)
+    return np.sort(first)
+
+
 def _tie_inclusive_posterior(train: np.ndarray, labels: np.ndarray, test: np.ndarray, k: int) -> np.ndarray:
     """The share of the first class among each test row's k nearest, counting every tie at the k-th.
 
@@ -231,6 +267,7 @@ def intrinsic_rate_from_samples(
     seed: int = 0,
     whiten: bool = False,
     groups: np.ndarray | None = None,
+    one_signal_once: bool | None = None,
 ) -> IntrinsicRateEstimate:
     """Finite-data estimate of F_intrinsic for one partition and one lag.
 
@@ -258,9 +295,19 @@ def intrinsic_rate_from_samples(
         ctx = np.asarray(context, dtype=np.float64)[:n]
         arrays = [np.hstack([ctx, a]) for a in arrays]
 
+    if _one_signal_once(one_signal_once):
+        # Chosen once over all four arms, so the cut and its sham are read in
+        # one metric.
+        keep = one_column_per_signal(np.vstack(arrays))
+        arrays = [a[:, keep] for a in arrays]
+
     anchor = None if groups is None else np.asarray(groups)[:n]
-    raw = crossfit_fisher_rao(arrays[0], arrays[1], folds=folds, seed=seed, whiten=whiten, groups=anchor)
-    sham = crossfit_fisher_rao(arrays[2], arrays[3], folds=folds, seed=seed + 1, whiten=whiten, groups=anchor)
+    raw = crossfit_fisher_rao(
+        arrays[0], arrays[1], folds=folds, seed=seed, whiten=whiten, groups=anchor, one_signal_once=False
+    )
+    sham = crossfit_fisher_rao(
+        arrays[2], arrays[3], folds=folds, seed=seed + 1, whiten=whiten, groups=anchor, one_signal_once=False
+    )
     raw_rate = raw.distance_sq / tau_seconds
     sham_rate = sham.distance_sq / tau_seconds
     return IntrinsicRateEstimate(
