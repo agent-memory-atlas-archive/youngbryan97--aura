@@ -16,6 +16,7 @@ from tools.verify_semantic_native_grammar import (
     verified_examples,
     verified_input_grounding,
     verified_pair_totals,
+    verified_prefix_execution,
     verified_public_inputs,
     verified_role_rule_bank,
     verified_role_rule_decision,
@@ -193,6 +194,27 @@ def test_causal_execution_receipt_requires_all_decisions_and_exact_total():
     with pytest.raises(ValueError, match="complete decisions"):
         verified_decision_score_execution(plan, report,
             [{**row, "decision_group_forwards": [1]}])
+
+
+def test_cached_grouped_search_requires_trie_and_group_receipts():
+    plan = {"schema": "aura.semantic_native_grammar_plan.v15",
+            "prefix_strategy": "trie", "decision_score_execution": "causal_groups",
+            "search_mode": "best_first_then_complete_graph_score",
+            "implementation": {"core/learning/semantic_native_causal_groups.py": "sha",
+                               "core/learning/frozen_prefix_branches.py": "sha"}}
+    report = {"prefix_strategy": "trie", "decision_score_execution": "causal_groups",
+              "decision_group_forwards": 2}
+    row = {"score_input_receipts": [[{}, {}], [{}]], "decision_group_forwards": [1, 1],
+           "prefix_execution": {"schema": "aura.frozen_prefix_branches.v2",
+                                "suffix_computation_unchanged": True,
+                                "anchor_tokens": 2, "trie_calls": 2, "branches": 2}}
+    verified_prefix_execution(plan, report, row)
+    assert verified_decision_score_execution(plan, report, [row]) == "causal_groups"
+    with pytest.raises(ValueError, match="trie execution"):
+        verified_prefix_execution(plan, report,
+            {**row, "prefix_execution": {**row["prefix_execution"], "branches": 3}})
+    with pytest.raises(ValueError, match="contract"):
+        verified_decision_score_execution({**plan, "implementation": {}}, report, [row])
 
 
 def test_role_decision_receipt_is_recomputed_from_source_and_erasure():

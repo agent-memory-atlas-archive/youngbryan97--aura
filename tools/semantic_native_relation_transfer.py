@@ -61,9 +61,12 @@ def adjudicate_native_relation_transfer(reference_plan, controlled_plan,
     if (reference_plan.get("dataset") != "natural_request"
             or controlled_plan.get("dataset") != "relation_transfer_controls"
             or reference_plan.get("weight_mode") not in {"fitted", "residual"}
+            or reference_plan.get("schema", "").endswith(".v15")
+                != controlled_plan.get("schema", "").endswith(".v15")
             or (reference_plan.get("weight_mode") == "residual"
-                and (reference_plan.get("schema") != "aura.semantic_native_grammar_plan.v13"
-                     or controlled_plan.get("schema") != "aura.semantic_native_grammar_plan.v13"))
+                and (reference_plan.get("schema") not in {
+                    "aura.semantic_native_grammar_plan.v13", "aura.semantic_native_grammar_plan.v15"}
+                     or controlled_plan.get("schema") != reference_plan.get("schema")))
             or reference_plan.get("source_evidence") != "source_text"
             or reference_plan.get("search_completions", 0) < 1
             or {key: value for key, value in reference_plan.items() if key not in excluded}

@@ -116,6 +116,7 @@ def main() -> int:
     parser.add_argument("--residual-calibration", type=Path)
     parser.add_argument("--decision-score-execution", choices=("individual", "causal_groups"),
                         default="causal_groups")
+    parser.add_argument("--prefix-strategy", choices=("full", "trie"), default="full")
     parser.add_argument("--search-nodes", type=int, default=16)
     parser.add_argument("--max-seconds", type=float, default=1800.)
     parser.add_argument("--policy-output", type=Path)
@@ -142,6 +143,7 @@ def main() -> int:
         residual_calibration=args.residual_calibration,
         max_seconds=args.max_seconds,
         decision_score_execution=args.decision_score_execution,
+        prefix_strategy=args.prefix_strategy,
         search_nodes=args.search_nodes)
     plans, arms = reference_screen_jobs(jobs)
     policy = screen_policy(plans, arms)

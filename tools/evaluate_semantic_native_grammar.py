@@ -48,12 +48,24 @@ def score_grammar_choices(prefix, suffix, model, sequences, *, split_at, max_tok
                           strategy, execution, branches):
     """Keep the original path by default; share only proven causal decision states."""
     if execution == "causal_groups":
-        if strategy != "full":
-            raise ValueError("native causal groups require the full-prefix path")
         from core.learning.semantic_native_causal_groups import score_native_causal_groups
 
-        scores, receipt = score_native_causal_groups(prefix, suffix, tuple(sequences))
-        return scores, None, receipt["full_single_row_forwards"]
+        if strategy == "trie":
+            from core.learning.frozen_prefix_branches import (
+                FrozenPrefixBranches,
+                native_source_anchor,
+            )
+
+            anchor = native_source_anchor(sequences)
+            if branches is None:
+                branches = FrozenPrefixBranches(model, split_at=split_at,
+                    anchor_tokens=anchor, max_tokens=max_tokens)
+            elif branches.anchor_tokens != anchor:
+                raise ValueError("native causal groups changed the frozen source anchor")
+        elif strategy != "full":
+            raise ValueError("native causal groups require a declared prefix path")
+        scores, receipt = score_native_causal_groups(prefix, suffix, tuple(sequences), branches=branches)
+        return scores, branches, receipt["full_single_row_forwards"]
     if execution != "individual":
         raise ValueError("unknown native decision score execution")
     from tools.train_semantic_native_program import native_loss
@@ -234,10 +246,12 @@ def main():
         parser.error("finite depth, population, and runtime bounds required")
     if not 0 <= args.search_completions <= 128 or not 1 <= args.search_nodes <= 100000:
         parser.error("finite search node and completion bounds required")
+    searched_trie = args.prefix_strategy == "trie" and args.decision_score_execution == "causal_groups"
     if args.source_offset is not None and (args.dataset not in RETAINED_DATASETS
             or args.source_offset < 0 or args.source_offset + args.canary > 500
-            or args.prefix_strategy != "full" or args.weight_mode not in {"fitted", "base", "residual"}):
-        parser.error("source windows require full-prefix retained fitted/base/residual evaluation")
+            or args.prefix_strategy != "full" and not searched_trie
+            or args.weight_mode not in {"fitted", "base", "residual"}):
+        parser.error("source windows require retained fitted/base/residual evaluation")
     if args.dataset in INTERVENTION_DATASETS | {"relation_transfer_controls"} and args.seed is None:
         parser.error("operation interventions require an explicit frozen seed")
     if args.dataset in RETAINED_DATASETS:
@@ -245,18 +259,19 @@ def main():
             parser.error("retained development sources need their report and bundles, without a new seed")
     elif args.source_report is not None or args.bundle is not None:
         parser.error("source report and bundles belong to retained development evaluation")
-    if args.prefix_strategy == "trie" and (args.dataset not in INTERVENTION_DATASETS | RETAINED_DATASETS
+    if args.prefix_strategy == "trie" and not searched_trie and (
+            args.dataset not in INTERVENTION_DATASETS | RETAINED_DATASETS
             or args.search_completions):
         parser.error("native grammar trie requires intervention or retained sources and greedy decode")
     if args.decision_score_execution == "causal_groups" and (
-            args.prefix_strategy != "full" or not args.search_completions):
-        parser.error("native causal groups require full-prefix searched evaluation")
+            args.prefix_strategy not in {"full", "trie"} or not args.search_completions):
+        parser.error("native causal groups require searched evaluation")
     if args.weight_mode == "factorized" and (args.factorized_residual is None
             or args.dataset not in RETAINED_DATASETS or args.prefix_strategy != "trie"
             or args.search_completions or args.source_evidence != "source_text"):
         parser.error("factorized decode requires a retained target-blind trie cohort")
     if args.weight_mode == "residual" and (args.residual_calibration is None
-            or args.prefix_strategy == "trie" and (args.dataset not in RETAINED_DATASETS
+            or args.prefix_strategy == "trie" and not searched_trie and (args.dataset not in RETAINED_DATASETS
                 or args.search_completions or args.source_evidence != "source_text")):
         parser.error("residual decode needs its verified source calibration and supported cohort")
     if args.weight_mode != "residual" and args.residual_calibration is not None:
@@ -414,6 +429,8 @@ def main():
         schema_version = "v13"
     if role_rule_fit is not None:
         schema_version = "v14"
+    if searched_trie:
+        schema_version = "v15"
     body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": scored_checkpoint["receipt_sha256"],

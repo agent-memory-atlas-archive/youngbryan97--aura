@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 from pathlib import Path
 
@@ -113,6 +114,34 @@ def verified_native_candidate(training_directory, fit_verification, residual_cal
     return training, checkpoint, fit, residual
 
 
+def verified_reference_protocol(reference_plan, training, checkpoint, residual):
+    """Read the frozen finite bound from the plan; the arm comparator binds peers."""
+    from tools.evaluate_semantic_native_grammar import grammar_examples
+
+    expected_sources = [hashlib.sha256(item.source_text.encode()).hexdigest() for item in
+                        grammar_examples(dataset="natural_request", seed=reference_plan["seed"], count=3)]
+    max_seconds = reference_plan.get("max_seconds")
+    if (type(max_seconds) not in {int, float} or not math.isfinite(max_seconds)
+            or not 0 < max_seconds <= 14400):
+        raise ValueError("native micro reference has no finite frozen runtime bound")
+    expected = {"dataset": "natural_request", "weight_mode": "residual" if residual else "fitted",
+                "seed": int(training["plan_sha256"][:8], 16),
+                "source_evidence": "source_text", "search_completions": 4,
+                "search_nodes": 256, "max_steps": 8, "max_seconds": max_seconds,
+                "search_score_mode": "native_nonpositive", "sources": expected_sources}
+    if (any(reference_plan.get(key) != value for key, value in expected.items())
+            or reference_plan.get("prefix_strategy", "full") not in {"full", "trie"}
+            or reference_plan.get("prefix_strategy") == "trie"
+                and (not reference_plan["schema"].endswith(".v15")
+                     or reference_plan.get("decision_score_execution") != "causal_groups")
+            or reference_plan["training_plan_sha256"] != training["plan_sha256"]
+            or reference_plan["checkpoint_receipt_sha256"] != checkpoint["receipt_sha256"]):
+        raise ValueError("native micro reference stage changed its frozen protocol")
+    if residual is not None and reference_plan.get("residual_calibration", {}).get(
+            "report_receipt_sha256") != residual["report_receipt_sha256"]:
+        raise ValueError("native micro residual candidate differs from source calibration")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--training-directory", required=True, type=Path)
@@ -138,22 +167,7 @@ def main():
             training_directory=args.training_directory, relation_controls_directory=controls)
 
     reference_plan = verified_document(args.reference_root / "fitted/plan.json", "plan_sha256")
-    from tools.evaluate_semantic_native_grammar import grammar_examples
-    expected_sources = [hashlib.sha256(item.source_text.encode()).hexdigest() for item in
-                        grammar_examples(dataset="natural_request", seed=reference_plan["seed"], count=3)]
-    expected = {"dataset": "natural_request", "weight_mode": "residual" if residual else "fitted",
-                "seed": int(training["plan_sha256"][:8], 16),
-                "source_evidence": "source_text", "search_completions": 4,
-                "search_nodes": 256, "max_steps": 8, "max_seconds": 3600.,
-                "search_score_mode": "native_nonpositive", "sources": expected_sources}
-    if (any(reference_plan.get(key) != value for key, value in expected.items())
-            or reference_plan.get("prefix_strategy", "full") != "full"
-            or reference_plan["training_plan_sha256"] != training["plan_sha256"]
-            or reference_plan["checkpoint_receipt_sha256"] != checkpoint["receipt_sha256"]):
-        raise ValueError("native micro reference stage changed its frozen protocol")
-    if residual is not None and reference_plan.get("residual_calibration", {}).get(
-            "report_receipt_sha256") != residual["report_receipt_sha256"]:
-        raise ValueError("native micro residual candidate differs from source calibration")
+    verified_reference_protocol(reference_plan, training, checkpoint, residual)
     reference = compare(args.reference_root)
     controls = None if args.controls_directory is None else compare(args.reference_root, args.controls_directory)
     retained = None if args.retained_root is None else compare(args.retained_root)

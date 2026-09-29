@@ -81,6 +81,17 @@ def test_new_schema_binds_window_without_changing_historical_full_prefix_contrac
         verified_dataset({**plan, "schema": "aura.semantic_native_grammar_plan.v6"}, report)
 
 
+def test_cached_grouped_window_keeps_complete_population_binding():
+    plan = window_plan(["source"])
+    plan.update(schema="aura.semantic_native_grammar_plan.v15", prefix_strategy="trie",
+                decision_score_execution="causal_groups")
+    report = {**plan, "schema": "aura.semantic_native_grammar.v15"}
+    assert verified_weight_mode(plan, report) == "fitted"
+    assert verified_dataset(plan, report) == ("retained_validation", 0)
+    assert verified_source_window(plan, report) == plan["source_window"]
+    assert verified_prefix_execution(plan, report) is None
+
+
 def test_window_invariant_is_executable_and_detects_a_permissive_validator(monkeypatch):
     from tools.verify_semantic_native_grammar import _native_development_window_contract
 
@@ -153,6 +164,17 @@ def test_residual_development_is_bound_to_one_measured_candidate_and_still_needs
     assert result["candidate_weight_mode"] == "residual"
     assert result["residual_calibration_report_receipt_sha256"] == "calibration"
     windows[1][0]["residual_calibration"]["report_receipt_sha256"] = "other"
+    with pytest.raises(ValueError, match="differs"):
+        complete_development(windows)
+
+
+def test_cached_grouped_development_cannot_mix_prefix_execution_windows():
+    windows = measurements(size=100, mode="residual")
+    for plan, _comparison in windows:
+        plan.update(schema="aura.semantic_native_grammar_plan.v15",
+                    prefix_strategy="trie", decision_score_execution="causal_groups")
+    assert complete_development(windows)["full_development_passed"] is True
+    windows[1][0]["prefix_strategy"] = "full"
     with pytest.raises(ValueError, match="differs"):
         complete_development(windows)
 
