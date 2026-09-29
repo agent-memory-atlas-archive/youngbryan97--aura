@@ -125,13 +125,16 @@ def _written(function: ast.AST, name: str) -> list[str]:
     return keys
 
 
-def _read(function: ast.AST, name: str) -> bool:
+def _read(function: ast.AST, name: str, _followed: frozenset[str] = frozenset()) -> bool:
     """Whether the mapping is ever used for its contents or handed onward.
 
     Over the whole subtree, nested functions included. A closure that reads the
     name reads it: `turn_once` builds `env` and the `capture` defined inside it
     passes it to every reading of the state, which is as wired as a return.
+    And a mapping merged into another local, `row = {..., **extra}`, is read
+    when that local is: `null_row` returns its `extra` that way.
     """
+    followed = _followed | {name}
     for node in ast.walk(function):
         if isinstance(node, (ast.Return, ast.Yield, ast.YieldFrom)):
             if node.value is not None and _mentions(node.value, name):
@@ -166,6 +169,9 @@ def _read(function: ast.AST, name: str) -> bool:
             same_name = isinstance(target, ast.Name) and target.id == name
             into_self = isinstance(target, (ast.Attribute, ast.Subscript))
             if not same_name and into_self and _mentions(node.value, name):
+                return True
+            into_local = isinstance(target, ast.Name) and target.id not in followed
+            if into_local and _mentions(node.value, name) and _read(function, target.id, followed):
                 return True
     return False
 
