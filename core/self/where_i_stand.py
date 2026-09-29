@@ -39,6 +39,7 @@ __all__ = [
     "Piece",
     "her_record",
     "how_much_it_is_her",
+    "themes_among",
     "where_she_stands",
 ]
 
@@ -346,3 +347,65 @@ def where_she_stands(
         because=because,
         measured=True,
     )
+
+
+def themes_among(dimensions: Sequence[str]) -> list[list[int]]:
+    """Group dimensions by what they are about, and say which go together.
+
+    A scale instrument asks many questions about a few things. Thinking about
+    each of thirty-two items on its own costs thirty-two passes of her
+    reasoning and gets thirty-two disconnected sentences; thinking about a
+    THEME gets the connected account she gives when someone asks about her in
+    conversation, and costs a handful of passes.
+
+    Semantic, and needs nothing about the instrument: a dimension is the words
+    of both its ends, and the ones most alike travel together. How many groups
+    is the balance between how much she thinks at once and how many times she
+    has to think: the square root of the number of items, which is where those
+    two costs meet. Chaining them by similarity alone collapses a whole
+    instrument into one group — measured on fourteen real dimensions, thirteen
+    of them ended up in a single blob — so the size is bounded as well.
+
+    Returns lists of indices into ``dimensions``, in order.
+    """
+    said = [" ".join(str(one or "").split()) for one in dimensions]
+    if len(said) < 3:
+        return [[index] for index in range(len(said))]
+    embed = _embedder()
+    if embed is None:
+        return [[index] for index in range(len(said))]
+    try:
+        vectors = [embed.embed(one) for one in said]
+    except Exception as exc:  # noqa: BLE001
+        record_degradation("where_i_stand", exc, severity="debug")
+        return [[index] for index in range(len(said))]
+
+    wanted = max(1, int(math.ceil(math.sqrt(len(said)))))
+    most = max(1, int(math.ceil(len(said) / wanted)))
+    groups: list[list[int]] = []
+    for index in range(len(said)):
+        best: int | None = None
+        best_match = -2.0
+        for place, members in enumerate(groups):
+            if len(members) >= most:
+                continue
+            match = max(_cosine(vectors[index], vectors[member]) for member in members)
+            if match > best_match:
+                best_match, best = match, place
+        if best is None or len(groups) < wanted and best_match < _typical_match(vectors):
+            groups.append([index])
+        else:
+            groups[best].append(index)
+    return groups
+
+
+def _typical_match(vectors: Sequence[Any]) -> float:
+    """The middling similarity among these, so "alike" means alike for this set."""
+    matches: list[float] = []
+    for left in range(len(vectors)):
+        for right in range(left + 1, len(vectors)):
+            matches.append(_cosine(vectors[left], vectors[right]))
+    if not matches:
+        return 0.0
+    matches.sort()
+    return matches[len(matches) // 2]

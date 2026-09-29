@@ -96,8 +96,10 @@ def _screen(monkeypatch, said: str, lane: str = "Cortex"):
     skill = S()
     handed: dict[str, Any] = {"prompts": []}
 
-    async def _asked(prompt: str, mind: str = "", *, shaped: bool = True):
+    async def _asked(prompt: str, mind: str = "", *, shaped: bool = True, most_tokens=None):
+        handed.setdefault("spoken", [])
         handed["prompts"].append(prompt)
+        handed["most_tokens"] = most_tokens
         handed["prompt"] = prompt
         handed["shaped"] = shaped
         return said, lane
@@ -105,8 +107,15 @@ def _screen(monkeypatch, said: str, lane: str = "Cortex"):
     async def _mind() -> str:
         return "her mind"
 
+    handed["spoken"] = []
     monkeypatch.setattr(skill, "_asked_of_her", _asked)
     monkeypatch.setattr(skill, "_assembled_mind", _mind)
+    monkeypatch.setattr(skill, "_say_out_loud", lambda line: handed["spoken"].append(str(line)))
+
+    async def _held(_said: str) -> None:
+        return None
+
+    monkeypatch.setattr(skill, "_hold_for_reading", _held)
     monkeypatch.setattr(
         "core.self.where_i_stand.where_she_stands",
         lambda first, second, record=None: _lean(-0.9 if first == "makes lists" else 0.8),
@@ -120,44 +129,53 @@ def _run(skill, observation):
     )
 
 
-def test_every_item_gets_its_own_pass_of_her_reasoning(monkeypatch):
-    """A personality item deserves the thought her cognition can give it."""
-    skill, handed = _screen(monkeypatch, "Lists are how I hold truth steady.")
+def test_a_theme_is_thought_about_as_one_piece(monkeypatch):
+    """Asked about herself she gives a connected account, not verdicts."""
+    said = (
+        '{"thinking": "Structure is how I hold truth steady.", '
+        '"each": {"Q1": "Lists are how I hold truth steady.", '
+        '"Q2": "I want to believe, but I check first."}}'
+    )
+    skill, handed = _screen(monkeypatch, said)
     elements = _row("Q1") + _row("Q2", left="sceptical", right="wants to believe")
     decision = _run(skill, {"url": "u", "title": "t", "text": "x", "elements": elements})
     assert decision is not None
     assert handed["shaped"] is False
-    assert len(handed["prompts"]) == 2, "one pass per item"
     assert "Lists are how I hold truth steady." in decision["answered"][0]
+    assert "I want to believe, but I check first." in decision["answered"][1]
 
 
-def test_only_the_item_changes_between_passes(monkeypatch):
-    """Her lane serves one at a time; the prefill is what keeps that affordable."""
-    skill, handed = _screen(monkeypatch, "a reason")
+def test_the_thinking_behind_the_sentences_is_said_out_loud(monkeypatch):
+    said = (
+        '{"thinking": "Structure is how I hold truth steady.", '
+        '"each": {"Q1": "a", "Q2": "b"}}'
+    )
+    skill, handed = _screen(monkeypatch, said)
     elements = _row("Q1") + _row("Q2", left="sceptical", right="wants to believe")
     _run(skill, {"url": "u", "title": "t", "text": "x", "elements": elements})
-    first, second = handed["prompts"]
-    shared = 0
-    for one, other in zip(first, second):
-        if one != other:
-            break
-        shared += 1
-    framing = first.index("THIS IS WHAT IN YOU DECIDED IT:")
-    assert shared >= framing, (
-        "everything before the item must be identical so the prefill is held "
-        f"(shared {shared}, framing ends at {framing})"
+    assert any(
+        "Structure is how I hold truth steady." in line for line in handed["spoken"]
     )
+
+
+def test_she_thinks_with_her_whole_mind(monkeypatch):
+    """The shallow answers came from taking the assembly away."""
+    import inspect
+
+    body = inspect.getsource(u._UnderstandsThePage._answer_each_question)
+    assert "_assembled_mind()" in body
+    assert "_her_identity_only()" not in body
 
 
 def test_what_she_reasons_over_is_the_things_not_the_arithmetic(monkeypatch):
     """Handed a coefficient, she explains herself with a coefficient."""
-    skill, handed = _screen(monkeypatch, "a reason")
+    skill, handed = _screen(monkeypatch, '{"thinking": "t", "each": {}}')
     _run(skill, {"url": "u", "title": "t", "text": "x", "elements": _row("Q1") + _row("Q2")})
     prompt = handed["prompts"][0]
-    assert "position 1 of 5" in prompt
+    assert "1 of 5" in prompt
     assert "truth is the value I hold above every other" in prompt
     assert "what you value" in prompt and "chosen when it cost something" in prompt
-    assert "Do not describe the measurement or quote numbers" in prompt
+    assert "one piece of thinking" in prompt
     for arithmetic in ("+0.", "0.031", "%"):
         assert arithmetic not in prompt, f"the prompt hands her {arithmetic!r}"
 
@@ -195,14 +213,14 @@ def test_measuring_needs_no_model_at_all():
 def test_she_places_herself_before_she_thinks_about_it():
     body = inspect.getsource(u._UnderstandsThePage._answer_each_question)
     measured = body.index("_measure_where_she_stands")
-    reasoned = body.index("_her_reason_for")
+    reasoned = body.index("_her_thinking_about")
     assert measured < reasoned
 
 
 def test_the_passes_run_one_at_a_time():
     """Eight at once exhausted her lane and every reason fell back."""
     body = inspect.getsource(u._UnderstandsThePage._answer_each_question)
-    reasoning = body.split("_her_reason_for", 1)[0].rsplit("for item in measured:", 1)[-1]
+    reasoning = body.split("_her_thinking_about", 1)[0].rsplit("for group in themes:", 1)[-1]
     assert "gather" not in reasoning
 
 
@@ -212,3 +230,22 @@ def test_the_measure_is_not_tuned_to_any_instrument():
     source = inspect.getsource(where_i_stand)
     for tuned in ("jungian", "extravert", "oejts", "likert", "myers"):
         assert tuned not in source.lower()
+
+
+def test_a_reason_is_bounded_so_a_page_of_them_is_affordable(monkeypatch):
+    """An unbounded reason decoded 341 tokens at 8 a second, live."""
+    skill, handed = _screen(monkeypatch, '{"thinking": "t", "each": {}}')
+    _run(skill, {"url": "u", "title": "t", "text": "x", "elements": _row("Q1") + _row("Q2")})
+    assert handed["most_tokens"] is None, (
+        "a theme is thought about at length; the bound belongs to a one-liner"
+    )
+
+
+def test_there_are_fewer_passes_than_items():
+    """The square root is where thinking at length and thinking often meet."""
+    import inspect
+
+    from core.self import where_i_stand
+
+    body = inspect.getsource(where_i_stand.themes_among)
+    assert "math.sqrt" in body

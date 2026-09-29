@@ -87,7 +87,7 @@ def test_every_question_about_her_goes_through_the_one_mechanism():
     for name in (
         "_what_she_expects_it_to_say",
         "_hold_the_outcome_against_what_she_said",
-        "_her_reason_for",
+        "_her_thinking_about",
     ):
         body = inspect.getsource(getattr(u._UnderstandsThePage, name))
         assert "_asked_of_her" in body, f"{name} asks her its own way"

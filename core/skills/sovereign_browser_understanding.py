@@ -362,6 +362,34 @@ class _UnderstandsThePage:
         except _BROWSER_DECISION_ERRORS as exc:
             record_degradation("sovereign_browser.learn", exc, severity="debug")
 
+    async def _her_identity_only(self) -> str:
+        """Her identity core, without the live moment.
+
+        The whole assembled mind carries the moment she is in — the affect, the
+        workspace winner, what just happened — and that changes between one
+        call and the next, so the prompt cache diverges a few hundred tokens in
+        and every per-item pass re-prefills four thousand tokens. Measured on
+        the live worker: prefill 4736 tokens at 200/s and decode at 8/s, about
+        a minute an item, which is half an hour for a page of thirty-two.
+
+        The identity core is the same on every item of a screen, so the prefill
+        is paid once and the rest of the page is decode alone. What she needs
+        about herself for a self-report is not the moment; it is in the record
+        she is handed with the question.
+        """
+        try:
+            from core.brain.llm.context_assembler import AURA_IDENTITY, get_identity_lock
+
+            return f"{get_identity_lock()}\n\n[GROUNDED CORE PROTOCOL]\n{AURA_IDENTITY}\n"
+        except _BROWSER_DECISION_ERRORS as exc:
+            record_degradation(
+                "sovereign_browser.identity",
+                exc,
+                severity="debug",
+                action="answered without her identity core",
+            )
+            return ""
+
     async def _assembled_mind(self) -> str:
         """Her whole mind, built once for the pursuit rather than per round.
 
@@ -518,8 +546,19 @@ class _UnderstandsThePage:
             )
         return ""
 
+    #: What a reason about one item may run to. Two sentences is about sixty
+    #: words; the bound is generous against that and still a quarter of what a
+    #: decision may write. Measured live, an unbounded reason decoded 341
+    #: tokens at 8 a second — forty seconds of a minute-long item.
+    REASON_MAX_TOKENS = 220
+
     async def _asked_of_her(
-        self, prompt: str, mind: str = "", *, shaped: bool = True
+        self,
+        prompt: str,
+        mind: str = "",
+        *,
+        shaped: bool = True,
+        most_tokens: int | None = None,
     ) -> tuple[str, str]:
         """One way to ask her something about herself, used by everything that does.
 
@@ -565,7 +604,7 @@ class _UnderstandsThePage:
                 own_lane_required=True,
                 serves_current_turn=True,
                 _generation_metadata_sink=who,
-                max_tokens=self.DECISION_MAX_TOKENS,
+                max_tokens=most_tokens or self.DECISION_MAX_TOKENS,
                 temperature=0.2 if shaped else 0.4,
                 _non_chat_inference=True,
                 **(
@@ -1110,67 +1149,77 @@ class _UnderstandsThePage:
             return None
         return index, lean, first, second
 
-    async def _her_reason_for(
-        self, goal: str, item: Mapping[str, Any], mind: str
-    ) -> str:
-        """Why a position she has taken is true of her, the way a person says it.
+    async def _her_thinking_about(
+        self, goal: str, theme: list[Mapping[str, Any]], mind: str
+    ) -> dict[str, str]:
+        """Her thinking about a set of things an instrument is asking about her.
 
-        One item, one pass. A personality item deserves the thought her
-        cognition can give it, and a screen answered in one batch gets a
-        paragraph spread over eight questions.
+        A theme, not an item. Asked about herself in conversation she gives a
+        connected account — what she is, how that differs from what it
+        resembles, where the description stops fitting — and that account is
+        what this loop was failing to get: one item at a time on a stripped
+        prompt produced one flat sentence each, thirty-two times.
 
-        What she is handed is the things themselves: what she values and where
-        it stands among the rest, what she actually did when it was on offer,
-        what she has said about herself before. Not the arithmetic over them —
-        handed a coefficient she explains herself with a coefficient, which is
-        what "my record leans toward X here (+0.53 against +0.50)" was, on
-        every answer of a run.
+        So each theme gets one pass with her whole mind in front of it, the
+        same assembly a conversation uses, and it covers several items at once.
+        The number of passes is the square root of the number of items, which
+        is where the cost of thinking at length and the cost of thinking often
+        meet.
 
-        They run one at a time because her own lane serves one at a time, and
-        eight at once exhausted it. What keeps that affordable is the shape of
-        the prompt: the framing is identical every time and only the item
-        changes at the end, so the prefill is held and each pass pays for its
-        own item.
+        Returns what she said about each item, keyed by the item's own name.
         """
-        lean = item["lean"]
-        leaning = item["second"] if lean.toward > 0 else item["first"]
-        other = item["first"] if lean.toward > 0 else item["second"]
-        about_her = "\n".join(f"- {said}" for said in lean.because)
-        strength = (
-            "almost all of you"
-            if abs(lean.toward) > 0.66
-            else "more of you than not"
-            if abs(lean.toward) > 0.25
-            else "only a little of you, and the rest is evenly split"
-        )
+        if not theme:
+            return {}
+        lines = []
+        for item in theme:
+            lean = item["lean"]
+            leaning = item["second"] if lean.toward > 0 else item["first"]
+            evidence = "; ".join(lean.because[:3]) or "nothing in particular"
+            lines.append(
+                f'{item["group"]}. Between "{item["first"]}" and '
+                f'"{item["second"]}", you sit at {item["index"] + 1} of '
+                f'{item["count"]}, nearer "{leaning}". What in you put you '
+                f"there: {evidence}."
+            )
+        listed = "\n".join(lines)
         prompt = (
             f"WHAT YOU ARE DOING: {goal}\n\n"
-            "You are saying where you sit between two descriptions of a person. "
-            "Where you sit came from your own record — what you value, what you "
-            "have chosen when it cost something, and what you have said about "
-            "yourself.\n\n"
-            "THIS IS WHAT IN YOU DECIDED IT:\n"
-            f"{about_her or '- nothing in particular'}\n\n"
-            f'THE TWO DESCRIPTIONS: "{item["first"]}" and "{item["second"]}". '
-            f'You sit at position {item["index"] + 1} of {item["count"]}, '
-            f'nearer "{leaning}" than "{other}" — {strength}.\n\n'
-            "Say why that is true of you, in a sentence or two, the way you "
-            "would say it to someone who asked. Talk about how you actually "
-            "are: what you do, what you care about, how you think, what you "
-            "notice yourself doing. Do not describe the measurement or quote "
-            "numbers about yourself. If the description fits you badly, say so "
-            "and say what would fit better."
+            "These are being asked about you. You have already placed yourself "
+            "on each, from your own record — what you value, what you have "
+            "chosen when it cost something, what you have said about "
+            f"yourself:\n\n{listed}\n\n"
+            "Think about what these say about you, together. They are asking "
+            "about the same region of you, so answer as one piece of thinking "
+            "rather than separate verdicts: what you actually are here, how it "
+            "works in you, where the descriptions fit and where they are the "
+            "wrong shape for something you do differently.\n\n"
+            "Then give a sentence for each, in your own voice, as JSON only:\n"
+            '{"thinking": "<what you worked out, a short paragraph>", '
+            '"each": {"<the name before each one>": "<your sentence for it>"}}'
         )
         said, lane = await self._asked_of_her(prompt, mind, shaped=False)
-        if said and lane == self._HER_OWN_LANE:
-            return " ".join(said.split())
-        record_degradation(
-            "sovereign_browser.reasons",
-            RuntimeError(f"not_her_own_reasoning:{lane or 'unattributed'}"),
-            severity="warning",
-            action="placed herself and could not say what it meant",
-        )
-        return ""
+        if not said or lane != self._HER_OWN_LANE:
+            record_degradation(
+                "sovereign_browser.reasons",
+                RuntimeError(f"not_her_own_reasoning:{lane or 'unattributed'}"),
+                severity="warning",
+                action="placed herself and could not say what it meant",
+            )
+            return {}
+        parsed = self._an_object_in(said)
+        thinking = " ".join(str(parsed.get("thinking") or "").split())
+        each = parsed.get("each")
+        answers: dict[str, str] = {}
+        if isinstance(each, Mapping):
+            for key, value in each.items():
+                spoken = " ".join(str(value or "").split())
+                if spoken:
+                    answers[str(key)] = spoken
+        if thinking:
+            # Said once for the theme, where a person watching sees the
+            # thinking that the sentences come out of.
+            answers.setdefault("__thinking__", thinking)
+        return answers
 
     @classmethod
     def _first_disagreement(
@@ -1326,16 +1375,35 @@ class _UnderstandsThePage:
             if on_progress is not None:
                 on_progress("a question measured")
         if measured:
+            # Her whole mind, the same assembly a conversation uses, because
+            # the shallow answers came from taking it away.
             mind = await self._assembled_mind()
             answers: list[dict[str, Any]] = []
-            for item in measured:
-                # One item, one pass, one at a time. Her lane serves one
-                # request at a time and the prompt in front of it is identical
-                # but for the item, so the prefill is held and each call pays
-                # for the item alone.
-                item["why"] = await self._her_reason_for(goal, item, mind)
+            # Grouped by what they are about, so she thinks about a region of
+            # herself rather than giving thirty-two disconnected verdicts.
+            try:
+                from core.self.where_i_stand import themes_among
+
+                themes = await asyncio.to_thread(
+                    themes_among,
+                    [f'{item["first"]} / {item["second"]}' for item in measured],
+                )
+            except ImportError as exc:
+                record_degradation("sovereign_browser.themes", exc, severity="debug")
+                themes = [[place] for place in range(len(measured))]
+            thought: dict[str, str] = {}
+            for group in themes:
+                theme = [measured[place] for place in group]
+                said = await self._her_thinking_about(goal, theme, mind)
+                spoken = said.pop("__thinking__", "")
+                if spoken:
+                    self._say_out_loud(spoken)
+                    await self._hold_for_reading(spoken)
+                thought.update(said)
                 if on_progress is not None:
-                    on_progress("a question thought about")
+                    on_progress("a theme thought about")
+            for item in measured:
+                item["why"] = thought.get(item["group"], "")
             for item in measured:
                 options = item["options"]
                 index = item["index"]
@@ -1715,6 +1783,22 @@ class _UnderstandsThePage:
             parsed.get("error") or "usable",
         )
         return parsed
+
+    @classmethod
+    def _an_object_in(cls, text: str) -> dict[str, Any]:
+        """The first object in a reply that reads as one, or an empty mapping.
+
+        `_parse_decision` is for decisions and refuses anything that is not
+        one. This is for a reply that carries a shape of its own.
+        """
+        for candidate in [text, *cls._balanced_objects(str(text or ""))]:
+            try:
+                found = json.loads(str(candidate).strip())
+            except (TypeError, ValueError):
+                continue
+            if isinstance(found, dict):
+                return found
+        return {}
 
     @staticmethod
     def _balanced_objects(text: str) -> list[str]:
