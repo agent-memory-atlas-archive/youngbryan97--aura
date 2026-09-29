@@ -237,6 +237,25 @@ class _PlacesHerself:
                 spoken = " ".join(str(value or "").split())
                 if spoken:
                     answers[str(key)] = spoken
+        # Keyed the way she wrote them, and the way the page names them.
+        #
+        # She is given "Q1." and may answer under "Q1", "1", or the words of
+        # the item. A sentence that cannot be found is a sentence lost: LIVE
+        # 2026-09-29, one item of eight kept its reasoning and the other seven
+        # fell back to the bare evidence, so a screen of real thinking read as
+        # a list of counts.
+        for item in theme:
+            name = str(item["group"])
+            if name in answers:
+                continue
+            for key, spoken in list(answers.items()):
+                bare = key.strip().strip(".:)").lower()
+                if bare in {name.lower(), name.lower().lstrip("q")}:
+                    answers[name] = spoken
+                    break
+                if item["first"].lower() in bare or item["second"].lower() in bare:
+                    answers[name] = spoken
+                    break
         if thinking:
             # Said once for the theme, where a person watching sees the
             # thinking that the sentences come out of.

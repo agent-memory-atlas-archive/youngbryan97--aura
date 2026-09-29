@@ -291,3 +291,27 @@ def test_the_persons_message_does_not_reach_her_own_reasoning(monkeypatch):
     assert "tell me" not in prompt.lower()
     assert "what type you think" not in prompt.lower()
     assert "answering questions about yourself" in prompt
+
+
+@pytest.mark.parametrize("key", ["Q1", "1", "Q1.", "makes lists / relies on memory"])
+def test_her_sentence_is_found_however_she_keyed_it(monkeypatch, key):
+    """A sentence that cannot be found is a sentence lost.
+
+    LIVE 2026-09-29: one item of eight kept its reasoning and the other seven
+    fell back to the bare evidence, so a screen of real thinking read as a list
+    of counts.
+    """
+    import json as _json
+
+    said = _json.dumps({"thinking": "t", "each": {key: "Lists hold truth steady."}})
+    skill, _handed = _screen(monkeypatch, said)
+    decision = _run(
+        skill,
+        {
+            "url": "u", "title": "t", "text": "x",
+            "elements": _row("Q1")
+            + _row("Q2", left="sceptical", right="wants to believe"),
+        },
+    )
+    assert decision is not None
+    assert "Lists hold truth steady." in decision["answered"][0]
