@@ -110,3 +110,11 @@ def test_suffix_training_cannot_share_a_stochastic_forward():
     suffix.layers[0].train()
     with pytest.raises(ValueError, match="evaluation"):
         score_native_causal_groups(prefix, suffix, sequences())
+
+
+def test_nested_suffix_module_must_also_be_in_evaluation_mode():
+    model = _model()
+    prefix, suffix = FrozenDecoderPrefix(model, split_at=2), NativeDecoderSuffix(model, split_at=2)
+    suffix.layers[0].mlp.down_proj.train()
+    with pytest.raises(ValueError, match="evaluation"):
+        score_native_causal_groups(prefix, suffix, sequences())

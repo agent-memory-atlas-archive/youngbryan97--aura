@@ -56,7 +56,8 @@ def score_native_causal_groups(prefix, suffix, sequences: tuple[NativeProgramSeq
     import mlx.nn as nn
 
     groups = native_causal_groups(sequences)
-    if any(layer.training for layer in suffix.layers) or suffix.norm.training or suffix.output.training:
+    if any(child.training for module in (*suffix.layers, suffix.norm, suffix.output)
+           for child in module.modules()):
         raise ValueError("native causal sharing requires suffix evaluation mode")
     scores = [None] * len(sequences)
     for group in groups:

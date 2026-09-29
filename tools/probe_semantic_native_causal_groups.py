@@ -206,6 +206,7 @@ def main():
         model.load_weights(str(args.training_directory /
                                f"checkpoint-{residual['candidate_step']}.safetensors"), strict=False)
         apply_execution(model, training)
+        model.eval()
         sites = native_lora_sites(model, training)
         for site in sites:
             site.scale = 16. * residual["selected_scale"]
