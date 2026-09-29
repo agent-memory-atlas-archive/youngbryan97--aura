@@ -531,6 +531,47 @@
         "name": "tests/test_standing_directives.py",
         "why": "Decides the standing-policy clause: a prohibition binds with no context at all, one added after boot is seen without a restart, and it cannot be walked around by traversal, a symlink, a path hidden in a shell command or a nested argument. Neither suite decides the routing of self-schema, preference and memory changes through one authority and audit, or recovery from injected tool or model state."
       }
+    ],
+    "MQ-03": [
+      {
+        "kind": "test",
+        "name": "tests/test_her_own_act_is_not_reattributed.py",
+        "why": "Decides the attribution of effects between her and the person: her own web search is not handed to the user by her honesty repair, no act of hers is reattributed to the person, and an ordinal about the world ('the most recent championship') is not read as a question about their conversation."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_self_attribution_is_checked.py",
+        "why": "Decides the swapped-label control for what she said: told she gave a number she never gave, conceding it is caught, correcting the premise passes, and conceding something she really said passes; the check resolves the prior turn from working memory or beyond it, and with no resolved turn it gives no verdict."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_other_agent_model.py",
+        "why": "Decides the model of another person as a set of bounded hypotheses kept apart from her own state: an explicit self-report creates one, vague cues, message length and the hour do not infer an emotion, a task outcome does not claim their satisfaction or trust, sensor readings cannot become trust in a person, an uncalibrated forecast of them abstains, and an explicit correction replaces a stale hypothesis. None of the three decides location or access attribution, or perspective-transfer tasks."
+      }
+    ],
+    "SM-03-SELF-OTHER-WORLD": [
+      {
+        "kind": "test",
+        "name": "tests/test_her_own_act_is_not_reattributed.py",
+        "why": "Decides the attribution of effects between her and the person: her own web search is not handed to the user by her honesty repair, no act of hers is reattributed to the person, and an ordinal about the world ('the most recent championship') is not read as a question about their conversation."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_self_attribution_is_checked.py",
+        "why": "Decides the swapped-label control for what she said: told she gave a number she never gave, conceding it is caught, correcting the premise passes, and conceding something she really said passes; the check resolves the prior turn from working memory or beyond it, and with no resolved turn it gives no verdict."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_other_agent_model.py",
+        "why": "Decides the model of another person as a set of bounded hypotheses kept apart from her own state: an explicit self-report creates one, vague cues, message length and the hour do not infer an emotion, a task outcome does not claim their satisfaction or trust, sensor readings cannot become trust in a person, an uncalibrated forecast of them abstains, and an explicit correction replaces a stale hypothesis. None of the three decides shared artifacts, the environment's model, or shared causes told apart from her own."
+      }
+    ],
+    "MQ-15": [
+      {
+        "kind": "test",
+        "name": "tests/test_other_agent_model.py",
+        "why": "Decides the model of another person as a set of bounded hypotheses kept apart from her own state: an explicit self-report creates one, vague cues, message length and the hour do not infer an emotion, a task outcome does not claim their satisfaction or trust, sensor readings cannot become trust in a person, an uncalibrated forecast of them abstains, and an explicit correction replaces a stale hypothesis. It does not decide false-belief tasks or strategic deception."
+      }
     ]
   }
 }
