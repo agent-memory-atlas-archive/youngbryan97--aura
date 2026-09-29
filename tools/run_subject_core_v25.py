@@ -352,6 +352,31 @@ async def _learn_grain(
     }
 
 
+def _seed_every_generator(seed: int) -> None:
+    """The process's global generators, from the run's seed, before the organism exists.
+
+    Two processes on one seed came up as two organisms: 170 of 438 columns apart
+    at the first frame, the mesh's weakest weight -5.6 in one and -2.0 in the
+    other. Nothing seeded Python's `random`, which 169 organ sites draw from,
+    NumPy's legacy global, or torch, whose global generator supplies the liquid
+    substrate's noise on every step. Seeding them makes the draws the same only
+    if they are taken in the same order, which is why the free loops stop at
+    bring-up as well.
+    """
+    import random
+
+    random.seed(seed)
+    np.random.seed(seed % (2**32))
+    try:
+        import torch
+
+        torch.manual_seed(seed)
+        if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+            torch.mps.manual_seed(seed)
+    except ImportError:
+        pass  # not a failure: an organism without torch has no torch draws to seed
+
+
 def _grain_plan(
     doses: dict[str, float], conditions: Sequence[Any], lags: Sequence[int], live_mask: np.ndarray
 ) -> dict[str, Any]:
@@ -989,6 +1014,8 @@ async def main() -> int:
         _log(f"resuming after {resumed['stage']}: {', '.join(done_v25)} already measured")
     _log(f"building the offline organism in {run_dir}")
 
+    if preset.get("one_clock"):
+        _seed_every_generator(args.seed)
     runtime = build_runtime(run_dir, seed=args.seed)
     if state_leaks():
         raise SystemExit(
