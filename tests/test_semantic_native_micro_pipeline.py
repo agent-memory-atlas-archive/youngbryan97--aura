@@ -10,6 +10,7 @@ from tools.evaluate_semantic_native_checkpoint import digest
 from tools.run_semantic_native_micro_stages import (
     ROOT,
     broker_policy,
+    require_learned_checkpoint,
     run_stages,
     stage_jobs,
     wait_for_fit,
@@ -151,6 +152,14 @@ def test_changed_or_partial_artifacts_cannot_be_resumed_as_passes(tmp_path, defe
 def terminal():
     return {"terminal": True, "child_state": "dead", "receipt": {
         "passed": True, "containment_verified": True, "timed_out": False, "returncode": 0}}
+
+
+def test_micro_rejects_an_unfitted_selected_checkpoint_before_decode():
+    with pytest.raises(ValueError, match="selected learned checkpoint"):
+        require_learned_checkpoint({"step": 0})
+    with pytest.raises(ValueError, match="selected learned checkpoint"):
+        require_learned_checkpoint({"step": None})
+    require_learned_checkpoint({"step": 101})
 
 
 def test_fit_wait_advances_only_after_the_existing_supervisor_proves_success():
