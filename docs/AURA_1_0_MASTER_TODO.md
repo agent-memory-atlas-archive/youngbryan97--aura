@@ -2474,6 +2474,21 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   recovery, and rollback on unseen tasks rather than installation counts.
 - [ ] L08 Audit affect, self-state, phi, and consciousness-related claims with
   causal controls; configured priors are not measured subjective experience.
+  PARTIAL 2026-09-29, the registered claims. Of the 81 claims bound to tests
+  in `model_validation`, 13 concern affect, self-state or identity, and none
+  asserts phi or experience: a claim in phenomenal language cannot be
+  registered as measured at all. Three of the 13 stand on causal controls
+  (the 43 appraisal faculties each removed in an activating world; the
+  state-shapes-words verdict against shuffles of its own held-out pairs and
+  three known-answer corpora; the care floor against needs up to 1e12). The
+  other ten establish a mechanism on constructed cases and say so in their
+  evidence notes. None presents a configured value as a measurement.
+  First finding outside the registry: the mind page shows "How she feels"
+  from `/api/inner-state`, which passes organ state through without saying
+  whether a value has ever moved from its configured baseline, so a mood
+  that was never appraised is shown as one she has. Still to audit: that
+  surface's fix, and the phi and consciousness criteria, which are the ISC
+  campaign's to measure with its nulls and lesions.
 
 ## 4. User-facing capability acceptance
 
@@ -3318,9 +3333,8 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Two are one order dependence: `test_cognition_discipline` reads process-wide
   registers an earlier test in its chunk left dirty. Its phenomena count
   raised `ServiceNotFoundError` instead of counting an unregistered
-  disposition (fixed), and a lockdep splat from an earlier test is still
-  unnamed; the next run names it with a plugin that reports the test after
-  which the count rose.
+  disposition (fixed), and a lockdep splat from an earlier test failed the
+  lock-order claim, which now reads a reset register (7ce70aef9).
   2026-09-22, a class, 76 sites in 51 files. `monkeypatch.setattr(module.time,
   "sleep", fake)` reads like it patches the module and does not: `module.time`
   IS the `time` module, so the fake replaced `time.sleep`, `time.time` or
