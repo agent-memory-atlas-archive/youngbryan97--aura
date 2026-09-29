@@ -46,6 +46,40 @@ baseline, and stopped them only for the anchors.
   `tools/same_organism.py` is the proof that two processes are one organism.
   That proof is queued (`one_clock_probe.sh`) and has not run.
 
+### C was never weak: the estimator could not see it
+
+The looks under the four arms (`00f62d24e`) left C undecided everywhere under
+Fisher-Rao, and kept their samples. `tools/which_columns_a_cut_moved.py` read
+them: holding C for two turns moved 199 of her columns beyond their sham at 127
+of 128 anchors in the control arm, by up to 0.97 of a column's spread, across
+the field, the substrate, affect and the workspace. The classifier compares arms
+across anchors, so it sees only what a cut does the same way everywhere, and it
+read 0.0067.
+
+`core/subject/paired_displacement.py` reads each anchor's own displacement under
+the cut against its two untouched forks, in the Ledoit-Wolf metric of the
+untouched futures, inside the subspace the arms move in. Recoding drift is
+exactly zero, duplication drift at most 0.01, the playback is never decided. On
+the kept samples it decides C at two turns in every arm (control's lower bound
+0.262). Preregistered for seed 23 (`f86dfe122`); seed 7 cannot count.
+
+### Two processes are still two organisms
+
+With the free loops stopped at bring-up, every global generator seeded and the
+two baselines run one after the other, they were still 194 of 438 columns apart
+at the first frame. Bring-up itself (the loops tick on the machine's clock
+before they are stopped) and the three calibration turns on the real clock are
+what is left. The route being tested instead: shards fork from the
+coordinator's anchors, saved to disk (`tools/probe_anchor_travel.py`).
+
+### The reports ground
+
+The peer session's reading of the run that finished at 08:41: the displacement
+reached her cortex (+0.0898 against a bar of 0.05), and the ground read
+`holds: false` because none of 24 anchors had a readable answer in every arm.
+33 of 96 arms recorded an empty reply her cortex had given; three causes fixed
+at `ef944d0e6`, a re-run queued behind the arms.
+
 ### Making the carrier run faster, and every number the same
 
 - A cut's decision spent 7.2 seconds of estimator per horizon at 32 anchors and
