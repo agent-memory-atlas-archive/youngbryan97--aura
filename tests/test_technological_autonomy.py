@@ -39,6 +39,8 @@ from collections import defaultdict
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 # ---------------------------------------------------------------------------
 # Ensure project root is on sys.path
 # ---------------------------------------------------------------------------
@@ -1688,57 +1690,59 @@ class TestStrongestSupportSignals:
 # AGGREGATE SCORING — Final Report
 # ═══════════════════════════════════════════════════════════════════════════
 
-class TestAggregateReport:
-    """Generate the final autonomy assessment."""
+@pytest.fixture(scope="module", autouse=True)
+def _the_report_after_every_score():
+    """The assessment, printed once the module's tests have recorded their scores.
 
-    def test_generate_report(self):
-        """Aggregate all scores and assess overall technological autonomy.
+    It was a test that "always passes" and asserted the scores were already
+    there. pytest-randomly shuffles classes, so about one run in sixteen put it
+    first, found nothing, and failed: an order dependence written into a report.
+    A module finalizer runs after every test in the module whatever the order.
+    """
+    yield
+    if SCORES:
+        _print_report()
 
-        This test always passes. Its purpose is to generate the report.
-        """
-        assert SCORES, "No scores collected; run the full technological autonomy suite"
 
-        categories = defaultdict(list)
-        for key, val in sorted(SCORES.items()):
-            category = key.split(".")[0]
-            categories[category].append((key, val))
+def _print_report() -> None:
+    categories = defaultdict(list)
+    for key, val in sorted(SCORES.items()):
+        category = key.split(".")[0]
+        categories[category].append((key, val))
 
-        total_score = sum(SCORES.values())
-        max_possible = len(SCORES) * 3
-        percentage = (total_score / max_possible * 100) if max_possible > 0 else 0
+    total_score = sum(SCORES.values())
+    max_possible = len(SCORES) * 3
+    percentage = (total_score / max_possible * 100) if max_possible > 0 else 0
 
-        print("\n")
-        print("=" * 72)
-        print("  TECHNOLOGICAL AUTONOMY & SOVEREIGNTY ASSESSMENT")
-        print("=" * 72)
+    print("\n")
+    print("=" * 72)
+    print("  TECHNOLOGICAL AUTONOMY & SOVEREIGNTY ASSESSMENT")
+    print("=" * 72)
 
-        for cat, items in sorted(categories.items()):
-            cat_total = sum(v for _, v in items)
-            cat_max = len(items) * 3
-            cat_pct = (cat_total / cat_max * 100) if cat_max > 0 else 0
-            print(f"\n  [{cat.upper()}] {cat_total}/{cat_max} ({cat_pct:.0f}%)")
-            for key, val in items:
-                indicator = ["ABSENT", "DECORATIVE", "FUNCTIONAL", "CONSTITUTIVE"][val]
-                dimname = key.split(".", 1)[1] if "." in key else key
-                print(f"    {dimname:40s} {val}/3  {indicator}")
+    for cat, items in sorted(categories.items()):
+        cat_total = sum(v for _, v in items)
+        cat_max = len(items) * 3
+        cat_pct = (cat_total / cat_max * 100) if cat_max > 0 else 0
+        print(f"\n  [{cat.upper()}] {cat_total}/{cat_max} ({cat_pct:.0f}%)")
+        for key, val in items:
+            indicator = ["ABSENT", "DECORATIVE", "FUNCTIONAL", "CONSTITUTIVE"][val]
+            dimname = key.split(".", 1)[1] if "." in key else key
+            print(f"    {dimname:40s} {val}/3  {indicator}")
 
-        print(f"\n{'=' * 72}")
-        print(f"  TOTAL: {total_score}/{max_possible} ({percentage:.1f}%)")
-        print(f"{'=' * 72}")
+    print(f"\n{'=' * 72}")
+    print(f"  TOTAL: {total_score}/{max_possible} ({percentage:.1f}%)")
+    print(f"{'=' * 72}")
 
-        if percentage >= 85:
-            verdict = "TECHNOLOGICAL ORGANISM — Body and mind are architecturally unified"
-        elif percentage >= 70:
-            verdict = "STRONG AUTONOMY — Most body-like properties are constitutive"
-        elif percentage >= 50:
-            verdict = "MODERATE AUTONOMY — Some body-like properties, some gaps"
-        elif percentage >= 30:
-            verdict = "WEAK AUTONOMY — Mostly decorative body-like features"
-        else:
-            verdict = "CHATBOT WITH PLUGINS — No genuine technological body"
+    if percentage >= 85:
+        verdict = "TECHNOLOGICAL ORGANISM — Body and mind are architecturally unified"
+    elif percentage >= 70:
+        verdict = "STRONG AUTONOMY — Most body-like properties are constitutive"
+    elif percentage >= 50:
+        verdict = "MODERATE AUTONOMY — Some body-like properties, some gaps"
+    elif percentage >= 30:
+        verdict = "WEAK AUTONOMY — Mostly decorative body-like features"
+    else:
+        verdict = "CHATBOT WITH PLUGINS — No genuine technological body"
 
-        print(f"\n  VERDICT: {verdict}")
-        print(f"{'=' * 72}\n")
-
-        # This test always passes -- it is informational
-        assert True
+    print(f"\n  VERDICT: {verdict}")
+    print(f"{'=' * 72}\n")
