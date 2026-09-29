@@ -1110,8 +1110,16 @@ class _UnderstandsThePage:
             else "one may be chosen"
         )
         asks = str(options[0].get("asks") or "")
-        run = re.search(r"(?:\s*\[[^\]]*\])+", asks) if asks else None
-        if run is not None:
+        # Every control in one unbroken run is what makes a dimension: the page
+        # puts words on either side of the whole set. Controls separated by
+        # their own words are not that shape — they are a statement with
+        # labelled answers, and reading the first bracket run as one end of a
+        # dimension turned "I make plans well in advance. strongly disagree [1]
+        # disagree [2] ..." into a scale between the statement and its own
+        # second option.
+        runs = list(re.finditer(r"(?:\s*\[[^\]]*\])+", asks)) if asks else []
+        if len(runs) == 1:
+            run = runs[0]
             left = " ".join(asks[: run.start()].split()).strip()
             right = " ".join(asks[run.end() :].split()).strip()
             if left and right:
@@ -1120,6 +1128,8 @@ class _UnderstandsThePage:
                 facts.append(f"laid out after \"{left}\"")
             elif right:
                 facts.append(f"laid out before \"{right}\"")
+        elif runs:
+            facts.append("each set out beside its own words")
         return ", ".join(facts)
 
     def _measure_where_she_stands(
@@ -1133,21 +1143,78 @@ class _UnderstandsThePage:
         position. Returns nothing where the question is not a run between two
         things, or where her record cannot answer.
         """
-        laid_out = self._how_the_options_are_laid_out(options)
-        between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
-        if between is None or len(options) < 2:
+        if len(options) < 2:
             return None
-        first, second = between.group(1), between.group(2)
         try:
-            from core.self.where_i_stand import where_she_stands
+            from core.self.where_i_stand import Lean, where_she_stands, which_is_most_her
         except ImportError as exc:
             record_degradation("sovereign_browser.where_i_stand", exc, severity="debug")
             return None
-        lean = where_she_stands(first, second)
-        index = lean.position_in(len(options))
-        if index is None:
+        laid_out = self._how_the_options_are_laid_out(options)
+        between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
+        if between is not None:
+            first, second = between.group(1), between.group(2)
+            lean = where_she_stands(first, second)
+            index = lean.position_in(len(options))
+            if index is None:
+                return None
+            return index, lean, first, second
+
+        # Options that carry their own words are the other shape the same act
+        # takes: one thing said, and several ways of answering it. Each option
+        # becomes a description of a person — what the question says, answered
+        # that way — and her record says which of them she is.
+        asked = self._what_the_question_says(options)
+        named = [
+            f"{asked} {str(option.get('name') or '').strip()}".strip()
+            for option in options
+        ]
+        if not asked or not all(named):
             return None
-        return index, lean, first, second
+        chosen = which_is_most_her(named)
+        if not chosen.measured:
+            return None
+        share = chosen.support[chosen.index] if chosen.support else 0.0
+        # Expressed as a lean so everything downstream is unchanged: how much of
+        # her record went to the answer she gave, and what in her did.
+        lean = Lean(
+            toward=float(max(-1.0, min(1.0, share))),
+            first=0.0,
+            second=float(share),
+            because=chosen.because,
+            measured=True,
+        )
+        label = str(options[chosen.index].get("name") or "").strip()
+        rest = ", ".join(
+            str(option.get("name") or "").strip()
+            for place, option in enumerate(options)
+            if place != chosen.index
+        )
+        return chosen.index, lean, rest or "the others", label
+
+    @staticmethod
+    def _what_the_question_says(options: list[Mapping[str, Any]]) -> str:
+        """The words of the question, without its options' own words.
+
+        The page lays a question out with its controls in the middle of it;
+        what is left when their labels and their places are taken out is what
+        is being asked.
+        """
+        asks = str(options[0].get("asks") or "") if options else ""
+        if not asks:
+            return ""
+        without = re.sub(r"(?:\s*\[[^\]]*\])+", " ", asks)
+        # Longest first, or "strongly disagree" is taken out of "strongly
+        # agree" by its shorter sibling and a fragment is left behind.
+        labels = sorted(
+            {str(option.get("name") or "").strip() for option in options},
+            key=len,
+            reverse=True,
+        )
+        for label in labels:
+            if label:
+                without = without.replace(label, " ")
+        return " ".join(without.split())
 
     async def _her_thinking_about(
         self, goal: str, theme: list[Mapping[str, Any]], mind: str

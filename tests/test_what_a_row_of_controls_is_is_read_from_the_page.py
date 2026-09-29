@@ -42,17 +42,20 @@ def test_the_layout_is_stated_without_being_interpreted():
     assert 'between "makes lists" and "relies on memory"' in said
 
 
-def test_nothing_in_the_code_calls_it_a_scale():
+def test_nothing_it_says_calls_the_row_a_scale():
     """The word is hers to use or not, from what the page says."""
-    import inspect
-
-    body = inspect.getsource(S._how_the_options_are_laid_out)
-    statement = body.split('"""', 2)[-1]
-    for claim in ("scale", "midpoint", "opposite", "entirely"):
-        assert claim not in statement.lower(), (
-            f"the layout description asserts {claim!r}, which is a reading of "
-            "the page and not a fact of it"
-        )
+    for shape in (
+        _row(),
+        _row(count=3, role="checkbox"),
+        _row(count=3, labels=["agree", "neutral", "disagree"]),
+        _row(count=3, right=""),
+    ):
+        said = S._how_the_options_are_laid_out(shape).lower()
+        for claim in ("scale", "midpoint", "opposite", "entirely", "more", "less"):
+            assert claim not in said, (
+                f"the layout description asserts {claim!r}, which is a reading "
+                "of the page and not a fact of it"
+            )
 
 
 def test_several_choosable_controls_say_so():

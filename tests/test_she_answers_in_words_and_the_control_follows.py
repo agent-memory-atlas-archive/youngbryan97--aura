@@ -79,17 +79,21 @@ def test_an_unmeasured_record_measures_nothing(monkeypatch):
     assert S()._measure_where_she_stands(_row()) is None
 
 
-def test_options_that_are_not_a_run_between_two_things_are_left_alone(monkeypatch):
+def test_options_with_their_own_words_take_the_other_measured_path(monkeypatch):
+    """A statement with labelled answers is the same act, measured the same way."""
+    called: list[str] = []
     monkeypatch.setattr(
         "core.self.where_i_stand.where_she_stands",
-        lambda first, second, record=None: _lean(-0.9),
+        lambda first, second, record=None: called.append("wrong") or _lean(-0.9),
     )
     labelled = [
         {"group": "q", "role": "radio", "name": name, "selector": f"#q{n}",
-         "asks": "how much? [] [] []"}
+         "asks": f"how much? agree [1] neutral [2] disagree [3]"}
         for n, name in enumerate(("agree", "neutral", "disagree"), start=1)
     ]
-    assert S()._measure_where_she_stands(labelled) is None
+    reading = S()._measure_where_she_stands(labelled)
+    assert reading is not None, "a labelled question must be measured too"
+    assert not called, "it is not a run between two ends"
 
 
 def _screen(monkeypatch, said: str, lane: str = "Cortex"):
