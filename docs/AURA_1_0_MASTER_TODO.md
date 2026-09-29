@@ -885,6 +885,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   it appears and once when it clears; `HIGH MEMORY PRESSURE: 85%` is the host
   with Chrome, Codex and an IDE language server resident, and it is measured,
   not mistaken.
+  UPDATE 2026-09-28, from the boot of 17:20.
+  - `Runtime: CRITICAL | Required probes: FAIL | Conversation: FAIL ...
+    conversation_lane: recovering (warmup_deferred)`, 324 health pulses in
+    forty minutes. A training job had taken the exclusive model lane at 17:11,
+    and model-load admission refused the cortex with a reason that named it:
+    `exclusive_lane_owned:standalone:60678:semantic-native:...`. The warm-up
+    then wrote the bare `warmup_deferred` over that reason, so the pulse said
+    the conversation was down and never said why. The lane keeps the cause now,
+    after the class word the router and the backpressure markers read:
+    `warmup_deferred:exclusive_lane_owned:...`. The refusal itself is the lane
+    policy working; the defect was the report.
+    tests/test_a_deferred_warmup_names_who_holds_the_lane.py.
 - [x] R09 Verify complete streaming, durable reconnect, one final answer per
   turn, cancellation, follow-up semantics, and multi-turn context retention.
   CLOSED 2026-09-12. The full acceptance matrix now passes: ordinary, tool,
