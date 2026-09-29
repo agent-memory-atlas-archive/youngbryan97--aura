@@ -38,6 +38,10 @@ replay, with 255 rather than 1,100 scored alternatives. Future candidates may
 use a separately frozen 16-node matched screen before the full stage. A screen
 failure saves a long run; a screen pass still owes every full-budget and held
 control requirement above.
+The [prospective screen runner](evidence/G03_PROSPECTIVE_REFERENCE_SCREEN_2026-09-29.md)
+now freezes those three arms and verifies their receipts. It has not been run
+on a new candidate. A failed screen is a development stop decision, not an
+inference that the candidate cannot succeed at 256 nodes.
 
 Stage receipts are immutable and bound to the candidate, source population,
 code, model, and budget. For the same identities, a passed stage is reused,

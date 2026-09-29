@@ -1323,6 +1323,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   replays the three fitted reference requests exactly at 16 rather than 256
   search nodes. It is a faster retrospective screening basis, not a matched
   baseline result or a replacement for the frozen full-budget gate.
+  [Prospective three-arm screen](evidence/G03_PROSPECTIVE_REFERENCE_SCREEN_2026-09-29.md)
+  is implemented but has no generated result. It can stop a weak future
+  candidate before the full gate; its pass cannot close G03.
   [Source-role rule and cheap go/no-go probes](evidence/G03_SOURCE_ROLE_RULE_PROBE_2026-09-29.md)
   measured two new exact conditional teacher paths and zero losses on 185
   calibration sources, but no role coverage on any of nine frozen relation

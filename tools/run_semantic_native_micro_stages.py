@@ -21,7 +21,7 @@ from tools.evaluate_semantic_native_checkpoint import digest, verified_document 
 def stage_jobs(*, training_directory, fit_verification, directory, source_report, bundles,
                training_plan_sha256, python, candidate_weight_mode="fitted",
                residual_calibration=None, max_seconds=3600.,
-               decision_score_execution="individual"):
+               decision_score_execution="individual", search_nodes=256):
     """Freeze commands and budgets before any arm can observe an outcome."""
     if ((candidate_weight_mode not in {"fitted", "residual"})
             or (residual_calibration is None) != (candidate_weight_mode == "fitted")):
@@ -31,9 +31,11 @@ def stage_jobs(*, training_directory, fit_verification, directory, source_report
         raise ValueError("native micro decode requires a finite declared runtime bound")
     if decision_score_execution not in {"individual", "causal_groups"}:
         raise ValueError("native micro decision score execution differs")
+    if type(search_nodes) is not int or not 1 <= search_nodes <= 256:
+        raise ValueError("native micro search node bound differs")
     common = [python, str(ROOT / "tools/evaluate_semantic_native_grammar.py"),
               "--training-directory", str(training_directory), "--max-steps", "8",
-              "--search-completions", "4", "--search-nodes", "256",
+              "--search-completions", "4", "--search-nodes", str(search_nodes),
               "--search-score-mode", "native_nonpositive", "--prefix-strategy", "full",
               "--max-seconds", str(int(max_seconds) if max_seconds == int(max_seconds) else max_seconds)]
     if decision_score_execution == "causal_groups":
@@ -136,6 +138,9 @@ def check_existing_plan(path, *, training, checkpoint, command=None,
         if "--max-seconds" in command and plan.get("max_seconds") != float(
                 command[command.index("--max-seconds") + 1]):
             raise ValueError("native micro continuation changed its frozen runtime bound")
+        if "--search-nodes" in command and plan.get("search_nodes") != int(
+                command[command.index("--search-nodes") + 1]):
+            raise ValueError("native micro continuation changed its frozen search bound")
         execution = (command[command.index("--decision-score-execution") + 1]
                      if "--decision-score-execution" in command else "individual")
         if plan.get("decision_score_execution", "individual") != execution:

@@ -47,6 +47,7 @@ def executor(jobs, training, checkpoint, *, failed_stage=None, verification_defe
                 "checkpoint_receipt_sha256": checkpoint["receipt_sha256"],
                 "weight_mode": command[command.index("--weight-mode") + 1],
                 "max_seconds": float(command[command.index("--max-seconds") + 1]),
+                "search_nodes": int(command[command.index("--search-nodes") + 1]),
                 "implementation": implementation}, "plan_sha256")
         elif item["name"].endswith("-decode"):
             directory = Path(command[command.index("--directory") + 1])
@@ -133,14 +134,20 @@ def test_micro_policy_refuses_unbounded_or_invalid_decode_time(tmp_path, bound):
 def test_micro_resume_refuses_a_different_decode_budget(tmp_path):
     saved = tmp_path / "plan.json"
     save(saved, {"training_plan_sha256": "train", "checkpoint_receipt_sha256": "candidate",
-                 "weight_mode": "fitted", "max_seconds": 3600., "implementation": {}}, "plan_sha256")
+                 "weight_mode": "fitted", "max_seconds": 3600., "search_nodes": 256,
+                 "implementation": {}}, "plan_sha256")
     check_existing_plan(saved, training={"plan_sha256": "train"},
                         checkpoint={"receipt_sha256": "candidate"},
-                        command=["--weight-mode", "fitted", "--max-seconds", "3600"])
+                        command=["--weight-mode", "fitted", "--max-seconds", "3600",
+                                 "--search-nodes", "256"])
     with pytest.raises(ValueError, match="runtime bound"):
         check_existing_plan(saved, training={"plan_sha256": "train"},
                             checkpoint={"receipt_sha256": "candidate"},
                             command=["--weight-mode", "fitted", "--max-seconds", "14400"])
+    with pytest.raises(ValueError, match="search bound"):
+        check_existing_plan(saved, training={"plan_sha256": "train"},
+                            checkpoint={"receipt_sha256": "candidate"},
+                            command=["--weight-mode", "fitted", "--search-nodes", "16"])
 
 
 def test_residual_micro_policy_uses_one_source_calibration_for_every_candidate_arm(tmp_path):
