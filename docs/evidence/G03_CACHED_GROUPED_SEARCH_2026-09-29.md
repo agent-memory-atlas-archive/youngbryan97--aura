@@ -23,15 +23,15 @@ not bitwise equivalence or a guarantee for near-tied choices.
 
 No real-27B timing or ranking comparison has been run for `v15`. The current
 source-matched campaign remains on its frozen full-prefix implementation.
-The read-only `tools/probe_semantic_native_causal_groups.py --cached-groups`
-plan-only replay recovered seven shared-decision cases across all three
-completed fitted reference sources, bound to plan digest
-`2524355071814759ca8505998fe62e5b2d2599f055a29a015ac19c220456a06c`.
-The saved plan is under
-`/Users/bryan/.aura/rlc-evidence/semantic-native-v15-cached-probe-plan-20260929`.
-It has not loaded the model or scored the cached arm. The probe records
-full-prefix, grouped, and cached scores, winners, and elapsed time without
-granting promotion authority.
+An initial read-only probe inventory found seven shared-decision cases across
+the three completed fitted sources. That inventory was created in a checkout
+whose fit-bound code differed from the training receipt, so its saved plan
+under `/Users/bryan/.aura/rlc-evidence/semantic-native-v15-cached-probe-plan-20260929`
+is **not qualification evidence**. The probe now refuses both fit and residual
+implementation drift before plan creation. A new plan and model measurement
+must run from the source-matched checkout after the current campaign releases
+the lane. It will record full-prefix, grouped, and cached scores, winners, and
+elapsed time without granting promotion authority.
 Before using the cached path in a candidate campaign, compare its decision
 scores, selected programs, and elapsed time against full-prefix execution on
 the same 27B checkpoint and sources. Then run the matched reference screen and

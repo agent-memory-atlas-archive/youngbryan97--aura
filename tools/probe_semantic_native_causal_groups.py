@@ -190,6 +190,14 @@ def cached_probe_metrics(measured):
     }
 
 
+def require_source_matched_fit(training, residual, *, root=ROOT):
+    drift = sorted(name for name, sha in training["implementation"].items()
+        if not (root / name).is_file()
+        or hashlib.sha256((root / name).read_bytes()).hexdigest() != sha)
+    if drift or residual["current_implementation_drift"]:
+        raise ValueError("causal probe requires source-matched fit and residual implementation")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--training-directory", type=Path, required=True)
@@ -205,6 +213,7 @@ def main():
 
     training, _selected = selected_checkpoint(args.training_directory)
     residual = verify_residual(args.residual_calibration, args.training_directory)
+    require_source_matched_fit(training, residual)
     generation, cases = replay_case_inventory(args.generation_directory, training, args.sources)
     if (generation["residual_calibration"]["report_receipt_sha256"] != residual["report_receipt_sha256"]
             or generation["residual_calibration"]["selected_scale"] != residual["selected_scale"]):
