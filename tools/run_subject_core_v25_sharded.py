@@ -44,7 +44,7 @@ SHARED = (
 #: Flags that are on or off, passed the same way. `fail_fast` among them, so a
 #: worker that finds an undecided cut stops its siblings through the shard
 #: directory and a failing carrier run ends in minutes rather than days.
-SHARED_FLAGS = ("allow_degraded", "v5", "fail_fast", "skip_grain", "whiten")
+SHARED_FLAGS = ("allow_degraded", "v5", "fail_fast", "skip_grain", "whiten", "grain_claims")
 
 
 def _cores_this_run_has() -> int:
@@ -152,6 +152,10 @@ def main() -> int:
     parser.add_argument("--fail-fast", action="store_true", help="the most lopsided cuts first; every worker stops at the first undecided cut")
     parser.add_argument("--skip-grain", action="store_true", help="take the experimenter's grain rather than learning one")
     parser.add_argument("--whiten", action="store_true", help="count neighbours in Mahalanobis distance")
+    parser.add_argument(
+        "--no-grain-claims", dest="grain_claims", action="store_false",
+        help="let the coordinator learn the grain alone, as before 29 September",
+    )
     parser.add_argument("--hours", type=float, default=24.0,
                         help="the bound on every process, and on the coordinator's wait for shards")
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core_v25_sharded")
