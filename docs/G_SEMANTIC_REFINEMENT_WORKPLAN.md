@@ -10,15 +10,18 @@ expansion and fresh transfer. It adds no new master-ledger identifiers.
 
 ## Current promotion path, 2026-09-28
 
-One v7 candidate follows the stages below in order. The model-active fit is
-running detached from its frozen source checkout. Mechanical checks of the
-grammar, evaluator, and verifier have passed; neither micro-probe has generated
-a v7 outcome yet. These are different evidence classes.
+One v7 candidate follows the stages below in order. The model-active fit
+finished and its source-only residual was independently replayed. The first
+three-request fitted reference arm generated three exact procedures and
+answers; its baseline arm stopped without a row under the original time bound.
+A source-matched one-request grouped replay matched the individual scorer.
+The [recovery record](evidence/G03_V7_CAUSAL_GROUP_RECOVERY_2026-09-29.md)
+separates those observations from the fresh grouped micro campaign now running.
 
 | Stage | Current state | Required result before advancing |
 | --- | --- | --- |
-| Fit and independent replay | Running | Complete source-only schedule, exact model/source identities, checked weights, and replayed calibration selection. No held answers used to select a checkpoint. |
-| Three unseen-construction requests | Not run | The [frozen target-blind protocol](evidence/G04_V7_TARGET_BLIND_MICRO_PROTOCOL_2026-09-28.md), with fitted, base, and fitted source-erasure arms. Report all three interpretations and controls individually. |
+| Fit and independent replay | Complete for source-only selection | Complete source-only schedule, exact model/source identities, checked weights, and replayed calibration selection. No held answers used to select a checkpoint. |
+| Three unseen-construction requests | Fitted arm 3/3; controls incomplete | The [frozen target-blind protocol](evidence/G04_V7_TARGET_BLIND_MICRO_PROTOCOL_2026-09-28.md), with fitted, base, and fitted source-erasure arms. Report all three interpretations and controls individually. |
 | Nine relation controls | Not run | The [mechanism micro-probe](evidence/G04_V7_RELATION_MECHANISM_MICRO_PROTOCOL_2026-09-28.md) reuses the three reference results and tests paraphrase invariance, role reversal, and dependency changes. All nine must recover the intended graph and public value, with no forced completion. |
 | Six retained development requests | Not run | The [frozen source-held protocol](evidence/G03_V7_MICRO_PROBE_PROTOCOL_2026-09-28.md), with the same three arms. Report baseline successes and losses, not only the fitted total. |
 | Full development bank | Not run | All three micro cohorts must be entirely exact with correct public values, zero lost baseline-exact procedures, no forced completions, complete independent verification, and at least one new exact procedure showing source dependence. Then measure all 500 development requests under frozen matched budgets. No micro outcome closes G03. |
