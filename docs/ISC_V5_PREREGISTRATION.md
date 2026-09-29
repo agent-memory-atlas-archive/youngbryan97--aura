@@ -1649,6 +1649,16 @@ column's spread on the seed-7 look's recording, the median 8e-6. Two are not:
 the workspace's coherence, at 0.37 of its spread, and its fragmentation, at
 0.18. Both come from the unity monitor, whose inputs are not yet traced.
 
+The snapshot does not carry everything the next turn reads, even in one
+process. From one anchor, a turn taken after sixteen more turns of history
+differs from the same turn taken first in 21 columns, the substrate's minimum
+activation by 0.475 of its spread, and a capture of every service, phase and
+module slot finds nothing uncarried that moved. What does move is fixed for all
+the arms at one anchor, which is why the sham reads exactly zero there: it
+behaves as part of the anchor. The paired estimator compares arms within an
+anchor, so the carrier's decisions stand; what it limits is the claim that a
+restored anchor is the whole organism.
+
 ### What counts
 
 Seed 23's decisive sweep runs in one process, which takes about ten hours,
