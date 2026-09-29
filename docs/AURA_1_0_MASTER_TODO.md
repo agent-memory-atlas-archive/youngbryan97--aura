@@ -1319,6 +1319,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Six-scale calibration ceiling](evidence/G03_RESIDUAL_SCALE_ORACLE_CEILING_2026-09-29.md)
+  finds 112/185 exact at the selected scale, at most 120/185 with an oracle
+  scale per source and 126/185 per decision. Ninety teacher decisions never
+  rank correctly at any measured scale, 78 of them references. This is a
+  source-only diagnostic, not a generated gain or a G03 closure.
   [Verified-row budget frontier](evidence/G03_NATIVE_BUDGET_FRONTIER_2026-09-29.md)
   replays the three fitted reference requests exactly at 16 rather than 256
   search nodes. It is a faster retrospective screening basis, not a matched

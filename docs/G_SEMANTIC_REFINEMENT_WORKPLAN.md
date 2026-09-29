@@ -46,6 +46,10 @@ The [cached grouped scorer](evidence/G03_CACHED_GROUPED_SEARCH_2026-09-29.md)
 is a separate opt-in compute path. Small-model checks establish bounded score
 agreement; it still needs real-27B ranking and timing checks before a new
 candidate can use it.
+The [six-scale oracle audit](evidence/G03_RESIDUAL_SCALE_ORACLE_CEILING_2026-09-29.md)
+bounds the existing source-calibration evidence: even a target-aware scale
+choice per decision reaches only 126/185 exact teacher paths. The next fit
+must improve reference-conditioned ranking, not only scale selection.
 The verified baseline arm completed at one exact procedure and answer among
 three. Paired retrospective replay has fitted 3/3 versus base 0/3 at 16 nodes
 and fitted 3/3 versus base 1/3 at 256. The source-erasure arm is still needed
