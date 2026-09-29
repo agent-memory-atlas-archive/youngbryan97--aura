@@ -441,6 +441,49 @@
         "name": "tests/test_runtime_health_contract.py",
         "why": "Decides 'no false health': the contract fails closed on a critical liveness failure or a missing liveness method, refuses to report a shutting-down runtime healthy, and separates degraded from failed. Memory and thermal bounds, crash taxonomy, rollback and failure injection are not decided by it."
       }
+    ],
+    "IIT-BASELINE-INTEGRITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_whole_system_phi_live_artifact.py",
+        "why": "Decides the clauses about naming what the artifact measured: an organ_host report must say it is not the full live mind and name the 32B cortex it left out; a positive verdict needs enough surrogates for its p to be resolvable, where 20 gives a floor of 0.048; a run whose every interventional row was rejected at projection fails; the report must say the Gaussian rail reads no interventions; and the live_api mode carries a zero-intervention contract, so it cannot pass as a causal run. It does not decide the candidate, observed and retained channel counts, the regenerated replay at adequate power, or the exact-app protocol that replaces live_api."
+      }
+    ],
+    "IIT-STATISTICS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_the_interventional_line_runs_to_its_preregistered_design.py",
+        "why": "Decides the pinning and sequential-stopping clauses for the interventional line: the looks are fixed before a run and the level is divided among them, a sweep at any other design does not count, the design's fingerprint moves when any part of it does, and the line passes only when all 511 cuts are decided, an intersection whose error is bounded by one cut's level with no correction across cuts. It does not decide power or sample-size calculations, equivalence margins, competitor bounds, or uncertainty from run to run across seeds."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_cut_is_read_by_where_it_moved_her.py",
+        "why": "Decides the estimand for one cut: identical arms read nothing, a real displacement is decided at 32 anchors, a cut arm that is only another fork is decided at no more than the level, and rewriting the state in other coordinates changes nothing. The lower bound is a bootstrap over anchors, so dependence within an anchor is kept."
+      }
+    ],
+    "IIT-COMPLEX-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_the_carrier_is_measured_not_assumed.py",
+        "why": "Decides the exclusion clauses over overlapping candidates of the declared domains: a candidate dominated by an overlapping one leaves the frontier, disjoint candidates do not exclude each other, two spectra that cross are both kept rather than a tie being broken, an open or feedforward candidate is no carrier however large its rate, and a screened sweep never reads as irreducible and says how many cuts it skipped, which is the restricted conclusion an incomplete search earns. It does not decide spatial, temporal or discretization grains as candidates, certified pruning bounds, near-tie sensitivity, or recursive condensation."
+      }
+    ],
+    "MQ-18": [
+      {
+        "kind": "test",
+        "name": "tests/test_an_unsupported_claim_costs_a_sentence_not_the_reply.py",
+        "why": "Decides the false-positive case for her own operating condition: a sentence claiming a condition nothing measured, such as that everything is running smoothly, is cut from the reply and nothing is left of it, while the measured answer beside it and a grounded reply stay exactly as written."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_claim_cannot_outrun_its_measurement.py",
+        "why": "Decides the experience family at the registry: a statement in phenomenal language cannot be registered above functional-only evidence, in word or phrase form, and its functional restatement can. It records neither answer to whether a state is felt as measured."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_quoted_output_needs_an_executor.py",
+        "why": "Decides the causality and authorship family for results: output quoted as the result of a run is unfounded unless an executor that could have produced it left a receipt, and a receipt from an unrelated tool cannot vouch for it. None of the three decides the identity, location, continuity or preference families, or that an abstention names the evidence that would resolve it."
+      }
     ]
   }
 }
