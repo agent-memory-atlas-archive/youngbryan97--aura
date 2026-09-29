@@ -14,8 +14,9 @@ from typing import Any
 class _PlacesHerself:
     """Lifted whole out of _UnderstandsThePage; see sovereign_browser_understanding.py."""
 
-    @staticmethod
+    @classmethod
     def _how_the_options_are_laid_out(
+        cls,
         options: list[Mapping[str, Any]],
     ) -> str:
         """What is on screen for one question, as layout rather than meaning.
@@ -61,8 +62,19 @@ class _PlacesHerself:
             run = runs[0]
             left = " ".join(asks[: run.start()].split()).strip()
             right = " ".join(asks[run.end() :].split()).strip()
+            ends = cls._the_ends_the_page_names(options)
             if left and right:
                 facts.append(f"laid out between \"{left}\" and \"{right}\"")
+            elif ends is not None and (left or right):
+                # The scale is above the run rather than beside it, which is how
+                # a grid of statements is printed: one statement to a row and one
+                # heading over the whole column of them. Read as "words on one
+                # side only" this was no shape at all, and twenty-eight items of
+                # a sixty-item instrument went unplaced.
+                facts.append(
+                    f"a statement \"{left or right}\" answered on a scale "
+                    f"running from \"{ends[0]}\" to \"{ends[1]}\""
+                )
             elif left:
                 facts.append(f"laid out after \"{left}\"")
             elif right:
@@ -70,6 +82,102 @@ class _PlacesHerself:
         elif runs:
             facts.append("each set out beside its own words")
         return ", ".join(facts)
+
+    @staticmethod
+    def _the_ends_the_page_names(
+        options: list[Mapping[str, Any]],
+    ) -> tuple[str, str] | None:
+        """The words above the two ends of a run, where the page puts them there.
+
+        A control's own column is what a person reads off a grid, and the
+        observer carries it. The ends are the first and last columns that have
+        words in them; a run whose ends are unlabelled is not a named scale and
+        this says so rather than inventing one.
+        """
+        labelled = [
+            (place, " ".join(str(option.get("column") or "").split()))
+            for place, option in enumerate(options)
+        ]
+        words = [(place, said) for place, said in labelled if said]
+        if len(words) < 2:
+            return None
+        first, low = words[0]
+        last, high = words[-1]
+        if first != 0 or last != len(options) - 1 or low.lower() == high.lower():
+            return None
+        return low, high
+
+    @classmethod
+    def _a_statement_on_a_named_scale(
+        cls, options: list[Mapping[str, Any]]
+    ) -> tuple[str, str, str] | None:
+        """The statement and the two ends, for a run whose scale is above it."""
+        laid_out = cls._how_the_options_are_laid_out(options)
+        found = re.search(
+            r'a statement "(.+?)" answered on a scale running from "(.+?)" to "(.+?)"',
+            laid_out,
+        )
+        if found is None:
+            return None
+        return found.group(1), found.group(2), found.group(3)
+
+    def _a_grid_of_statements(
+        self, questions: list[tuple[str, list[Mapping[str, Any]]]]
+    ) -> dict[str, tuple[int, Any, str, str] | None]:
+        """Every statement on one scale, measured together, keyed by its group.
+
+        A column of statements under a single heading is one question asked many
+        times, and it cannot be read a row at a time: a row on its own has no
+        second side to be weighed against, and which end of the run means yes
+        belongs to the heading rather than to the row. So the rows that share a
+        scale are measured as the set they are, and each comes back placed on the
+        run the page printed.
+
+        Returns a reading per group in the same shape the per-question reader
+        returns, so nothing downstream knows which of them measured it. Groups
+        that are not part of a grid are absent, and the caller reads them the
+        ordinary way.
+        """
+        from .sovereign_browser_understanding import record_degradation
+
+        try:
+            from core.self.where_i_stand import where_she_stands_on_a_grid
+        except ImportError as exc:
+            record_degradation("sovereign_browser.where_i_stand", exc, severity="debug")
+            return {}
+        # Grouped by the scale they are printed under: two grids on one screen
+        # are two sets, each with its own ends and its own direction.
+        grids: dict[tuple[str, str], list[tuple[str, str, list[Mapping[str, Any]]]]] = {}
+        for group, options in questions:
+            shape = self._a_statement_on_a_named_scale(options)
+            if shape is None:
+                continue
+            statement, low, high = shape
+            grids.setdefault((low, high), []).append((group, statement, options))
+        readings: dict[str, tuple[int, Any, str, str] | None] = {}
+        for (low, high), rows in grids.items():
+            if len(rows) < 2:
+                # One row is not a grid, and a scale's direction read off a
+                # single statement is wrong about one time in twenty.
+                continue
+            try:
+                leans = where_she_stands_on_a_grid(
+                    [statement for _group, statement, _options in rows], low, high
+                )
+            except (RuntimeError, ValueError, TypeError, OSError) as exc:
+                record_degradation(
+                    "sovereign_browser.grid",
+                    exc,
+                    severity="warning",
+                    action="left a grid of statements open and answered the rest",
+                )
+                continue
+            for (group, _statement, options), lean in zip(rows, leans, strict=False):
+                index = lean.position_in(len(options))
+                readings[group] = (
+                    None if index is None else (index, lean, low, high)
+                )
+        return readings
 
     def _measure_where_she_stands(
         self, options: list[Mapping[str, Any]]

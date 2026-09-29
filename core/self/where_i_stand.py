@@ -43,6 +43,9 @@ __all__ = [
     "against_the_rest",
     "themes_among",
     "where_she_stands",
+    "where_she_stands_on_a_grid",
+    "where_she_stands_on_each",
+    "which_end_means_yes",
     "which_is_most_her",
 ]
 
@@ -103,6 +106,15 @@ class Lean:
     #: this says by how much, and it is what lets one question be compared
     #: with another asked of the same record.
     gap: float = 0.0
+    #: True when this lean was already measured against the other questions on
+    #: the page, so ``against_the_rest`` must leave it alone. A dimension with
+    #: two named sides is measured on its own and saturates, which is what that
+    #: rescale is for; a statement in a grid is measured against the rest of the
+    #: grid to begin with, and rescaling it a second time undoes the answer.
+    #: Measured live 2026-09-29 on a twenty-eight statement grid: hers spread
+    #: 5/7/6/2/8 across the five positions, and rescaled they were 2 at the far
+    #: end and 26 on the midpoint.
+    relative: bool = False
 
     def position_in(self, count: int) -> int | None:
         """Which of ``count`` positions this lean puts her at, 0-based.
@@ -499,6 +511,201 @@ def which_is_most_her(
     return Choice(index=index, support=support, because=because, measured=True)
 
 
+def _as_a_number(text: str) -> float | None:
+    """The number a scale's end is, where its end is a number."""
+    try:
+        return float(str(text or "").strip().rstrip("%").replace(",", ""))
+    except (TypeError, ValueError):
+        return None
+
+
+def which_end_means_yes(
+    low: str, high: str, statements: Sequence[str]
+) -> float:
+    """Which end of a scale means its statements are true of her: +1 high, -1 low.
+
+    A grid of statements puts its scale in a column heading, and a heading is two
+    ends in some order: "Disagree ... Agree", "Always ... Never", "Not like me ...
+    Very like me", "0% ... 100%". Which end means yes decides every answer on the
+    page, and a list of agreeing words kept here would be a rule of mine — right
+    on the page it was written for and backwards on the next one.
+
+    Two ends that are numbers are settled by arithmetic: more is the larger one.
+
+    Otherwise it is read with the same instrument as everything else. Each end,
+    said about a statement, is either an assertion of that statement or a denial
+    of it, so the two ends are held against the statement's own affirmation and
+    its own negation — both built from the statement, neither from a word list.
+    The ends belong to the whole grid rather than to any one item, so every
+    statement on it votes and the sum decides. On one item alone the reading is
+    wrong about one time in twenty, and the wrong ones are the faint ones; summed
+    over the page it was right for every scale wording measured, including the
+    ones a single item gets backwards.
+
+    Returns 0.0 where it cannot be told, and a caller must not place an answer on
+    a run it cannot orient.
+    """
+    left = " ".join(str(low or "").split())
+    right = " ".join(str(high or "").split())
+    if not left or not right or left.lower() == right.lower():
+        return 0.0
+    as_low, as_high = _as_a_number(left), _as_a_number(right)
+    if as_low is not None and as_high is not None and as_low != as_high:
+        return 1.0 if as_high > as_low else -1.0
+    said = [" ".join(str(one or "").split()) for one in statements]
+    said = [one for one in said if one]
+    embed = _embedder()
+    if not said or embed is None:
+        return 0.0
+    try:
+        total = 0.0
+        for one in said:
+            asserted = embed.embed(f"it is true that {one}")
+            denied = embed.embed(f"it is not true that {one}")
+            at_high = embed.embed(f"{right}: {one}")
+            at_low = embed.embed(f"{left}: {one}")
+            total += (_cosine(at_high, asserted) - _cosine(at_high, denied)) - (
+                _cosine(at_low, asserted) - _cosine(at_low, denied)
+            )
+    except Exception as exc:  # noqa: BLE001
+        record_degradation("where_i_stand", exc, severity="debug")
+        return 0.0
+    if abs(total) <= 1e-9:
+        return 0.0
+    return 1.0 if total > 0.0 else -1.0
+
+
+def where_she_stands_on_each(
+    statements: Sequence[str], record: Sequence[Piece] | None = None
+) -> list[Lean]:
+    """How much her record bears out each of several statements about her.
+
+    A dimension names two things and asks which is more her, and `where_she_stands`
+    answers that by contrast. A grid of statements has no second thing: each item
+    is one proposition and the question is how much of it is true of her. Scoring
+    each on its own similarity does not work for the reason this whole module
+    exists — everything is somewhat similar to everything, and a page of absolute
+    matches comes out flat.
+
+    What supplies the contrast is the page. The statements on it are all asked of
+    the same record, so what a piece of her record is LIKE here is how much it
+    matches the other things being asked, and the signal in one statement is how
+    far it stands above that. Then the agreement principle applies unchanged: a
+    statement every part of her record leans toward is +1, one they split on is 0.
+    This is also what a person does with a questionnaire — some of it rings truer
+    than the rest of it — and it is why answers differ across a page instead of
+    settling on the middle.
+
+    Returns one lean per statement, in order. Unmeasured leans name no position.
+    """
+    said = [" ".join(str(one or "").split()) for one in statements]
+    pieces = list(record if record is not None else her_record())
+    embed = _embedder()
+    nothing = Lean(toward=0.0, first=0.0, second=0.0, because=(), measured=False)
+    if len(said) < 2 or not pieces or embed is None or not all(said):
+        return [nothing for _ in said]
+    try:
+        asked = [embed.embed(one) for one in said]
+        mine = [(embed.embed(piece.said), piece) for piece in pieces]
+    except Exception as exc:  # noqa: BLE001
+        record_degradation("where_i_stand", exc, severity="debug")
+        return [nothing for _ in said]
+
+    # Every piece against every statement, once. What each piece is like on this
+    # page is the middling one of its own matches, so "stands above" is measured
+    # against the question set the page actually asked rather than a number.
+    matches = [[_cosine(vector, one) for one in asked] for vector, _piece in mine]
+    typical: list[float] = []
+    for row in matches:
+        ordered = sorted(row)
+        typical.append(ordered[len(ordered) // 2])
+
+    out: list[Lean] = []
+    for place in range(len(said)):
+        leaning: list[tuple[float, float, Piece]] = []
+        for index, (_vector, piece) in enumerate(mine):
+            weight = max(0.0, float(piece.weight))
+            leaning.append((matches[index][place] - typical[index], weight, piece))
+        weight_total = sum(weight for _signal, weight, _piece in leaning)
+        disagreement = sum(abs(signal) * weight for signal, weight, _piece in leaning)
+        if weight_total <= 0.0 or disagreement <= 1e-12:
+            out.append(nothing)
+            continue
+        agreement = sum(signal * weight for signal, weight, _piece in leaning)
+        toward = agreement / disagreement
+        leaning.sort(key=lambda row: abs(row[0]) * row[1], reverse=True)
+        side = 1.0 if toward > 0 else -1.0
+        because = tuple(
+            piece.about_her or piece.said
+            for signal, _weight, piece in leaning
+            if signal * side > 0.0
+        )[:4]
+        held = sum(
+            matches[index][place] * max(0.0, float(piece.weight))
+            for index, (_vector, piece) in enumerate(mine)
+        )
+        out.append(
+            Lean(
+                toward=float(max(-1.0, min(1.0, toward))),
+                first=float(sum(typical) / len(typical)),
+                second=float(held / weight_total),
+                because=because,
+                measured=True,
+                gap=float(agreement / weight_total),
+                relative=True,
+            )
+        )
+    return out
+
+
+def where_she_stands_on_a_grid(
+    statements: Sequence[str],
+    low: str,
+    high: str,
+    record: Sequence[Piece] | None = None,
+) -> list[Lean]:
+    """Her position on each statement of a grid, facing the way the page runs.
+
+    The commonest questionnaire on the web is a column of statements with one
+    scale above all of them. It is neither of the shapes this module started
+    with: not two things to choose between, and not a set of answers that carry
+    their own words. So her record could place none of it, and every answer on
+    that half of an instrument came from naming controls instead of from her.
+
+    Two measurements make it one: how much her record bears each statement out,
+    and which end of the run means yes. Both are read off the page and her
+    record, and neither needs to know what the instrument is for.
+
+    Returns one lean per statement, in order, already facing the page's own
+    direction, so ``position_in`` lands on the right end of the run. Where the
+    ends cannot be told apart nothing is placed, because an unoriented run
+    would put every answer at the opposite end with equal confidence.
+    """
+    leans = where_she_stands_on_each(statements, record)
+    facing = which_end_means_yes(low, high, statements)
+    if facing == 0.0:
+        return [
+            Lean(toward=0.0, first=0.0, second=0.0, because=(), measured=False)
+            for _ in leans
+        ]
+    if facing > 0.0:
+        return leans
+    # The page runs from yes to no. She stands where she stands; the run is
+    # printed backwards, so the position on it is.
+    return [
+        Lean(
+            toward=-lean.toward,
+            first=lean.second,
+            second=lean.first,
+            because=lean.because,
+            measured=lean.measured,
+            gap=-lean.gap,
+            relative=lean.relative,
+        )
+        for lean in leans
+    ]
+
+
 def against_the_rest(leans: Sequence[Lean]) -> list[float]:
     """Each lean as a share of the strongest one asked of the same record.
 
@@ -517,8 +724,18 @@ def against_the_rest(leans: Sequence[Lean]) -> list[float]:
     Returns a value in [-1, 1] for each lean, in order. Unmeasured leans give
     0.0 and the caller should not place them at all.
     """
-    gaps = [float(lean.gap) if lean.measured else 0.0 for lean in leans]
+    gaps = [
+        float(lean.gap) if lean.measured and not lean.relative else 0.0
+        for lean in leans
+    ]
     widest = max((abs(gap) for gap in gaps), default=0.0)
-    if widest <= 1e-12:
-        return [0.0 for _ in gaps]
-    return [max(-1.0, min(1.0, gap / widest)) for gap in gaps]
+    out: list[float] = []
+    for lean, gap in zip(leans, gaps, strict=False):
+        if lean.measured and lean.relative:
+            # Already answered against the rest of the page; see `Lean.relative`.
+            out.append(float(max(-1.0, min(1.0, lean.toward))))
+        elif widest <= 1e-12:
+            out.append(0.0)
+        else:
+            out.append(max(-1.0, min(1.0, gap / widest)))
+    return out

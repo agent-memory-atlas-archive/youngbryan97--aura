@@ -681,6 +681,18 @@ def _pursuit_account(result: dict) -> list[str]:
         for entry in narration:
             if not isinstance(entry, dict):
                 continue
+            # Her own sentence per answer where the round produced them: the
+            # question as the page puts it, where she placed herself on it, and
+            # why. A round of eight answers has eight of these, and the
+            # round-level line below has one heading and eight control names.
+            said = [
+                " ".join(str(one).split())
+                for one in (entry.get("said") or [])
+                if str(one or "").strip()
+            ]
+            if said:
+                lines.extend(said)
+                continue
             chose = [str(choice) for choice in (entry.get("chose") or []) if choice]
             if not chose:
                 continue
@@ -774,7 +786,17 @@ def _desktop_deliverable_text(result: Any) -> str:
         # that answered most of a sixty-item questionnaire had no deliverable
         # and the reply fell back to counting steps. What she chose, and why,
         # is what happened; the page's own words are what it said back.
-        written.extend(_pursuit_account(result))
+        # An account of work she was asked to narrate is not a quotation, and
+        # the cap below is for quotations.
+        #
+        # 1,200 characters is the right size for "here is the paragraph I wrote
+        # into your file". An instrument of sixty items answered as herself is
+        # sixty sentences, and the cap kept three of them: LIVE 2026-09-29, the
+        # reply ended mid-word inside her reason for the third round, with her
+        # verdict, twenty-nine answers and the result all cut. How long the
+        # account runs is set by how many questions the page asked, which is the
+        # request. Each line in it is bounded where it is written.
+        return "\n\n".join(_pursuit_account(result)).strip()
     if not written:
         return ""
     body = "\n\n".join(written).strip()

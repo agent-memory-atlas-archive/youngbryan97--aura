@@ -18,6 +18,7 @@ from typing import Any
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import optional_service
+from core.runtime.structured_input import A_CLOSED_QUESTIONS_FLOOR
 
 from .sovereign_browser_understanding_scale import _PlacesHerself
 
@@ -612,6 +613,20 @@ class _UnderstandsThePage(_PlacesHerself):
                 max_tokens=most_tokens or self.DECISION_MAX_TOKENS,
                 temperature=0.2 if shaped else 0.4,
                 _non_chat_inference=True,
+                # How much room the ANSWER needs, declared, because a reasoning
+                # model charges its thinking to the same budget.
+                #
+                # Without this the private channel is neither opened nor bounded:
+                # the model reasons anyway, in the answer, and the budget is gone
+                # before it concludes. LIVE 2026-09-29, the verdict on her own
+                # result — the thing the person asked for — decoded all 900 tokens
+                # it was given and returned ten characters, "Okay. Here", and the
+                # reply fell back to reciting the rounds. Declared, the decoder
+                # closes the channel at its bound and the reserve is bought on top,
+                # so what she is asked for is what the budget pays for.
+                user_surface_completion_floor=max(
+                    self._ROOM_AN_ANSWER_NEEDS, int(most_tokens or self.DECISION_MAX_TOKENS)
+                ),
                 **(
                     {"schema": self._DECISION_SCHEMA, "output_shape": "json_object"}
                     if shaped
@@ -928,6 +943,14 @@ class _UnderstandsThePage(_PlacesHerself):
     #: The most one decision about a page may write.
     DECISION_MAX_TOKENS = 900
 
+    #: The smallest budget that counts as a declared answer, rather than a closed
+    #: question answered once. Below `A_CLOSED_QUESTIONS_FLOOR` the runtime reads
+    #: a floor as "nothing here is being worked out" and leaves the model's
+    #: private channel unbounded, which is the state that returned ten characters
+    #: out of nine hundred tokens. Taken from the runtime's own constant rather
+    #: than chosen, so the two cannot drift apart.
+    _ROOM_AN_ANSWER_NEEDS = A_CLOSED_QUESTIONS_FLOOR + 1
+
     #: Who is asking, for every model call a page makes. With no origin, a call
     #: from the owner's turn was served as a reply to the owner: LIVE 27 Sep
     #: 04:15 the decisions went down the user-facing path, which rebuilt the
@@ -1041,6 +1064,30 @@ class _UnderstandsThePage(_PlacesHerself):
 
         return str(generation_metadata_of(reply).get("endpoint") or "")
 
+    @staticmethod
+    def _the_column_reads(options: list[Mapping[str, Any]], index: int) -> str:
+        """The scale's own words for the position she chose.
+
+        The column above it where the page labels that column, and otherwise
+        where it falls between the two nearest labelled ones — which is how a
+        person reads a five-dot row headed only at Disagree, Neutral and Agree.
+        """
+        words = [
+            " ".join(str(option.get("column") or "").split()) for option in options
+        ]
+        here = words[index] if 0 <= index < len(words) else ""
+        if here:
+            return here
+        before = next(
+            (words[place] for place in range(index - 1, -1, -1) if words[place]), ""
+        )
+        after = next(
+            (words[place] for place in range(index + 1, len(words)) if words[place]), ""
+        )
+        if before and after:
+            return f'between "{before}" and "{after}"'
+        return before or after or f"{index + 1} of {len(options)}"
+
     @classmethod
     def _an_answer_in_words(
         cls, options: list[Mapping[str, Any]], index: int, why: str
@@ -1072,11 +1119,19 @@ class _UnderstandsThePage(_PlacesHerself):
         if not labelled:
             laid_out = cls._how_the_options_are_laid_out(options)
             between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
+            ends = cls._the_ends_the_page_names(options)
             if between:
                 picked = (
                     f"{picked}, between \"{between.group(1)}\" and "
                     f"\"{between.group(2)}\""
                 )
+            elif ends is not None:
+                # A grid names its scale above the run, and the word above the
+                # dot she chose is what she said. "4 of 5" alone tells a watcher
+                # where a dot is and nothing about the answer. A grid usually
+                # labels some of its columns and not all of them, so a dot with
+                # no word of its own is said by the two that flank it.
+                picked = f"{picked}, {cls._the_column_reads(options, index)}"
         said = f"{question} \u2014 {picked}" if question else picked
         why = " ".join(why.split())
         return f"{said}. {why}" if why else said
@@ -1115,21 +1170,33 @@ class _UnderstandsThePage(_PlacesHerself):
         # way is what stops eight questions competing for a cortex that serves
         # one at a time, and it is also the honest order: the position comes
         # from her record, and the thinking is about what the position means.
+        asked_now = list(open_questions[: self.PURSUE_PARALLEL_ITEMS])
+        # A grid of statements is measured as a grid, because that is what it is.
+        #
+        # One statement on an agree scale has no second thing to be weighed
+        # against, so the per-question reader can make nothing of it; the whole
+        # column of them supplies the contrast, and the scale's direction is a
+        # property of the page rather than of any one row. Measured together
+        # before anything else, then merged back in the page's own order.
+        on_a_grid = await asyncio.to_thread(self._a_grid_of_statements, asked_now)
         measured: list[dict[str, Any]] = []
-        for group, options in open_questions[: self.PURSUE_PARALLEL_ITEMS]:
+        for group, options in asked_now:
             # One question her record cannot be read against is one question
             # left open, and said so. It used to be the whole screen: the
             # first raise out of this loop discarded every answer before it.
-            try:
-                reading = await asyncio.to_thread(self._measure_where_she_stands, options)
-            except (RuntimeError, ValueError, TypeError, KeyError, IndexError, OSError) as exc:
-                record_degradation(
-                    "sovereign_browser.question",
-                    exc,
-                    severity="warning",
-                    action=f"left question {group} open and answered the rest",
-                )
-                continue
+            if group in on_a_grid:
+                reading = on_a_grid[group]
+            else:
+                try:
+                    reading = await asyncio.to_thread(self._measure_where_she_stands, options)
+                except (RuntimeError, ValueError, TypeError, KeyError, IndexError, OSError) as exc:
+                    record_degradation(
+                        "sovereign_browser.question",
+                        exc,
+                        severity="warning",
+                        action=f"left question {group} open and answered the rest",
+                    )
+                    continue
             if reading is None:
                 continue
             index, lean, first, second = reading
@@ -1169,6 +1236,7 @@ class _UnderstandsThePage(_PlacesHerself):
                         because=lean.because,
                         measured=lean.measured,
                         gap=lean.gap,
+                        relative=lean.relative,
                     )
                     placed = item["lean"].position_in(item["count"])
                     if placed is not None:

@@ -1108,6 +1108,21 @@ class PhantomBrowser(_ActsOnThePage):
             if (parseFloat(style.opacity || '1') === 0 && !isFormControl(el)) return false;
             const rect = el.getBoundingClientRect();
             if (rect.width <= 1 || rect.height <= 1) return false;
+            // How far down the document a control sits does not decide whether
+            // it exists. This window — four viewport heights, nothing above the
+            // fold — was written to bound a long page of scenery, and it bounded
+            // the form instead: LIVE 2026-09-29, openpsychometrics.org OEJTS
+            // page one holds sixty questions in three hundred radios, and the
+            // observer returned thirty-two groups. Items 33 to 60 were below the
+            // window and were never offered; as she answered and the page
+            // scrolled, the ones she had passed fell off the top. What a watcher
+            // saw was a questionnaire answered in scroll order with holes in it.
+            //
+            // So the window is for scenery, like the opacity test above it. A
+            // control is carried wherever the document puts it, because that is
+            // what it means for a page to be asking sixty questions, and what
+            // any one decision is OFFERED is ranked and bounded downstream.
+            if (isFormControl(el)) return true;
             if (rect.bottom < 0 || rect.top > (window.innerHeight * 4)) return false;
             return true;
         };
@@ -1239,6 +1254,7 @@ class PhantomBrowser(_ActsOnThePage):
             walk(box);
             const asks = parts.join(' ').slice(0, 240);
             let heading = '';
+            let headingRow = null;
             const row = box.tagName === 'TR' ? box : box.closest('tr');
             const table = row ? row.closest('table') : null;
             if (table) {
@@ -1246,7 +1262,33 @@ class PhantomBrowser(_ActsOnThePage):
                 for (let j = rows.indexOf(row) - 1; j >= 0; j--) {
                     if (rows[j].querySelector('input, select, textarea, button')) continue;
                     const words = (rows[j].innerText || '').replace(/\s+/g, ' ').trim();
-                    if (words) { heading = words.slice(0, 160); break; }
+                    if (words) { heading = words.slice(0, 160); headingRow = rows[j]; break; }
+                }
+            }
+            // The words in each control's OWN column, which is what a person
+            // reads off a grid.
+            //
+            // The heading above a grid of statements carries the scale —
+            // "Disagree   Neutral   Agree" — and collapsing the row to one
+            // string throws away which end is which. So a run of unlabelled
+            // controls under it could only be read as a scale when the page
+            // also put words on both SIDES of the run, and a Likert grid puts
+            // them on top instead. LIVE 2026-09-29: openpsychometrics.org OEJTS
+            // part two, twenty-eight statements on a five-point agree scale,
+            // and her record could place none of them — every answer on that
+            // half of the instrument came from naming controls instead.
+            //
+            // A cell's position in its row is the column. Nothing here knows
+            // what a scale is; it carries the words that sit above each choice.
+            if (headingRow && row && row.cells && headingRow.cells) {
+                const cells = Array.from(row.cells);
+                for (const i of indices) {
+                    const cell = nodes[i].closest('td, th');
+                    const at = cell ? cells.indexOf(cell) : -1;
+                    if (at < 0 || at >= headingRow.cells.length) continue;
+                    const words = (headingRow.cells[at].innerText || '')
+                        .replace(/\s+/g, ' ').trim();
+                    if (words) out[i].column = words.slice(0, 60);
                 }
             }
             for (const i of indices) {
