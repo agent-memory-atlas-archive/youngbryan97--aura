@@ -44,7 +44,7 @@ SHARED = (
 #: Flags that are on or off, passed the same way. `fail_fast` among them, so a
 #: worker that finds an undecided cut stops its siblings through the shard
 #: directory and a failing carrier run ends in minutes rather than days.
-SHARED_FLAGS = ("allow_degraded", "v5", "fail_fast", "skip_grain", "whiten")
+SHARED_FLAGS = ("allow_degraded", "v5", "fail_fast", "skip_grain", "whiten", "grain_claims")
 
 
 def _cores_this_run_has() -> int:
@@ -83,6 +83,18 @@ def thread_budget(processes: int, cores: int | None = None) -> dict[str, str]:
         "NUMEXPR_NUM_THREADS": value,
         "AURA_SUBSTRATE_TORCH_THREADS": value,
     }
+
+
+def estimator_workers(processes: int, cores: int | None = None) -> int:
+    """How many processes each run's bootstrap draws may use: its share of the cores.
+
+    A cut's decision is a thousand draws of the estimator, one core's work while
+    the rest of the host waits. Each process gets an equal share of what the
+    run's cores leave after one for the host, and the numbers do not change
+    with it (core/subject/draw_pool.py).
+    """
+    cores = _cores_this_run_has() if cores is None else int(cores)
+    return max(1, (cores - 1) // max(1, int(processes)))
 
 
 def commands(args: argparse.Namespace, base: Path) -> list[tuple[str, list[str]]]:
@@ -140,6 +152,10 @@ def main() -> int:
     parser.add_argument("--fail-fast", action="store_true", help="the most lopsided cuts first; every worker stops at the first undecided cut")
     parser.add_argument("--skip-grain", action="store_true", help="take the experimenter's grain rather than learning one")
     parser.add_argument("--whiten", action="store_true", help="count neighbours in Mahalanobis distance")
+    parser.add_argument(
+        "--no-grain-claims", dest="grain_claims", action="store_false",
+        help="let the coordinator learn the grain alone, as before 29 September",
+    )
     parser.add_argument("--hours", type=float, default=24.0,
                         help="the bound on every process, and on the coordinator's wait for shards")
     parser.add_argument("--out", type=Path, default=REPO / "artifacts" / "subject_core_v25_sharded")
@@ -161,7 +177,10 @@ def main() -> int:
     # One hash seed for every process. Each shard is its own organism and they
     # are only one sweep if they are the same organism; a set of strings
     # iterated in a different order per process is a difference nobody chose.
-    environment = {**os.environ, **thread_budget(len(plan)), "PYTHONHASHSEED": "0"}
+    environment = {
+        **os.environ, **thread_budget(len(plan)), "PYTHONHASHSEED": "0",
+        "AURA_ESTIMATOR_WORKERS": str(estimator_workers(len(plan))),
+    }
     started: list[dict[str, object]] = []
     children: list[subprocess.Popen] = []
     for name, argv in plan:
@@ -177,6 +196,7 @@ def main() -> int:
         "bound_seconds": bound,
         "thread_budget": thread_budget(len(plan)),
         "hash_seed": "0",
+        "estimator_workers": estimator_workers(len(plan)),
         "processes": started,
     }
     (base / "launch.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

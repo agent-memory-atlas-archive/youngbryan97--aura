@@ -2890,6 +2890,7 @@ _REQUEST_COVERAGE_REASONS = frozenset(
     {
         "missing_requested_exact_reply",
         "missing_requested_bare_answer",
+        "missing_requested_scale_placement",
         "missing_requested_word_count",
         "missing_requested_sentence_count",
         "missing_requested_reference_value",
@@ -6658,6 +6659,66 @@ def strip_internal_task_leak_sentences(reply_text: Any) -> str:
     # leak was most of what was said and the draft has to fail.
     if not remaining or len(remaining.split()) * 2 < len(body.split()):
         return ""
+    return remaining
+
+
+def strip_unsupported_self_condition_claims(reply_text: Any) -> str:
+    """Remove the sentences that claim an operational condition nothing measured.
+
+    Returns "" when nothing was removed or when too little is left to be an
+    answer, which is how the caller's revalidation tells a repair from a
+    rewrite.
+
+    `unsupported_self_condition_operational_claim` is a HARD reason, so a draft
+    carrying one dies whole. Asked how she felt on a scale, her cortex answered
+    "I am at 0.4, experiencing a state of calm efficiency with all systems
+    operating within nominal parameters": the number is her answer, the second
+    clause is an unmeasured claim about her machinery. On the reports run of
+    29 September that draft and 32 others died over their second half, and the
+    experiment read 0 of 24 anchors.
+
+    Deleting an unsupported claim needs no evidence; only keeping one does.
+    That is why this runs where
+    `core.self.self_condition.project_self_condition_reply` cannot: it repairs
+    the same defect with no typed projection to authorise it.
+    """
+
+    body = str(reply_text or "")
+    if not body.strip():
+        return ""
+    from core.self.self_condition import unsupported_self_condition_operational_claims
+
+    unsupported = {
+        claim.strip()
+        for claim in unsupported_self_condition_operational_claims(body)
+        if claim.strip()
+    }
+    if not unsupported:
+        return ""
+
+    # Keep the separators so rejoining cannot fuse two sentences or lose the
+    # punctuation of one that stays.
+    parts = re.split(r"(?<=[.!?])(\s+)", body)
+    kept: list[str] = []
+    removed = 0
+    for index in range(0, len(parts), 2):
+        sentence = parts[index]
+        separator = parts[index + 1] if index + 1 < len(parts) else ""
+        if sentence.strip() and sentence.strip() in unsupported:
+            removed += 1
+            continue
+        kept.append(sentence + separator)
+    if not removed:
+        return ""
+    remaining = "".join(kept).strip()
+    # No proportion rule here, unlike the sentence-level leak repair. A leak is
+    # a small thing inside a long answer, so losing most of the words means the
+    # repair became a rewrite. An unsupported claim is the other shape: "I am at
+    # 0.4. Everything is running smoothly and there are no errors in the system
+    # logs" is four words of answer and thirteen of claim, and a half-the-words
+    # line would throw the answer away to protect the reader from a clause.
+    # What decides whether the remainder still answers is the caller, which
+    # revalidates it through the same gate that rejected the draft.
     return remaining
 
 

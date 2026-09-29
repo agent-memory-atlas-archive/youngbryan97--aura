@@ -10,6 +10,7 @@ from tools.evaluate_semantic_native_checkpoint import digest
 from tools.run_semantic_native_micro_stages import (
     ROOT,
     broker_policy,
+    check_existing_plan,
     require_learned_checkpoint,
     run_stages,
     stage_jobs,
@@ -44,6 +45,8 @@ def executor(jobs, training, checkpoint, *, failed_stage=None, verification_defe
                 (ROOT / "tools/evaluate_semantic_native_grammar.py").read_bytes()).hexdigest()}
             save(directory / "plan.json", {"training_plan_sha256": training["plan_sha256"],
                 "checkpoint_receipt_sha256": checkpoint["receipt_sha256"],
+                "weight_mode": command[command.index("--weight-mode") + 1],
+                "max_seconds": float(command[command.index("--max-seconds") + 1]),
                 "implementation": implementation}, "plan_sha256")
         elif item["name"].endswith("-decode"):
             directory = Path(command[command.index("--directory") + 1])
@@ -85,6 +88,115 @@ def test_every_arm_has_the_same_frozen_budget_and_broker_invocation_bound(tmp_pa
                 assert command.count("--bundle") == 2
             else:
                 assert command[command.index("--seed") + 1] == str(int("ffffffff", 16))
+
+
+def test_micro_policy_freezes_explicit_longer_bound_into_every_arm(tmp_path):
+    jobs = stage_jobs(training_directory=tmp_path / "training",
+        fit_verification=tmp_path / "fit-verification.json", directory=tmp_path / "micro",
+        source_report=tmp_path / "source.json", bundles=["source=/source"],
+        training_plan_sha256="f" * 64, python="/python", max_seconds=14400)
+    for stage in jobs["stages"]:
+        for arm in stage["arms"]:
+            command = arm["decode"]["command"]
+            assert command[command.index("--max-seconds") + 1] == "14400"
+            assert arm["decode"]["timeout_s_max"] == 14700
+    assert all(item["max_invocations"] == 1 for item in broker_policy(jobs))
+
+
+def test_micro_policy_isolates_opt_in_causal_execution(tmp_path):
+    jobs = stage_jobs(training_directory=tmp_path / "training",
+        fit_verification=tmp_path / "fit-verification.json", directory=tmp_path / "micro",
+        source_report=tmp_path / "source.json", bundles=["source=/source"],
+        training_plan_sha256="f" * 64, python="/python",
+        decision_score_execution="causal_groups")
+    for stage in jobs["stages"]:
+        for arm in stage["arms"]:
+            command = arm["decode"]["command"]
+            assert command[command.index("--decision-score-execution") + 1] == "causal_groups"
+    with pytest.raises(ValueError, match="decision score execution"):
+        stage_jobs(training_directory=tmp_path / "training",
+            fit_verification=tmp_path / "fit-verification.json", directory=tmp_path / "micro",
+            source_report=tmp_path / "source.json", bundles=["source=/source"],
+            training_plan_sha256="f" * 64, python="/python",
+            decision_score_execution="unknown")
+
+
+@pytest.mark.parametrize("bound", [0, -1, 14401, float("inf"), float("nan"), True])
+def test_micro_policy_refuses_unbounded_or_invalid_decode_time(tmp_path, bound):
+    with pytest.raises(ValueError, match="runtime bound"):
+        stage_jobs(training_directory=tmp_path / "training",
+            fit_verification=tmp_path / "fit-verification.json", directory=tmp_path / "micro",
+            source_report=tmp_path / "source.json", bundles=["source=/source"],
+            training_plan_sha256="f" * 64, python="/python", max_seconds=bound)
+
+
+def test_micro_resume_refuses_a_different_decode_budget(tmp_path):
+    saved = tmp_path / "plan.json"
+    save(saved, {"training_plan_sha256": "train", "checkpoint_receipt_sha256": "candidate",
+                 "weight_mode": "fitted", "max_seconds": 3600., "implementation": {}}, "plan_sha256")
+    check_existing_plan(saved, training={"plan_sha256": "train"},
+                        checkpoint={"receipt_sha256": "candidate"},
+                        command=["--weight-mode", "fitted", "--max-seconds", "3600"])
+    with pytest.raises(ValueError, match="runtime bound"):
+        check_existing_plan(saved, training={"plan_sha256": "train"},
+                            checkpoint={"receipt_sha256": "candidate"},
+                            command=["--weight-mode", "fitted", "--max-seconds", "14400"])
+
+
+def test_residual_micro_policy_uses_one_source_calibration_for_every_candidate_arm(tmp_path):
+    calibration = tmp_path / "calibration"
+    jobs = stage_jobs(training_directory=tmp_path / "training",
+        fit_verification=tmp_path / "fit-verification.json", directory=tmp_path / "micro",
+        source_report=tmp_path / "source.json", bundles=["source=/source"],
+        training_plan_sha256="f" * 64, python="/python", candidate_weight_mode="residual",
+        residual_calibration=calibration)
+    for stage in jobs["stages"]:
+        for arm in stage["arms"]:
+            command = arm["decode"]["command"]
+            if Path(arm["directory"]).name == "base":
+                assert command[command.index("--weight-mode") + 1] == "base"
+                assert "--residual-calibration" not in command
+            else:
+                assert command[command.index("--weight-mode") + 1] == "residual"
+                assert command[command.index("--residual-calibration") + 1] == str(calibration)
+        command = stage["adjudicate"]["command"]
+        assert command[command.index("--residual-calibration") + 1] == str(calibration)
+
+
+def test_residual_resume_checks_baseline_and_candidate_receipts_before_decode(tmp_path):
+    training = {"plan_sha256": "train"}
+    baseline = {"receipt_sha256": "baseline"}
+    candidate = {"receipt_sha256": "candidate"}
+    base = tmp_path / "base.json"
+    save(base, {"training_plan_sha256": "train", "checkpoint_receipt_sha256": "baseline",
+                "weight_mode": "base", "implementation": {}}, "plan_sha256")
+    check_existing_plan(base, training=training, checkpoint=candidate,
+        baseline_checkpoint=baseline, command=["--weight-mode", "base"])
+    with pytest.raises(ValueError, match="candidate or code"):
+        check_existing_plan(base, training=training, checkpoint=candidate,
+            command=["--weight-mode", "base"])
+    calibration = tmp_path / "calibration"
+    residual = tmp_path / "residual.json"
+    save(residual, {"training_plan_sha256": "train", "checkpoint_receipt_sha256": "candidate",
+        "weight_mode": "residual", "implementation": {},
+        "residual_calibration": {"directory": str(calibration.resolve()),
+                                 "report_receipt_sha256": "measured"}}, "plan_sha256")
+    command = ["--weight-mode", "residual", "--residual-calibration", str(calibration)]
+    check_existing_plan(residual, training=training, checkpoint=candidate, command=command,
+        baseline_checkpoint=baseline, residual_report_receipt_sha256="measured")
+    with pytest.raises(ValueError, match="calibration"):
+        check_existing_plan(residual, training=training, checkpoint=candidate, command=command,
+            baseline_checkpoint=baseline, residual_report_receipt_sha256="other")
+
+
+@pytest.mark.parametrize("mode,calibration", [("fitted", "present"), ("residual", None),
+                                              ("other", None)])
+def test_micro_policy_rejects_unbound_candidate_modes(tmp_path, mode, calibration):
+    with pytest.raises(ValueError, match="calibration binding"):
+        stage_jobs(training_directory=tmp_path, fit_verification=tmp_path,
+            directory=tmp_path, source_report=tmp_path, bundles=[], training_plan_sha256="f" * 64,
+            python="/python", candidate_weight_mode=mode,
+            residual_calibration=None if calibration is None else tmp_path / calibration)
 
 
 def test_all_plans_are_frozen_before_decode_and_stages_advance_immediately(tmp_path):

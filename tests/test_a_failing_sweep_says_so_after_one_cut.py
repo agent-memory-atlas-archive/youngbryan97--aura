@@ -124,3 +124,21 @@ def test_a_merge_of_stopped_shards_is_a_refusal_and_not_an_error() -> None:
     assert not merged.irreducible
     with pytest.raises(ValueError):
         merge_sweeps([dict(shard, stopped_after=""), dict(sibling, stopped_after="")], cuts_in_full=7)
+
+
+def test_a_look_can_keep_the_samples_each_cut_was_decided_on(scored) -> None:
+    """Which columns a cut moved is read from its samples, which the verdict does not carry."""
+    import asyncio
+
+    kept: dict = {}
+    asyncio.run(
+        sweep_cuts_over_lags(
+            None, _anchors(16), [SimpleNamespace(name="rest")],
+            lags=(3,), frame_seconds=1.0, domains=DOMAINS, looks=(8, 16), draws=10,
+            only=("A",), kept=kept,
+        )
+    )
+    assert set(kept) == {"A|BCD"}
+    slot = kept["A|BCD"][3]
+    assert {"context", "intact", "cut", "sham_a", "sham_b"} <= set(slot)
+    assert slot["intact"].shape[0] == 8  # decided at the first look, so eight anchors

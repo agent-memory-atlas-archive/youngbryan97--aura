@@ -94,6 +94,25 @@ def verified_native_fit(training_directory, fit_verification):
     return training, checkpoint, fit
 
 
+def verified_native_candidate(training_directory, fit_verification, residual_calibration=None):
+    """Resolve the measured candidate without treating an unfitted baseline as tissue."""
+    from tools.evaluate_semantic_native_checkpoint import verified_document
+
+    training, selected, fit = verified_native_fit(training_directory, fit_verification)
+    if residual_calibration is None:
+        if type(selected.get("step")) is not int or selected["step"] <= 0:
+            raise ValueError("native micro candidate is an unfitted baseline")
+        return training, selected, fit, None
+    from tools.verify_semantic_native_residual import verify_residual
+
+    residual = verify_residual(residual_calibration, training_directory)
+    if (training["schema"] != "aura.semantic_native_fit_plan.v7" or selected["step"] != 0
+            or residual["selected_scale"] <= 0. or residual["current_implementation_drift"]):
+        raise ValueError("native micro residual has no verified source-preserving gain")
+    checkpoint = verified_document(training_directory / f"checkpoint-{residual['candidate_step']}.json")
+    return training, checkpoint, fit, residual
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--training-directory", required=True, type=Path)
@@ -101,6 +120,7 @@ def main():
     parser.add_argument("--reference-root", required=True, type=Path)
     parser.add_argument("--controls-directory", type=Path)
     parser.add_argument("--retained-root", type=Path)
+    parser.add_argument("--residual-calibration", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     from tools.compare_semantic_native_grammar_fit import compare_directories
@@ -109,7 +129,8 @@ def main():
     from tools.refit_semantic_argument_proposals import configure_refit_environment
 
     configure_refit_environment(args.output)
-    training, checkpoint, fit = verified_native_fit(args.training_directory, args.fit_verification)
+    training, checkpoint, fit, residual = verified_native_candidate(
+        args.training_directory, args.fit_verification, args.residual_calibration)
 
     def compare(root, controls=None):
         return compare_directories(fitted_directory=root / "fitted",
@@ -120,7 +141,7 @@ def main():
     from tools.evaluate_semantic_native_grammar import grammar_examples
     expected_sources = [hashlib.sha256(item.source_text.encode()).hexdigest() for item in
                         grammar_examples(dataset="natural_request", seed=reference_plan["seed"], count=3)]
-    expected = {"dataset": "natural_request", "weight_mode": "fitted",
+    expected = {"dataset": "natural_request", "weight_mode": "residual" if residual else "fitted",
                 "seed": int(training["plan_sha256"][:8], 16),
                 "source_evidence": "source_text", "search_completions": 4,
                 "search_nodes": 256, "max_steps": 8, "max_seconds": 3600.,
@@ -130,6 +151,9 @@ def main():
             or reference_plan["training_plan_sha256"] != training["plan_sha256"]
             or reference_plan["checkpoint_receipt_sha256"] != checkpoint["receipt_sha256"]):
         raise ValueError("native micro reference stage changed its frozen protocol")
+    if residual is not None and reference_plan.get("residual_calibration", {}).get(
+            "report_receipt_sha256") != residual["report_receipt_sha256"]:
+        raise ValueError("native micro residual candidate differs from source calibration")
     reference = compare(args.reference_root)
     controls = None if args.controls_directory is None else compare(args.reference_root, args.controls_directory)
     retained = None if args.retained_root is None else compare(args.retained_root)
@@ -147,10 +171,13 @@ def main():
                 or any(retained_plan["implementation"].get(path) != sha
                        for path, sha in reference_plan["implementation"].items())):
             raise ValueError("native micro retained stage changed the common protocol")
-    body = {"schema": "aura.native_micro_stage_progress.v1",
+    body = {"schema": "aura.native_micro_stage_progress.v2" if residual else
+            "aura.native_micro_stage_progress.v1",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": checkpoint["receipt_sha256"],
             "fit_verification_receipt_sha256": fit["receipt_sha256"],
+            **({"residual_calibration_report_receipt_sha256": residual["report_receipt_sha256"]}
+               if residual else {}),
             "comparison_receipts": {"reference": reference["receipt_sha256"],
                 "controls": None if controls is None else controls["receipt_sha256"],
                 "retained": None if retained is None else retained["receipt_sha256"]},

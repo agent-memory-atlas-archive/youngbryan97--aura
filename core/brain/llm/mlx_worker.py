@@ -941,6 +941,7 @@ _REQUIREMENT_SHORTFALL_REASONS = frozenset(
         "missing_requested_list_count",
         "empty_requested_list_item",
         "missing_requested_choice_clarification",
+        "missing_requested_scale_placement",
         "missing_requested_followup_question",
     }
 )
@@ -5441,6 +5442,17 @@ def _mlx_worker_loop_reasons_name_removable():
         "prompt_echo_contamination": (
             "strip_internal_task_leak_sentences",
             "remove_scaffolding_sentences_and_revalidate",
+        ),
+        # A claim about her own machinery that
+        # nothing measured. The claim is a
+        # SENTENCE beside the answer, and the
+        # reason is hard, so 33 of 96 drafts on
+        # the reports run of 29 September died
+        # over a clause while her number sat in
+        # the one before it.
+        "unsupported_self_condition_operational_claim": (
+            "strip_unsupported_self_condition_claims",
+            "remove_unsupported_condition_sentences_and_revalidate",
         ),
         "prompt_artifact": (
             "strip_prompt_artifacts",

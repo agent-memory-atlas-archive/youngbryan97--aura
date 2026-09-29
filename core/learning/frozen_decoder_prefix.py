@@ -82,7 +82,7 @@ class FrozenDecoderPrefix:
         from mlx.utils import tree_flatten
 
         for module in (self.embedding, *self.layers):
-            if module.training or tree_flatten(module.trainable_parameters()):
+            if any(child.training for child in module.modules()) or tree_flatten(module.trainable_parameters()):
                 raise ValueError("captured prefix must be frozen and in evaluation mode")
 
     def capture(self, token_ids: mx.array) -> mx.array:

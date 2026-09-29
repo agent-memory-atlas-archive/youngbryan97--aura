@@ -44,6 +44,27 @@ def capture_grammar_choices(prefix, branches, model, sequences, *, split_at, max
     return states, branches
 
 
+def score_grammar_choices(prefix, suffix, model, sequences, *, split_at, max_tokens,
+                          strategy, execution, branches):
+    """Keep the original path by default; share only proven causal decision states."""
+    if execution == "causal_groups":
+        if strategy != "full":
+            raise ValueError("native causal groups require the full-prefix path")
+        from core.learning.semantic_native_causal_groups import score_native_causal_groups
+
+        scores, receipt = score_native_causal_groups(prefix, suffix, tuple(sequences))
+        return scores, None, receipt["full_single_row_forwards"]
+    if execution != "individual":
+        raise ValueError("unknown native decision score execution")
+    from tools.train_semantic_native_program import native_loss
+
+    states, branches = capture_grammar_choices(prefix, branches, model, sequences,
+        split_at=split_at, max_tokens=max_tokens, strategy=strategy)
+    scores = tuple(-native_loss(suffix, hidden, sequence, summed=True,
+        scope="semantic_decisions").item() for hidden, sequence in zip(states, sequences, strict=True))
+    return scores, branches, None
+
+
 def select_search_proposal(search, scorer):
     """Rank every admitted graph without receiving its target or correctness."""
     scores = tuple(scorer(candidate.result.program) for candidate in search.candidates)
@@ -191,6 +212,8 @@ def main():
     parser.add_argument("--factorized-residual", type=Path,
                         help="verified source-only decision-kind parameter isolation receipt")
     parser.add_argument("--prefix-strategy", choices=("full", "trie"), default="full")
+    parser.add_argument("--decision-score-execution", choices=("individual", "causal_groups"),
+                        default="individual")
     parser.add_argument("--source-evidence", choices=("source_text", "source_token_erasure",
                                                       "source_pair_swap"),
                         default="source_text")
@@ -209,8 +232,8 @@ def main():
         parser.error("finite search node and completion bounds required")
     if args.source_offset is not None and (args.dataset not in RETAINED_DATASETS
             or args.source_offset < 0 or args.source_offset + args.canary > 500
-            or args.prefix_strategy != "full" or args.weight_mode not in {"fitted", "base"}):
-        parser.error("source windows require full-prefix retained fitted/base evaluation")
+            or args.prefix_strategy != "full" or args.weight_mode not in {"fitted", "base", "residual"}):
+        parser.error("source windows require full-prefix retained fitted/base/residual evaluation")
     if args.dataset in INTERVENTION_DATASETS | {"relation_transfer_controls"} and args.seed is None:
         parser.error("operation interventions require an explicit frozen seed")
     if args.dataset in RETAINED_DATASETS:
@@ -221,12 +244,17 @@ def main():
     if args.prefix_strategy == "trie" and (args.dataset not in INTERVENTION_DATASETS | RETAINED_DATASETS
             or args.search_completions):
         parser.error("native grammar trie requires intervention or retained sources and greedy decode")
-    if args.weight_mode in {"residual", "factorized"}:
-        if ((args.residual_calibration is None if args.weight_mode == "residual"
-             else args.factorized_residual is None) or args.dataset not in RETAINED_DATASETS
-                or args.prefix_strategy != "trie" or args.search_completions
-                or args.source_evidence != "source_text"):
-            parser.error("residual decode requires a retained target-blind trie cohort")
+    if args.decision_score_execution == "causal_groups" and (
+            args.prefix_strategy != "full" or not args.search_completions):
+        parser.error("native causal groups require full-prefix searched evaluation")
+    if args.weight_mode == "factorized" and (args.factorized_residual is None
+            or args.dataset not in RETAINED_DATASETS or args.prefix_strategy != "trie"
+            or args.search_completions or args.source_evidence != "source_text"):
+        parser.error("factorized decode requires a retained target-blind trie cohort")
+    if args.weight_mode == "residual" and (args.residual_calibration is None
+            or args.prefix_strategy == "trie" and (args.dataset not in RETAINED_DATASETS
+                or args.search_completions or args.source_evidence != "source_text")):
+        parser.error("residual decode needs its verified source calibration and supported cohort")
     if args.weight_mode != "residual" and args.residual_calibration is not None:
         parser.error("residual calibration belongs only to residual decode")
     if args.weight_mode != "factorized" and args.factorized_residual is not None:
@@ -240,6 +268,9 @@ def main():
     configure_refit_environment(args.directory / "report.json")
     from core.brain.llm.model_registry import get_active_cortex_spec
     training, selected = selected_checkpoint(args.training_directory)
+    if args.weight_mode == "residual" and args.prefix_strategy == "full" and (
+            training["schema"] != "aura.semantic_native_fit_plan.v7"):
+        raise ValueError("full-prefix residual decode requires a measured joint graph fit")
     scored_checkpoint = selected
     residual = None
     factorized = None
@@ -339,6 +370,8 @@ def main():
         raise ValueError("native grammar trie requires measured float32 training arithmetic")
     if args.prefix_strategy == "trie":
         paths += ("core/learning/frozen_prefix_branches.py",)
+    if args.decision_score_execution == "causal_groups":
+        paths += ("core/learning/semantic_native_causal_groups.py",)
     implementation = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in paths}
     schema_version = "v4" if args.dataset in {"definition_intervention", "equation_intervention"} else "v3"
     if args.dataset in {"role_intervention", "dependency_intervention"}:
@@ -355,6 +388,8 @@ def main():
         schema_version = "v11"
     if source_window is not None:
         schema_version = "v12"
+    if residual is not None and args.prefix_strategy == "full":
+        schema_version = "v13"
     body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": scored_checkpoint["receipt_sha256"],
@@ -374,6 +409,8 @@ def main():
             "serving_authority": False, "qualification_evidence": False}
     if args.prefix_strategy == "trie":
         body["prefix_strategy"] = "trie"
+    if args.decision_score_execution == "causal_groups":
+        body["decision_score_execution"] = "causal_groups"
     if source_basis is not None:
         body["source_cohort_basis"] = source_basis
     if source_window is not None:
@@ -440,6 +477,7 @@ def main():
                                    f"checkpoint-{scored_checkpoint['step']}.safetensors"), strict=False)
         from tools.semantic_native_execution import apply_execution
         apply_execution(model, training)
+        model.eval()
         sites = ()
         if residual is not None or factorized is not None:
             from tools.calibrate_semantic_native_residual import native_lora_sites
@@ -459,6 +497,7 @@ def main():
             search_score_transcript = []
             graph_score_input_receipts = []
             decision_parameter_scales = []
+            decision_group_forwards = []
             branches = None
             def score(choices, *, source=scored_source, source_identity=identity,
                       receipts=score_input_receipts, scales=decision_parameter_scales,
@@ -492,12 +531,12 @@ def main():
                     sequences.append(sequence)
                     input_receipts.append(native_score_input_receipt(sequence, control))
                     scored += 1
-                states, branches = capture_grammar_choices(prefix, branches, model,
-                    sequences, split_at=split, max_tokens=training["max_sequence_tokens"],
-                    strategy=args.prefix_strategy)
-                scores = tuple(-native_loss(suffix, hidden, sequence, summed=True,
-                    scope="semantic_decisions").item()
-                    for hidden, sequence in zip(states, sequences, strict=True))
+                scores, branches, group_forwards = score_grammar_choices(
+                    prefix, suffix, model, sequences, split_at=split,
+                    max_tokens=training["max_sequence_tokens"], strategy=args.prefix_strategy,
+                    execution=args.decision_score_execution, branches=branches)
+                if group_forwards is not None:
+                    decision_group_forwards.append(group_forwards)
                 receipts.append(input_receipts)
                 if args.search_completions:
                     transcript.append({"choices": [choice.value for choice in choices],
@@ -584,6 +623,8 @@ def main():
                         "target_available_to_scorer": False}
             if args.prefix_strategy == "trie":
                 row_body["prefix_execution"] = branches.receipt() if branches is not None else None
+            if args.decision_score_execution == "causal_groups":
+                row_body["decision_group_forwards"] = decision_group_forwards
             if factorized is not None:
                 row_body["decision_parameter_scales"] = decision_parameter_scales
             row = {**row_body, "receipt_sha256": digest(row_body)}
@@ -620,6 +661,10 @@ def main():
                   "qualification_evidence": False, "elapsed_seconds": time.monotonic() - started}
         if args.prefix_strategy == "trie":
             result["prefix_strategy"] = "trie"
+        if args.decision_score_execution == "causal_groups":
+            result["decision_score_execution"] = "causal_groups"
+            result["decision_group_forwards"] = sum(sum(row["decision_group_forwards"])
+                                                    for row in rows)
         if source_basis is not None:
             result["source_cohort_basis"] = source_basis
         if source_window is not None:

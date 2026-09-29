@@ -77,6 +77,25 @@ def test_residual_matches_only_its_bound_baseline_and_common_implementation():
     assert matched_generation(*residual_fixture())["candidate_weight_mode"] == "residual"
 
 
+@pytest.mark.parametrize("dataset,base_schema,window", [
+    ("natural_request", "v3", False),
+    ("relation_transfer_controls", "v11", False),
+    ("retained_validation", "v6", False),
+    ("retained_validation", "v12", True),
+])
+def test_joint_residual_matches_the_same_full_prefix_cohort(dataset, base_schema, window):
+    candidate, base, left, right = residual_fixture()
+    candidate["schema"] = "aura.semantic_native_grammar_plan.v13"
+    candidate["dataset"] = base["dataset"] = dataset
+    base["schema"] = f"aura.semantic_native_grammar_plan.{base_schema}"
+    if window:
+        candidate["source_window"] = base["source_window"] = {"offset": 0, "count": 3}
+    assert matched_generation(candidate, base, left, right)["candidate_weight_mode"] == "residual"
+    base["schema"] = "aura.semantic_native_grammar_plan.v8"
+    with pytest.raises(ValueError, match="lineage"):
+        matched_generation(candidate, base, left, right)
+
+
 @pytest.mark.parametrize("defect", ["checkpoint", "source_only", "authority", "schema", "decoder", "extra"])
 def test_residual_cannot_excuse_protocol_or_baseline_drift(defect):
     candidate, base, left, right = residual_fixture()

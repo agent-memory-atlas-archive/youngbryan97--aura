@@ -28,6 +28,7 @@ thing gone.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import math
 import os
@@ -648,6 +649,7 @@ async def sweep_cuts_over_lags(
     fail_fast: bool = False,
     stop_file: str = "",
     paired: bool = False,
+    kept: dict[str, dict[int, dict[str, np.ndarray]]] | None = None,
 ) -> dict[int, SweepReport]:
     """Every bipartition at every horizon, from one set of rollouts per cut.
 
@@ -838,6 +840,11 @@ async def sweep_cuts_over_lags(
             for name in pending:
                 await advance(name, take)
 
+    if kept is not None:
+        # The samples every scored cut was decided on, by cut and horizon, for
+        # a caller that has to see which columns a cut moved.
+        for name, store in gathered.items():
+            kept[name] = store.add({}, store.have)
     for lag in ladder:
         report = reports[lag]
         report.stopped_after = stopped_after
@@ -962,6 +969,9 @@ def merge_shard_payloads(
             raise ValueError(f"shard {payload['shard']} ran on another clock: {payload['frame_seconds']}")
         if list(payload["support"]) != list(support) or list(payload["conditions"]) != list(conditions):
             raise ValueError(f"shard {payload['shard']} tested another support or other conditions")
+    designs = {json.dumps(p.get("design") or {}, sort_keys=True) for p in payloads}
+    if len(designs) > 1:
+        raise ValueError(f"shards ran to different designs: {sorted(designs)}")
     checks = {
         str(p["shard"]): anchors_exchangeable(
             reference_anchors, np.asarray(p["anchor_states"], dtype=np.float64),

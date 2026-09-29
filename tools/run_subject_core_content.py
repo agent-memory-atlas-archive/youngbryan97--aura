@@ -42,6 +42,7 @@ import math
 import os
 import sys
 import time
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -88,6 +89,32 @@ def _out_of_noise(between: list[float], floors: list[float]) -> tuple[bool, floa
         return False, 1.0
     p_value = float(mannwhitneyu(between, floors, alternative="greater").pvalue)
     return p_value < NOISE_LEVEL, p_value
+
+
+def _save_class_samples(run_dir: Path, classes: Sequence[Any], stages: dict[str, dict[str, Any]]) -> Path:
+    """Every stage's per-class futures, retrieval sets and anchor keys, in one file."""
+    import numpy as np  # after the profile is set, like every other import here
+
+    arrays: dict[str, Any] = {}
+    for stage, samples in stages.items():
+        for index, cls in enumerate(classes):
+            rows = samples.get(cls.name)
+            if rows is None:
+                continue
+            tag = f"{stage}__{index:02d}"
+            if rows.futures:
+                arrays[f"{tag}__futures"] = np.vstack(rows.futures)
+            if rows.futures_b:
+                arrays[f"{tag}__futures_b"] = np.vstack(rows.futures_b)
+            if rows.keys:
+                arrays[f"{tag}__keys"] = np.asarray(rows.keys, dtype=np.int64)
+            arrays[f"{tag}__retrieved"] = np.asarray(
+                [json.dumps(sorted(recalled)) for recalled in rows.retrieved], dtype=object
+            )
+    arrays["class_names"] = np.asarray([cls.name for cls in classes], dtype=object)
+    target = run_dir / "class_samples.npz"
+    np.savez_compressed(target, **arrays)
+    return target
 
 
 def _authority(evidence: dict[str, Any]) -> dict[str, Any]:
@@ -372,6 +399,14 @@ async def main() -> int:
         )
         evidence["displacement_valence_dose"] = round(valence_dose, 6)
         evidence["moves_together"] = tracked.__dict__ | {"bar": AGREEMENT_BAR}
+        # The samples each geometry was read from, kept. A verdict of
+        # AGREES_BUT_DOES_NOT_TRACK says the two geometries moved in different
+        # pairs, and which of her columns carry the class structure and which
+        # move under the displacement is a question these arrays answer and the
+        # geometries do not.
+        evidence["samples_file"] = str(await asyncio.to_thread(
+            _save_class_samples, run_dir, classes, {"base": base, "moved": moved, "sham": sham}
+        ))
         _log(
             f"  moves together rho={tracked.rho} p={tracked.p_value} "
             f"floor={tracked.floor_rho}"

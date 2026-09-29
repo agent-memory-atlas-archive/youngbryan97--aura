@@ -19,11 +19,15 @@ from tools.run_semantic_native_micro_stages import check_existing_plan, job, wai
 
 
 def development_jobs(*, training_directory, fit_verification, directory, micro_root,
-                     micro_checkout, source_report, bundles, python, window_size, max_seconds):
+                     micro_checkout, source_report, bundles, python, window_size, max_seconds,
+                     candidate_weight_mode="fitted", residual_calibration=None):
     if (type(window_size) is not int or not 1 <= window_size <= 500
             or type(max_seconds) not in {int, float}
             or not math.isfinite(max_seconds) or not 0 < max_seconds <= 14400):
         raise ValueError("native development windows require fixed finite population and time bounds")
+    if ((candidate_weight_mode not in {"fitted", "residual"})
+            or (residual_calibration is None) != (candidate_weight_mode == "fitted")):
+        raise ValueError("native development candidate mode lacks its calibration binding")
     source = ["--source-report", str(source_report)]
     for bundle in bundles:
         source += ["--bundle", bundle]
@@ -40,8 +44,11 @@ def development_jobs(*, training_directory, fit_verification, directory, micro_r
         for arm in ("fitted", "base", "erasure"):
             output = root / arm
             command = [*common, "--directory", str(output), "--source-offset", str(offset),
-                       "--canary", str(count), "--weight-mode", "base" if arm == "base" else "fitted",
+                       "--canary", str(count), "--weight-mode", "base" if arm == "base"
+                       else candidate_weight_mode,
                        "--source-evidence", "source_token_erasure" if arm == "erasure" else "source_text"]
+            if residual_calibration is not None and arm != "base":
+                command += ["--residual-calibration", str(residual_calibration)]
             name = f"window-{offset:04d}-{arm}"
             plans.append(job(name + "-plan", [*command, "--plan-only"], directory, timeout=300.))
             verify = [python, str(ROOT / "tools/verify_semantic_native_grammar.py"),
@@ -60,11 +67,15 @@ def development_jobs(*, training_directory, fit_verification, directory, micro_r
              "--training-directory", str(training_directory), "--fit-verification", str(fit_verification),
              "--reference-root", str(micro_root / "reference"), "--controls-directory", str(micro_root / "controls"),
              "--retained-root", str(micro_root / "retained"), "--output", str(directory / "micro-progress.json")]
+    if residual_calibration is not None:
+        micro += ["--residual-calibration", str(residual_calibration)]
     micro_job = job("micro-cpu-replay", micro, directory, timeout=3600.)
     micro_job["cwd"] = str(micro_checkout)
     adjudicate = [python, str(ROOT / "tools/adjudicate_semantic_native_development.py"),
                   "--training-directory", str(training_directory), "--fit-verification", str(fit_verification),
                   "--output", str(directory / "development-progress.json")]
+    if residual_calibration is not None:
+        adjudicate += ["--residual-calibration", str(residual_calibration)]
     for window in windows:
         adjudicate += ["--window-root", window["directory"]]
     return {"micro_replay": micro_job, "plans": plans, "windows": windows,
@@ -80,7 +91,8 @@ def development_policy(jobs):
     return [{key: value for key, value in item.items() if key != "name"} for item in commands]
 
 
-def run_windows(jobs, *, training, checkpoint, invoke):
+def run_windows(jobs, *, training, checkpoint, invoke, baseline_checkpoint=None,
+                residual_report_receipt_sha256=None):
     from tools.adjudicate_semantic_native_micro_stages import cohort_passed
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
 
@@ -89,7 +101,9 @@ def run_windows(jobs, *, training, checkpoint, invoke):
         path = Path(command[command.index("--directory") + 1]) / "plan.json"
         if not path.exists():
             invoke(item)
-        check_existing_plan(path, training=training, checkpoint=checkpoint)
+        check_existing_plan(path, training=training, checkpoint=checkpoint, command=command,
+            baseline_checkpoint=baseline_checkpoint,
+            residual_report_receipt_sha256=residual_report_receipt_sha256)
     for window in jobs["windows"]:
         for arm in window["arms"]:
             output = Path(arm["directory"])
@@ -133,10 +147,14 @@ def main():
     parser.add_argument("--window-size", type=int, required=True)
     parser.add_argument("--max-seconds", type=float, required=True)
     parser.add_argument("--micro-wait-seconds", type=float, default=86400.)
+    parser.add_argument("--candidate-weight-mode", choices=("fitted", "residual"), default="fitted")
+    parser.add_argument("--residual-calibration", type=Path)
     parser.add_argument("--policy-output", type=Path)
     args = parser.parse_args()
     if not math.isfinite(args.micro_wait_seconds) or args.micro_wait_seconds <= 0:
         parser.error("native micro wait requires a positive finite bound")
+    if (args.residual_calibration is None) != (args.candidate_weight_mode == "fitted"):
+        parser.error("residual development requires a calibration directory")
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
     from tools.refit_semantic_argument_proposals import configure_refit_environment
 
@@ -146,9 +164,14 @@ def main():
     jobs = development_jobs(training_directory=args.training_directory, fit_verification=args.fit_verification,
         directory=args.directory, micro_root=args.micro_root, micro_checkout=args.micro_checkout,
         source_report=args.source_report, bundles=args.bundle, python=sys.executable,
-        window_size=args.window_size, max_seconds=args.max_seconds)
-    body = {"schema": "aura.native_development_pipeline.v1", "jobs": jobs,
+        window_size=args.window_size, max_seconds=args.max_seconds,
+        candidate_weight_mode=args.candidate_weight_mode,
+        residual_calibration=args.residual_calibration)
+    body = {"schema": "aura.native_development_pipeline.v2" if args.residual_calibration else
+            "aura.native_development_pipeline.v1", "jobs": jobs,
             "training_plan_sha256": training["plan_sha256"],
+            **({"residual_calibration": str(args.residual_calibration)}
+               if args.residual_calibration else {}),
             "micro_supervisor": str(args.micro_supervisor), "micro_wait_seconds": args.micro_wait_seconds,
             "source_report_sha256": hashlib.sha256(args.source_report.read_bytes()).hexdigest(),
             "serving_authority": False}
@@ -159,7 +182,7 @@ def main():
                           "population": 500, "commands": len(development_policy(jobs))}), flush=True)
         return 0
     from core.runtime.detached_subprocess_broker import broker_available, run_brokered_process
-    from tools.adjudicate_semantic_native_micro_stages import verified_native_fit
+    from tools.adjudicate_semantic_native_micro_stages import verified_native_candidate
 
     if not broker_available():
         raise ValueError("native development requires the existing detached supervisor broker")
@@ -178,11 +201,19 @@ def main():
     replay = verified_document(args.directory / "micro-progress.json")
     if expected != replay or replay.get("full_development_ready") is not True:
         raise ValueError("native development requires the unchanged passed micro stage")
-    training, checkpoint, _ = verified_native_fit(args.training_directory, args.fit_verification)
+    training, checkpoint, _, residual = verified_native_candidate(
+        args.training_directory, args.fit_verification, args.residual_calibration)
     if (replay["training_plan_sha256"] != training["plan_sha256"]
-            or replay["checkpoint_receipt_sha256"] != checkpoint["receipt_sha256"]):
+            or replay["checkpoint_receipt_sha256"] != checkpoint["receipt_sha256"]
+            or replay.get("residual_calibration_report_receipt_sha256") != (
+                None if residual is None else residual["report_receipt_sha256"])):
         raise ValueError("native development changed the micro-qualified candidate")
-    return 0 if run_windows(jobs, training=training, checkpoint=checkpoint, invoke=invoke) else 2
+    from tools.evaluate_semantic_native_checkpoint import selected_checkpoint
+    _, baseline_checkpoint = selected_checkpoint(args.training_directory)
+    return 0 if run_windows(jobs, training=training, checkpoint=checkpoint, invoke=invoke,
+        baseline_checkpoint=baseline_checkpoint,
+        residual_report_receipt_sha256=None if residual is None else
+        residual["report_receipt_sha256"]) else 2
 
 
 if __name__ == "__main__":

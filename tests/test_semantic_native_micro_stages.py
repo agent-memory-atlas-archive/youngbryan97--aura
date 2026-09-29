@@ -4,7 +4,11 @@ from copy import deepcopy
 
 import pytest
 
-from tools.adjudicate_semantic_native_micro_stages import cohort_passed, stage_progress
+from tools.adjudicate_semantic_native_micro_stages import (
+    cohort_passed,
+    stage_progress,
+    verified_native_candidate,
+)
 
 
 def cohort(population, *, dependent=0):
@@ -98,3 +102,50 @@ def test_a_changed_or_skipped_stage_cannot_inherit_the_passes(defect):
         control["relation_transfer"]["mechanism_micro_probe_passed"] = None
     with pytest.raises(ValueError):
         stage_progress(reference, controls=control, retained=retained)
+
+
+@pytest.mark.parametrize("defect", ["selected_zero", "wrong_schema", "zero_scale", "drift"])
+def test_residual_candidate_requires_v7_source_evidence_before_decode(monkeypatch, tmp_path, defect):
+    training = {"schema": "aura.semantic_native_fit_plan.v7"}
+    selected = {"step": 0}
+    residual = {"selected_scale": 0.125, "candidate_step": 101,
+                "current_implementation_drift": [], "report_receipt_sha256": "calibration"}
+    if defect == "selected_zero":
+        selected["step"] = 101
+    elif defect == "wrong_schema":
+        training["schema"] = "aura.semantic_native_fit_plan.v6"
+    elif defect == "zero_scale":
+        residual["selected_scale"] = 0.
+    else:
+        residual["current_implementation_drift"] = ["changed"]
+    monkeypatch.setattr("tools.adjudicate_semantic_native_micro_stages.verified_native_fit",
+                        lambda *args: (training, selected, {"receipt_sha256": "fit"}))
+    monkeypatch.setattr("tools.verify_semantic_native_residual.verify_residual",
+                        lambda *args: residual)
+    checkpoint = {"step": 101, "receipt_sha256": "candidate"}
+    monkeypatch.setattr("tools.evaluate_semantic_native_checkpoint.verified_document",
+                        lambda path: checkpoint)
+    if defect:
+        with pytest.raises(ValueError, match="source-preserving gain"):
+            verified_native_candidate(tmp_path, tmp_path / "fit.json", tmp_path / "calibration")
+
+
+def test_positive_residual_candidate_resolves_the_measured_checkpoint(monkeypatch, tmp_path):
+    training = {"schema": "aura.semantic_native_fit_plan.v7"}
+    selected = {"step": 0}
+    fit = {"receipt_sha256": "fit"}
+    residual = {"selected_scale": 0.125, "candidate_step": 101,
+                "current_implementation_drift": [], "report_receipt_sha256": "calibration"}
+    monkeypatch.setattr("tools.adjudicate_semantic_native_micro_stages.verified_native_fit",
+                        lambda *args: (training, selected, fit))
+    monkeypatch.setattr("tools.verify_semantic_native_residual.verify_residual",
+                        lambda *args: residual)
+    paths = []
+    def load(path):
+        paths.append(path)
+        return {"step": 101, "receipt_sha256": "candidate"}
+    monkeypatch.setattr("tools.evaluate_semantic_native_checkpoint.verified_document", load)
+    outcome = verified_native_candidate(tmp_path, tmp_path / "fit.json", tmp_path / "calibration")
+    assert outcome[1]["receipt_sha256"] == "candidate"
+    assert outcome[3] == residual
+    assert paths == [tmp_path / "checkpoint-101.json"]

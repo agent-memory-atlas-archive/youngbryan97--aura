@@ -18,6 +18,40 @@ if TYPE_CHECKING:
     )
 
 
+#: Origins told, once, that their prompts carry no relational memory. Withholding
+#: it is a standing state of a request path, not an event: a subject-core run
+#: binds no principal at all, because the binding lives in the chat routes
+#: (`interface/routes/chat.py`) and a driver calls `turn_once` directly. The
+#: reports ground of 29 September recorded 332 degradations and 332 faults for
+#: one such state, which is 331 records of nothing new and a real fault harder
+#: to find among them. Bounded by the closed set of request origins.
+_WITHHELD_FROM: set[str] = set()
+
+
+def _withholding_relational_memory(request_origin: str, hinted_agent: Any) -> None:
+    """Record, once per origin, that this path has no principal to serve under."""
+    from .context_assembler import record_degradation
+
+    origin = str(request_origin or "unknown")
+    if origin in _WITHHELD_FROM:
+        return
+    _WITHHELD_FROM.add(origin)
+    record_degradation(
+        "context_assembler.relational_scope",
+        RuntimeError(
+            f"relational memory withheld: no bound principal for {origin} requests "
+            f"(hint was {str(hinted_agent)[:60]!r})"
+        ),
+        severity="warning",
+        action="assembled the prompt without identity-scoped relational memory",
+    )
+
+
+def forget_withheld_origins_for_test() -> None:
+    """Test helper: the module remembers which origins it has already told."""
+    _WITHHELD_FROM.clear()
+
+
 class _BuildsThePromptBlocks:
     """Lifted whole out of ContextAssembler; see context_assembler.py."""
 
@@ -687,15 +721,9 @@ class _BuildsThePromptBlocks:
                     "origin": request_origin or "unknown",
                 }
         elif hinted_agent and not bound_agent:
-            record_degradation(
-                "context_assembler.relational_scope",
-                RuntimeError(
-                    "relational memory withheld: no bound principal for this request "
-                    f"(hint was {hinted_agent[:60]!r})"
-                ),
-                severity="warning",
-                action="assembled the prompt without identity-scoped relational memory",
-            )
+            _withholding_relational_memory(request_origin, hinted_agent)
+        elif bound_agent:
+            _WITHHELD_FROM.discard(str(request_origin or "unknown"))
         return agent_id, relational_block
 
     @staticmethod

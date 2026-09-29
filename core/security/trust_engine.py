@@ -133,6 +133,11 @@ class TrustContext:
     session_start: float = field(default_factory=lambda: time.time())
     message_count: int = 0
     suspicious_signals: int = 0
+    #: Messages over the rate limit in the CURRENT window. Typing fast is not
+    #: manipulation, so it is counted apart from `suspicious_signals`, which
+    #: never decays and at three decides she is being manipulated. It still
+    #: blocks promotion while it lasts, and it lasts as long as the burst.
+    burst_signals: int = 0
     hostile_signals: int = 0
     recognition_confidence: float = 0.0
     passphrase_verified: bool = False
@@ -188,9 +193,18 @@ class TrustEngine:
         if now - self._rate_window_start > _RATE_WINDOW_SECS:
             self._rate_window_start = now
             self._rate_message_count = 0
+            self._context.burst_signals = 0
         self._rate_message_count += 1
         if self._rate_message_count > _RATE_MAX_MESSAGES:
-            self._context.suspicious_signals += 1
+            # A burst belongs to its window. It used to add to
+            # `suspicious_signals`, which nothing decays and which at three
+            # decides she is being manipulated and at zero is required to
+            # recognise someone as trusted: thirty-one messages in a minute
+            # cost a person behavioural promotion for the life of the session,
+            # and thirty-three put the next matched phrase over the line. The
+            # reports ground of 29 September crossed it 177 times, because the
+            # experiment's clock runs a turn per second.
+            self._context.burst_signals += 1
             self._log_event("rate_limit_exceeded", {"count": self._rate_message_count})
             logger.warning("TrustEngine: rate limit exceeded (%d msgs/min)", self._rate_message_count)
 
@@ -236,6 +250,7 @@ class TrustEngine:
                 result.combined_confidence >= 0.72
                 and self._context.level == TrustLevel.GUEST
                 and self._context.suspicious_signals == 0
+                and self._context.burst_signals == 0
                 and self._context.hostile_signals == 0
             ):
                 self._elevate(TrustLevel.TRUSTED, "behavioral_recognition")
@@ -319,6 +334,7 @@ class TrustEngine:
             "recognition_confidence": c.recognition_confidence,
             "passphrase_verified": c.passphrase_verified,
             "suspicious_signals": c.suspicious_signals,
+            "burst_signals": c.burst_signals,
             "session_age_secs": round(time.time() - c.session_start, 0),
         }
 

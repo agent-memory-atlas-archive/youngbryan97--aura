@@ -1448,3 +1448,60 @@ bring-up and the whole baseline before stopping them for the anchors, and four
 processes on a loaded machine got different amounts of that. A sharded sweep is
 only a sweep of her if every shard is the same organism, so no sharded run
 decides anything until two processes on one seed record the same baseline.
+
+## Addendum, 29 September 2026: a signal counts once, and the draws spread out
+
+Named before any run reads it.
+
+### One signal once
+
+The carrier's duplication control copies the future block and asks whether the
+rate rises. At `bb3faa54a` it rose at the weakest cut from 0.0032 to 0.0083,
+and the carrier refused authority for it. The estimator standardises each
+column and counts neighbours in Euclidean distance, so a copied column has
+twice the say of every other: the rate moved because the metric weighed the
+future against the context by their column counts.
+
+`isc_v5.ONE_SIGNAL` makes the estimator keep one column per signal before the
+neighbour search: two columns carry one signal when one is an affine copy of
+the other, sign included. They are compared standardised over every row of all
+four arms of the cut together, so nothing about which arm a row is in is used,
+and the cut and its sham are read in one metric. Identical samples still read
+exactly zero and a real difference is still seen
+(`tests/test_a_signal_counts_once.py`). It changes every rate a little, since
+her schema may carry a field twice; it moves no bar. It applies to seed 23 and
+to every run after it. Seed 7's numbers were read without it.
+
+### The draws spread out, the numbers do not change
+
+Each cut's thousand bootstrap draws and 199 permutation draws are now drawn in
+order and evaluated across processes (`core/subject/draw_pool.py`). One process
+and three give identical distributions and p-values
+(`tests/test_the_draws_are_the_same_on_more_cores.py`). The grain's signature
+rows are shared between the coordinator and the shard workers anchor by anchor
+and verified against the coordinator's own anchors
+(`tests/test_the_grain_is_shared_and_is_the_same_grain.py`). Neither is part of
+the design: they change the wall clock, which on 28 September was 6 h 20 min of
+grain in one process after the cuts were done in 45 minutes.
+
+### The grain is judged by whether it stays sufficient
+
+The carrier's authority also asked the grain's rank to come out the same with
+each fold of anchors held out and under bi-cross-validation. At `bb3faa54a` it
+read 24 on every anchor, 21 or 22 with a fold held out, and 60 by
+bi-cross-validation. The spectrum has no gap to count to: the singular values
+fall smoothly from 367 to 150 over the first twelve components and meet the
+null near 24, so the count is where a smooth curve crosses a line that moves
+with the number of anchors, and a different estimator finds a different
+crossing. That rule was failed by a quantity her spectrum does not define.
+
+What a grain is for is sufficiency: once it is known, history adds nothing to
+the held-out future. It already has to be sufficient on every anchor. Under v5
+it also has to be sufficient when refitted with each fold of anchors held out,
+each fold against its own shuffled-history floor at the parallel analysis's
+draws and quantile. A grain that misses a direction history carries fails it
+(`tests/test_a_grain_is_judged_by_whether_it_is_sufficient.py`). The rank and
+its fold and bi-cross-validated readings are still reported.
+
+This rule was written after seed 7 failed the old one, so seed 7 cannot pass
+under it; it applies to seed 23 and after.

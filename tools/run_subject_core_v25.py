@@ -251,50 +251,49 @@ async def _learn_grain(
     lags: Sequence[int],
     seed: int,
     history_turns: int,
+    claims: Path | None = None,
+    refused: Path | None = None,
+    wait_seconds: float = 0.0,
 ) -> dict[str, Any]:
     """The predictive-state rank, whether held-out interventions break it, how
-    much history it needs, and whether the rank survives other folds and estimators."""
+    much history it needs, and whether the rank survives other folds and estimators.
+
+    With `claims`, the signature rows are shared out: this process and every
+    shard worker claim anchors one at a time in that directory, and this one
+    gathers the rows. The rows are the ones one process computes."""
     from core.subject.intrinsic_v25 import (
-        deterministic_frequency_bank,
         fit_predictive_grain,
         heldout_new_direction_gain,
         heldout_sufficiency_gain,
     )
-    from core.subject.v25_grain import (
-        pair_actions,
-        signature_matrix,
-        signed_single_domain_actions,
-    )
 
-    width = int(live_mask.sum())
-    train_actions = signed_single_domain_actions(doses, sign=+1, include_sham=True)
-    banks = deterministic_frequency_bank(
-        [width] * (len(train_actions) * len(conditions) * len(lags)),
-        frequencies_per_test=FREQUENCIES,
-        seed=FREQUENCY_SEED,
-    )
+    plan = _grain_plan(doses, conditions, lags, live_mask)
+    train_actions, test_actions = plan["train"], plan["test"]
     _log(f"  grain: {len(train_actions)} training actions x {len(conditions)} conditions x {len(lags)} lags")
-    train = await signature_matrix(
-        runtime, anchors, conditions, train_actions,
+    signature = dict(
         lags=lags, frame_seconds=frame_seconds,
         baseline_mean=baseline_mean, baseline_scale=baseline_scale,
-        live_mask=live_mask, frequencies=banks[0],
+        live_mask=live_mask, frequencies=plan["frequencies"],
     )
+    if claims is None:
+        from core.subject.v25_grain import signature_matrix
+
+        train = await signature_matrix(runtime, anchors, conditions, train_actions, **signature)
+        # The attack. Negative doses and preregistered pairs, none of which the
+        # rank was fitted on. If raw history still predicts these once the grain
+        # is known, the grain merged two states that are not the same state.
+        heldout = await signature_matrix(runtime, anchors, conditions, test_actions, **signature)
+    else:
+        gathered = await _gather_grain_rows(
+            runtime, anchors, conditions, plan, signature,
+            directory=claims, refused=refused, wait_seconds=wait_seconds, doses=doses,
+        )
+        if gathered is None:
+            return {"not_learned_because": "the sweep refused before every grain row was in"}
+        train, heldout, shared = gathered
+        _log(f"  grain: {shared} of {len(anchors)} anchors' rows came from other processes")
     grain = fit_predictive_grain(train, seed=seed + 11)
     _log(f"  grain: rank {grain.rank} of {train.shape[1]} signature columns")
-
-    # The attack. Negative doses and preregistered pairs, none of which the
-    # rank was fitted on. If raw history still predicts these once the grain is
-    # known, the grain merged two states that are not the same state.
-    names = list(doses)
-    pairs = tuple(zip(names[::2], names[1::2], strict=False))
-    test_actions = signed_single_domain_actions(doses, sign=-1) + pair_actions(pairs, doses)
-    heldout = await signature_matrix(
-        runtime, anchors, conditions, test_actions,
-        lags=lags, frame_seconds=frame_seconds,
-        baseline_mean=baseline_mean, baseline_scale=baseline_scale,
-        live_mask=live_mask, frequencies=banks[0],
-    )
     history = np.vstack([np.asarray(a.history, dtype=np.float64) for a in anchors])
     state = grain.transform(train)
     gain = float("nan")
@@ -326,6 +325,7 @@ async def _learn_grain(
     )
     walk = _history_walk(history, heldout, history_turns=history_turns, seed=seed + 15)
     stability = _rank_stability(train, int(grain.rank), seed=seed + 18)
+    stability.update(_sufficiency_stability(train, history, heldout, seed=seed + 18))
     # A rank read off N anchors cannot exceed N - 1, because centring costs one
     # dimension. So a rank at that ceiling is a statement about how many
     # anchors were collected and not about the system, in exactly the way a
@@ -350,6 +350,132 @@ async def _learn_grain(
         "heldout_actions": [a.name for a in test_actions],
         "_grain": grain,
     }
+
+
+def _grain_plan(
+    doses: dict[str, float], conditions: Sequence[Any], lags: Sequence[int], live_mask: np.ndarray
+) -> dict[str, Any]:
+    """The training and held-out actions and the frequency bank, the same in every process."""
+    from core.subject.intrinsic_v25 import deterministic_frequency_bank
+    from core.subject.v25_grain import pair_actions, signed_single_domain_actions
+
+    train = signed_single_domain_actions(doses, sign=+1, include_sham=True)
+    names = list(doses)
+    pairs = tuple(zip(names[::2], names[1::2], strict=False))
+    test = signed_single_domain_actions(doses, sign=-1) + pair_actions(pairs, doses)
+    banks = deterministic_frequency_bank(
+        [int(live_mask.sum())] * (len(train) * len(conditions) * len(lags)),
+        frequencies_per_test=FREQUENCIES,
+        seed=FREQUENCY_SEED,
+    )
+    return {"train": train, "test": test, "frequencies": banks[0]}
+
+
+def _claim_grain_row(directory: Path, index: int) -> bool:
+    """Whether this process took anchor `index`. Exclusive creation, so exactly one does."""
+    directory.mkdir(parents=True, exist_ok=True)
+    try:
+        os.close(os.open(directory / f"claim_{index:05d}", os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+    except FileExistsError:
+        return False
+    return True
+
+
+def _write_grain_row(directory: Path, index: int, train: np.ndarray, heldout: np.ndarray,
+                     anchor_state: np.ndarray, doses: dict[str, float]) -> None:
+    """One anchor's two signature rows, moved into place whole."""
+    final = directory / f"row_{index:05d}.npz"
+    partial = directory / f"row_{index:05d}.partial.npz"
+    np.savez(partial, train=train, heldout=heldout, anchor=np.asarray(anchor_state, dtype=np.float64),
+             doses=np.asarray(json.dumps(sorted(doses.items()))))
+    partial.replace(final)
+
+
+def _read_grain_row(directory: Path, index: int) -> dict[str, Any] | None:
+    path = directory / f"row_{index:05d}.npz"
+    if not path.exists():
+        return None
+    blob = np.load(path)
+    return {key: blob[key] for key in blob.files}
+
+
+async def _one_grain_row(runtime: Any, anchor: Any, conditions: Sequence[Any], plan: dict[str, Any],
+                         signature: dict[str, Any]) -> tuple[np.ndarray, np.ndarray]:
+    from core.subject.v25_grain import signature_matrix
+
+    train = await signature_matrix(runtime, [anchor], conditions, plan["train"], **signature)
+    heldout = await signature_matrix(runtime, [anchor], conditions, plan["test"], **signature)
+    return train[0], heldout[0]
+
+
+async def _work_grain_rows(runtime: Any, anchors: Sequence[Any], conditions: Sequence[Any],
+                           plan: dict[str, Any], signature: dict[str, Any], *, directory: Path,
+                           refused: Path | None, doses: dict[str, float]) -> int:
+    """Claim anchors one at a time and write their rows, until none is left or the sweep refused."""
+    done = 0
+    for index, anchor in enumerate(anchors):
+        if refused is not None and await asyncio.to_thread(refused.exists):
+            break
+        if not await asyncio.to_thread(_claim_grain_row, directory, index):
+            continue
+        train, heldout = await _one_grain_row(runtime, anchor, conditions, plan, signature)
+        await asyncio.to_thread(_write_grain_row, directory, index, train, heldout, anchor.current, doses)
+        done += 1
+    return done
+
+
+async def _gather_grain_rows(runtime: Any, anchors: Sequence[Any], conditions: Sequence[Any],
+                             plan: dict[str, Any], signature: dict[str, Any], *, directory: Path,
+                             refused: Path | None, wait_seconds: float,
+                             doses: dict[str, float]) -> tuple[np.ndarray, np.ndarray, int] | None:
+    """Every anchor's rows in anchor order, with this process doing its share first.
+
+    A row from another process is used only if it was made from this anchor's
+    state and these doses, exactly; otherwise it is made again here. A claim
+    whose row has not come in after three times the longest row this process
+    took is taken back and made here too, so a worker that died does not hold
+    the run until its deadline.
+    """
+    started = time.monotonic()
+    mine = await _work_grain_rows(runtime, anchors, conditions, plan, signature,
+                                  directory=directory, refused=refused, doses=doses)
+    longest = (time.monotonic() - started) / max(1, mine)
+    wanted = json.dumps(sorted(doses.items()))
+    deadline = time.monotonic() + max(0.0, float(wait_seconds))
+    last_arrival = time.monotonic()
+    rows: dict[int, tuple[np.ndarray, np.ndarray]] = {}
+    shared = 0
+    while len(rows) < len(anchors):
+        if refused is not None and await asyncio.to_thread(refused.exists):
+            return None
+        arrived = False
+        for index, anchor in enumerate(anchors):
+            if index in rows:
+                continue
+            row = await asyncio.to_thread(_read_grain_row, directory, index)
+            if row is None:
+                continue
+            arrived = True
+            if np.array_equal(row["anchor"], np.asarray(anchor.current, dtype=np.float64)) and str(row["doses"]) == wanted:
+                rows[index] = (row["train"], row["heldout"])
+                shared += 1
+            else:
+                _log(f"  grain: anchor {index}'s row was made from another state; making it here")
+                rows[index] = await _one_grain_row(runtime, anchor, conditions, plan, signature)
+        if arrived:
+            last_arrival = time.monotonic()
+        if len(rows) == len(anchors):
+            break
+        stalled = time.monotonic() - last_arrival > 3.0 * max(longest, 1.0)
+        if stalled or time.monotonic() >= deadline:
+            for index, anchor in enumerate(anchors):
+                if index not in rows:
+                    rows[index] = await _one_grain_row(runtime, anchor, conditions, plan, signature)
+            break
+        await asyncio.sleep(max(1.0, min(30.0, longest / 4.0)))
+    ordered = [rows[index] for index in range(len(anchors))]
+    shared -= mine  # the rows this process wrote itself came back through the directory too
+    return (np.vstack([train for train, _ in ordered]), np.vstack([held for _, held in ordered]), max(0, shared))
 
 
 # ── stage 3: the spectrum ─────────────────────────────────────────────────
@@ -378,6 +504,7 @@ async def _spectrum(
     whiten: bool = False,
     fail_fast: bool = False,
     stop_file: str = "",
+    keep_samples: Path | None = None,
 ) -> tuple[dict[float, float], dict[str, Any]]:
     """The weakest cut's rate at every horizon on the ladder.
 
@@ -403,7 +530,10 @@ async def _spectrum(
         fail_fast=fail_fast,
         stop_file=stop_file,
         paired=bool(chosen.get("paired")),
+        kept=None if keep_samples is None else (kept := {}),
     )
+    if keep_samples is not None:
+        detail["samples_file"] = str(await asyncio.to_thread(_save_cut_samples, keep_samples, kept))
     for lag in sorted(reports):
         report = reports[lag]
         tau = float(lag) * float(frame_seconds)
@@ -416,6 +546,19 @@ async def _spectrum(
             f"/{report.as_dict()['cuts_tested']} decided"
         )
     return spectrum, detail
+
+
+def _save_cut_samples(target: Path, kept: dict[str, dict[int, dict[str, np.ndarray]]]) -> Path:
+    """Each scored cut's context, intact, cut and sham rows at each horizon, in one file."""
+    arrays = {
+        f"{name}__lag{lag}__{key}": value
+        for name, by_lag in kept.items()
+        for lag, slot in by_lag.items()
+        for key, value in slot.items()
+        if isinstance(value, np.ndarray)
+    }
+    np.savez_compressed(target, **arrays)
+    return target
 
 
 async def _await_shards(directory: Path, wait_seconds: float) -> list[dict[str, Any]]:
@@ -642,6 +785,29 @@ async def main() -> int:
     )
     parser.add_argument("--skip-grain", action="store_true")
     parser.add_argument(
+        "--keep-cut-samples", action="store_true",
+        help=(
+            "write every scored cut's samples to cut_samples.npz beside the report. "
+            "Only with --cuts: all 511 cuts' samples run to gigabytes"
+        ),
+    )
+    parser.add_argument(
+        "--grain-claims", action="store_true",
+        help=(
+            "share the grain's signature rows between the coordinator and the shard "
+            "workers, anchor by anchor, through the shard directory. The rows are "
+            "the ones one process makes; the shard launcher turns it on"
+        ),
+    )
+    parser.add_argument(
+        "--estimator-workers", type=int, default=0,
+        help=(
+            "processes each cut's bootstrap and permutation draws may use; the "
+            "numbers do not change with it (core/subject/draw_pool.py). The shard "
+            "launcher sets it from the run's cores"
+        ),
+    )
+    parser.add_argument(
         "--baseline-only", action="store_true",
         help=(
             "stop once the baseline recording and its doses are saved. Two runs "
@@ -708,6 +874,8 @@ async def main() -> int:
         help="the ISC-v5 design in core/subject/isc_v5.py: its looks, draws, level, horizons and anchors",
     )
     args = parser.parse_args()
+    if args.estimator_workers > 0:
+        os.environ["AURA_ESTIMATOR_WORKERS"] = str(args.estimator_workers)
     only_cuts: tuple[str, ...] = tuple(
         side.strip().upper() for side in args.cuts.split(",") if side.strip()
     )
@@ -715,6 +883,8 @@ async def main() -> int:
         from core.subject.state import DOMAINS
 
         only_cuts = tuple(DOMAINS)
+    if args.keep_cut_samples and not only_cuts:
+        raise SystemExit("--keep-cut-samples needs --cuts: every cut's samples run to gigabytes")
     shard: tuple[int, int] | None = None
     if args.shard:
         index, _, count = args.shard.partition("/")
@@ -777,7 +947,11 @@ async def main() -> int:
         # Cross-fitted by anchor under v5. Left out of this table, a v5 run
         # used the estimator that reads two identical samples as apart.
         "paired": bool(args.v5 and preset["paired"]),
+        "one_signal": bool(args.v5 and preset.get("one_signal")),
     }
+    if sweep_design["one_signal"]:
+        # Before any estimate, and inherited by every process the draws spread to.
+        os.environ["AURA_ESTIMATOR_ONE_SIGNAL"] = "1"
     support = tuple(args.domains.split(",")) if args.domains else tuple(DOMAINS)
     conditions = CONDITIONS[: args.conditions] if args.conditions else CONDITIONS
     resumed = _resume_v25(args)
@@ -989,6 +1163,20 @@ async def main() -> int:
                 _write_shard, args.shard_dir or (args.out / "shards"), shard, payload
             )
             _log(f"wrote {final} in {payload['seconds']}s")
+            if args.grain_claims and not args.skip_grain:
+                # Its cuts done, the worker takes grain rows off the
+                # coordinator until none is left, instead of exiting while
+                # one process learns the grain alone (6 h 20 min on 28 September).
+                directory = Path(shard_dir)
+                plan = _grain_plan(doses, conditions, (1, 8) if args.quick else (1, 8, 33), live_mask)
+                made = await _work_grain_rows(
+                    runtime, anchors, conditions, plan,
+                    dict(lags=(1, 8) if args.quick else (1, 8, 33), frame_seconds=frame_seconds,
+                         baseline_mean=baseline_mean, baseline_scale=scale,
+                         live_mask=live_mask, frequencies=plan["frequencies"]),
+                    directory=directory / "grain", refused=directory / "REFUSED", doses=doses,
+                )
+                _log(f"made {made} grain row(s) for the coordinator")
             return 0
 
         # ── the grain ──────────────────────────────────────────────────
@@ -998,19 +1186,26 @@ async def main() -> int:
             else:
                 _log("learning the grain, then attacking it")
                 grain_lags = (1, 8) if args.quick else (1, 8, 33)
+                shared_dir = Path(args.from_shards) if (args.grain_claims and args.from_shards) else None
                 grain = await _learn_grain(
                     runtime, anchors, conditions, doses,
                     baseline_mean=baseline_mean, baseline_scale=scale,
                     live_mask=live_mask, frame_seconds=frame_seconds,
                     lags=grain_lags, seed=args.seed,
                     history_turns=args.history_turns,
+                    claims=None if shared_dir is None else shared_dir / "grain",
+                    refused=None if shared_dir is None else shared_dir / "REFUSED",
+                    wait_seconds=float(args.shard_wait_seconds),
                 )
                 grain.pop("_grain", None)
                 evidence["canonical_grain"] = grain
-                _log(
-                    f"  rank {grain['predictive_rank']}, held-out sufficient: "
-                    f"{grain['heldout_intervention_sufficient']}"
-                )
+                if grain.get("not_learned_because"):
+                    _log(f"  no grain: {grain['not_learned_because']}")
+                else:
+                    _log(
+                        f"  rank {grain['predictive_rank']}, held-out sufficient: "
+                        f"{grain['heldout_intervention_sufficient']}"
+                    )
             _checkpoint_v25(run_dir, "grain", evidence)
 
         # ── the spectrum over horizons ─────────────────────────────────
@@ -1054,6 +1249,7 @@ async def main() -> int:
                     screen=args.screen, design=sweep_design, only=only_cuts,
                     whiten=bool(args.whiten),
                     fail_fast=bool(args.fail_fast),
+                    keep_samples=(run_dir / "cut_samples.npz") if args.keep_cut_samples else None,
                 )
             binding = _horizon_is_binding(spectrum, lags)
             tau_star = max(spectrum, key=lambda tau: spectrum[tau]) if spectrum else None
@@ -1327,6 +1523,54 @@ def _rank_stability(train: np.ndarray, rank: int, *, seed: int) -> dict[str, Any
     }
 
 
+def _sufficiency_stability(
+    train: np.ndarray, history: np.ndarray, heldout: np.ndarray, *, seed: int
+) -> dict[str, Any]:
+    """Whether the grain refitted with each fold held out is still sufficient.
+
+    The rank is a count of singular values above a null, and her spectrum has
+    no gap to count to: at bb3faa54a it fell smoothly from 367 to 150 over
+    twelve components and met the null near 24, so a fold with four fifths of
+    the anchors found 21 or 22 and bi-cross-validation found 60. What a grain
+    has to be is sufficient: once it is known, history adds nothing to the
+    held-out future. This asks that of the grain fitted on each fold's
+    complement, against that grain's own shuffled-history floor, on the same
+    folds `_rank_stability` uses.
+    """
+    from core.subject.intrinsic_v25 import (
+        fit_predictive_grain,
+        heldout_new_direction_gain,
+        heldout_sufficiency_gain,
+    )
+
+    rows = train.shape[0]
+    folds = inspect.signature(heldout_sufficiency_gain).parameters["folds"].default
+    null_draws = inspect.signature(fit_predictive_grain).parameters["null_draws"].default
+    quantile = inspect.signature(fit_predictive_grain).parameters["quantile"].default
+    if rows < folds:
+        return {"fold_sufficient": [], "sufficiency_stable": False}
+    order = np.random.default_rng(seed).permutation(rows)
+    verdicts: list[bool] = []
+    gains: list[float | None] = []
+    for held in np.array_split(order, folds):
+        kept = np.setdiff1d(order, held)
+        grain = fit_predictive_grain(train[kept], seed=seed + 1)
+        if grain.rank <= 0:
+            verdicts.append(False)
+            gains.append(None)
+            continue
+        state = grain.transform(train)
+        gain = heldout_new_direction_gain(history, state, heldout, seed=seed + 12)
+        rng = np.random.default_rng(seed + 13)
+        floor = float(np.quantile([
+            heldout_new_direction_gain(history[rng.permutation(len(history))], state, heldout, seed=seed + 12)
+            for _ in range(null_draws)
+        ], quantile))
+        verdicts.append(bool(gain == gain and not (gain > SUFFICIENCY_TOLERANCE and gain > floor)))
+        gains.append(None if gain != gain else round(float(gain), 6))
+    return {"fold_sufficient": verdicts, "fold_sufficiency_gains": gains, "sufficiency_stable": all(verdicts)}
+
+
 def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
     """The fourteen ways a v25 report is not authoritative.
 
@@ -1348,7 +1592,9 @@ def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
     )
 
     blockers: list[str] = []
-    if grain.get("skipped"):
+    if grain.get("not_learned_because"):
+        blockers.append(f"no grain was learned: {grain['not_learned_because']}")
+    elif grain.get("skipped"):
         blockers.append("the grain was skipped, so the state grain is the experimenter's")
     elif not grain.get("predictive_rank"):
         blockers.append("the predictive rank came out zero: no grain was found")
@@ -1441,7 +1687,15 @@ def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
                 "the longest history the ladder allows still predicts held-out futures, "
                 "so the history length is not resolved"
             )
-        if not grain.get("rank_stable"):
+        if getattr(args, "v5", False):
+            # v5 asks the grain to be reproducibly sufficient, not to have a
+            # count its spectrum does not define; see _sufficiency_stability.
+            if not grain.get("sufficiency_stable"):
+                blockers.append(
+                    "the grain refitted with a fold held out is not sufficient on every fold: "
+                    f"{grain.get('fold_sufficient')}"
+                )
+        elif not grain.get("rank_stable"):
             blockers.append(
                 "the predictive-state rank does not survive other folds and estimators: "
                 f"{grain.get('predictive_rank')} on every anchor, {grain.get('fold_ranks')} with a "

@@ -115,9 +115,16 @@ def test_every_share_is_a_fraction(swept):
 
 
 def test_the_sweep_is_in_the_health_report():
-    """Through the registry: core/runtime may not import core.brain."""
-    import core.brain.cognitive_engine  # noqa: F401 — importing registers it
+    """Through the registry: core/runtime may not import core.brain.
+
+    Registered here rather than by importing the engine. The import registers
+    it once per process, and a test that clears the registry after that left
+    this one reading "not registered" whenever pytest-randomly ran it later.
+    """
+    from core.brain.does_the_mind_move_the_controls import register_the_sweep
     from core.runtime.health_contract import runtime_health_report
+
+    register_the_sweep()
 
     block = runtime_health_report()["integrity"]["the_control_policy"]
     assert set(block) >= {"policy", "calibrated", "controls_that_never_move"}

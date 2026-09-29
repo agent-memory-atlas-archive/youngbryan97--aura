@@ -67,6 +67,14 @@ def test_prefix_rejects_training_or_unfrozen_parameters_after_construction():
         prefix.capture(mx.array([[1, 2]]))
 
 
+def test_prefix_rejects_nested_training_after_construction():
+    model = _model()
+    prefix = FrozenDecoderPrefix(model, split_at=2)
+    model.layers[0].mlp.down_proj.train()
+    with pytest.raises(ValueError, match="evaluation"):
+        prefix.capture(mx.array([[1, 2]]))
+
+
 def test_native_suffix_gradients_change_the_same_loaded_projection():
     model = _model(hybrid=True)
     prefix = FrozenDecoderPrefix(model, split_at=3)

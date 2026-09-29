@@ -12,10 +12,12 @@ from tools.verify_semantic_native_grammar import (
     replay_search_decisions,
     source_separation_summary,
     verified_dataset,
+    verified_decision_score_execution,
     verified_examples,
     verified_input_grounding,
     verified_pair_totals,
     verified_public_inputs,
+    verified_source_window,
     verified_weight_mode,
     verify_grammar_row,
     verify_source_separation,
@@ -163,6 +165,32 @@ def test_search_replay_rebuilds_discarded_branches_and_rejects_forged_selection(
     forged["score_input_receipts"].append(forged["score_input_receipts"][0])
     with pytest.raises(ValueError, match="unvisited decisions"):
         verify(forged)
+    grouped_plan = {**plan, "decision_score_execution": "causal_groups"}
+    grouped_row = {**row, "decision_group_forwards": [1] * len(transcript)}
+    replay_search_decisions(grouped_row, example=example, plan=grouped_plan,
+        input_types=("integer", "integer"),
+        input_receipts_for_choices=lambda choices: (expected_receipts(choices), 1),
+        input_receipt_for_program=lambda program: {"program": program.to_dict()})
+    grouped_row["decision_group_forwards"][0] = 2
+    with pytest.raises(ValueError, match="causal group replay"):
+        replay_search_decisions(grouped_row, example=example, plan=grouped_plan,
+            input_types=("integer", "integer"),
+            input_receipts_for_choices=lambda choices: (expected_receipts(choices), 1),
+            input_receipt_for_program=lambda program: {"program": program.to_dict()})
+
+
+def test_causal_execution_receipt_requires_all_decisions_and_exact_total():
+    plan = {"decision_score_execution": "causal_groups",
+            "search_mode": "best_first_then_complete_graph_score",
+            "implementation": {"core/learning/semantic_native_causal_groups.py": "sha"}}
+    report = {"decision_score_execution": "causal_groups", "decision_group_forwards": 2}
+    row = {"score_input_receipts": [[{}, {}], [{}]], "decision_group_forwards": [1, 1]}
+    assert verified_decision_score_execution(plan, report, [row]) == "causal_groups"
+    with pytest.raises(ValueError, match="reported compute"):
+        verified_decision_score_execution(plan, {**report, "decision_group_forwards": 3}, [row])
+    with pytest.raises(ValueError, match="complete decisions"):
+        verified_decision_score_execution(plan, report,
+            [{**row, "decision_group_forwards": [1]}])
 
 
 @pytest.mark.parametrize("mode", ["source_text", "source_token_erasure", "source_pair_swap"])
@@ -302,6 +330,37 @@ def test_weight_mode_verification_keeps_base_and_fitted_arms_distinct():
     with pytest.raises(ValueError, match="weight mode differs"):
         verified_weight_mode({**plan, "weight_mode": "residual"},
                              {**report, "weight_mode": "residual"})
+
+
+def test_full_prefix_joint_residual_has_one_receipt_bound_mode_across_cohorts():
+    plan = {"schema": "aura.semantic_native_grammar_plan.v13", "weight_mode": "residual",
+            "dataset": "natural_request", "seed": 31}
+    report = {"schema": "aura.semantic_native_grammar.v13", "weight_mode": "residual",
+              "dataset": "natural_request", "seed": 31}
+    assert verified_weight_mode(plan, report) == "residual"
+    assert verified_dataset(plan, report) == ("natural_request", 31)
+    assert verified_source_window(plan, report) is None
+    with pytest.raises(ValueError, match="weight mode differs"):
+        verified_weight_mode({**plan, "weight_mode": "fitted"}, report)
+    with pytest.raises(ValueError, match="source window"):
+        verified_dataset({**plan, "source_window": {}}, report)
+
+    controls = {**plan, "dataset": "relation_transfer_controls"}
+    assert verified_dataset(controls, {**report, "dataset": "relation_transfer_controls"}) == (
+        "relation_transfer_controls", 31)
+    basis = {"split": "validation", "source_report_sha256": "a" * 64}
+    retained = {**plan, "dataset": "retained_validation", "seed": 0,
+                "source_cohort_basis": basis, "sources": ["s"]}
+    retained_report = {**report, "dataset": "retained_validation", "seed": 0,
+                       "source_cohort_basis": basis}
+    assert verified_dataset(retained, retained_report) == ("retained_validation", 0)
+    window = {"offset": 499, "count": 1, "population": 500,
+              "ordered_sources_sha256": "b" * 64}
+    retained["source_window"] = window
+    retained_report["source_window"] = window
+    assert verified_source_window(retained, retained_report) == window
+    with pytest.raises(ValueError, match="source window"):
+        verified_source_window(retained, {**retained_report, "source_window": {**window, "count": 2}})
 
 
 def test_public_values_recovered_from_source_not_assumed_from_annotation():

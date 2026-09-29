@@ -19,13 +19,25 @@ from tools.evaluate_semantic_native_checkpoint import digest, verified_document 
 
 
 def stage_jobs(*, training_directory, fit_verification, directory, source_report, bundles,
-               training_plan_sha256, python):
+               training_plan_sha256, python, candidate_weight_mode="fitted",
+               residual_calibration=None, max_seconds=3600.,
+               decision_score_execution="individual"):
     """Freeze commands and budgets before any arm can observe an outcome."""
+    if ((candidate_weight_mode not in {"fitted", "residual"})
+            or (residual_calibration is None) != (candidate_weight_mode == "fitted")):
+        raise ValueError("native micro candidate mode lacks its calibration binding")
+    if (type(max_seconds) not in {int, float} or not math.isfinite(max_seconds)
+            or not 0 < max_seconds <= 14400):
+        raise ValueError("native micro decode requires a finite declared runtime bound")
+    if decision_score_execution not in {"individual", "causal_groups"}:
+        raise ValueError("native micro decision score execution differs")
     common = [python, str(ROOT / "tools/evaluate_semantic_native_grammar.py"),
               "--training-directory", str(training_directory), "--max-steps", "8",
               "--search-completions", "4", "--search-nodes", "256",
               "--search-score-mode", "native_nonpositive", "--prefix-strategy", "full",
-              "--max-seconds", "3600"]
+              "--max-seconds", str(int(max_seconds) if max_seconds == int(max_seconds) else max_seconds)]
+    if decision_score_execution == "causal_groups":
+        common += ["--decision-score-execution", decision_score_execution]
     source = ["--source-report", str(source_report)]
     for bundle in bundles:
         source += ["--bundle", bundle]
@@ -39,8 +51,11 @@ def stage_jobs(*, training_directory, fit_verification, directory, source_report
         for arm in arms:
             output = directory / cohort if cohort == "controls" else directory / cohort / arm
             command = [*common, "--directory", str(output), "--dataset", dataset,
-                       "--canary", str(population), "--weight-mode", "base" if arm == "base" else "fitted",
+                       "--canary", str(population), "--weight-mode", "base" if arm == "base"
+                       else candidate_weight_mode,
                        "--source-evidence", "source_token_erasure" if arm == "erasure" else "source_text"]
+            if residual_calibration is not None and arm != "base":
+                command += ["--residual-calibration", str(residual_calibration)]
             command += source if cohort == "retained" else [
                 "--seed", str(int(training_plan_sha256[:8], 16))]
             name = f"{cohort}-{arm}"
@@ -50,7 +65,7 @@ def stage_jobs(*, training_directory, fit_verification, directory, source_report
                       "--directory", str(output), "--training-directory", str(training_directory),
                       "--output", str(output / "verification.json"), "--meaning-audit", *source]
             arm_jobs.append({"directory": str(output), "decode": job(name + "-decode", command,
-                directory, timeout=3900.), "verify": job(name + "-verify", verify, directory, timeout=1800.)})
+                directory, timeout=max_seconds + 300.), "verify": job(name + "-verify", verify, directory, timeout=1800.)})
         progress_path = directory / (cohort + "-progress.json")
         adjudicate = [python, str(ROOT / "tools/adjudicate_semantic_native_micro_stages.py"),
                      "--training-directory", str(training_directory), "--fit-verification", str(fit_verification),
@@ -59,6 +74,8 @@ def stage_jobs(*, training_directory, fit_verification, directory, source_report
             adjudicate += ["--controls-directory", str(directory / "controls")]
         if cohort == "retained":
             adjudicate += ["--retained-root", str(directory / "retained")]
+        if residual_calibration is not None:
+            adjudicate += ["--residual-calibration", str(residual_calibration)]
         stages.append({"stage": stage, "arms": arm_jobs, "progress_path": str(progress_path),
                        "adjudicate": job(cohort + "-adjudicate", adjudicate, directory, timeout=1800.)})
     return {"plans": plans, "stages": stages}
@@ -105,13 +122,35 @@ def wait_for_fit(run_directory, *, timeout, inspect=None, clock=time.monotonic, 
         sleep(min(30., remaining))
 
 
-def check_existing_plan(path, *, training, checkpoint):
+def check_existing_plan(path, *, training, checkpoint, command=None,
+                        baseline_checkpoint=None, residual_report_receipt_sha256=None):
     plan = verified_document(path, "plan_sha256")
+    mode = None if command is None else command[command.index("--weight-mode") + 1]
+    expected_checkpoint = baseline_checkpoint if mode == "base" and baseline_checkpoint else checkpoint
     if (plan["training_plan_sha256"] != training["plan_sha256"]
-            or plan["checkpoint_receipt_sha256"] != checkpoint["receipt_sha256"]
+            or plan["checkpoint_receipt_sha256"] != expected_checkpoint["receipt_sha256"]
             or any(hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != sha
                    for name, sha in plan["implementation"].items())):
         raise ValueError("native micro continuation changed its frozen candidate or code")
+    if command is not None:
+        if "--max-seconds" in command and plan.get("max_seconds") != float(
+                command[command.index("--max-seconds") + 1]):
+            raise ValueError("native micro continuation changed its frozen runtime bound")
+        execution = (command[command.index("--decision-score-execution") + 1]
+                     if "--decision-score-execution" in command else "individual")
+        if plan.get("decision_score_execution", "individual") != execution:
+            raise ValueError("native micro continuation changed its decision score execution")
+        contract = plan.get("residual_calibration")
+        if plan.get("weight_mode") != mode:
+            raise ValueError("native micro continuation changed its candidate mode")
+        if mode == "residual":
+            expected_directory = Path(command[command.index("--residual-calibration") + 1]).resolve()
+            if (not isinstance(contract, dict)
+                    or contract.get("directory") != str(expected_directory)
+                    or contract.get("report_receipt_sha256") != residual_report_receipt_sha256):
+                raise ValueError("native micro continuation changed its source calibration")
+        elif contract is not None:
+            raise ValueError("native micro non-residual arm acquired a calibration")
 
 
 def require_learned_checkpoint(checkpoint):
@@ -119,14 +158,17 @@ def require_learned_checkpoint(checkpoint):
         raise ValueError("native micro decode requires a selected learned checkpoint")
 
 
-def run_stages(jobs, *, training, checkpoint, invoke):
+def run_stages(jobs, *, training, checkpoint, invoke, baseline_checkpoint=None,
+               residual_report_receipt_sha256=None):
     """Reuse completed decodes; a failed acceptance never starts the next stage."""
     for plan_job in jobs["plans"]:
         command = plan_job["command"]
         path = Path(command[command.index("--directory") + 1]) / "plan.json"
         if not path.exists():
             invoke(plan_job)
-        check_existing_plan(path, training=training, checkpoint=checkpoint)
+        check_existing_plan(path, training=training, checkpoint=checkpoint, command=command,
+            baseline_checkpoint=baseline_checkpoint,
+            residual_report_receipt_sha256=residual_report_receipt_sha256)
     for stage in jobs["stages"]:
         for arm in stage["arms"]:
             output = Path(arm["directory"])
@@ -161,11 +203,19 @@ def main():
     parser.add_argument("--fit-bank", type=Path)
     parser.add_argument("--fit-parent", type=Path)
     parser.add_argument("--fit-wait-seconds", type=float, default=10800.)
+    parser.add_argument("--candidate-weight-mode", choices=("fitted", "residual"), default="fitted")
+    parser.add_argument("--residual-calibration", type=Path)
+    parser.add_argument("--max-seconds", type=float, default=3600.,
+                        help="per-arm model-active bound, frozen into the pipeline and broker policy")
+    parser.add_argument("--decision-score-execution", choices=("individual", "causal_groups"),
+                        default="individual")
     args = parser.parse_args()
     if ((args.wait_fit_supervisor is None) != (args.fit_bank is None)
             or (args.wait_fit_supervisor is None) != (args.fit_parent is None)
             or not math.isfinite(args.fit_wait_seconds) or args.fit_wait_seconds <= 0):
         parser.error("supervised fit handoff requires its bank, parent, and finite wait bound")
+    if (args.residual_calibration is None) != (args.candidate_weight_mode == "fitted"):
+        parser.error("residual micro decode requires a calibration directory")
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
     from tools.refit_semantic_argument_proposals import configure_refit_environment
 
@@ -174,7 +224,10 @@ def main():
     training = verified_document(args.training_directory / "plan.json", "plan_sha256")
     jobs = stage_jobs(training_directory=args.training_directory, fit_verification=args.fit_verification,
         directory=args.directory, source_report=args.source_report, bundles=args.bundle,
-        training_plan_sha256=training["plan_sha256"], python=sys.executable)
+        training_plan_sha256=training["plan_sha256"], python=sys.executable,
+        candidate_weight_mode=args.candidate_weight_mode,
+        residual_calibration=args.residual_calibration, max_seconds=args.max_seconds,
+        decision_score_execution=args.decision_score_execution)
     if args.wait_fit_supervisor is not None:
         command = [sys.executable, str(ROOT / "tools/verify_semantic_native_fit.py"),
                    "--directory", str(args.training_directory), "--bank", str(args.fit_bank),
@@ -183,8 +236,11 @@ def main():
         for bundle in args.bundle:
             command += ["--bundle", bundle]
         jobs["fit_verify"] = job("fit-verify", command, args.directory, timeout=3600.)
-    body = {"schema": "aura.native_micro_pipeline.v1", "training_plan_sha256": training["plan_sha256"],
+    body = {"schema": "aura.native_micro_pipeline.v2" if args.residual_calibration else
+            "aura.native_micro_pipeline.v1", "training_plan_sha256": training["plan_sha256"],
             "fit_verification": str(args.fit_verification), "jobs": jobs,
+            **({"residual_calibration": str(args.residual_calibration)}
+               if args.residual_calibration else {}),
             "fit_supervisor": None if args.wait_fit_supervisor is None else str(args.wait_fit_supervisor),
             "fit_wait_seconds": args.fit_wait_seconds,
             "source_report_sha256": hashlib.sha256(args.source_report.read_bytes()).hexdigest(),
@@ -196,7 +252,7 @@ def main():
                           "training_plan_sha256": training["plan_sha256"]}), flush=True)
         return 0
     from core.runtime.detached_subprocess_broker import broker_available, run_brokered_process
-    from tools.adjudicate_semantic_native_micro_stages import verified_native_fit
+    from tools.adjudicate_semantic_native_micro_stages import verified_native_candidate
 
     if not broker_available():
         raise ValueError("native micro stages require the existing detached supervisor broker")
@@ -215,9 +271,14 @@ def main():
         print(json.dumps({"stage": "fit_wait", "status": "completed",
                           "supervisor_receipt_sha256": receipt["receipt_sha256"]}), flush=True)
         invoke(jobs["fit_verify"])
-    training, checkpoint, _ = verified_native_fit(args.training_directory, args.fit_verification)
+    training, checkpoint, _, residual = verified_native_candidate(
+        args.training_directory, args.fit_verification, args.residual_calibration)
     require_learned_checkpoint(checkpoint)
-    result = run_stages(jobs, training=training, checkpoint=checkpoint, invoke=invoke)
+    from tools.evaluate_semantic_native_checkpoint import selected_checkpoint
+    _, baseline_checkpoint = selected_checkpoint(args.training_directory)
+    result = run_stages(jobs, training=training, checkpoint=checkpoint, invoke=invoke,
+        baseline_checkpoint=baseline_checkpoint,
+        residual_report_receipt_sha256=None if residual is None else residual["report_receipt_sha256"])
     return 0 if result["full_development_ready"] is True else 2
 
 

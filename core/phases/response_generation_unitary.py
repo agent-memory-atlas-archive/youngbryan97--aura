@@ -31,6 +31,7 @@ import logging
 import re
 import threading
 import time
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING, Any
 
 from core.brain.llm.context_assembler import ContextAssembler
@@ -307,6 +308,85 @@ def _optional_service(name: str) -> Any:
         return ServiceContainer.get(name, default=None)
     except _RESPONSE_RECOVERABLE_ERRORS:
         return None  # not a failure: see the docstring.
+
+
+def _a_gate_took_something(outcome: Any) -> bool:
+    """Whether this turn holds a candidate a gate suppressed and left servable."""
+    if outcome is None:
+        return False
+    return any(
+        candidate.suppressed is not None and candidate.is_recoverable
+        for candidate in outcome.candidates()
+    )
+
+
+def never_leaves_a_turn_holding_its_answer(
+    execute: Callable[..., Awaitable[Any]],
+) -> Callable[..., Awaitable[Any]]:
+    """Serve the draft a gate suppressed, rather than serving nothing.
+
+    The thinking loop asks the turn ledger for its best surviving draft before
+    it tells a person it has nothing (`core.brain.cognitive_engine_thinking_loop`).
+    This phase, which serves chat, never did, so the same capability had one
+    door. On the reports run of 29 September her runtime raised
+    `answer_available_but_never_served` eleven times — "turn ended holding a
+    servable answer that was never shown to the person" — and 33 of 96 arms
+    recorded an empty reply while her cortex had answered.
+
+    This does not overrule the gates. `recoverable_answer` excludes anything a
+    gate marked unrecoverable, which is what a leak or a refusal is marked; what
+    comes back is a draft a heuristic disliked, and only when the alternative is
+    silence.
+    """
+
+    @functools.wraps(execute)
+    async def execute_and_serve_what_survived(
+        self: Any, state: Any, objective: str | None = None, **kwargs: Any
+    ) -> Any:
+        said_before = str(getattr(state.cognition, "last_response", "") or "")
+        new_state = await execute(self, state, objective, **kwargs)
+        try:
+            if not objective:
+                return new_state
+            cognition = new_state.cognition
+            said_now = str(getattr(cognition, "last_response", "") or "").strip()
+            if said_now and said_now != said_before.strip():
+                return new_state
+            origin = getattr(cognition, "current_origin", "")
+            if not (kwargs.get("priority", False) or self._is_user_facing_origin(origin)):
+                return new_state
+            # A benchmark turn fails closed on purpose: an empty reply is its
+            # result, and handing it a draft would score text nobody served.
+            if new_state.response_modifiers.get("benchmark_generation_failed_closed"):
+                return new_state
+            from core.runtime.turn_outcome import current_turn, recoverable_answer
+
+            # A reply equal to the one she gave last turn is ambiguous: a phase
+            # that committed nothing leaves the old one in place, and a phase
+            # that answered twice the same way commits it again. Only the first
+            # is a lost answer, so a stale-but-present reply is replaced only
+            # when a gate actually threw something away. An empty reply needs
+            # no such evidence: there is nothing to prefer over a draft.
+            if said_now and not _a_gate_took_something(current_turn()):
+                return new_state
+            salvaged = recoverable_answer()
+            if salvaged:
+                logger.warning(
+                    "🛡️ UnitaryResponse: the turn held an answer no gate would serve (len=%d). "
+                    "Serving it rather than nothing.",
+                    len(salvaged),
+                )
+                cognition.last_response = salvaged
+                new_state.response_modifiers["served_a_suppressed_draft"] = True
+        except _RESPONSE_RECOVERABLE_ERRORS as exc:
+            _record_response_degradation(
+                exc,
+                "UnitaryResponse: salvage of a suppressed draft skipped: %s",
+                action="left the turn empty because the turn ledger could not be read",
+            )
+        return new_state
+
+    return execute_and_serve_what_survived
 
 
 class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhatSheRemembers, Phase):
@@ -3732,6 +3812,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
             # return, and the caller checks for None.
             return None
 
+    @never_leaves_a_turn_holding_its_answer
     async def execute(self, state: AuraState, objective: str | None = None, **kwargs) -> AuraState:
         priority = kwargs.get("priority", False)
         runtime_context = kwargs.get("context")
