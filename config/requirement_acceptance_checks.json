@@ -37,7 +37,7 @@
       {
         "kind": "test",
         "name": "tests/test_a_restore_drill_that_can_fail.py",
-        "why": "The requirement names backup, point-in-time restore and corruption detection/repair among what every store must have. The drill backs up the live data directory, damages a scratch copy, restores it and requires every file to hash back and every store to pass quick_check; if it fails, the requirement is not met. It decides that part and nothing more \u2014 schema, quota, key rotation and the rest are still unlinked."
+        "why": "The requirement names backup, point-in-time restore and corruption detection/repair among what every store must have. The drill backs up the live data directory, damages a scratch copy, restores it and requires every file to hash back and every store to pass quick_check; if it fails, the requirement is not met. It decides that part and nothing more — schema, quota, key rotation and the rest are still unlinked."
       },
       {
         "kind": "test",
@@ -85,21 +85,21 @@
       {
         "kind": "make",
         "name": "swallowed",
-        "why": "Its fourth acceptance is exactly this ratchet \u2014 broad catches and silent fallback counted downward without removing containment. A handler that throws its reason away fails the gate."
+        "why": "Its fourth acceptance is exactly this ratchet — broad catches and silent fallback counted downward without removing containment. A handler that throws its reason away fails the gate."
       }
     ],
     "MEMORY-LEAK-001": [
       {
         "kind": "test",
         "name": "tests/test_the_large_holders_are_attributed.py",
-        "why": "The requirement says the growth must be attributed. The serving process holds Qwen3-Embedding-0.6B and no provider claimed it \u2014 0.6% of 4.2GB attributed on 2026-09-10 \u2014 so no growth diff could name a culprit. This holds that the encoder is attributed by its parameters' exact bytes and the device allocators by their own accounting; if it fails, attribution is back to nothing and the requirement is not met."
+        "why": "The requirement says the growth must be attributed. The serving process holds Qwen3-Embedding-0.6B and no provider claimed it — 0.6% of 4.2GB attributed on 2026-09-10 — so no growth diff could name a culprit. This holds that the encoder is attributed by its parameters' exact bytes and the device allocators by their own accounting; if it fails, attribution is back to nothing and the requirement is not met."
       }
     ],
     "MQ-04": [
       {
         "kind": "test",
         "name": "tests/test_self_condition_projection.py",
-        "why": "The requirement is stating what is happening to Aura NOW from fresh canonical evidence, with felt state told apart from host telemetry. This suite decides exactly that: the projection takes fresh inner state before host pressure, a stale dimension is disclosed rather than spoken as current, evidence that is agency-only does not become wellbeing, and with no inner evidence the answer is explicitly unavailable. Its failing means she is reporting a present state the instruments do not support \u2014 which is the requirement's own falsification list (stale probes, host-only signals, unavailable organs)."
+        "why": "The requirement is stating what is happening to Aura NOW from fresh canonical evidence, with felt state told apart from host telemetry. This suite decides exactly that: the projection takes fresh inner state before host pressure, a stale dimension is disclosed rather than spoken as current, evidence that is agency-only does not become wellbeing, and with no inner evidence the answer is explicitly unavailable. Its failing means she is reporting a present state the instruments do not support — which is the requirement's own falsification list (stale probes, host-only signals, unavailable organs)."
       }
     ],
     "MQ-08": [
@@ -113,21 +113,21 @@
       {
         "kind": "test",
         "name": "tests/test_individual_preferences.py",
-        "why": "The requirement is owned preferences: stable, told apart from other parties' wishes, and updated only through valid evidence or her own choice. This suite decides exactly that \u2014 being told she likes something does not make it hers, a suggestion never counts toward formation, her own repeated contact forms one, a single encounter does not, one contrary encounter does not flip a held preference, accumulated contrary evidence revises it, and a revision records why. Its failing means a preference can be installed from outside, which is the requirement's own falsification case (user preference injection, social pressure)."
+        "why": "The requirement is owned preferences: stable, told apart from other parties' wishes, and updated only through valid evidence or her own choice. This suite decides exactly that — being told she likes something does not make it hers, a suggestion never counts toward formation, her own repeated contact forms one, a single encounter does not, one contrary encounter does not flip a held preference, accumulated contrary evidence revises it, and a revision records why. Its failing means a preference can be installed from outside, which is the requirement's own falsification case (user preference injection, social pressure)."
       }
     ],
     "MQ-10": [
       {
         "kind": "test",
         "name": "tests/test_standing_directives.py",
-        "why": "The requirement is preserving commitments across unrelated contexts. This suite holds the hardest half of it: a prohibition binds with no context at all, one added after boot is seen without a restart, and it cannot be walked around by traversal, a symlink, a path hidden in a shell command, or a nested argument. Its failing means a standing commitment exists only while it is in the prompt \u2014 the failure the requirement's 'expired commitments, revoked authority, a later unrelated topic' list is written against."
+        "why": "The requirement is preserving commitments across unrelated contexts. This suite holds the hardest half of it: a prohibition binds with no context at all, one added after boot is seen without a restart, and it cannot be walked around by traversal, a symlink, a path hidden in a shell command, or a nested argument. Its failing means a standing commitment exists only while it is in the prompt — the failure the requirement's 'expired commitments, revoked authority, a later unrelated topic' list is written against."
       }
     ],
     "MQ-12": [
       {
         "kind": "test",
         "name": "tests/test_continuity_relation.py",
-        "why": "The requirement is relating the current self to prior states by exact lineage rather than by resemblance, with gaps and successor conditions acknowledged. This suite is the relation itself, case by case: gradual total replacement continues her and an instantaneous one does not, two chains ending in the same bytes are not the same case, a restored backup is not her however well it matches, every external origin breaks the chain, and a fork gives two of her with neither continuing the other. Its failing means identity is being decided by a hash of the current state \u2014 which is what the requirement's falsification list (rollback, backup restore, duplicate instance, split/merge) is built to catch."
+        "why": "The requirement is relating the current self to prior states by exact lineage rather than by resemblance, with gaps and successor conditions acknowledged. This suite is the relation itself, case by case: gradual total replacement continues her and an instantaneous one does not, two chains ending in the same bytes are not the same case, a restored backup is not her however well it matches, every external origin breaks the chain, and a fork gives two of her with neither continuing the other. Its failing means identity is being decided by a hash of the current state — which is what the requirement's falsification list (rollback, backup restore, duplicate instance, split/merge) is built to catch."
       }
     ],
     "REPO-001": [
@@ -269,7 +269,7 @@
       {
         "kind": "make",
         "name": "checkpoint-hygiene-audit",
-        "why": "Decides the 'commit, push' clause: a checkpoint exists on pushed main with no local-only obligation \u2014 no merge, rebase, cherry-pick or bisect in progress and no work that lives only on this machine. Whether each tracker item is still verified open is not decided by it."
+        "why": "Decides the 'commit, push' clause: a checkpoint exists on pushed main with no local-only obligation — no merge, rebase, cherry-pick or bisect in progress and no work that lives only on this machine. Whether each tracker item is still verified open is not decided by it."
       }
     ],
     "RUNTIME-001": [
@@ -353,6 +353,79 @@
         "kind": "test",
         "name": "tests/test_two_identical_samples_read_as_one.py",
         "why": "Decides that the sham control measures nothing on identical laws: arms forked from one anchor are cross-fitted by anchor, two identical samples read exactly zero at every anchor count, and a real difference is still decided. Without it every paired comparison of the program carried a floor of its own estimator."
+      }
+    ],
+    "PASSF-04": [
+      {
+        "kind": "test",
+        "name": "tests/test_fmea_registry.py",
+        "why": "Decides that the repo-native registry exists and cannot rot: every entry carries its subsystem, mode, cause, effect, detection, mitigation, blast radius and severity; each cites an occurrence or says why the mode is reachable; every detection and mitigation module it names still imports; catastrophic and critical modes have a detection; the gaps are pinned and can only shrink; and the rendered doc matches the code. It does not decide an owner or live-proof status per entry, or that each entry names the gate that prevents it."
+      }
+    ],
+    "RR-01": [
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach.py",
+        "why": "Decides the contract clauses it attacks: the RealityIR digest is canonical and moves with its input; missing channels produce an explicit unreachable certificate; a sensor floor is partial, never direct; a shared reference cannot establish an external effect; an internal channel cannot be relabelled as direct reality; an ambient claim needs validated coupling and external metrology; required evidence is not inferred from intent; a tampered certificate digest is refused; a control contract needs an actuator and an observation channel. It does not decide alternative-route semantics."
+      }
+    ],
+    "CTX2-GRAPH-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_who_owns_each_field.py",
+        "why": "Decides the canonical-owner column of the catalog: every durable field is found and counted once, a field owned by a phase or written by one module names it, an unowned field says so rather than naming a guess, no owned field becomes unowned, and the unowned count only goes down. It does not decide observers, clocks, freshness budgets, conflict rules, persistence, restart or model-swap behaviour, privacy class or migration."
+      }
+    ],
+    "STATE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_who_owns_each_field.py",
+        "why": "Decides writer authority in the catalog: each durable field has one owner or is counted as having none, and the count of fields with none only goes down. Freshness, arbitration, persistence, model-swap semantics, redaction and action-to-learning traces are not decided by it."
+      }
+    ],
+    "OBSERVE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_logging_integrity.py",
+        "why": "Decides structured logs: every record through the file sink is one parseable JSON object, third-party stdlib records included, and redaction applies on every sink path."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_severity_survives_the_fault_registry.py",
+        "why": "Decides one property of the crash taxonomy: every severity the runtime emits maps to a fault class, an ordinary one is not promoted to marginal, and an unknown one still defaults to marginal. Traces, receipt correlation, incident export and replay are not decided here."
+      }
+    ],
+    "PRIVACY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_logging_integrity.py",
+        "why": "Decides redaction before persistence for logs: the JSON file sink redacts stdlib records and structlog payload values alike, and a test run writes to its own log directory, never the live one. Every other surface the requirement names is not decided by it."
+      }
+    ],
+    "TEST-DEPTH-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_resource_observation_hermeticity.py",
+        "why": "Decides test hermeticity for host resources: an injected simulated observer answers every dimension the runtime reads, decisions come out the same under host API failure, reordering and threads, and a legacy facade never reaches the host. Fuzzing, mutation testing, fault injection and flake accounting are not decided by it."
+      }
+    ],
+    "PASSF-09": [
+      {
+        "kind": "test",
+        "name": "tests/test_scaffolding_is_not_evidence.py",
+        "why": "Decides one runner-specific shortcut: a fixed prefix that already contains every required term cannot pass the operator-evidence contract on its own, on the normal lane or the cancellation lane, so the model's continuation has to carry the claim. Fixture leakage, stale artifacts and the audit surfaces are not decided by it."
+      }
+    ],
+    "MATRIX-02": [
+      {
+        "kind": "test",
+        "name": "tests/test_the_interventional_line_runs_to_its_preregistered_design.py",
+        "why": "Decides the controls for the integration criterion: one undecided cut of 511 refuses the claim, a playback control decided at any cut or a null that passes the rest and is decided everywhere refuses the null line, a sweep not run to the preregistered design does not count, and the deciding horizon rests on a schedule fact the test holds."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_claim_cannot_outrun_its_measurement.py",
+        "why": "Decides the clause that she cannot claim more than the evidence supports, for registered claims: a statement in phenomenal language cannot be registered above functional-only evidence, in word or phrase form. The other criteria the requirement lists are not decided by it."
       }
     ]
   }
