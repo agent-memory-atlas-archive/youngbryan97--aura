@@ -1384,6 +1384,12 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                             goal, observation, mind
                         )
                         said_before = read_it or said_before
+                        # Said whichever of the two it came from. Speaking only
+                        # the page-read one meant a run that fell back to what
+                        # she told the person before arriving showed no
+                        # prediction at all — and then compared its result to
+                        # one, which reads as though it appeared from nowhere.
+                        read_it = read_it or said_before
                         if read_it:
                             self._say_out_loud(read_it)
                             await self._hold_for_reading(read_it)

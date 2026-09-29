@@ -1225,8 +1225,19 @@ class _UnderstandsThePage(_PlacesHerself):
                 leaning = item["second"] if lean.toward > 0 else item["first"]
                 # Where she said nothing, what stands is the thing in her that
                 # decided it — not the arithmetic that read it.
-                why = item.get("why") or (
-                    next(iter(lean.because), f'this is nearer "{leaning}" for me')
+                # An answer is never narrated bare.
+                #
+                # Her sentence first; the thing in her that decided it where
+                # she said nothing; and where even that is empty — a theme pass
+                # that failed outright — the placement itself, in words. LIVE
+                # 2026-09-29: "works best in groups … works best alone — 3 of
+                # 5, between "works best in groups" and "works best alone"."
+                # and nothing after it, which reads as an answer with no reason
+                # behind it.
+                why = (
+                    item.get("why")
+                    or next(iter(lean.because), "")
+                    or f'this sits nearer "{leaning}" for me than the other side'
                 )
                 # Her own words held against the place her record gave. The
                 # place stands, because it is the measurement; a sentence that

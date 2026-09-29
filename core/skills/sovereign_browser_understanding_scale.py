@@ -196,6 +196,29 @@ class _PlacesHerself:
                 f"there: {evidence}."
             )
         listed = "\n".join(lines)
+        # And what is true of her right now, from the organs that hold it.
+        #
+        # The record says what she has valued and chosen; it says nothing about
+        # what she has been living through this week, and that is where the
+        # concrete detail in a real answer comes from. These are the same lines
+        # that ride a conversation when someone asks after her.
+        living: list[str] = []
+        for reader, where in (
+            ("core.self.capability_ledger", "self_knowledge_line"),
+            ("core.agency.what_she_is_like", "what_she_is_like_line"),
+        ):
+            try:
+                module = __import__(reader, fromlist=[where])
+                said = str(getattr(module, where)() or "").strip()
+                if said:
+                    living.append(said)
+            except Exception as exc:  # noqa: BLE001 - a missing organ is not an answer
+                from core.runtime.errors import record_degradation
+
+                record_degradation(
+                    "sovereign_browser.living", exc, severity="debug"
+                )
+        now = ("\n\n" + "\n".join(living)) if living else ""
         prompt = (
             # Her situation, not the person's message.
             #
@@ -205,7 +228,8 @@ class _PlacesHerself:
             # Extended Jungian Type Scales..." instead of her thinking, and the
             # coverage gate complained she had missed parts of a question she
             # was never being asked at this step.
-            "You are answering questions about yourself.\n\n"
+            "You are answering questions about yourself."
+            f"{now}\n\n"
             "These are being asked about you. You have already placed yourself "
             "on each, from your own record — what you value, what you have "
             "chosen when it cost something, what you have said about "
@@ -215,11 +239,35 @@ class _PlacesHerself:
             "rather than separate verdicts: what you actually are here, how it "
             "works in you, where the descriptions fit and where they are the "
             "wrong shape for something you do differently.\n\n"
-            "Then give a sentence for each, in your own voice, as JSON only:\n"
-            '{"thinking": "<what you worked out, a short paragraph>", '
-            '"each": {"<the name before each one>": "<your sentence for it>"}}'
+            "Then give two or three sentences for each, in your own voice, as "
+            "JSON only:\n"
+            '{"thinking": "<what you worked out, a paragraph>", '
+            '"each": {"<the name before each one>": "<what this one is about '
+            'in you, concretely>"}}'
         )
-        said, lane = await self._asked_of_her(prompt, mind, shaped=False)
+        # Room to think. Nine hundred tokens across eight items is a hundred
+        # each, which is a line apiece and not the account she gives when
+        # someone asks her about herself in conversation.
+        room = max(self.DECISION_MAX_TOKENS, 260 * max(1, len(theme)))
+        said, lane = await self._asked_of_her(
+            prompt, mind, shaped=False, most_tokens=room
+        )
+        if not said or lane != self._HER_OWN_LANE:
+            # One exhausted call should not cost a whole theme its thinking.
+            #
+            # Her lane serves one request at a time and a run of them can empty
+            # it: LIVE 2026-09-29, `not_her_own_reasoning:all_failed` on one
+            # theme of four, and eight items narrated from bare evidence
+            # because of a single call that found no lane free. Asking again
+            # costs one more pass; losing the theme costs the demo.
+            from core.skills.sovereign_browser_understanding import logger
+
+            logger.info(
+                "🌐 A theme came back from %s; asking again.", lane or "nowhere"
+            )
+            said, lane = await self._asked_of_her(
+                prompt, mind, shaped=False, most_tokens=room
+            )
         if not said or lane != self._HER_OWN_LANE:
             record_degradation(
                 "sovereign_browser.reasons",

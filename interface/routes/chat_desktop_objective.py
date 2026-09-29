@@ -666,6 +666,16 @@ def _pursuit_account(result: dict) -> list[str]:
     """
 
     lines: list[str] = []
+    # Hers first: what she made of it once it was finished.
+    #
+    # This went last, and the account is clipped to a maximum length, so the
+    # verdict was the thing cut. LIVE 2026-09-29: she read her result, held it
+    # against what she had predicted and said so out loud, and the reply ended
+    # mid-sentence sixteen items earlier with nothing about the outcome. What
+    # was asked for is the verdict; the working is what supports it.
+    concluded = str(result.get("concluded") or "").strip()
+    if concluded:
+        lines.append(concluded)
     narration = result.get("narration")
     if isinstance(narration, list):
         for entry in narration:
@@ -685,10 +695,6 @@ def _pursuit_account(result: dict) -> list[str]:
         # The tail, not the head: a result page repeats its navigation before
         # it says anything, and what a page concludes with is what it is for.
         lines.append("The page ends with:\n" + ending[-600:].strip())
-    concluded = str(result.get("concluded") or "").strip()
-    if concluded:
-        # Hers, last: what she made of the page once it was finished.
-        lines.append(concluded)
     return lines
 
 
