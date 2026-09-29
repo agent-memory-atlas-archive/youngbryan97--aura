@@ -330,6 +330,18 @@
         "name": "tests/test_async_write_lane_ratchet.py",
         "why": "Decides 'move blocking work off-loop' for the class behind every recorded live loop wedge: a synchronous gateway or atomic write inside an async function, directly or through a same-file helper, fails it unless it is a frozen historical offender. Other blocking owners and the live availability proof are not decided by it."
       }
+    ],
+    "CTX2-TEST-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_resource_observation_hermeticity.py",
+        "why": "Decides the injection clause: a simulated observer attributes every dimension the requirement names (RAM, process size, thermal, disk, accelerator, process table), the lane and pressure decisions come out the same under host API failure, reordering and threads, and a legacy facade never reaches the sabotaged host APIs. It does not decide that every test in the tree asks for the injected observer rather than the host."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_the_body_reads_the_host_the_turn_declared.py",
+        "why": "Decides the same clause for the subject-core measurements: a busy machine does not reach a calm turn, and everything that reads the host through psutil sees the run's declared host instead."
+      }
     ]
   }
 }
