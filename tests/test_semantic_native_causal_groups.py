@@ -49,6 +49,7 @@ def test_shared_scores_match_each_original_full_sequence(hybrid, tied, quantized
     observed, receipt = score_native_causal_groups(prefix, suffix, rows)
     assert observed == expected
     assert receipt["full_single_row_forwards"] == 3
+    assert receipt["vocabulary_normalizations"] == 3
     assert receipt["shared_forwards"] == 1
     assert receipt["numeric_equivalence_measured"] is False
     assert receipt["serving_authority"] is False
