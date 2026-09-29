@@ -119,3 +119,32 @@ def test_text_a_gate_marked_unrecoverable_never_comes_back():
 
 if __name__ == "__main__":  # pragma: no cover
     pytest.main([__file__])
+
+
+def test_answering_twice_the_same_way_is_not_a_lost_answer():
+    """A phase that committed nothing leaves her last reply in place, and a
+    phase that answered the same way twice commits it again. Only the first is
+    an answer lost, so a stale-but-present reply is replaced only when a gate
+    took something."""
+
+    async def go():
+        with bind_turn(TurnOutcome(origin="user")):
+            # A live candidate, nothing suppressed: the pipeline worked.
+            note_candidate("An earlier draft nobody rejected.", source="cortex")
+            return await _Phase("earlier").execute(_state(said="earlier"), "how are you?")
+
+    served = asyncio.run(go())
+    assert served.cognition.last_response == "earlier"
+    assert "served_a_suppressed_draft" not in served.response_modifiers
+
+
+def test_an_empty_reply_still_takes_whatever_survived():
+    """Nothing to prefer over a draft, so no suppression evidence is needed."""
+
+    async def go():
+        with bind_turn(TurnOutcome(origin="user")):
+            note_candidate("A draft nobody rejected.", source="cortex")
+            return await _Phase("").execute(_state(), "how are you?")
+
+    served = asyncio.run(go())
+    assert served.cognition.last_response == "A draft nobody rejected."

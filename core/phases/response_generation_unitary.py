@@ -310,6 +310,16 @@ def _optional_service(name: str) -> Any:
         return None  # not a failure: see the docstring.
 
 
+def _a_gate_took_something(outcome: Any) -> bool:
+    """Whether this turn holds a candidate a gate suppressed and left servable."""
+    if outcome is None:
+        return False
+    return any(
+        candidate.suppressed is not None and candidate.is_recoverable
+        for candidate in outcome.candidates()
+    )
+
+
 def never_leaves_a_turn_holding_its_answer(
     execute: Callable[..., Awaitable[Any]],
 ) -> Callable[..., Awaitable[Any]]:
@@ -339,7 +349,8 @@ def never_leaves_a_turn_holding_its_answer(
             if not objective:
                 return new_state
             cognition = new_state.cognition
-            if str(getattr(cognition, "last_response", "") or "").strip() not in {"", said_before.strip()}:
+            said_now = str(getattr(cognition, "last_response", "") or "").strip()
+            if said_now and said_now != said_before.strip():
                 return new_state
             origin = getattr(cognition, "current_origin", "")
             if not (kwargs.get("priority", False) or self._is_user_facing_origin(origin)):
@@ -348,8 +359,16 @@ def never_leaves_a_turn_holding_its_answer(
             # result, and handing it a draft would score text nobody served.
             if new_state.response_modifiers.get("benchmark_generation_failed_closed"):
                 return new_state
-            from core.runtime.turn_outcome import recoverable_answer
+            from core.runtime.turn_outcome import current_turn, recoverable_answer
 
+            # A reply equal to the one she gave last turn is ambiguous: a phase
+            # that committed nothing leaves the old one in place, and a phase
+            # that answered twice the same way commits it again. Only the first
+            # is a lost answer, so a stale-but-present reply is replaced only
+            # when a gate actually threw something away. An empty reply needs
+            # no such evidence: there is nothing to prefer over a draft.
+            if said_now and not _a_gate_took_something(current_turn()):
+                return new_state
             salvaged = recoverable_answer()
             if salvaged:
                 logger.warning(
