@@ -157,6 +157,48 @@ CREATE INDEX IF NOT EXISTS idx_goal_task_id ON goals(task_id);
 CREATE INDEX IF NOT EXISTS idx_goal_project_id ON goals(project_id);
 """
 
+#: The order goals are served in, as one expression. It ranks by what she is
+#: doing now before what is waiting, then by priority and recency.
+_SERVING_RANK = (
+    "CASE WHEN status = 'in_progress' THEN 0 WHEN status = 'queued' THEN 1 "
+    "WHEN status = 'blocked' THEN 2 WHEN status = 'paused' THEN 3 ELSE 4 END"
+)
+
+#: That rank stored, so an index can serve the order instead of a sort.
+#:
+#: `ORDER BY CASE ... END, priority DESC, updated_at DESC` cannot use an index,
+#: because the rank is computed per row, so every read scanned the whole table
+#: and built a temporary B-tree. At 3,622 goals on the live store that is
+#: 12.3 ms on an idle read-only handle with nothing competing; on the loop, under
+#: the write lock, with the WAL writer active, it is where the loop was in 13 of
+#: 120 stall dumps read on 29 September (`_fetch_records`, lines 934, 936 and
+#: 1051 of the frames). With the rank stored and indexed the plan loses its
+#: temporary B-tree and the same hundred rows come back in the same order in
+#: 0.89 ms.
+_SERVING_ORDER_MIGRATION = (
+    f"ALTER TABLE goals ADD COLUMN status_rank INTEGER "
+    f"GENERATED ALWAYS AS ({_SERVING_RANK}) VIRTUAL",
+    "CREATE INDEX IF NOT EXISTS idx_goal_serving_order "
+    "ON goals(status_rank, priority DESC, updated_at DESC)",
+)
+
+
+def _add_the_serving_order(conn: sqlite3.Connection) -> None:
+    """Give an existing store the stored rank and its index.
+
+    The schema is `CREATE TABLE IF NOT EXISTS`, so a store that already exists
+    never sees a new column. A generated column costs no bytes and needs no
+    backfill, which is why the migration is an ALTER rather than a rebuild.
+    """
+    for statement in _SERVING_ORDER_MIGRATION:
+        try:
+            conn.execute(statement)
+        # not a failure: the column is already there, or this SQLite is older
+        # than generated columns (3.31). `_fetch_records` reads the plan and
+        # falls back to the expression either way.
+        except sqlite3.OperationalError:
+            continue
+
 
 @dataclass
 class GoalRecord:
@@ -438,6 +480,8 @@ class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
 
     def __init__(self, db_path: str | None = None):
         self._db_path = Path(db_path) if db_path else self._default_db_path()
+        #: Whether this store carries the stored serving rank. Read once.
+        self._has_serving_rank: bool | None = None
         self._lock = threading.Lock()
         self._conn: sqlite3.Connection | None = None
         self._state_repo = None
@@ -501,6 +545,7 @@ class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
                 conn.execute("PRAGMA journal_mode=WAL;")
                 conn.execute("PRAGMA synchronous=NORMAL;")
                 conn.executescript(_SCHEMA)
+                _add_the_serving_order(conn)
                 conn.commit()
                 self._conn = conn
         except (sqlite3.Error, OSError) as exc:
@@ -920,6 +965,29 @@ class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
             last_progress_at=row["last_progress_at"],
         )
 
+    def _serving_order(self) -> str:
+        """`status_rank` where the store has it, and the expression where it does not.
+
+        The stored rank is what lets an index serve the order. A store on a
+        SQLite without generated columns has no such column, and reading it
+        would raise rather than sort — so the expression stays as the fallback
+        and both give the same rows in the same order.
+        """
+        known = self._has_serving_rank
+        if known is None:
+            known = False
+            if self._conn is not None:
+                try:
+                    known = any(
+                        row["name"] == "status_rank"
+                        for row in self._conn.execute("PRAGMA table_info(goals)")
+                    )
+                # not a failure: an unreadable store sorts by the expression.
+                except sqlite3.Error:
+                    known = False
+            self._has_serving_rank = known
+        return "status_rank" if known else _SERVING_RANK
+
     def _fetch_records(self, *, statuses: Iterable[str] | None = None, limit: int = 100) -> list[GoalRecord]:
         if self._conn is None:
             return []
@@ -930,7 +998,7 @@ class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
             placeholders = ", ".join("?" for _ in normalized)
             query += f" WHERE status IN ({placeholders})"
             params.extend(normalized)
-        query += " ORDER BY CASE WHEN status = 'in_progress' THEN 0 WHEN status = 'queued' THEN 1 WHEN status = 'blocked' THEN 2 WHEN status = 'paused' THEN 3 ELSE 4 END, priority DESC, updated_at DESC LIMIT ?"
+        query += f" ORDER BY {self._serving_order()}, priority DESC, updated_at DESC LIMIT ?"
         params.append(max(1, int(limit or 100)))
         with self._lock:
             cursor = self._conn.execute(query, params)
