@@ -53,6 +53,7 @@ __all__ = [
     "LOOKS",
     "ONE_CLOCK",
     "ONE_SIGNAL",
+    "ESTIMATOR",
     "PAIRED",
     "REPORTED_LAGS",
     "design",
@@ -80,6 +81,11 @@ ONE_CLOCK: bool = True
 #: 0.0032 to 0.0083 and the carrier's duplication control refused authority;
 #: see core.subject.intrinsic_v25.one_column_per_signal.
 ONE_SIGNAL: bool = True
+#: How a cut is read: each anchor's displacement under the cut against its two
+#: untouched forks', in the units of her own untouched variation. See
+#: core.subject.paired_displacement and the preregistration's addendum of
+#: 29 September, afternoon.
+ESTIMATOR: str = "displacement"
 
 
 def design() -> dict[str, Any]:
@@ -95,6 +101,7 @@ def design() -> dict[str, Any]:
         "paired": PAIRED,
         "one_clock": ONE_CLOCK,
         "one_signal": ONE_SIGNAL,
+        "estimator": ESTIMATOR,
     }
 
 

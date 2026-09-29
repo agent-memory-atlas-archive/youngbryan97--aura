@@ -556,6 +556,7 @@ async def _spectrum(
         stop_file=stop_file,
         paired=bool(chosen.get("paired")),
         kept=None if keep_samples is None else (kept := {}),
+        estimator=str(chosen.get("estimator") or "fisher_rao"),
     )
     if keep_samples is not None:
         detail["samples_file"] = str(await asyncio.to_thread(_save_cut_samples, keep_samples, kept))
@@ -646,9 +647,17 @@ def _recoded(block: np.ndarray, seed: int) -> np.ndarray:
     return block @ q
 
 
+def _displacement_excess(arms: dict[str, np.ndarray], tau_seconds: float) -> float:
+    """The cut's mean displacement less the sham's, per second; see core.subject.paired_displacement."""
+    from core.subject.paired_displacement import per_anchor
+
+    moved, parted = per_anchor(arms["intact"], arms["cut"], arms["sham_a"], arms["sham_b"])
+    return float(np.mean(moved - parted)) / float(tau_seconds)
+
+
 def _invariance(
     samples: dict[str, np.ndarray], *, tau_seconds: float, seed: int, whiten: bool = False,
-    paired: bool = False,
+    paired: bool = False, estimator: str = "fisher_rao",
 ) -> dict[str, Any]:
     """Score one cut three ways: raw, re-encoded, and with duplicate channels.
 
@@ -660,6 +669,8 @@ def _invariance(
     from core.subject.intrinsic_v25 import intrinsic_rate_from_samples
 
     def rate(mapped: dict[str, np.ndarray]) -> float:
+        if estimator == "displacement":
+            return _displacement_excess(mapped, tau_seconds)
         estimate = intrinsic_rate_from_samples(
             mapped["intact"], mapped["cut"], mapped["sham_a"], mapped["sham_b"],
             tau_seconds=tau_seconds, context=mapped.get("context"), seed=seed,
@@ -700,6 +711,7 @@ def _v25_nulls(
     alpha: float = 0.05,
     draws: int = 200,
     paired: bool = False,
+    estimator: str = "fisher_rao",
 ) -> dict[str, Any]:
     """The four controls v25 adds, scored with the same estimator.
 
@@ -712,6 +724,10 @@ def _v25_nulls(
     from core.subject.v25_cut import playback_decided
 
     def rate(intact, cut, sham_a, sham_b) -> float:
+        if estimator == "displacement":
+            return _displacement_excess(
+                {"intact": intact, "cut": cut, "sham_a": sham_a, "sham_b": sham_b}, tau_seconds
+            )
         return float(
             intrinsic_rate_from_samples(
                 intact, cut, sham_a, sham_b,
@@ -748,6 +764,7 @@ def _v25_nulls(
         "playback_is_zero": not playback_decided(
             samples, tau_seconds=tau_seconds, seed=seed + 5, alpha=alpha, draws=draws,
             **({"paired": True} if paired else {}),
+            **({"estimator": estimator} if estimator != "fisher_rao" else {}),
         ),
         "playback_rule": "undecided by the cut rule at the same level and draws",
         "duplicate_coordinates": round(duplicate, 6),
@@ -973,6 +990,7 @@ async def main() -> int:
         # used the estimator that reads two identical samples as apart.
         "paired": bool(args.v5 and preset["paired"]),
         "one_signal": bool(args.v5 and preset.get("one_signal")),
+        "estimator": str(preset.get("estimator") or "fisher_rao") if args.v5 else "fisher_rao",
     }
     if sweep_design["one_signal"]:
         # Before any estimate, and inherited by every process the draws spread to.
@@ -1325,12 +1343,14 @@ async def main() -> int:
                 evidence["representation_invariance"] = _invariance(
                     samples, tau_seconds=tau_best, seed=args.seed, whiten=bool(args.whiten),
                     paired=bool(sweep_design.get("paired")),
+                    estimator=str(sweep_design.get("estimator") or "fisher_rao"),
                 )
                 evidence["v25_nulls"] = _v25_nulls(
                     samples, tau_seconds=tau_best, seed=args.seed,
                     alpha=float(args.alpha) / max(1, len(sweep_design["looks"]) or args.cut_rounds),
                     draws=int(args.draws),
                     paired=bool(sweep_design.get("paired")),
+                    estimator=str(sweep_design.get("estimator") or "fisher_rao"),
                 )
             except (ValueError, KeyError, IndexError) as exc:
                 # Same reason as inside them: what is already measured is worth

@@ -206,6 +206,7 @@ def test_the_runner_takes_its_v5_design_from_one_place() -> None:
     assert chosen["looks"] == [8, 16, 32, 64, 96, 128] and chosen["draws"] == 1000
     assert chosen["deciding"] == [66] and chosen["lags"] == [33, 66] and chosen["anchors"] == 128
     assert chosen["paired"] is True and chosen["one_clock"] is True and chosen["one_signal"] is True
+    assert chosen["estimator"] == "displacement"
 
 
 def test_two_turns_is_the_shortest_horizon_at_which_the_rest_can_reach_the_body() -> None:

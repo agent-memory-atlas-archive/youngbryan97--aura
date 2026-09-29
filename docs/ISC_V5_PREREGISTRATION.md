@@ -1527,3 +1527,72 @@ decides the line, and the organism the carrier measures should be the one the
 battery measures; that change would be preregistered for seed 23 before it
 runs. If C is undecided at 370 rounds too, the gates are not the missing
 pathway, and the next thing to build is one that is.
+
+## Addendum, 29 September 2026, afternoon: a cut is read anchor by anchor
+
+Named before any run that decides anything reads it. It applies to seed 23, to
+the null architectures swept under v5, and to every run after them. Seed 7 was
+read under the Fisher-Rao estimator and cannot be the decisive reading.
+
+### The question, as this document asks it
+
+"From one snapshot, hold one side of a cut and let the other run; then the
+reverse; compose the two free halves; compare with the untouched run. If the
+halves need each other, the composed run differs from the untouched one by more
+than two untouched runs differ from each other."
+
+That is a paired question, and since 28 September the forks make it one: two
+untouched forks from one anchor are the same computation, and the sham reads
+0.0. The Fisher-Rao estimator answered another question. It trained a
+neighbour classifier to tell the cut arm from the untouched arm across anchors,
+each anchor's rows in one fold, so it could use only what a cut does the same
+way at every anchor, and it read that against a context of 446 columns in which
+no two anchors are neighbours.
+
+### What that missed
+
+The looks at `00f62d24e` kept their samples. Holding C for two turns moved 199
+of her columns beyond their sham at 127 of 128 anchors in the control arm, by up
+to 0.97 of a column's spread (the field's weights, the substrate's state and
+psychology, `A.valence`, `A.delivery_z`, the workspace's modifiers). The
+Fisher-Rao estimator read that as a rate of 0.0067 with a lower bound of
+-0.0077: undecided.
+
+### The estimator
+
+`core.subject.paired_displacement`. For each anchor, the squared Mahalanobis
+displacement of the composed run from the untouched one, and of the second
+untouched fork from the first, in the subspace the four arms move in (SVD of
+the pooled arms at numpy's rank tolerance; no label is used) under the
+Ledoit-Wolf shrinkage estimate of the untouched futures' covariance (its
+intensity is estimated, not chosen). The excess rate is the mean over anchors of
+the cut's displacement less the sham's, per second; its lower bound is the
+alpha quantile of that mean over bootstrap resamples of the anchors; the p-value
+flips the sign of each anchor's excess, which under the null is symmetric
+because the cut arm is then one more untouched fork. The decision rule, looks,
+level and draws do not move: a cut is decided when its lower bound clears zero
+at a look, each look at alpha / 6.
+
+Held by `tests/test_a_cut_is_read_by_where_it_moved_her.py`: identical arms read
+nothing; a move of three tenths of a spread in five of forty columns is decided
+at 32 anchors; a cut arm that is only another noisy fork is decided in at most
+one of twenty draws at this level; an orthogonal recoding of the state and
+writing every column twice leave every anchor's displacement unchanged; the
+playback control is never decided. The carrier's representation, duplication
+and playback controls are scored with the same estimator.
+
+### What seed 7 reads under it
+
+On the looks' kept samples, lower bounds at two turns (all decided):
+
+| arm | I | W | C |
+|---|---|---|---|
+| control | 2.73 | 1.65 | 0.262 |
+| relay | 4.36 | 2.46 | 0.208 |
+| carried | 1.11 | 0.424 | 0.030 |
+| joined | 3.99 | 2.47 | 0.221 |
+
+At one turn C is decided in relay, carried and joined and not in control (lower
+bound -0.129), and I is undecided in control, as the body's schedule predicts.
+These numbers were read after the fact on seed 7 and decide nothing; they are
+why seed 23 is run to this estimator.

@@ -373,7 +373,7 @@ class _Gathered:
 
 def playback_decided(
     samples: dict[str, np.ndarray], *, tau_seconds: float, seed: int, alpha: float, draws: int,
-    paired: bool = False,
+    paired: bool = False, estimator: str = "fisher_rao",
 ) -> bool:
     """Whether the decision rule decides a cut whose cut arm is the untouched run.
 
@@ -386,7 +386,7 @@ def playback_decided(
     replay["cut"] = np.asarray(samples["intact"]).copy()
     _estimate, _excess, lower, _p = decide_cut(
         replay, tau_seconds=tau_seconds, seed=seed, alpha=alpha, draws=draws, permutation_draws=19,
-        paired=paired,
+        paired=paired, **({"estimator": estimator} if estimator != "fisher_rao" else {}),
     )
     return lower > 0.0
 
@@ -401,6 +401,7 @@ def decide_cut(
     alpha: float = 0.05,
     whiten: bool = False,
     paired: bool = False,
+    estimator: str = "fisher_rao",
 ) -> tuple[IntrinsicRateEstimate, float, float, float]:
     """Score one cut: the excess rate, its lower bound, and a paired p-value.
 
@@ -413,6 +414,13 @@ def decide_cut(
     and a fold that split an anchor's rows read separation between two
     identical samples (see `crossfit_fisher_rao`).
     """
+    if estimator == "displacement":
+        from core.subject.paired_displacement import decide
+
+        return decide(  # type: ignore[return-value]
+            samples, tau_seconds=tau_seconds, seed=seed, alpha=alpha, draws=draws,
+            permutation_draws=permutation_draws,
+        )
     context = samples.get("context")
     anchor = np.arange(len(samples["intact"])) if paired else None
     estimate = intrinsic_rate_from_samples(
@@ -650,6 +658,7 @@ async def sweep_cuts_over_lags(
     stop_file: str = "",
     paired: bool = False,
     kept: dict[str, dict[int, dict[str, np.ndarray]]] | None = None,
+    estimator: str = "fisher_rao",
 ) -> dict[int, SweepReport]:
     """Every bipartition at every horizon, from one set of rollouts per cut.
 
@@ -788,6 +797,7 @@ async def sweep_cuts_over_lags(
                     draws=draws,
                     **({"whiten": True} if whiten else {}),
                     **({"paired": True} if paired else {}),
+                    **({"estimator": estimator} if estimator != "fisher_rao" else {}),
                 )
             except ValueError as exc:
                 verdict.note = f"not enough matched contexts: {exc}"
@@ -806,6 +816,7 @@ async def sweep_cuts_over_lags(
                     alpha=per_look,
                     draws=draws,
                     **({"paired": True} if paired else {}),
+                    **({"estimator": estimator} if estimator != "fisher_rao" else {}),
                 )
 
     stopped_after = ""
