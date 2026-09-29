@@ -1236,6 +1236,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development
+  [V7 six-source micro-probe protocol](evidence/G03_V7_MICRO_PROBE_PROTOCOL_2026-09-28.md)
+  freezes a target-blind fitted/base/erasure comparison before the model-active
+  fit. The protocol has no generated outcome and grants no promotion.
   [V7 joint graph checkpoint preparation](evidence/G03_JOINT_GRAPH_SELECTION_2026-09-28.md)
   connects complete-graph calibration to baseline-preserving checkpoint
   selection. Source-only preparation is measured; model-active fit and
