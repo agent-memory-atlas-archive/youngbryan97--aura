@@ -1319,3 +1319,32 @@ her kernel as well as the harness (`1245d58ca`). The afferent surface filtered
 only the recording, so it moved to `core/subject` and no arm switches it on;
 `carried` is the membrane alone. The arms run after the carrier run and the
 reports ground, each at one commit with its own control.
+
+## Addendum, 28 September 2026, evening: the structure term, measured with the same estimator fixed
+
+Named before the content run that reads it. The code is at `1ef192fb9`.
+
+The structure term of J* read an agreement of 0.274 against its bar of 0.3
+(`content-s7-24-4e1923da1`), and its report put the cause in one line: a class
+lay about 0.05 from itself, as far as two classes lay from each other. That was
+the estimator of the addendum above. Every class is forked from the same
+anchors, and the same-class floor is two identical samples, which read 0.056 at
+that size. So the internal geometry's close pairs were all floor, and a rank
+correlation reads the close pairs too.
+
+Two changes to the content run, and nothing else:
+
+- the internal geometry compares two classes on the presentations both have,
+  row for row, and cross-fits by anchor (`internal_geometry(paired=True)`);
+- the runner stops the free-running loops before the anchor bank, as the
+  carrier and reports runners now do, so two presentations of one class from
+  one anchor are the same computation.
+
+The bars do not move: agreement and moves-together each at a rank correlation
+of at least 0.3 with p under 0.01, and moves-together above its sham floor.
+The behavioural geometry is unchanged. Seed 7, 24 anchors, 24 baseline rounds,
+the same 20 classes, as before.
+
+A result either way is read as the structure term's reading on seed 7. If the
+agreement clears 0.3 and moves-together does not, the verdict is
+AGREES_BUT_DOES_NOT_TRACK and the displacement is the next thing to build for.
