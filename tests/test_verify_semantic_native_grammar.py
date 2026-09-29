@@ -9,6 +9,7 @@ import pytest
 from core.learning.procedure_induction import Instruction, Program
 from tools.verify_semantic_native_grammar import (
     replay_greedy_decisions,
+    replay_search_decisions,
     source_separation_summary,
     verified_dataset,
     verified_examples,
@@ -74,6 +75,88 @@ def test_grammar_decision_replay_rejects_forged_winner():
     forged["decision_trace"][0]["chosen"] = "sub"
     with pytest.raises(ValueError, match="winning score"):
         replay_greedy_decisions(forged, example=example, plan=plan)
+
+
+def test_search_replay_rebuilds_discarded_branches_and_rejects_forged_selection():
+    from core.learning.semantic_native_relative_program import REGISTER_ENCODING
+    from core.learning.semantic_native_search import search_native_grammar
+    from core.learning.semantic_program_floor import semantic_programs_structurally_equivalent
+
+    transcript = []
+    receipts = []
+
+    def score(choices):
+        values = [choice.value for choice in choices]
+        scores = [0.0] * len(choices)
+        transcript.append({"choices": values, "scores": scores})
+        receipts.append([{"choice": value} for value in values])
+        return tuple(scores)
+
+    plan = {"max_steps": 3, "search_nodes": 64, "search_completions": 4,
+            "register_encoding": REGISTER_ENCODING,
+            "search_score_mode": "normalized_choices"}
+    searched = search_native_grammar(("integer", "integer"), score,
+        max_steps=plan["max_steps"], max_nodes=plan["search_nodes"],
+        completions=plan["search_completions"],
+        register_encoding=plan["register_encoding"],
+        score_mode=plan["search_score_mode"])
+    assert len(searched.candidates) == 4
+    chosen = 2
+    selected = searched.candidates[chosen].result
+    example = SimpleNamespace(program=searched.candidates[0].result.program)
+    search = {"expanded_nodes": searched.expanded_nodes,
+              "scored_decisions": searched.scored_decisions,
+              "scored_alternatives": searched.scored_alternatives,
+              "disconnected_leaves": searched.disconnected_leaves,
+              "pruned_prefixes": searched.pruned_prefixes,
+              "frontier_nodes": searched.frontier_nodes,
+              "frontier_log_probability_bound": searched.frontier_log_probability_bound,
+              "halt_reason": searched.halt_reason,
+              "requested_top_k_proven": searched.requested_top_k_proven,
+              "score_transcript": transcript,
+              "selected_index": chosen,
+              "complete_graph_scores": [0.0, 1.0, 2.0, -1.0],
+              "proposals": [{"program": candidate.result.program.to_dict(),
+                  "log_probability": candidate.log_probability,
+                  "decision_trace": candidate.result.trace,
+                  "bound_forced_completion": candidate.result.bound_forced_completion}
+                  for candidate in searched.candidates],
+              "observed_program_reach": any(semantic_programs_structurally_equivalent(
+                  candidate.result.program, example.program) for candidate in searched.candidates)}
+    row = json.loads(json.dumps({"search": search, "score_input_receipts": receipts,
+        "decode_status": "completed", "program": selected.program.to_dict(),
+        "decision_trace": selected.trace,
+        "bound_forced_completion": selected.bound_forced_completion}))
+
+    def expected_receipts(choices):
+        return [{"choice": choice.value} for choice in choices]
+
+    def verify(candidate):
+        replay_search_decisions(candidate, example=example, plan=plan,
+            input_types=("integer", "integer"),
+            input_receipts_for_choices=expected_receipts)
+
+    verify(row)
+    for path, value in (
+        (("search", "score_transcript", 0, "choices", 0), "forged"),
+        (("search", "score_transcript", 0, "scores", 0), 7.0),
+        (("score_input_receipts", 0, 0, "choice"), "forged"),
+        (("search", "selected_index"), 0),
+        (("search", "proposals", 0, "program"), selected.program.to_dict()),
+        (("program",), searched.candidates[0].result.program.to_dict()),
+    ):
+        forged = json.loads(json.dumps(row))
+        target = forged
+        for key in path[:-1]:
+            target = target[key]
+        target[path[-1]] = value
+        with pytest.raises(ValueError, match="native search"):
+            verify(forged)
+    forged = json.loads(json.dumps(row))
+    forged["search"]["score_transcript"].append(forged["search"]["score_transcript"][0])
+    forged["score_input_receipts"].append(forged["score_input_receipts"][0])
+    with pytest.raises(ValueError, match="unvisited decisions"):
+        verify(forged)
 
 
 @pytest.mark.parametrize("mode", ["source_text", "source_token_erasure", "source_pair_swap"])

@@ -1992,6 +1992,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   51/60. The candidate is not promoted; component attribution continues.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
+  [V7 three-source target-blind protocol](evidence/G04_V7_TARGET_BLIND_MICRO_PROTOCOL_2026-09-28.md)
+  freezes one new source per withheld three-step domain before the v7 fit
+  completes. No generated result or G04 closure follows from preflight.
   [Conditional native binding](evidence/G04_CONDITIONAL_NATIVE_BINDING_2026-09-28.md)
   independently replays base scores on fitted role/dependency prefixes:
   32/36 references versus fitted 36/36 in each small cohort. The four

@@ -158,6 +158,79 @@ def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_
         raise ValueError("native grammar trie has no scored source anchor")
 
 
+def replay_search_decisions(row, *, example, plan, input_types, input_receipts_for_choices):
+    """Rebuild every searched branch from saved scores, including dead ends."""
+    from core.learning.semantic_native_search import search_native_grammar
+    from core.learning.semantic_program_floor import semantic_programs_structurally_equivalent
+
+    observed = row.get("search")
+    transcript = observed.get("score_transcript") if isinstance(observed, dict) else None
+    receipts = row.get("score_input_receipts")
+    if (not isinstance(transcript, list) or not transcript
+            or not isinstance(receipts, list) or len(receipts) != len(transcript)):
+        raise ValueError("native search lacks a complete decision-score transcript")
+    consumed = 0
+
+    def recorded_scores(choices):
+        nonlocal consumed
+        if consumed >= len(transcript):
+            raise ValueError("native search transcript ended before exploration")
+        entry = transcript[consumed]
+        values = [choice.value for choice in choices]
+        scores = entry.get("scores") if isinstance(entry, dict) else None
+        if (not isinstance(entry, dict) or entry.get("choices") != values
+                or not isinstance(scores, list)
+                or len(scores) != len(choices)
+                or any(type(score) not in {int, float} or not math.isfinite(score)
+                       for score in scores)
+                or receipts[consumed] != input_receipts_for_choices(choices)):
+            raise ValueError("native search scored choices or source inputs differ")
+        consumed += 1
+        return tuple(scores)
+
+    replayed = search_native_grammar(input_types, recorded_scores,
+        max_steps=plan["max_steps"], max_nodes=plan["search_nodes"],
+        completions=plan["search_completions"],
+        register_encoding=plan["register_encoding"],
+        score_mode=plan["search_score_mode"])
+    if consumed != len(transcript):
+        raise ValueError("native search transcript contains unvisited decisions")
+    graph_scores = observed.get("complete_graph_scores")
+    if (not isinstance(graph_scores, list) or len(graph_scores) != len(replayed.candidates)
+            or any(type(score) not in {int, float} or not math.isfinite(score)
+                   for score in graph_scores)):
+        raise ValueError("native search lacks finite whole-graph scores")
+    chosen = max(range(len(graph_scores)), key=graph_scores.__getitem__) if graph_scores else None
+    expected = {"expanded_nodes": replayed.expanded_nodes,
+        "scored_decisions": replayed.scored_decisions,
+        "scored_alternatives": replayed.scored_alternatives,
+        "disconnected_leaves": replayed.disconnected_leaves,
+        "pruned_prefixes": replayed.pruned_prefixes,
+        "frontier_nodes": replayed.frontier_nodes,
+        "frontier_log_probability_bound": replayed.frontier_log_probability_bound,
+        "halt_reason": replayed.halt_reason,
+        "requested_top_k_proven": replayed.requested_top_k_proven,
+        "score_transcript": transcript,
+        "selected_index": chosen, "complete_graph_scores": graph_scores,
+        "proposals": [{"program": candidate.result.program.to_dict(),
+            "log_probability": candidate.log_probability,
+            "decision_trace": candidate.result.trace,
+            "bound_forced_completion": candidate.result.bound_forced_completion}
+            for candidate in replayed.candidates],
+        "observed_program_reach": any(semantic_programs_structurally_equivalent(
+            candidate.result.program, example.program) for candidate in replayed.candidates)}
+    if observed != json.loads(json.dumps(expected)):
+        raise ValueError("native search result differs from decision replay")
+    selected = None if chosen is None else replayed.candidates[chosen].result
+    if (row["decode_status"] != ("search_without_completion" if selected is None else "completed")
+            or row["program"] != (None if selected is None else selected.program.to_dict())
+            or row["decision_trace"] != json.loads(json.dumps(
+                () if selected is None else selected.trace))
+            or row["bound_forced_completion"] is not (
+                False if selected is None else selected.bound_forced_completion)):
+        raise ValueError("native search selection differs from saved graph")
+
+
 def verify_factorized_parameter_receipt(plan, entry, choices, receipt):
     from core.learning.semantic_native_factorized_residual import (
         native_competition_kind,
@@ -518,7 +591,12 @@ def verify_grammar(directory, training_directory):
                    for key in ("serving_authority", "qualification_evidence"))
             or plan["candidate_inventory"] != "none"
             or report["candidate_inventory"] != "none"
-            or plan["search_mode"] != "greedy"):
+            or plan["search_mode"] not in {"greedy", "best_first_then_complete_graph_score"}
+            or (plan["search_mode"] == "greedy") != (plan["search_completions"] == 0)
+            or plan["search_score_mode"] not in {"normalized_choices", "native_nonpositive"}
+            or type(plan["search_nodes"]) is not int or plan["search_nodes"] < 1
+            or type(plan["search_completions"]) is not int
+            or not 0 <= plan["search_completions"] <= 128):
         raise ValueError("native grammar plan, checkpoint, or authority differs")
     examples = verified_examples(plan, dataset=dataset, seed=seed)
     sources = [hashlib.sha256(example.source_text.encode()).hexdigest() for example in examples]
@@ -548,7 +626,7 @@ def verify_grammar(directory, training_directory):
         scored_source = (source_text_by_sha256[expected_pair_map[identity]]
                          if plan.get("source_evidence") == "source_pair_swap"
                          else example.source_text)
-        verified_public_inputs(example)
+        public_values = verified_public_inputs(example)
         row = verified_document(directory / "rows" / f"{identity}.json")
         if ("source_evidence" in plan and row.get("scored_source_sha256")
                 != hashlib.sha256(scored_source.encode()).hexdigest()):
@@ -564,11 +642,39 @@ def verify_grammar(directory, training_directory):
         verified_prefix_execution(plan, report, row)
         outcomes.append(verify_grammar_row(row, example=example, identity=identity,
                                            plan_sha256=plan["plan_sha256"]))
-        if row["search"] is not None:
-            raise ValueError("native grammar row search mode differs")
-        replay_greedy_decisions(row, example=example, plan=plan, tokenizer=tokenizer,
-                                max_sequence_tokens=training["max_sequence_tokens"],
-                                scored_source=scored_source)
+        if plan["search_mode"] == "greedy":
+            if row["search"] is not None:
+                raise ValueError("native grammar row search mode differs")
+            replay_greedy_decisions(row, example=example, plan=plan, tokenizer=tokenizer,
+                                    max_sequence_tokens=training["max_sequence_tokens"],
+                                    scored_source=scored_source)
+        else:
+            if tokenizer is None or plan.get("prefix_strategy") == "trie":
+                raise ValueError("native search needs full source-bound scoring")
+
+            def input_receipts_for_choices(choices, *, source=scored_source):
+                from core.learning.semantic_native_program import native_text_decision_sequence
+                from core.learning.semantic_native_source_control import (
+                    apply_native_source_evidence,
+                    native_score_input_receipt,
+                )
+
+                receipts = []
+                for choice in choices:
+                    sequence = native_text_decision_sequence(
+                        source, choice.text, (choice.span,), tokenizer,
+                        max_tokens=training["max_sequence_tokens"])
+                    sequence, control = apply_native_source_evidence(
+                        sequence, source, tokenizer,
+                        mode="source_text" if plan["source_evidence"] == "source_pair_swap"
+                        else plan["source_evidence"])
+                    receipts.append(native_score_input_receipt(sequence, control))
+                return receipts
+
+            replay_search_decisions(row, example=example, plan=plan,
+                input_types=tuple("integer_sequence" if isinstance(value, tuple) else "integer"
+                                  for value in public_values),
+                input_receipts_for_choices=input_receipts_for_choices)
         rows.append(row)
     totals = {"population": len(outcomes),
               "program_equivalent": sum(equivalent for equivalent, _ in outcomes),
