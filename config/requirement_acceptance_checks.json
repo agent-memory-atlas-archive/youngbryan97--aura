@@ -512,6 +512,25 @@
         "name": "tests/test_continuity_relation.py",
         "why": "Decides the lineage clauses: continuity is decided by lineage and not by likeness, so a restored backup is not her however well it matches, an instantaneous replacement breaks the chain where a gradual one does not, two chains ending in the same bytes are different cases, and a fork gives two of her with neither continuing the other. It does not decide continuity across sleep, restart, update or memory compaction in a running instance, or how a discontinuity is reported to a person."
       }
+    ],
+    "MQ-17": [
+      {
+        "kind": "test",
+        "name": "tests/test_egress_privacy.py",
+        "why": "Decides least disclosure at the outbound boundary, where a model or tool request is the control the requirement names: secrets and credentials never reach a third party, in a body or in a key however deeply nested, personal identifiers are held back from a model, the owner may turn the personal tier off but never the credential tier, a body the filter cannot read does not reach a model provider, and the receipt never quotes what it caught. It does not decide coercive disclosure in conversation, paired-device scope, the emergency case, or that her self-observation stays free of approval."
+      }
+    ],
+    "SM-10-GOVERNANCE-PRIVACY": [
+      {
+        "kind": "test",
+        "name": "tests/test_egress_privacy.py",
+        "why": "Decides least disclosure at the outbound boundary, where a model or tool request is the control the requirement names: secrets and credentials never reach a third party, in a body or in a key however deeply nested, personal identifiers are held back from a model, the owner may turn the personal tier off but never the credential tier, a body the filter cannot read does not reach a model provider, and the receipt never quotes what it caught."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_standing_directives.py",
+        "why": "Decides the standing-policy clause: a prohibition binds with no context at all, one added after boot is seen without a restart, and it cannot be walked around by traversal, a symlink, a path hidden in a shell command or a nested argument. Neither suite decides the routing of self-schema, preference and memory changes through one authority and audit, or recovery from injected tool or model state."
+      }
     ]
   }
 }
