@@ -19,7 +19,14 @@ def matched_generation(fitted_plan, base_plan, fitted_verification, base_verific
     left, right = dict(fitted_plan), dict(base_plan)
     if mode in {"residual", "factorized"}:
         field = "residual_calibration" if mode == "residual" else "factorized_residual"
-        schema = "v9" if mode == "residual" else "v10"
+        schema = "v13" if left.get("schema", "").endswith(".v13") else (
+            "v9" if mode == "residual" else "v10")
+        base_schema = "v8"
+        if schema == "v13":
+            base_schema = ("v12" if left.get("source_window") is not None
+                           else "v6" if left.get("dataset") in {"retained_validation", "retained_test"}
+                           else "v11" if left.get("dataset") == "relation_transfer_controls"
+                           else "v3")
         contract = left.pop(field, {})
         additions = {"tools/calibrate_semantic_native_residual.py",
                      "tools/verify_semantic_native_residual.py"}
@@ -28,7 +35,7 @@ def matched_generation(fitted_plan, base_plan, fitted_verification, base_verific
                           "tools/factor_semantic_native_residual.py",
                           "tools/verify_semantic_native_factorized_residual.py"}
         if (left.get("schema") != f"aura.semantic_native_grammar_plan.{schema}"
-                or right.get("schema") != "aura.semantic_native_grammar_plan.v8"
+                or right.get("schema") != f"aura.semantic_native_grammar_plan.{base_schema}"
                 or contract.get("baseline_checkpoint_receipt_sha256")
                     != right.get("checkpoint_receipt_sha256")
                 or contract.get("source_only") is not True

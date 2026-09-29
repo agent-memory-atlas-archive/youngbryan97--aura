@@ -125,6 +125,21 @@ def test_twelve_interpretations_establish_the_small_mechanism_without_redecoding
     assert result["general_transfer_proven"] is False
 
 
+def test_relation_controls_keep_the_residual_calibration_identical_to_reference():
+    args = list(deepcopy(fixture()))
+    calibration = {"selected_scale": 0.125, "report_receipt_sha256": "calibration"}
+    for plan in args[:2]:
+        plan["schema"] = "aura.semantic_native_grammar_plan.v13"
+        plan["weight_mode"] = "residual"
+        plan["residual_calibration"] = calibration
+    for verification in args[2:4]:
+        verification["weight_mode"] = "residual"
+    assert adjudicate_native_relation_transfer(*args)["mechanism_micro_probe_passed"] is True
+    args[1]["residual_calibration"] = {**calibration, "report_receipt_sha256": "other"}
+    with pytest.raises(ValueError, match="reference protocol"):
+        adjudicate_native_relation_transfer(*args)
+
+
 @pytest.mark.parametrize("defect", ["weights", "budget", "code", "proof", "sources", "unknown"])
 def test_changed_candidate_or_incomplete_evidence_cannot_inherit_reference_stage(defect):
     args = list(deepcopy(fixture()))

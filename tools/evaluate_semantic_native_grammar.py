@@ -209,8 +209,8 @@ def main():
         parser.error("finite search node and completion bounds required")
     if args.source_offset is not None and (args.dataset not in RETAINED_DATASETS
             or args.source_offset < 0 or args.source_offset + args.canary > 500
-            or args.prefix_strategy != "full" or args.weight_mode not in {"fitted", "base"}):
-        parser.error("source windows require full-prefix retained fitted/base evaluation")
+            or args.prefix_strategy != "full" or args.weight_mode not in {"fitted", "base", "residual"}):
+        parser.error("source windows require full-prefix retained fitted/base/residual evaluation")
     if args.dataset in INTERVENTION_DATASETS | {"relation_transfer_controls"} and args.seed is None:
         parser.error("operation interventions require an explicit frozen seed")
     if args.dataset in RETAINED_DATASETS:
@@ -221,12 +221,14 @@ def main():
     if args.prefix_strategy == "trie" and (args.dataset not in INTERVENTION_DATASETS | RETAINED_DATASETS
             or args.search_completions):
         parser.error("native grammar trie requires intervention or retained sources and greedy decode")
-    if args.weight_mode in {"residual", "factorized"}:
-        if ((args.residual_calibration is None if args.weight_mode == "residual"
-             else args.factorized_residual is None) or args.dataset not in RETAINED_DATASETS
-                or args.prefix_strategy != "trie" or args.search_completions
-                or args.source_evidence != "source_text"):
-            parser.error("residual decode requires a retained target-blind trie cohort")
+    if args.weight_mode == "factorized" and (args.factorized_residual is None
+            or args.dataset not in RETAINED_DATASETS or args.prefix_strategy != "trie"
+            or args.search_completions or args.source_evidence != "source_text"):
+        parser.error("factorized decode requires a retained target-blind trie cohort")
+    if args.weight_mode == "residual" and (args.residual_calibration is None
+            or args.prefix_strategy == "trie" and (args.dataset not in RETAINED_DATASETS
+                or args.search_completions or args.source_evidence != "source_text")):
+        parser.error("residual decode needs its verified source calibration and supported cohort")
     if args.weight_mode != "residual" and args.residual_calibration is not None:
         parser.error("residual calibration belongs only to residual decode")
     if args.weight_mode != "factorized" and args.factorized_residual is not None:
@@ -240,6 +242,9 @@ def main():
     configure_refit_environment(args.directory / "report.json")
     from core.brain.llm.model_registry import get_active_cortex_spec
     training, selected = selected_checkpoint(args.training_directory)
+    if args.weight_mode == "residual" and args.prefix_strategy == "full" and (
+            training["schema"] != "aura.semantic_native_fit_plan.v7"):
+        raise ValueError("full-prefix residual decode requires a measured joint graph fit")
     scored_checkpoint = selected
     residual = None
     factorized = None
@@ -355,6 +360,8 @@ def main():
         schema_version = "v11"
     if source_window is not None:
         schema_version = "v12"
+    if residual is not None and args.prefix_strategy == "full":
+        schema_version = "v13"
     body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": scored_checkpoint["receipt_sha256"],

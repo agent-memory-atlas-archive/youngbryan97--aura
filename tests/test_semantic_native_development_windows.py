@@ -101,12 +101,17 @@ def test_verifier_reconstructs_exact_offset_from_the_complete_source_inventory(m
         verified_examples(plan, dataset="retained_validation", seed=0)
 
 
-def measurements(*, size=20):
+def measurements(*, size=20, mode="fitted"):
     sources = [hashlib.sha256(f"source-{index}".encode()).hexdigest() for index in range(500)]
     windows = []
     for offset in range(0, 500, size):
         batch = sources[offset:offset + size]
         plan = window_plan(batch, offset=offset, population_sha=digest(sources))
+        if mode == "residual":
+            plan["schema"] = "aura.semantic_native_grammar_plan.v13"
+            plan["weight_mode"] = "residual"
+            plan["residual_calibration"] = {"selected_scale": 0.125,
+                "report_receipt_sha256": "calibration", "source_only": True}
         measured, intervention = [], []
         for source in batch:
             gained = source == sources[0]
@@ -117,7 +122,8 @@ def measurements(*, size=20):
                 "arms": {"fitted": {"decode_status": "completed", "bound_forced_completion": False}}})
         comparison = {"training_plan_sha256": "train", "checkpoint_receipt_sha256": "checkpoint",
                       "receipt_sha256": f"comparison-{offset}",
-                      "comparison": {"population": len(batch), "source_outcomes": measured},
+                      "comparison": {"population": len(batch), "candidate_weight_mode": mode,
+                                     "source_outcomes": measured},
                       "source_intervention": {"population": len(batch), "source_outcomes": intervention}}
         windows.append((plan, comparison))
     return windows
@@ -138,6 +144,28 @@ def test_all_500_are_required_and_exact_before_advancing_to_fresh_transfer():
     assert result["broad_gain_proven"] is False
     assert result["serving_authority"] is False
     assert result["comparison_receipts"] == [comparison["receipt_sha256"] for _, comparison in windows]
+
+
+def test_residual_development_is_bound_to_one_measured_candidate_and_still_needs_500():
+    windows = measurements(size=7, mode="residual")
+    result = complete_development(windows)
+    assert result["full_development_passed"] is True
+    assert result["candidate_weight_mode"] == "residual"
+    assert result["residual_calibration_report_receipt_sha256"] == "calibration"
+    windows[1][0]["residual_calibration"]["report_receipt_sha256"] = "other"
+    with pytest.raises(ValueError, match="differs"):
+        complete_development(windows)
+
+
+def test_residual_window_cannot_inherit_fitted_comparison_or_zero_scale():
+    windows = measurements(mode="residual")
+    windows[1][1]["comparison"]["candidate_weight_mode"] = "fitted"
+    with pytest.raises(ValueError, match="differs"):
+        complete_development(windows)
+    windows = measurements(mode="residual")
+    windows[0][0]["residual_calibration"]["selected_scale"] = 0.
+    with pytest.raises(ValueError, match="calibration"):
+        complete_development(windows)
 
 
 @pytest.mark.parametrize("defect", ["missing", "reordered", "overlap", "budget", "weights", "population",

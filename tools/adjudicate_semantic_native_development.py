@@ -22,16 +22,30 @@ def complete_development(windows):
         raise ValueError("native development has no measured windows")
     excluded = {"plan_sha256", "sources", "source_window"}
     first = windows[0][0]
+    mode = first.get("weight_mode")
+    if (mode not in {"fitted", "residual"}
+            or first.get("schema") != ("aura.semantic_native_grammar_plan.v13" if mode == "residual"
+                                         else "aura.semantic_native_grammar_plan.v12")):
+        raise ValueError("native development candidate mode is unsupported")
+    calibration = first.get("residual_calibration") if mode == "residual" else None
+    if mode == "residual" and (not isinstance(calibration, dict)
+            or type(calibration.get("selected_scale")) not in {int, float}
+            or calibration["selected_scale"] <= 0
+            or not isinstance(calibration.get("report_receipt_sha256"), str)
+            or not calibration["report_receipt_sha256"]
+            or calibration.get("source_only") is not True):
+        raise ValueError("native development residual lacks its measured calibration")
     common = {key: value for key, value in first.items() if key not in excluded}
     sources, outcomes, receipts = [], [], []
     for plan, comparison in windows:
         window = verified_source_window(plan, plan)
         if (window is None or plan.get("dataset") != "retained_validation"
-                or plan.get("weight_mode") != "fitted"
+                or plan.get("weight_mode") != mode
                 or plan.get("source_evidence") != "source_text"
                 or {key: value for key, value in plan.items() if key not in excluded} != common
                 or window["offset"] != len(sources)
                 or window["ordered_sources_sha256"] != first["source_window"]["ordered_sources_sha256"]
+                or comparison["comparison"].get("candidate_weight_mode") != mode
                 or comparison.get("training_plan_sha256") != plan["training_plan_sha256"]
                 or comparison.get("checkpoint_receipt_sha256") != plan["checkpoint_receipt_sha256"]):
             raise ValueError("native development window coverage, candidate, or budget differs")
@@ -65,6 +79,9 @@ def complete_development(windows):
               and all(metric["regressions"] == 0 for metric in metrics.values())
               and unforced and dependent > 0)
     return {"population": 500, "windows": len(windows), **metrics,
+            "candidate_weight_mode": mode,
+            **({"residual_calibration_report_receipt_sha256": calibration["report_receipt_sha256"]}
+               if calibration else {}),
             "source_dependent_gains": dependent, "all_fitted_completions_unforced": unforced,
             "full_development_passed": passed,
             "current_stage": "fresh_transfer" if passed else "full_development",
@@ -79,17 +96,19 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--training-directory", required=True, type=Path)
     parser.add_argument("--fit-verification", required=True, type=Path)
+    parser.add_argument("--residual-calibration", type=Path)
     parser.add_argument("--window-root", required=True, action="append", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    from tools.adjudicate_semantic_native_micro_stages import verified_native_fit
+    from tools.adjudicate_semantic_native_micro_stages import verified_native_candidate
     from tools.compare_semantic_native_grammar_fit import compare_directories
     from tools.evaluate_semantic_native_checkpoint import digest, verified_document
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
     from tools.refit_semantic_argument_proposals import configure_refit_environment
 
     configure_refit_environment(args.output)
-    training, checkpoint, fit = verified_native_fit(args.training_directory, args.fit_verification)
+    training, checkpoint, fit, residual = verified_native_candidate(
+        args.training_directory, args.fit_verification, args.residual_calibration)
     windows = []
     for root in args.window_root:
         plan = verified_document(root / "fitted/plan.json", "plan_sha256")
@@ -99,9 +118,13 @@ def main():
         windows.append((plan, comparison))
     result = complete_development(windows)
     if (result["training_plan_sha256"] != training["plan_sha256"]
-            or result["checkpoint_receipt_sha256"] != checkpoint["receipt_sha256"]):
+            or result["checkpoint_receipt_sha256"] != checkpoint["receipt_sha256"]
+            or result["candidate_weight_mode"] != ("residual" if residual else "fitted")
+            or result.get("residual_calibration_report_receipt_sha256") != (
+                None if residual is None else residual["report_receipt_sha256"])):
         raise ValueError("native development changed its verified fitted candidate")
-    body = {"schema": "aura.native_development_progress.v1", **result,
+    body = {"schema": "aura.native_development_progress.v2" if residual else
+            "aura.native_development_progress.v1", **result,
             "fit_verification_receipt_sha256": fit["receipt_sha256"]}
     _save_if_absent(args.output, {**body, "receipt_sha256": digest(body)})
     print(json.dumps(body, sort_keys=True))

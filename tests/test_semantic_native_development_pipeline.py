@@ -36,6 +36,7 @@ def executor(pipeline, *, failed_window=None, defect=None):
         if item["name"].endswith("-plan"):
             output = Path(command[command.index("--directory") + 1])
             save(output / "plan.json", {"training_plan_sha256": "train", "checkpoint_receipt_sha256": "weights",
+                "weight_mode": command[command.index("--weight-mode") + 1],
                 "implementation": {"tools/evaluate_semantic_native_grammar.py": hashlib.sha256(
                     (ROOT / "tools/evaluate_semantic_native_grammar.py").read_bytes()).hexdigest()}}, "plan_sha256")
         elif item["name"].endswith("-decode"):
@@ -85,6 +86,38 @@ def test_fixed_policy_covers_all_500_once_under_identical_arm_budgets(tmp_path):
                                    ("--max-steps", "8"), ("--search-nodes", "256"),
                                    ("--search-completions", "4"), ("--prefix-strategy", "full")):
                 assert command[command.index(flag) + 1] == expected
+
+
+def test_residual_policy_carries_one_calibration_into_each_nonbase_arm(tmp_path):
+    calibration = tmp_path / "calibration"
+    pipeline = development_jobs(training_directory=tmp_path / "fit",
+        fit_verification=tmp_path / "fit/verified.json", directory=tmp_path / "full",
+        micro_root=tmp_path / "micro", micro_checkout=tmp_path / "frozen-code",
+        source_report=tmp_path / "source.json", bundles=["a=/a"], python="/python",
+        window_size=125, max_seconds=3600., candidate_weight_mode="residual",
+        residual_calibration=calibration)
+    for window in pipeline["windows"]:
+        for arm in window["arms"]:
+            command = arm["decode"]["command"]
+            if Path(arm["directory"]).name == "base":
+                assert command[command.index("--weight-mode") + 1] == "base"
+                assert "--residual-calibration" not in command
+            else:
+                assert command[command.index("--weight-mode") + 1] == "residual"
+                assert command[command.index("--residual-calibration") + 1] == str(calibration)
+    for command in (pipeline["micro_replay"]["command"], pipeline["adjudicate"]["command"]):
+        assert command[command.index("--residual-calibration") + 1] == str(calibration)
+
+
+@pytest.mark.parametrize("mode,calibration", [("fitted", "present"), ("residual", None),
+                                              ("other", None)])
+def test_development_policy_rejects_unbound_candidate_modes(tmp_path, mode, calibration):
+    with pytest.raises(ValueError, match="calibration binding"):
+        development_jobs(training_directory=tmp_path, fit_verification=tmp_path,
+            directory=tmp_path, micro_root=tmp_path, micro_checkout=tmp_path,
+            source_report=tmp_path, bundles=[], python="/python", window_size=10,
+            max_seconds=3600., candidate_weight_mode=mode,
+            residual_calibration=None if calibration is None else tmp_path / calibration)
 
 
 def test_every_plan_is_fixed_before_any_decode_and_full_adjudication_runs_last(tmp_path):
