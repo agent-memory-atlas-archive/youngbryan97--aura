@@ -102,6 +102,19 @@ def get_connectivity_status(*, force: bool = False) -> ConnectivityStatus:
     return get_connectivity_probe().status(force=force)
 
 
+def set_connectivity_probe_for_test(probe: ConnectivityProbe | None) -> ConnectivityProbe | None:
+    """Install `probe` as the process's connectivity probe; return the one it replaced.
+
+    For a harness that declares the network rather than measuring it, as the
+    subject core's runs declare the host. None puts back a fresh measuring probe
+    on the next read.
+    """
+    global _PROBE
+    previous = _PROBE
+    _PROBE = probe
+    return previous
+
+
 def render_connectivity_prompt_block(status: ConnectivityStatus | dict[str, Any] | None) -> str:
     if status is None:
         return ""
