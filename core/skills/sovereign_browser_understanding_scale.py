@@ -295,13 +295,18 @@ class _PlacesHerself:
         lines = []
         for item in theme:
             lean = item["lean"]
-            leaning = item["second"] if lean.toward > 0 else item["first"]
             evidence = "; ".join(lean.because[:3]) or "nothing in particular"
+            # The question as the PAGE asks it, in the same words the answer is
+            # said in. This used to name the two ends of a dimension and her
+            # place between them, which says everything about a run between two
+            # phrases and nothing at all about a statement on a scale: a row of
+            # a grid would have arrived as 'Between "Disagree" and "Agree", you
+            # sit at 5 of 5', with the statement she was answering left out of
+            # her own prompt. One description, every shape, and it is the one
+            # her sentence is attached to afterwards.
+            asked = self._an_answer_in_words(item["options"], item["index"], "")
             lines.append(
-                f'{item["group"]}. Between "{item["first"]}" and '
-                f'"{item["second"]}", you sit at {item["index"] + 1} of '
-                f'{item["count"]}, nearer "{leaning}". What in you put you '
-                f"there: {evidence}."
+                f'{item["group"]}. {asked}. What in you put you there: {evidence}.'
             )
         listed = "\n".join(lines)
         # And what is true of her right now, from the organs that hold it.

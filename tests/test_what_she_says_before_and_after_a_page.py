@@ -146,7 +146,15 @@ def test_what_she_concluded_at_the_finished_page_is_kept(monkeypatch):
     from interface.routes.chat_desktop_objective import _pursuit_account
 
     account = _pursuit_account(result)
-    assert account[-1] == result["concluded"], "her judgement comes last, after the page's own words"
+    # Her judgement comes FIRST, and this used to require it last.
+    #
+    # The account is what she did and what she made of it, and the verdict is
+    # the part that was asked for — the working is what supports it. Put last it
+    # was the part that got cut: LIVE 2026-09-29, she read her result, held it
+    # against what she had predicted, said so out loud, and the reply ended
+    # mid-sentence sixteen items earlier with nothing about the outcome in it.
+    assert account[0] == result["concluded"], "what she was asked for comes first"
+    assert account[-1].startswith("The page ends with:"), "the page's own words close it"
 
 
 def test_her_reply_is_said_before_a_page_is_worked_and_not_before_other_work(monkeypatch):
