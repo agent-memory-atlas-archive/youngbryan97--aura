@@ -3294,6 +3294,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   importing the engine to register the sweep, which happens once per process,
   and read `{'error'}` whenever a registry-clearing test ran between; it
   registers the sweep itself now.
+  2026-09-29, from a full run at 9c571c94e that stopped after 15 of its 40
+  chunks when the session running it ended: 32 failures. Twenty-nine are
+  gone on main since, fixed where they were: stale assertions against the
+  self-report redesign, a baseline description an earlier rewrite dropped,
+  records stamped with the clock at import, two async paths still in the
+  write-lane baseline, the enterprise and closeout gates, and a test that
+  expected `core/agency` not to hold exactly 99 files. One is the
+  compositional semantic seal, which waits on requalifying Codex's evidence.
+  Two are one order dependence: `test_cognition_discipline` reads process-wide
+  registers an earlier test in its chunk left dirty. Its phenomena count
+  raised `ServiceNotFoundError` instead of counting an unregistered
+  disposition (fixed), and a lockdep splat from an earlier test is still
+  unnamed; the next run names it with a plugin that reports the test after
+  which the count rose.
   2026-09-22, a class, 76 sites in 51 files. `monkeypatch.setattr(module.time,
   "sleep", fake)` reads like it patches the module and does not: `module.time`
   IS the `time` module, so the fake replaced `time.sleep`, `time.time` or
