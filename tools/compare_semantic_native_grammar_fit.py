@@ -163,20 +163,17 @@ def matched_source_intervention(fitted_plan, base_plan, erasure_plan,
             "broad_gain_proven": False, "serving_authority": False}
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--fitted-directory", required=True, type=Path)
-    parser.add_argument("--base-directory", required=True, type=Path)
-    parser.add_argument("--training-directory", required=True, type=Path)
-    parser.add_argument("--erasure-directory", type=Path)
-    parser.add_argument("--relation-controls-directory", type=Path)
-    parser.add_argument("--output", required=True, type=Path)
-    args = parser.parse_args()
-    if args.relation_controls_directory is not None and args.erasure_directory is None:
-        parser.error("relation controls require the preceding matched source-erasure stage")
+def compare_directories(*, fitted_directory, base_directory, training_directory,
+                        erasure_directory=None, relation_controls_directory=None):
+    """Recompute the comparison from independently verified durable arms."""
+    from types import SimpleNamespace
+
+    args = SimpleNamespace(fitted_directory=fitted_directory, base_directory=base_directory,
+        training_directory=training_directory, erasure_directory=erasure_directory,
+        relation_controls_directory=relation_controls_directory)
+    if relation_controls_directory is not None and erasure_directory is None:
+        raise ValueError("relation controls require the preceding matched source-erasure stage")
     from tools.evaluate_semantic_native_checkpoint import digest, verified_document
-    from tools.probe_semantic_proposer_crossfit import _save_if_absent
-    from tools.refit_semantic_argument_proposals import configure_refit_environment
     from tools.verify_semantic_native_grammar import (
         audit_grammar_meanings,
         verified_dataset,
@@ -184,7 +181,6 @@ def main():
         verify_grammar,
     )
 
-    configure_refit_environment(args.output)
     plans, verifications = [], []
     for directory in (args.fitted_directory, args.base_directory):
         verified = verify_grammar(directory, args.training_directory)
@@ -241,7 +237,28 @@ def main():
         body["relation_transfer"] = adjudicate_native_relation_transfer(
             plans[0], controlled_plan, verifications[0], controlled_verification,
             reference_rows, controlled_rows)
-    result = {**body, "receipt_sha256": digest(body)}
+    return {**body, "receipt_sha256": digest(body)}
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--fitted-directory", required=True, type=Path)
+    parser.add_argument("--base-directory", required=True, type=Path)
+    parser.add_argument("--training-directory", required=True, type=Path)
+    parser.add_argument("--erasure-directory", type=Path)
+    parser.add_argument("--relation-controls-directory", type=Path)
+    parser.add_argument("--output", required=True, type=Path)
+    args = parser.parse_args()
+    if args.relation_controls_directory is not None and args.erasure_directory is None:
+        parser.error("relation controls require the preceding matched source-erasure stage")
+    from tools.probe_semantic_proposer_crossfit import _save_if_absent
+    from tools.refit_semantic_argument_proposals import configure_refit_environment
+
+    configure_refit_environment(args.output)
+    result = compare_directories(fitted_directory=args.fitted_directory,
+        base_directory=args.base_directory, training_directory=args.training_directory,
+        erasure_directory=args.erasure_directory,
+        relation_controls_directory=args.relation_controls_directory)
     _save_if_absent(args.output, result)
     print(json.dumps(result, sort_keys=True))
 

@@ -37,6 +37,16 @@ changes an identity creates a new candidate and requires only the affected
 acceptance and regression checks; the earlier evidence remains valid for the
 earlier candidate and must not be relabeled as proof of the changed one.
 
+`tools/adjudicate_semantic_native_micro_stages.py` recomputes the three-arm
+comparisons from their durable files, checks the unchanged fit verification,
+and records the first incomplete or failed stage. Supply a `--reference-root`
+containing `fitted`, `base`, and `erasure` directories, then add
+`--controls-directory` and `--retained-root` as those stages finish. Each
+snapshot uses a new immutable `--output` path. Passed references are replayed
+on CPU, not decoded again. The full-development readiness field requires all
+three exact cohorts and source-dependent gain; it grants no serving or broad
+reasoning authority.
+
 For each target-blind miss, retain one of these causal diagnoses:
 
 1. The intended graph was absent from the generated proposals: interpretation
