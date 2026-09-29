@@ -47,6 +47,7 @@ def executor(jobs, training, checkpoint, *, failed_stage=None, verification_defe
                 "checkpoint_receipt_sha256": checkpoint["receipt_sha256"],
                 "weight_mode": command[command.index("--weight-mode") + 1],
                 "max_seconds": float(command[command.index("--max-seconds") + 1]),
+                "search_nodes": int(command[command.index("--search-nodes") + 1]),
                 "implementation": implementation}, "plan_sha256")
         elif item["name"].endswith("-decode"):
             directory = Path(command[command.index("--directory") + 1])
@@ -121,6 +122,29 @@ def test_micro_policy_isolates_opt_in_causal_execution(tmp_path):
             decision_score_execution="unknown")
 
 
+def test_micro_policy_binds_cached_grouped_search(tmp_path):
+    kwargs = dict(training_directory=tmp_path / "training",
+                  fit_verification=tmp_path / "fit-verification.json", directory=tmp_path / "micro",
+                  source_report=tmp_path / "source.json", bundles=["source=/source"],
+                  training_plan_sha256="f" * 64, python="/python")
+    jobs = stage_jobs(**kwargs, decision_score_execution="causal_groups", prefix_strategy="trie")
+    for stage in jobs["stages"]:
+        for arm in stage["arms"]:
+            command = arm["decode"]["command"]
+            assert command[command.index("--prefix-strategy") + 1] == "trie"
+    with pytest.raises(ValueError, match="cached prefix"):
+        stage_jobs(**kwargs, prefix_strategy="trie")
+    saved = tmp_path / "plan.json"
+    save(saved, {"training_plan_sha256": "f" * 64,
+                 "checkpoint_receipt_sha256": "c" * 64,
+                 "weight_mode": "fitted", "prefix_strategy": "trie",
+                 "implementation": {}}, "plan_sha256")
+    with pytest.raises(ValueError, match="prefix strategy"):
+        check_existing_plan(saved, training={"plan_sha256": "f" * 64},
+                            checkpoint={"receipt_sha256": "c" * 64},
+                            command=["--weight-mode", "fitted", "--prefix-strategy", "full"])
+
+
 @pytest.mark.parametrize("bound", [0, -1, 14401, float("inf"), float("nan"), True])
 def test_micro_policy_refuses_unbounded_or_invalid_decode_time(tmp_path, bound):
     with pytest.raises(ValueError, match="runtime bound"):
@@ -133,14 +157,20 @@ def test_micro_policy_refuses_unbounded_or_invalid_decode_time(tmp_path, bound):
 def test_micro_resume_refuses_a_different_decode_budget(tmp_path):
     saved = tmp_path / "plan.json"
     save(saved, {"training_plan_sha256": "train", "checkpoint_receipt_sha256": "candidate",
-                 "weight_mode": "fitted", "max_seconds": 3600., "implementation": {}}, "plan_sha256")
+                 "weight_mode": "fitted", "max_seconds": 3600., "search_nodes": 256,
+                 "implementation": {}}, "plan_sha256")
     check_existing_plan(saved, training={"plan_sha256": "train"},
                         checkpoint={"receipt_sha256": "candidate"},
-                        command=["--weight-mode", "fitted", "--max-seconds", "3600"])
+                        command=["--weight-mode", "fitted", "--max-seconds", "3600",
+                                 "--search-nodes", "256"])
     with pytest.raises(ValueError, match="runtime bound"):
         check_existing_plan(saved, training={"plan_sha256": "train"},
                             checkpoint={"receipt_sha256": "candidate"},
                             command=["--weight-mode", "fitted", "--max-seconds", "14400"])
+    with pytest.raises(ValueError, match="search bound"):
+        check_existing_plan(saved, training={"plan_sha256": "train"},
+                            checkpoint={"receipt_sha256": "candidate"},
+                            command=["--weight-mode", "fitted", "--search-nodes", "16"])
 
 
 def test_residual_micro_policy_uses_one_source_calibration_for_every_candidate_arm(tmp_path):

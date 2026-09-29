@@ -140,6 +140,21 @@ def test_relation_controls_keep_the_residual_calibration_identical_to_reference(
         adjudicate_native_relation_transfer(*args)
 
 
+def test_cached_grouped_relation_controls_keep_the_same_execution_contract():
+    args = list(deepcopy(fixture()))
+    calibration = {"selected_scale": 0.125, "report_receipt_sha256": "calibration"}
+    for plan in args[:2]:
+        plan.update(schema="aura.semantic_native_grammar_plan.v15", weight_mode="residual",
+                    residual_calibration=calibration, prefix_strategy="trie",
+                    decision_score_execution="causal_groups")
+    for verification in args[2:4]:
+        verification["weight_mode"] = "residual"
+    assert adjudicate_native_relation_transfer(*args)["mechanism_micro_probe_passed"] is True
+    args[1]["prefix_strategy"] = "full"
+    with pytest.raises(ValueError, match="reference protocol"):
+        adjudicate_native_relation_transfer(*args)
+
+
 @pytest.mark.parametrize("defect", ["weights", "budget", "code", "proof", "sources", "unknown"])
 def test_changed_candidate_or_incomplete_evidence_cannot_inherit_reference_stage(defect):
     args = list(deepcopy(fixture()))

@@ -56,7 +56,7 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 - [x] `P1.9` Identify weakest incoming coupling for every domain. — and the weakest incoming one
 - [x] `P1.10` Recompute per-source perturbational spread. — perturbational spread is recomputed per source on every run
 - [x] `P1.11` Recompute all four fixed synergy triples. — all four synergy triples are recomputed and tracked by name across runs
-- [ ] `P1.12` Recompute per-condition graphs. — per-condition graphs are recomputed on every run
+- [x] `P1.12` Recompute per-condition graphs. — per-condition graphs are recomputed on every run
 - [x] `P1.13` Recompute lesion and rescue. Everything that follows should be driven by this new evidence rather than by the obsolete graph. — lesion and rescue are recomputed on every run, with the recovery fraction per measure
 
 ## Phase 2 — Complete the causal graph
@@ -216,7 +216,7 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 - [ ] `P6.5` Improve lowest-spread sources first.
 - [ ] `P6.6` Ensure I, C, N, and D perturbations escape those domains if they remain weak.
 - [ ] `P6.7` Extend legitimate return routes.
-- [ ] `P6.8` Test whether the 2-turn horizon is long enough for slow intended mechanisms.
+- [x] `P6.8` Test whether the 2-turn horizon is long enough for slow intended mechanisms. — two turns is the shortest horizon at which the rest of her can reach the body, and the test says why: the proprioceptive phase writes the body first in every turn from the state the turn opened with, and interoception steps once a turn, so at one turn the body in both arms was written from the anchor and nothing the rest did can have reached it. If the body moves later in the turn or samples faster, that test fails and the horizon is argued again
 - [x] `P6.9` If horizon changes, preregister it before rerunning. — the horizon is a frozen value in the campaign fingerprint, so changing it starts a different campaign
 - [x] `P6.10` Prefer multiple preregistered horizons over choosing the favorable one afterward. — every lag up to the horizon is measured and the lag the effect peaked at is recorded, rather than one horizon chosen afterwards
 - [x] `P6.11` Verify effects persist beyond one instantaneous phase. — each edge records the lag its effect peaked at, so an effect at the horizon is visible
@@ -298,7 +298,7 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 
 - [x] `P10.1` At least 40% of live dimensions contribute effectively. — the criterion is two-sided: many effective dimensions, no component holding half the variance, and the ratio below the bar rather than above it — the one-sided reading is passed by the least mind-like nulls and reported beside it on every run
 - [x] `P10.2` Do not achieve this through independent noise. — independent noise scores at the top of the one-sided reading and is what the two-sided one excludes; the independent null measures it
-- [ ] `P10.3` Do not add filler state variables just to inflate dimension. — a column that never moves is named and excluded from the live width, so a filler variable cannot inflate the dimension
+- [x] `P10.3` Do not add filler state variables just to inflate dimension. — a column that never moves is named and excluded from the live width, so a filler variable cannot inflate the dimension
 - [ ] `P10.4` Increase genuinely distinct cognitive modes.
 - [ ] `P10.5` Increase content-sensitive variation in P/M/W/S.
 - [ ] `P10.6` Let different conditions recruit meaningfully different configurations.
@@ -306,7 +306,7 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 - [x] `P10.8` Remove invalid or truly redundant measurement columns only when scientifically justified. — columns are removed for failing the schema's own rule — nothing reads them, or they are another domain's column under this one's name — and the reason is written beside each removal
 - [ ] `P10.9` Do not remove correlated columns simply because they hurt the score. Resolve the known specification problem The current project already found that the formal D_eff/D >= 0.4 bar can reward degenerate controls while a healthy recurrent reference scores much lower. Strong integration naturally shares variance, which can reduce participation ratio. Therefore there are two honest options: If the goal is a literal ISC-v1 24/24:
 - [ ] `P10.10` Aura must genuinely reach >= 0.40 anyway. If the goal is the best scientific criterion:
-- [ ] `P10.11` Keep ISC-v1 recorded as failed. — every run is kept with its own campaign fingerprint and its criteria, and the generated table in the document lists them all
+- [x] `P10.11` Keep ISC-v1 recorded as failed. — every run is kept with its own campaign fingerprint and its criteria, and the generated table in the document lists them all
 - [x] `P10.12` Preregister ISC-v2. — ISC-v2 changes three lines, each with v1's question, why a test built around its positive reference cannot keep asking it, v2's question and the known-answer check that must pass first; every v1 threshold and line stays and is reported
 - [x] `P10.13` Use a better differentiation measure. — `distinguishable_states` in `core/subject/differentiation.py`, reported beside the participation ratio rather than instead of it. Each live column is quantised at its own pooled within-condition spread and the configurations are counted with their occupancy entropy, so the resolution comes from her own variation and the ceiling from how many frames were recorded. The preregistered criterion is close to maximised by destroying every coupling (P10.9); the bar is not moved, and both readings are reported
 - [x] `P10.14` Never retroactively change v1’s threshold. Do not add noise until the number turns green. — the thresholds are hashed into the fingerprint, so moving one starts a different campaign and the scorecard refuses to read across them
@@ -644,7 +644,7 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 - [x] `P30.2` Distinguish genuine zero. — 'organ absent', 'reader absent' and 'reader raised' are three states, not one zero
 - [x] `P30.3` Distinguish absent organ. — 'organ absent', 'reader absent' and 'reader raised' are three states, not one zero
 - [x] `P30.4` Distinguish failed reader. — 'organ absent', 'reader absent' and 'reader raised' are three states, not one zero
-- [ ] `P30.5` Distinguish stale reading. — a substrate reading older than its own freshness bound is a miss, not the safe defaults it returns
+- [x] `P30.5` Distinguish stale reading. — a substrate reading older than its own freshness bound is a miss, not the safe defaults it returns
 - [x] `P30.6` Count failures per feature. — the recording counts every miss over the run
 - [x] `P30.7` Required-organ failure invalidates affected criteria. — a criterion resting on an organ that was absent for most of the run is invalid
 - [x] `P30.8` Repeated reader error invalidates the run. — a reader that failed for most of the run makes the run unauthoritative, beside the per-criterion invalidation
@@ -848,10 +848,10 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 - [x] `P45.2` Audit registered processors with no consumers. — a registered processor that returns early every time is named rather than counted as wired
 - [x] `P45.3` Audit readers with no writers. — a reader with no writer shows up as a column that never moves, and the recording names them; perception's own columns read what the senses said rather than only the stream's metadata
 - [x] `P45.4` Audit writers with no readers. — a writer with no reader shows up as a displacement that reaches no consumer, and every displacement names one
-- [ ] `P45.5` Audit bid types that never win. — the workspace counts what was offered and what won, so a source that never gets in is named rather than looking like one that never spoke
+- [x] `P45.5` Audit bid types that never win. — the workspace counts what was offered and what won, so a source that never gets in is named rather than looking like one that never spoke
 - [x] `P45.6` Audit consumers that always return early. — every broadcast consumer reports whether it ever did anything, and none of them never did
 - [x] `P45.7` Audit model observers that never receive observations. — the world model's own step count moves across a run, so it received the observations the cycle sends it
-- [ ] `P45.8` Audit self-model fields that never change. — a self-model field that never changes is a flat column, and the recording names every one
+- [x] `P45.8` Audit self-model fields that never change. — a self-model field that never changes is a flat column, and the recording names every one
 - [x] `P45.9` Audit affect fields overwritten later in the same cycle. — no field is written by one step of a turn and replaced by a later one without reading what was there
 - [x] `P45.10` Audit return paths that terminate in local dictionaries. — a mapping filled in and never read is an audit with a baseline and a worked example, and nothing in cognition or the subject core has one
 - [x] `P45.11` Audit background loops that start but immediately die. — a layer that did not come up is named, and a run with one refuses
@@ -911,7 +911,7 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 - [x] `P47.32` per-condition graphs. — the exact command that regenerates the report
 - [x] `P47.33` SHA-256 artifact manifest. — a SHA-256 for every file the run wrote
 - [x] `P47.34` exact command that regenerates the report. — the command that produced the run, recorded with it
-- [ ] `P47.35` Documentation generated from artifacts rather than hand-edited summaries. — the evidence table in the document is written from the reports, and a gate fails when it drifts
+- [x] `P47.35` Documentation generated from artifacts rather than hand-edited summaries. — the evidence table in the document is written from the reports, and a gate fails when it drifts
 
 ## Phase 48 — Protect the evaluation commit
 

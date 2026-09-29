@@ -166,7 +166,7 @@ class TestQueueHandlerOverflow:
 
     def test_info_rotation_does_not_alarm(self, handler, isolated_queue, caplog):
         self._fill(isolated_queue, "info")
-        with caplog.at_level(logging.WARNING, logger="Aura.Server"):
+        with caplog.at_level(logging.INFO, logger="Aura.Server"):
             handler.emit(_record("new warning arrives", level=logging.WARNING))
         assert not [r for r in caplog.records if "UI log buffer" in r.getMessage()]
         assert handler._dropped_count == 1
@@ -174,18 +174,24 @@ class TestQueueHandlerOverflow:
 
     def test_warning_rotation_alarms_with_accurate_delta(self, handler, isolated_queue, caplog):
         self._fill(isolated_queue, "warning")
-        with caplog.at_level(logging.WARNING, logger="Aura.Server"):
+        with caplog.at_level(logging.INFO, logger="Aura.Server"):
             handler.emit(_record("any record", level=logging.INFO))
         alarms = [r for r in caplog.records if "UI log buffer" in r.getMessage()]
+        # Info since 29 September: the ring is for late-joining clients, and the
+        # live UI already had these records.
+        assert all(r.levelno == logging.INFO for r in alarms)
         assert len(alarms) == 1
         assert "rotated out 1 warning+ records" in alarms[0].getMessage()
 
     def test_alarm_throttled_to_once_per_minute(self, handler, isolated_queue, caplog):
         self._fill(isolated_queue, "error")
-        with caplog.at_level(logging.WARNING, logger="Aura.Server"):
+        with caplog.at_level(logging.INFO, logger="Aura.Server"):
             for _ in range(5):
                 handler.emit(_record("r", level=logging.INFO))
         alarms = [r for r in caplog.records if "UI log buffer" in r.getMessage()]
+        # Info since 29 September: the ring is for late-joining clients, and the
+        # live UI already had these records.
+        assert all(r.levelno == logging.INFO for r in alarms)
         assert len(alarms) == 1
         assert handler._dropped_warn_count == 5
 

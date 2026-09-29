@@ -6,12 +6,14 @@ import mlx.core as mx
 import pytest
 
 from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
+from core.learning.frozen_prefix_branches import FrozenPrefixBranches, native_source_anchor
 from core.learning.semantic_native_causal_groups import (
     native_causal_groups,
     score_native_causal_groups,
 )
 from core.learning.semantic_native_program import NativeProgramSequence
 from tests.test_frozen_decoder_prefix import _model
+from tools.evaluate_semantic_native_grammar import score_grammar_choices
 from tools.train_semantic_native_program import native_loss
 
 
@@ -57,6 +59,52 @@ def test_shared_scores_match_each_original_full_sequence(hybrid, tied, quantized
     assert reordered == (expected[1], expected[0])
 
 
+@pytest.mark.parametrize("hybrid,tied", [(False, False), (False, True), (True, False), (True, True)])
+@pytest.mark.parametrize("quantized", [False, True])
+def test_shared_scores_match_with_frozen_prefix_trie(hybrid, tied, quantized):
+    import mlx.nn as nn
+
+    model = _model(hybrid=hybrid, tied=tied, width=32)
+    if quantized:
+        nn.quantize(model, group_size=32, bits=4)
+    model.freeze()
+    model.eval()
+    split = len(model.layers) - 1
+    prefix, suffix = FrozenDecoderPrefix(model, split_at=split), NativeDecoderSuffix(model, split_at=split)
+    rows = sequences()
+    expected, _ = score_native_causal_groups(prefix, suffix, rows)
+    branches = FrozenPrefixBranches(model, split_at=split,
+                                    anchor_tokens=native_source_anchor(rows), max_tokens=16)
+    observed, receipt = score_native_causal_groups(prefix, suffix, rows, branches=branches)
+    assert observed == expected
+    assert receipt["full_single_row_forwards"] == 3
+    assert branches.receipt()["branches"] == 3
+    assert branches.receipt()["continuation_tokens_reused"] > 0
+
+
+def test_grouped_search_reuses_one_source_anchor_and_refuses_source_drift():
+    model = _model(hybrid=True, width=32)
+    model.freeze()
+    model.eval()
+    split = len(model.layers) - 1
+    prefix, suffix = FrozenDecoderPrefix(model, split_at=split), NativeDecoderSuffix(model, split_at=split)
+    rows = sequences()
+    full, _, forwards = score_grammar_choices(prefix, suffix, model, rows, split_at=split,
+        max_tokens=16, strategy="full", execution="causal_groups", branches=None)
+    cached, branches, cached_forwards = score_grammar_choices(prefix, suffix, model, rows,
+        split_at=split, max_tokens=16, strategy="trie", execution="causal_groups", branches=None)
+    assert cached == full
+    assert cached_forwards == forwards == 3
+    again, branches, _ = score_grammar_choices(prefix, suffix, model, rows[:2], split_at=split,
+        max_tokens=16, strategy="trie", execution="causal_groups", branches=branches)
+    assert again == full[:2]
+    assert branches.receipt()["trie_calls"] == 2
+    with pytest.raises(ValueError, match="source anchor"):
+        score_grammar_choices(prefix, suffix, model,
+            (replace(rows[0], tokens=(9, *rows[0].tokens[1:])),), split_at=split,
+            max_tokens=16, strategy="trie", execution="causal_groups", branches=branches)
+
+
 def test_multitoken_targets_share_only_when_all_previous_target_tokens_agree():
     rows = sequences()
     multi = tuple(replace(row, semantic_positions=(2, 3)) for row in rows[:3])
@@ -86,6 +134,31 @@ def test_quantized_hybrid_keeps_causal_scores_across_recurrent_chunks(last_targe
     observed, receipt = score_native_causal_groups(prefix, suffix, rows)
     assert observed == expected
     assert receipt["full_single_row_forwards"] == 1
+
+
+@pytest.mark.parametrize("last_target", [31, 64, 127])
+def test_cached_groups_keep_quantized_hybrid_scores_across_recurrent_chunks(last_target):
+    import mlx.nn as nn
+
+    model = _model(hybrid=True, width=32, hybrid_layers=8)
+    nn.quantize(model, group_size=32, bits=4)
+    model.freeze()
+    model.eval()
+    prefix, suffix = FrozenDecoderPrefix(model, split_at=6), NativeDecoderSuffix(model, split_at=6)
+    original = tuple((index * 7 + 3) % 32 for index in range(132))
+    changed = list(original)
+    changed[last_target] = (changed[last_target] + 1) % 32
+    rows = (NativeProgramSequence(original, 3, semantic_positions=(last_target,)),
+            NativeProgramSequence(tuple(changed), 3, semantic_positions=(last_target,)))
+    expected, _ = score_native_causal_groups(prefix, suffix, rows)
+    branches = FrozenPrefixBranches(model, split_at=6,
+                                    anchor_tokens=native_source_anchor(rows), max_tokens=132)
+    observed, receipt = score_native_causal_groups(prefix, suffix, rows, branches=branches)
+    assert observed == pytest.approx(expected, abs=1e-5)
+    assert max(range(len(observed)), key=observed.__getitem__) == max(
+        range(len(expected)), key=expected.__getitem__)
+    assert receipt["full_single_row_forwards"] == 1
+    assert branches.receipt()["branches"] == 1
 
 
 @pytest.mark.parametrize("change", [{"tokens": (1, True, 2, 3, 4)},

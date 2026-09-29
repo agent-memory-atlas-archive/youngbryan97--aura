@@ -45,22 +45,28 @@ def native_causal_groups(sequences: tuple[NativeProgramSequence, ...]) -> tuple[
                  for key, members in grouped.items())
 
 
-def score_native_causal_groups(prefix, suffix, sequences: tuple[NativeProgramSequence, ...]):
+def score_native_causal_groups(prefix, suffix, sequences: tuple[NativeProgramSequence, ...],
+                               *, branches=None):
     """Score each original target with shared full-shape causal logits.
 
     Callers must qualify this path on the real decoder before using it in a
     measured candidate. The result grants no serving or selection authority.
     Sharing applies within this call only; parameter changes cannot reuse it.
+    A frozen branch owner may also reuse the source prefix across calls.
     """
     import mlx.core as mx
     groups = native_causal_groups(sequences)
     if any(child.training for module in (*suffix.layers, suffix.norm, suffix.output)
            for child in module.modules()):
         raise ValueError("native causal sharing requires suffix evaluation mode")
+    if branches is None:
+        states = (prefix.capture(mx.array([sequences[group.representative].tokens[:-1]],
+                                          dtype=mx.int32)) for group in groups)
+    else:
+        states = branches.capture_many(tuple(sequences[group.representative].tokens[:-1]
+                                             for group in groups))
     scores = [None] * len(sequences)
-    for group in groups:
-        representative = sequences[group.representative]
-        hidden = prefix.capture(mx.array([representative.tokens[:-1]], dtype=mx.int32))
+    for group, hidden in zip(groups, states, strict=True):
         logits = suffix(hidden, logit_positions=group.prediction_positions).astype(mx.float32)
         if logits.shape[:2] != (1, len(group.prediction_positions)):
             raise ValueError("native causal sharing lost its selected logit alignment")

@@ -48,12 +48,24 @@ def score_grammar_choices(prefix, suffix, model, sequences, *, split_at, max_tok
                           strategy, execution, branches):
     """Keep the original path by default; share only proven causal decision states."""
     if execution == "causal_groups":
-        if strategy != "full":
-            raise ValueError("native causal groups require the full-prefix path")
         from core.learning.semantic_native_causal_groups import score_native_causal_groups
 
-        scores, receipt = score_native_causal_groups(prefix, suffix, tuple(sequences))
-        return scores, None, receipt["full_single_row_forwards"]
+        if strategy == "trie":
+            from core.learning.frozen_prefix_branches import (
+                FrozenPrefixBranches,
+                native_source_anchor,
+            )
+
+            anchor = native_source_anchor(sequences)
+            if branches is None:
+                branches = FrozenPrefixBranches(model, split_at=split_at,
+                    anchor_tokens=anchor, max_tokens=max_tokens)
+            elif branches.anchor_tokens != anchor:
+                raise ValueError("native causal groups changed the frozen source anchor")
+        elif strategy != "full":
+            raise ValueError("native causal groups require a declared prefix path")
+        scores, receipt = score_native_causal_groups(prefix, suffix, tuple(sequences), branches=branches)
+        return scores, branches, receipt["full_single_row_forwards"]
     if execution != "individual":
         raise ValueError("unknown native decision score execution")
     from tools.train_semantic_native_program import native_loss
@@ -211,6 +223,10 @@ def main():
                         help="verified source-only residual calibration for target-blind decode")
     parser.add_argument("--factorized-residual", type=Path,
                         help="verified source-only decision-kind parameter isolation receipt")
+    parser.add_argument("--role-rule-bank", type=Path,
+                        help="training-only induced operand-role evidence")
+    parser.add_argument("--role-rule-strength", type=float,
+                        help="nonpositive competing-reference penalty for the induced rule")
     parser.add_argument("--prefix-strategy", choices=("full", "trie"), default="full")
     parser.add_argument("--decision-score-execution", choices=("individual", "causal_groups"),
                         default="individual")
@@ -230,10 +246,12 @@ def main():
         parser.error("finite depth, population, and runtime bounds required")
     if not 0 <= args.search_completions <= 128 or not 1 <= args.search_nodes <= 100000:
         parser.error("finite search node and completion bounds required")
+    searched_trie = args.prefix_strategy == "trie" and args.decision_score_execution == "causal_groups"
     if args.source_offset is not None and (args.dataset not in RETAINED_DATASETS
             or args.source_offset < 0 or args.source_offset + args.canary > 500
-            or args.prefix_strategy != "full" or args.weight_mode not in {"fitted", "base", "residual"}):
-        parser.error("source windows require full-prefix retained fitted/base/residual evaluation")
+            or args.prefix_strategy != "full" and not searched_trie
+            or args.weight_mode not in {"fitted", "base", "residual"}):
+        parser.error("source windows require retained fitted/base/residual evaluation")
     if args.dataset in INTERVENTION_DATASETS | {"relation_transfer_controls"} and args.seed is None:
         parser.error("operation interventions require an explicit frozen seed")
     if args.dataset in RETAINED_DATASETS:
@@ -241,24 +259,32 @@ def main():
             parser.error("retained development sources need their report and bundles, without a new seed")
     elif args.source_report is not None or args.bundle is not None:
         parser.error("source report and bundles belong to retained development evaluation")
-    if args.prefix_strategy == "trie" and (args.dataset not in INTERVENTION_DATASETS | RETAINED_DATASETS
+    if args.prefix_strategy == "trie" and not searched_trie and (
+            args.dataset not in INTERVENTION_DATASETS | RETAINED_DATASETS
             or args.search_completions):
         parser.error("native grammar trie requires intervention or retained sources and greedy decode")
     if args.decision_score_execution == "causal_groups" and (
-            args.prefix_strategy != "full" or not args.search_completions):
-        parser.error("native causal groups require full-prefix searched evaluation")
+            args.prefix_strategy not in {"full", "trie"} or not args.search_completions):
+        parser.error("native causal groups require searched evaluation")
     if args.weight_mode == "factorized" and (args.factorized_residual is None
             or args.dataset not in RETAINED_DATASETS or args.prefix_strategy != "trie"
             or args.search_completions or args.source_evidence != "source_text"):
         parser.error("factorized decode requires a retained target-blind trie cohort")
     if args.weight_mode == "residual" and (args.residual_calibration is None
-            or args.prefix_strategy == "trie" and (args.dataset not in RETAINED_DATASETS
+            or args.prefix_strategy == "trie" and not searched_trie and (args.dataset not in RETAINED_DATASETS
                 or args.search_completions or args.source_evidence != "source_text")):
         parser.error("residual decode needs its verified source calibration and supported cohort")
     if args.weight_mode != "residual" and args.residual_calibration is not None:
         parser.error("residual calibration belongs only to residual decode")
     if args.weight_mode != "factorized" and args.factorized_residual is not None:
         parser.error("decision-kind isolation belongs only to factorized decode")
+    if ((args.role_rule_bank is None) != (args.role_rule_strength is None)
+            or args.role_rule_strength is not None and
+            (not math.isfinite(args.role_rule_strength) or args.role_rule_strength <= 0)):
+        parser.error("role evidence needs a bank and positive finite strength")
+    if args.role_rule_bank is not None and (args.prefix_strategy != "full"
+            or not args.search_completions or args.weight_mode == "factorized"):
+        parser.error("role evidence needs searched full-prefix fitted, base, or residual decode")
     seed = 0 if args.dataset in RETAINED_DATASETS else (3141592 if args.seed is None else args.seed)
     if seed < 0:
         parser.error("native grammar seed must be nonnegative")
@@ -327,6 +353,14 @@ def main():
     forbidden = set(training["fit_ids"]) | set(training["calibration_ids"]) | set(training["held_ids"])
     if forbidden & set(sources) or len(set(sources)) != len(sources):
         raise ValueError("native grammar evaluation sources overlap training")
+    role_rule_fit = role_rule_bank = None
+    if args.role_rule_bank is not None:
+        from core.learning.semantic_role_rule_induction import RoleRuleBank
+        from tools.fit_semantic_role_rule_bank import read_role_rule_fit
+
+        role_rule_fit = read_role_rule_fit(args.role_rule_bank, training=training,
+                                          held_source_sha256s=tuple(sources))
+        role_rule_bank = RoleRuleBank.from_dict(role_rule_fit["bank"])
     paths = ("tools/evaluate_semantic_native_grammar.py",
              "core/learning/semantic_native_grammar.py",
              "core/learning/semantic_native_search.py",
@@ -362,6 +396,9 @@ def main():
         paths += ("core/learning/semantic_native_factorized_residual.py",
                   "tools/factor_semantic_native_residual.py",
                   "tools/verify_semantic_native_factorized_residual.py")
+    if role_rule_fit is not None:
+        paths += ("core/learning/semantic_role_rule_induction.py",
+                  "tools/fit_semantic_role_rule_bank.py")
     from tools.semantic_native_execution import EXECUTION_PATHS, execution_from_plan
     paths += EXECUTION_PATHS
     execution = execution_from_plan(training, check_installed=True)
@@ -390,6 +427,10 @@ def main():
         schema_version = "v12"
     if residual is not None and args.prefix_strategy == "full":
         schema_version = "v13"
+    if role_rule_fit is not None:
+        schema_version = "v14"
+    if searched_trie:
+        schema_version = "v15"
     body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": scored_checkpoint["receipt_sha256"],
@@ -428,6 +469,13 @@ def main():
             "report_receipt_sha256": factorized["report_receipt_sha256"],
             "selected_scales": factorized["selected_scales"],
             "baseline_checkpoint_receipt_sha256": selected["receipt_sha256"],
+            "source_only": True, "serving_authority": False}
+    if role_rule_fit is not None:
+        body["role_rule_evidence"] = {
+            "path": str(args.role_rule_bank.resolve()),
+            "receipt_sha256": role_rule_fit["receipt_sha256"],
+            "strength": args.role_rule_strength,
+            "fit_sources": role_rule_fit["fit_sources"],
             "source_only": True, "serving_authority": False}
     plan = {**body, "plan_sha256": digest(body)}
     _save_if_absent(args.directory / "plan.json", plan)
@@ -498,10 +546,13 @@ def main():
             graph_score_input_receipts = []
             decision_parameter_scales = []
             decision_group_forwards = []
+            role_rule_decisions = []
             branches = None
             def score(choices, *, source=scored_source, source_identity=identity,
                       receipts=score_input_receipts, scales=decision_parameter_scales,
-                      transcript=search_score_transcript):
+                      transcript=search_score_transcript,
+                      group_receipts=decision_group_forwards,
+                      role_receipts=role_rule_decisions, input_types=types):
                 nonlocal scored, branches
                 if factorized is not None:
                     from core.learning.semantic_native_factorized_residual import (
@@ -536,7 +587,19 @@ def main():
                     max_tokens=training["max_sequence_tokens"], strategy=args.prefix_strategy,
                     execution=args.decision_score_execution, branches=branches)
                 if group_forwards is not None:
-                    decision_group_forwards.append(group_forwards)
+                    group_receipts.append(group_forwards)
+                if role_rule_bank is not None:
+                    from core.learning.semantic_role_rule_induction import (
+                        native_role_rule_adjustments,
+                    )
+
+                    adjustments = native_role_rule_adjustments(role_rule_bank,
+                        "" if args.source_evidence == "source_token_erasure" else source,
+                        choices, input_count=len(input_types), strength=args.role_rule_strength)
+                    role_receipts.append({"choices": [choice.value for choice in choices],
+                                          "adjustments": adjustments})
+                    scores = tuple(value + delta for value, delta in zip(
+                        scores, adjustments, strict=True))
                 receipts.append(input_receipts)
                 if args.search_completions:
                     transcript.append({"choices": [choice.value for choice in choices],
@@ -627,6 +690,8 @@ def main():
                 row_body["decision_group_forwards"] = decision_group_forwards
             if factorized is not None:
                 row_body["decision_parameter_scales"] = decision_parameter_scales
+            if role_rule_bank is not None:
+                row_body["role_rule_decisions"] = role_rule_decisions
             row = {**row_body, "receipt_sha256": digest(row_body)}
             _save_if_absent(args.directory / "rows" / f"{identity}.json", row)
             rows.append(row)
@@ -643,7 +708,10 @@ def main():
                 or residual is not None and verify_residual(
                     args.residual_calibration, args.training_directory) != residual
                 or factorized is not None and verify_factorized_residual(
-                    args.factorized_residual, args.training_directory) != factorized):
+                    args.factorized_residual, args.training_directory) != factorized
+                or role_rule_fit is not None and read_role_rule_fit(
+                    args.role_rule_bank, training=training,
+                    held_source_sha256s=tuple(sources)) != role_rule_fit):
             raise ValueError("native grammar implementation, model, or checkpoint drifted")
         pair_totals = grammar_pair_totals(rows, dataset=args.dataset)
         result = {"schema": f"aura.semantic_native_grammar.{schema_version}",
@@ -673,6 +741,8 @@ def main():
             result["residual_calibration"] = body["residual_calibration"]
         if factorized is not None:
             result["factorized_residual"] = body["factorized_residual"]
+        if role_rule_fit is not None:
+            result["role_rule_evidence"] = body["role_rule_evidence"]
         _save_if_absent(args.directory / "report.json", {**result, "receipt_sha256": digest(result)})
         print(json.dumps({key: value for key, value in result.items() if key != "row_receipts"}), flush=True)
 

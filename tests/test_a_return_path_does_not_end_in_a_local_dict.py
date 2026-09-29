@@ -58,6 +58,22 @@ def handed_onward():
 def one_key_is_a_lookup():
     table = {}
     table["only"] = 1
+
+
+def merged_into_what_is_returned():
+    extra = {}
+    extra["d_eff"] = 3.0
+    extra["spread"] = 0.5
+    row = {"phi": 0.1, **extra}
+    return row
+
+
+def merged_into_what_is_dropped():
+    extra = {}
+    extra["d_eff"] = 3.0
+    extra["spread"] = 0.5
+    row = {"phi": 0.1, **extra}
+    row["leak"] = 0.2
 '''
 
 
@@ -108,3 +124,14 @@ def test_a_mapping_with_one_key_is_a_lookup_not_a_result() -> None:
 def test_the_scan_covers_where_a_dropped_path_costs_something() -> None:
     assert "core/phases/" in SCANNED
     assert "core/subject/" in SCANNED
+
+
+def test_a_mapping_merged_into_a_returned_one_is_read() -> None:
+    """`null_row` spreads `extra` into the row it returns."""
+    assert _read(_functions()["merged_into_what_is_returned"], "extra") is True
+
+
+def test_a_mapping_merged_into_a_dropped_one_is_still_dropped() -> None:
+    dropped = _functions()["merged_into_what_is_dropped"]
+    assert _read(dropped, "extra") is False
+    assert _read(dropped, "row") is False

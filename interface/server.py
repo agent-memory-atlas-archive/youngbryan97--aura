@@ -434,7 +434,11 @@ class _QueueHandler(logging.Handler):
                     self._dropped_warn_count += 1
                     if record.created - self._last_overflow_warning_at >= 60.0:
                         rotated = self._dropped_warn_count - self._last_reported_warn_drops
-                        logger.warning(
+                        # Info, not a warning: the buffer is the replay ring for
+                        # clients that join late, the live UI already received
+                        # these, and the newest are kept. 124 of these in one
+                        # night were the largest warning class in the log.
+                        logger.info(
                             "UI log buffer at capacity: rotated out %d warning+ records "
                             "since last report (session totals: %d warning+, %d all levels); "
                             "newest records preserved.",
