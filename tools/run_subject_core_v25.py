@@ -325,6 +325,7 @@ async def _learn_grain(
     )
     walk = _history_walk(history, heldout, history_turns=history_turns, seed=seed + 15)
     stability = _rank_stability(train, int(grain.rank), seed=seed + 18)
+    stability.update(_sufficiency_stability(train, history, heldout, seed=seed + 18))
     # A rank read off N anchors cannot exceed N - 1, because centring costs one
     # dimension. So a rank at that ceiling is a statement about how many
     # anchors were collected and not about the system, in exactly the way a
@@ -1522,6 +1523,54 @@ def _rank_stability(train: np.ndarray, rank: int, *, seed: int) -> dict[str, Any
     }
 
 
+def _sufficiency_stability(
+    train: np.ndarray, history: np.ndarray, heldout: np.ndarray, *, seed: int
+) -> dict[str, Any]:
+    """Whether the grain refitted with each fold held out is still sufficient.
+
+    The rank is a count of singular values above a null, and her spectrum has
+    no gap to count to: at bb3faa54a it fell smoothly from 367 to 150 over
+    twelve components and met the null near 24, so a fold with four fifths of
+    the anchors found 21 or 22 and bi-cross-validation found 60. What a grain
+    has to be is sufficient: once it is known, history adds nothing to the
+    held-out future. This asks that of the grain fitted on each fold's
+    complement, against that grain's own shuffled-history floor, on the same
+    folds `_rank_stability` uses.
+    """
+    from core.subject.intrinsic_v25 import (
+        fit_predictive_grain,
+        heldout_new_direction_gain,
+        heldout_sufficiency_gain,
+    )
+
+    rows = train.shape[0]
+    folds = inspect.signature(heldout_sufficiency_gain).parameters["folds"].default
+    null_draws = inspect.signature(fit_predictive_grain).parameters["null_draws"].default
+    quantile = inspect.signature(fit_predictive_grain).parameters["quantile"].default
+    if rows < folds:
+        return {"fold_sufficient": [], "sufficiency_stable": False}
+    order = np.random.default_rng(seed).permutation(rows)
+    verdicts: list[bool] = []
+    gains: list[float | None] = []
+    for held in np.array_split(order, folds):
+        kept = np.setdiff1d(order, held)
+        grain = fit_predictive_grain(train[kept], seed=seed + 1)
+        if grain.rank <= 0:
+            verdicts.append(False)
+            gains.append(None)
+            continue
+        state = grain.transform(train)
+        gain = heldout_new_direction_gain(history, state, heldout, seed=seed + 12)
+        rng = np.random.default_rng(seed + 13)
+        floor = float(np.quantile([
+            heldout_new_direction_gain(history[rng.permutation(len(history))], state, heldout, seed=seed + 12)
+            for _ in range(null_draws)
+        ], quantile))
+        verdicts.append(bool(gain == gain and not (gain > SUFFICIENCY_TOLERANCE and gain > floor)))
+        gains.append(None if gain != gain else round(float(gain), 6))
+    return {"fold_sufficient": verdicts, "fold_sufficiency_gains": gains, "sufficiency_stable": all(verdicts)}
+
+
 def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
     """The fourteen ways a v25 report is not authoritative.
 
@@ -1638,7 +1687,15 @@ def _authority(evidence: dict[str, Any], args: Any) -> dict[str, Any]:
                 "the longest history the ladder allows still predicts held-out futures, "
                 "so the history length is not resolved"
             )
-        if not grain.get("rank_stable"):
+        if getattr(args, "v5", False):
+            # v5 asks the grain to be reproducibly sufficient, not to have a
+            # count its spectrum does not define; see _sufficiency_stability.
+            if not grain.get("sufficiency_stable"):
+                blockers.append(
+                    "the grain refitted with a fold held out is not sufficient on every fold: "
+                    f"{grain.get('fold_sufficient')}"
+                )
+        elif not grain.get("rank_stable"):
             blockers.append(
                 "the predictive-state rank does not survive other folds and estimators: "
                 f"{grain.get('predictive_rank')} on every anchor, {grain.get('fold_ranks')} with a "

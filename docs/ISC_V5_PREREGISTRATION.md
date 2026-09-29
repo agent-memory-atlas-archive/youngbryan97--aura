@@ -1483,3 +1483,25 @@ and verified against the coordinator's own anchors
 (`tests/test_the_grain_is_shared_and_is_the_same_grain.py`). Neither is part of
 the design: they change the wall clock, which on 28 September was 6 h 20 min of
 grain in one process after the cuts were done in 45 minutes.
+
+### The grain is judged by whether it stays sufficient
+
+The carrier's authority also asked the grain's rank to come out the same with
+each fold of anchors held out and under bi-cross-validation. At `bb3faa54a` it
+read 24 on every anchor, 21 or 22 with a fold held out, and 60 by
+bi-cross-validation. The spectrum has no gap to count to: the singular values
+fall smoothly from 367 to 150 over the first twelve components and meet the
+null near 24, so the count is where a smooth curve crosses a line that moves
+with the number of anchors, and a different estimator finds a different
+crossing. That rule was failed by a quantity her spectrum does not define.
+
+What a grain is for is sufficiency: once it is known, history adds nothing to
+the held-out future. It already has to be sufficient on every anchor. Under v5
+it also has to be sufficient when refitted with each fold of anchors held out,
+each fold against its own shuffled-history floor at the parallel analysis's
+draws and quantile. A grain that misses a direction history carries fails it
+(`tests/test_a_grain_is_judged_by_whether_it_is_sufficient.py`). The rank and
+its fold and bi-cross-validated readings are still reported.
+
+This rule was written after seed 7 failed the old one, so seed 7 cannot pass
+under it; it applies to seed 23 and after.
