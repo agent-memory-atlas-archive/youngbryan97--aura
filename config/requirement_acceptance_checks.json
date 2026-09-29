@@ -484,6 +484,34 @@
         "name": "tests/test_quoted_output_needs_an_executor.py",
         "why": "Decides the causality and authorship family for results: output quoted as the result of a run is unfounded unless an executor that could have produced it left a receipt, and a receipt from an unrelated tool cannot vouch for it. None of the three decides the identity, location, continuity or preference families, or that an abstention names the evidence that would resolve it."
       }
+    ],
+    "SM-04-INTROSPECTION": [
+      {
+        "kind": "test",
+        "name": "tests/test_self_condition_projection.py",
+        "why": "Decides the freshness and unknown clauses of the projection: fresh inner state is taken before host pressure, a stale dimension is disclosed as stale rather than spoken as current, evidence about agency alone does not become wellbeing, and with no inner evidence the answer says it is unavailable. It does not decide the split between observed, remembered, inferred and counterfactual state, or how disagreement between telemetry, memory and language is resolved."
+      }
+    ],
+    "SM-05-AUTHORSHIP": [
+      {
+        "kind": "test",
+        "name": "tests/test_effect_claim_closure.py",
+        "why": "Decides the floor of the chain for actions: every capability she has carries an effect recogniser that fires on a real phrasing of it, a claim to have done something with no receipt is corrected for every action, and a claim with a verified receipt is left alone. It does not decide the join of intention, alternatives, governance and consequence into one ledger, or the grades between assistance, veto, accident and common cause."
+      }
+    ],
+    "SM-06-PREFERENCE-OWNERSHIP": [
+      {
+        "kind": "test",
+        "name": "tests/test_individual_preferences.py",
+        "why": "Decides her preference told apart from a request and a suggestion, and its evidence-governed revision: being told she likes something does not make it hers, a suggestion never counts toward forming one, her own repeated contact does, one contrary encounter does not flip a held preference, accumulated contrary evidence revises it, and the revision records why. It does not decide the typed owner, origin and confidence fields, or preferences told apart from standing obligations, transient affect and model priors."
+      }
+    ],
+    "SM-07-CONTINUITY": [
+      {
+        "kind": "test",
+        "name": "tests/test_continuity_relation.py",
+        "why": "Decides the lineage clauses: continuity is decided by lineage and not by likeness, so a restored backup is not her however well it matches, an instantaneous replacement breaks the chain where a gradual one does not, two chains ending in the same bytes are different cases, and a fork gives two of her with neither continuing the other. It does not decide continuity across sleep, restart, update or memory compaction in a running instance, or how a discontinuity is reported to a person."
+      }
     ]
   }
 }
