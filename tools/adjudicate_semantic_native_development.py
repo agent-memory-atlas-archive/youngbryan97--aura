@@ -24,8 +24,11 @@ def complete_development(windows):
     first = windows[0][0]
     mode = first.get("weight_mode")
     if (mode not in {"fitted", "residual"}
-            or first.get("schema") != ("aura.semantic_native_grammar_plan.v13" if mode == "residual"
-                                         else "aura.semantic_native_grammar_plan.v12")):
+            or first.get("schema") not in ({"aura.semantic_native_grammar_plan.v13",
+                                            "aura.semantic_native_grammar_plan.v15"}
+                                           if mode == "residual" else
+                                           {"aura.semantic_native_grammar_plan.v12",
+                                            "aura.semantic_native_grammar_plan.v15"})):
         raise ValueError("native development candidate mode is unsupported")
     calibration = first.get("residual_calibration") if mode == "residual" else None
     if mode == "residual" and (not isinstance(calibration, dict)

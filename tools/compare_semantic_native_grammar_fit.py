@@ -19,9 +19,12 @@ def matched_generation(fitted_plan, base_plan, fitted_verification, base_verific
     left, right = dict(fitted_plan), dict(base_plan)
     if mode in {"residual", "factorized"}:
         field = "residual_calibration" if mode == "residual" else "factorized_residual"
-        schema = "v13" if left.get("schema", "").endswith(".v13") else (
+        schema = "v15" if left.get("schema", "").endswith(".v15") else (
+            "v13" if left.get("schema", "").endswith(".v13") else
             "v9" if mode == "residual" else "v10")
         base_schema = "v8"
+        if schema == "v15":
+            base_schema = "v15"
         if schema == "v13":
             base_schema = ("v12" if left.get("source_window") is not None
                            else "v6" if left.get("dataset") in {"retained_validation", "retained_test"}

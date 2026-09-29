@@ -77,6 +77,19 @@ def test_residual_matches_only_its_bound_baseline_and_common_implementation():
     assert matched_generation(*residual_fixture())["candidate_weight_mode"] == "residual"
 
 
+def test_cached_grouped_residual_matches_only_its_identical_execution_baseline():
+    candidate, base, left, right = residual_fixture()
+    candidate["schema"] = base["schema"] = "aura.semantic_native_grammar_plan.v15"
+    candidate["prefix_strategy"] = base["prefix_strategy"] = "trie"
+    candidate["decision_score_execution"] = base["decision_score_execution"] = "causal_groups"
+    candidate["implementation"]["core/learning/frozen_prefix_branches.py"] = "cached"
+    base["implementation"]["core/learning/frozen_prefix_branches.py"] = "cached"
+    assert matched_generation(candidate, base, left, right)["candidate_weight_mode"] == "residual"
+    base["prefix_strategy"] = "full"
+    with pytest.raises(ValueError, match="differ beyond fitted weights"):
+        matched_generation(candidate, base, left, right)
+
+
 @pytest.mark.parametrize("dataset,base_schema,window", [
     ("natural_request", "v3", False),
     ("relation_transfer_controls", "v11", False),
@@ -173,6 +186,17 @@ def test_micro_probe_requires_exact_source_dependent_gain_and_reports_weak_contr
     result = matched_source_intervention(*prefix, fitted_rows, base_rows, erasure_rows)
     assert result["bounded_micro_probe_passed"] is False
     assert result["source_dependent_gains"] == 0
+
+
+def test_cached_grouped_source_erasure_keeps_three_arms_matched():
+    arms = list(intervention_fixture())
+    for plan in arms[:3]:
+        plan.update(schema="aura.semantic_native_grammar_plan.v15",
+                    prefix_strategy="trie", decision_score_execution="causal_groups")
+    assert matched_source_intervention(*arms)["source_dependent_gains"] == 1
+    arms[2]["decision_score_execution"] = "individual"
+    with pytest.raises(ValueError, match="beyond erasure"):
+        matched_source_intervention(*arms)
 
 
 @pytest.mark.parametrize("defect", ["erasure_mode", "source_population", "erasure_proof",

@@ -1,5 +1,6 @@
 """Later micro failures cannot erase passes or skip missing acceptance evidence."""
 
+import hashlib
 from copy import deepcopy
 
 import pytest
@@ -8,6 +9,7 @@ from tools.adjudicate_semantic_native_micro_stages import (
     cohort_passed,
     stage_progress,
     verified_native_candidate,
+    verified_reference_protocol,
 )
 
 
@@ -61,6 +63,32 @@ def test_all_exact_cohorts_still_require_source_dependent_gain():
     assert result["full_development_ready"] is True
     assert result["general_transfer_proven"] is False
     assert result["serving_authority"] is False
+
+
+def test_reference_accepts_its_declared_long_bound_but_refuses_unbounded_work():
+    from tools.evaluate_semantic_native_grammar import grammar_examples
+
+    training = {"plan_sha256": "f" * 64}
+    checkpoint = {"receipt_sha256": "c" * 64}
+    seed = int(training["plan_sha256"][:8], 16)
+    sources = [hashlib.sha256(item.source_text.encode()).hexdigest() for item in
+               grammar_examples(dataset="natural_request", seed=seed, count=3)]
+    plan = {"schema": "aura.semantic_native_grammar_plan.v13",
+            "dataset": "natural_request", "weight_mode": "residual", "seed": seed,
+            "source_evidence": "source_text", "search_completions": 4,
+            "search_nodes": 256, "max_steps": 8, "max_seconds": 14400.,
+            "search_score_mode": "native_nonpositive", "sources": sources,
+            "training_plan_sha256": training["plan_sha256"],
+            "checkpoint_receipt_sha256": checkpoint["receipt_sha256"],
+            "residual_calibration": {"report_receipt_sha256": "r"}}
+    residual = {"report_receipt_sha256": "r"}
+    verified_reference_protocol(plan, training, checkpoint, residual)
+    for bound in (0, 14401, float("inf"), float("nan"), True):
+        with pytest.raises(ValueError, match="finite frozen runtime bound"):
+            verified_reference_protocol({**plan, "max_seconds": bound},
+                                        training, checkpoint, residual)
+    with pytest.raises(ValueError, match="frozen protocol"):
+        verified_reference_protocol({**plan, "search_nodes": 16}, training, checkpoint, residual)
 
 
 @pytest.mark.parametrize("defect", ["partial", "answer", "regression", "forced", "disconnected"])
