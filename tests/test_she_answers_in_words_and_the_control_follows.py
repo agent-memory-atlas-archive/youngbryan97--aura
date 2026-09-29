@@ -40,6 +40,8 @@ def _lean(toward: float) -> Lean:
     return Lean(
         toward=toward, first=0.5, second=0.5,
         because=("truth is the value I hold above every other",), measured=True,
+        # The unsaturated distance, which is what a screen is placed against.
+        gap=toward * 0.05,
     )
 
 

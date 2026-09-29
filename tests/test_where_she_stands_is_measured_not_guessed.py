@@ -217,3 +217,40 @@ def test_her_record_is_phrased_as_a_person_would_say_it():
     assert "about_her=" in body
     assert "the value I hold above every other" in body
     assert "far more" in body and "times out of" in body
+
+
+def test_a_page_is_its_own_unit_for_how_far_she_goes():
+    """Consistency saturates; twenty hairs read the same as twenty miles.
+
+    Measured on a real page: thirty-four of sixty items at the far end, which
+    is not a person answering a questionnaire.
+    """
+    leans = [
+        w.Lean(toward=-1.0, first=0, second=0, measured=True, gap=-0.004),
+        w.Lean(toward=-1.0, first=0, second=0, measured=True, gap=-0.040),
+        w.Lean(toward=1.0, first=0, second=0, measured=True, gap=0.020),
+    ]
+    shares = w.against_the_rest(leans)
+    assert shares[1] == pytest.approx(-1.0)
+    assert abs(shares[0]) < 0.2, "a hair must not read as the far end"
+    assert shares[2] == pytest.approx(0.5)
+
+
+def test_the_strongest_still_reaches_the_end():
+    leans = [w.Lean(toward=-1.0, first=0, second=0, measured=True, gap=-0.09)]
+    assert w.against_the_rest(leans) == [pytest.approx(-1.0)]
+
+
+def test_a_page_with_nothing_measured_places_nothing():
+    leans = [w.Lean(toward=0.0, first=0, second=0, measured=False, gap=0.0)]
+    assert w.against_the_rest(leans) == [0.0]
+
+
+def test_the_live_path_places_them_together():
+    import inspect
+
+    from core.skills import sovereign_browser_understanding as u
+
+    body = inspect.getsource(u._UnderstandsThePage._answer_each_question)
+    assert "against_the_rest" in body
+    assert body.index("against_the_rest") < body.index("_her_thinking_about")

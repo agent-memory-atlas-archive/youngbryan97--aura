@@ -40,6 +40,7 @@ __all__ = [
     "Piece",
     "her_record",
     "how_much_it_is_her",
+    "against_the_rest",
     "themes_among",
     "where_she_stands",
     "which_is_most_her",
@@ -97,6 +98,11 @@ class Lean:
     #: False when her record had nothing to say, and the caller must not
     #: mistake "no evidence" for "equally both".
     measured: bool = False
+    #: How much closer her record is to one side than the other, before
+    #: anything is made of it. ``toward`` says how consistently she leans;
+    #: this says by how much, and it is what lets one question be compared
+    #: with another asked of the same record.
+    gap: float = 0.0
 
     def position_in(self, count: int) -> int | None:
         """Which of ``count`` positions this lean puts her at, 0-based.
@@ -368,6 +374,7 @@ def where_she_stands(
         second=float(right_total / weight_total),
         because=because,
         measured=True,
+        gap=float(agreement / weight_total),
     )
 
 
@@ -490,3 +497,28 @@ def which_is_most_her(
         piece.about_her or piece.said for _margin, piece in supporters[index]
     )[:4]
     return Choice(index=index, support=support, because=because, measured=True)
+
+
+def against_the_rest(leans: Sequence[Lean]) -> list[float]:
+    """Each lean as a share of the strongest one asked of the same record.
+
+    A lean on its own says how consistently her record points one way, and
+    consistency saturates: twenty things all a hair closer to one side reads
+    the same as twenty things decisively closer. Measured on a real page of
+    sixty questions, thirty-four of them came out at the far end, which is not
+    a person answering a questionnaire.
+
+    So a page is its own unit. The questions on it are all asked of the same
+    record, so the strongest gap among them is what "as far as she goes" means
+    here, and every other question is placed in proportion to it. A page she
+    genuinely feels strongly about keeps its strong answers; one she is mild
+    about stops reading as though she were at the extremes of everything.
+
+    Returns a value in [-1, 1] for each lean, in order. Unmeasured leans give
+    0.0 and the caller should not place them at all.
+    """
+    gaps = [float(lean.gap) if lean.measured else 0.0 for lean in leans]
+    widest = max((abs(gap) for gap in gaps), default=0.0)
+    if widest <= 1e-12:
+        return [0.0 for _ in gaps]
+    return [max(-1.0, min(1.0, gap / widest)) for gap in gaps]
