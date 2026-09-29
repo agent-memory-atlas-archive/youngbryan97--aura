@@ -290,6 +290,46 @@
         "name": "ui-audit",
         "why": "Decides the automated half for every page the interface serves: contrast against every backdrop in the system's light and dark appearance and in every shell theme and accent, screen-reader names and heading structure, keyboard focus that is visible on every control Tab reaches, reduced motion honoured by keyframes and canvases alike, and reflow at 320 CSS pixels, which is a 1280-pixel window at 400% zoom. tests/test_the_interface_audit_can_fail.py holds that each of those can fail. Focus order, VoiceOver itself, captions, locale formatting, bidirectional text and translated strings are not decided by it."
       }
+    ],
+    "MATRIX-14": [
+      {
+        "kind": "make",
+        "name": "ui-audit",
+        "why": "Decides the accessibility and viewport clauses for every page the interface serves: inaccessible interactions (contrast on every backdrop, names on every control, a visible focus on every control Tab reaches), and desktop and constrained viewports down to 320 CSS pixels with no horizontal overflow, in each theme and accent. Live-data traceability, loading, empty and degraded states, and screenshot assertions are not decided by it."
+      }
+    ],
+    "PASSF-11": [
+      {
+        "kind": "make",
+        "name": "ui-audit",
+        "why": "Decides responsive states and keyboard behaviour for the shell, memory UI, mission control, telemetry, first-run and controls pages it names, each measured at three widths, in both appearances and every theme. Error-banner wording, loading states and long-text handling are not decided by it."
+      }
+    ],
+    "PASSF-13": [
+      {
+        "kind": "make",
+        "name": "lint",
+        "why": "Decides the 'ruff' part of the fast checks: syntax errors everywhere, the critical F-codes, and the curated files."
+      },
+      {
+        "kind": "make",
+        "name": "compile",
+        "why": "Decides the 'py_compile' part of the fast checks over core and tests. The live and end checks the requirement also names are not decided by either."
+      }
+    ],
+    "CTX2-GRAPH-003": [
+      {
+        "kind": "make",
+        "name": "reachability",
+        "why": "Decides 'causal edges that exist only in tests' at module level: the gate fails when a module comes to be imported by tests and nothing else, and every such module carries a recorded disposition. Stale reads, write/write conflicts, circular derivation and shadow copies are not decided by it."
+      }
+    ],
+    "FOREGROUND-LATENCY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_async_write_lane_ratchet.py",
+        "why": "Decides 'move blocking work off-loop' for the class behind every recorded live loop wedge: a synchronous gateway or atomic write inside an async function, directly or through a same-file helper, fails it unless it is a frozen historical offender. Other blocking owners and the live availability proof are not decided by it."
+      }
     ]
   }
 }
