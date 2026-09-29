@@ -1276,3 +1276,46 @@ floor the probe mis-sized. The fix is real and its size is not yet known, so the
 control arm is read as the first battery reading with the generator fault closed
 and no size is predicted for it. The probes now calibrate and the re-measurement
 is queued.
+
+## Addendum, 28 September 2026, evening: the floor was the estimator, and a sweep that fails says so early
+
+Named before the run that reads it. The code is at `9441d011f`.
+
+**The sham floor was the estimator.** A sham arm and the untouched arm it is
+compared with are two forks of one anchor, and every anchor contributes one row
+to each. Cross-fitting that split an anchor across folds left each test row's
+twin in the training fold as its nearest neighbour with the other label, and
+two identical samples read a distance squared of 0.056 at 128 anchors and 0.103
+at 64 — the floor of every v25 look, 0.062 to 0.107. The fork leaks found today
+were real and are fixed (`6117505af`, `babe01a06`, `31f284829`), but after them
+the fail-fast look at `80d087b83` still read a sham rate of 0.077 to 0.107 on
+forks that differ in eight columns by 4e-4. So the floor was the instrument.
+
+`crossfit_fisher_rao` now takes the anchor of each row: folds keep an anchor's
+rows together, the neighbour count is even for paired rows, and ties at the
+k-th neighbour are counted whole. On identical samples every anchor count reads
+exactly zero, and a cut moving 6 of 438 columns by one spread is decided from 32
+anchors. `isc_v5.PAIRED` makes it the design, and a sweep that was not paired
+does not conform.
+
+**A failing sweep stops at the failing cut** (`80d087b83`). `--fail-fast` takes
+the cuts most lopsided first, each to its decision, and stops at the first that
+ends undecided. The line is a conjunction, so the verdict is the same as the
+full sweep's; a failing run costs one cut's rollouts instead of 511 cuts'.
+
+**The next carrier run** is `--v5 --fail-fast --turns 2`, grain learned, seed 7,
+at `9441d011f`. What it can say:
+
+- stopped at a cut: irreducibility and the carrier fail on seed 7, and the cut
+  it names is the next thing to build for;
+- every cut decided: the line holds on seed 7, the carrier's rate is the
+  weakest cut's lower bound, and seed 23 runs the same design as the decisive
+  reading.
+
+No bar moves. The decision rule, looks, level and draws are the ones above.
+
+**The arms.** The membrane now takes its channels from her own state and runs in
+her kernel as well as the harness (`1245d58ca`). The afferent surface filtered
+only the recording, so it moved to `core/subject` and no arm switches it on;
+`carried` is the membrane alone. The arms run after the carrier run and the
+reports ground, each at one commit with its own control.
