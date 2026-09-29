@@ -74,6 +74,26 @@ def stage_progress(reference, *, controls=None, retained=None):
             "broad_gain_proven": False, "serving_authority": False}
 
 
+def verified_native_fit(training_directory, fit_verification):
+    """Require the complete fit, selected weights, and unchanged replay evidence."""
+    from tools.evaluate_semantic_native_checkpoint import (
+        selected_checkpoint,
+        verified_document,
+    )
+    training, checkpoint = selected_checkpoint(training_directory)
+    training_report = verified_document(training_directory / "report.json")
+    fit = verified_document(fit_verification)
+    if (fit.get("artifacts_verified") is not True
+            or fit.get("current_implementation_drift") != []
+            or fit.get("training_plan_sha256") != training["plan_sha256"]
+            or fit.get("training_receipt_sha256") != training_report["receipt_sha256"]
+            or fit.get("selected_checkpoint_receipt_sha256") != checkpoint["receipt_sha256"]
+            or any(hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != sha
+                   for path, sha in training["implementation"].items())):
+        raise ValueError("native micro stages lack unchanged verified fitting evidence")
+    return training, checkpoint, fit
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--training-directory", required=True, type=Path)
@@ -84,26 +104,12 @@ def main():
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     from tools.compare_semantic_native_grammar_fit import compare_directories
-    from tools.evaluate_semantic_native_checkpoint import (
-        digest,
-        selected_checkpoint,
-        verified_document,
-    )
+    from tools.evaluate_semantic_native_checkpoint import digest, verified_document
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
     from tools.refit_semantic_argument_proposals import configure_refit_environment
 
     configure_refit_environment(args.output)
-    training, checkpoint = selected_checkpoint(args.training_directory)
-    training_report = verified_document(args.training_directory / "report.json")
-    fit = verified_document(args.fit_verification)
-    if (fit.get("artifacts_verified") is not True
-            or fit.get("current_implementation_drift") != []
-            or fit.get("training_plan_sha256") != training["plan_sha256"]
-            or fit.get("training_receipt_sha256") != training_report["receipt_sha256"]
-            or fit.get("selected_checkpoint_receipt_sha256") != checkpoint["receipt_sha256"]
-            or any(hashlib.sha256((ROOT / path).read_bytes()).hexdigest() != sha
-                   for path, sha in training["implementation"].items())):
-        raise ValueError("native micro stages lack unchanged verified fitting evidence")
+    training, checkpoint, fit = verified_native_fit(args.training_directory, args.fit_verification)
 
     def compare(root, controls=None):
         return compare_directories(fitted_directory=root / "fitted",

@@ -1,6 +1,8 @@
 """The small transfer check must test meaning invariance and binding sensitivity."""
 
+import ast
 import hashlib
+import inspect
 from copy import deepcopy
 
 import pytest
@@ -13,6 +15,19 @@ from tools.semantic_native_relation_transfer import (
 from tools.verify_semantic_native_grammar import verified_dataset, verified_examples
 
 SEED = 2147438394
+
+
+def test_all_native_grammar_arms_require_exclusive_non_evicting_lane_ownership():
+    from tools.evaluate_semantic_native_grammar import main
+
+    calls = [node for node in ast.walk(ast.parse(inspect.getsource(main)))
+             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+             and node.func.id == "standalone_model_lane"]
+    assert len(calls) == 1
+    keywords = {keyword.arg: keyword.value for keyword in calls[0].keywords}
+    assert ast.literal_eval(keywords["require_exclusive"]) is True
+    assert ast.literal_eval(keywords["allow_owner_eviction"]) is False
+    assert ast.literal_eval(keywords["preemptible"]) is False
 
 
 def identity(example):

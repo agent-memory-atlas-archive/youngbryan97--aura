@@ -47,6 +47,22 @@ on CPU, not decoded again. The full-development readiness field requires all
 three exact cohorts and source-dependent gain; it grants no serving or broad
 reasoning authority.
 
+`tools/run_semantic_native_micro_stages.py` runs these same checks in one
+sequence through the existing detached supervisor's exact-command broker.
+Its `--policy-output` mode freezes all seven arms' commands and their
+budgets without loading a model. After independent fit verification, the
+supervised controller freezes every evaluator plan, runs one arm at a time,
+verifies its files, and advances at each passed acceptance. A failed later
+stage preserves the earlier receipts. Completed arms are reverified on CPU
+on continuation, never decoded again. Partial decodes require a new declared
+attempt. The controller does not start the 500-request bank or grant G-ledger
+closure. Every native grammar arm now requires exclusive, non-evicting lane
+ownership, independent of its report schema version.
+With `--wait-fit-supervisor`, `--fit-bank`, and `--fit-parent`, the controller
+waits for that existing trainer's verified terminal receipt, runs independent
+fit verification in a brokered CPU process, then starts the same micro stages.
+It never restarts the trainer or loads a model while its process remains alive.
+
 For each target-blind miss, retain one of these causal diagnoses:
 
 1. The intended graph was absent from the generated proposals: interpretation

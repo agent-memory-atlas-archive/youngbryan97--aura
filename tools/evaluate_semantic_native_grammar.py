@@ -405,8 +405,8 @@ def main():
     started, rows = time.monotonic(), []
     with (standalone_model_lane(owner_id=f"semantic-native-grammar:{args.directory.name}",
                                 model_path=str(spec.model_path), purpose="evaluation",
-                                require_exclusive=schema_version in {"v8", "v9", "v10"},
-                                allow_owner_eviction=schema_version not in {"v8", "v9", "v10"},
+                                require_exclusive=True,
+                                allow_owner_eviction=False,
                                 preemptible=False, metadata={"production_effect": False}),
           mlx_memory_envelope(fraction=.80)):
         model, tokenizer = load(str(spec.model_path))
