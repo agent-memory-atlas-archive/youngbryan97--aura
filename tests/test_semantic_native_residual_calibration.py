@@ -8,6 +8,7 @@ import pytest
 
 from core.learning.semantic_native_path_calibration import native_path_profile
 from tools.calibrate_semantic_native_residual import (
+    calibration_states,
     graph_competitions,
     measured_row,
     residual_admission,
@@ -138,3 +139,26 @@ def test_joint_graph_residual_keeps_both_baseline_success_sets():
     rows[0.2][0].pop("whole_graph")
     with pytest.raises(ValueError, match="graph measurements are incomplete"):
         residual_admission(rows, ["a", "b"])
+
+
+def test_joint_residual_reads_fits_complete_capture_including_graphs(monkeypatch, tmp_path):
+    from core.learning.frozen_state_store import FrozenStateStore
+
+    observed = {}
+
+    def open_existing(directory, **kwargs):
+        observed.update({"directory": directory, **kwargs})
+        return observed
+
+    monkeypatch.setattr(FrozenStateStore, "open_existing", open_existing)
+    training = {"schema": "aura.semantic_native_fit_plan.v7", "plan_sha256": "a" * 64,
+                "prefix_storage_contract": {"max_resident_bytes": 1024}}
+    supervision = {"rows": [{"source": "s", "decision_index": 0,
+                             "choice_index": 0, "tokens": [1, 2]}],
+                   "graph_rows": [{"source": "s", "choice_index": 0, "tokens": [1, 3]}]}
+    assert calibration_states(tmp_path, training, supervision) is observed
+    assert observed["directory"] == tmp_path / "prefix-states"
+    assert set(observed["sequence_digests"]) == {("s", 0, 0), ("s", -1, 0)}
+    supervision["graph_rows"].append(dict(supervision["graph_rows"][0]))
+    with pytest.raises(ValueError, match="captured supervision keys differ"):
+        calibration_states(tmp_path, training, supervision)

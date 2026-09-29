@@ -93,6 +93,28 @@ def graph_winners(rows: list[dict]) -> set[str]:
     return winners
 
 
+def calibration_states(training_directory: Path, training: dict, supervision: dict):
+    if not training["schema"].endswith(".v7"):
+        from tools.semantic_native_prefix_reuse import open_reused_prefix
+
+        return open_reused_prefix(training["reused_prefix_contract"], training, supervision)
+    from core.learning.frozen_state_store import FrozenStateStore
+
+    sequences = {
+        (row["source"], row["decision_index"], row["choice_index"]): digest(row["tokens"])
+        for row in supervision["rows"]}
+    graphs = {(row["source"], -1, row["choice_index"]): digest(row["tokens"])
+              for row in supervision["graph_rows"]}
+    if (len(sequences) != len(supervision["rows"])
+            or len(graphs) != len(supervision["graph_rows"])
+            or set(sequences) & set(graphs)):
+        raise ValueError("native residual captured supervision keys differ")
+    return FrozenStateStore.open_existing(
+        training_directory / "prefix-states", plan_sha256=training["plan_sha256"],
+        max_resident_bytes=training["prefix_storage_contract"]["max_resident_bytes"],
+        sequence_digests={**sequences, **graphs})
+
+
 def residual_admission(rows_by_scale: dict[float, list[dict]], sources: list[str]) -> dict:
     """Select from source paths only; a lower loss cannot excuse a lost path."""
     if not rows_by_scale or 0. not in rows_by_scale:
@@ -178,7 +200,6 @@ def run(args) -> None:
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
     from tools.refit_semantic_argument_proposals import configure_refit_environment
     from tools.semantic_native_execution import apply_execution, execution_from_plan
-    from tools.semantic_native_prefix_reuse import open_reused_prefix
     from tools.train_semantic_native_program import native_loss
 
     configure_refit_environment(args.directory / "report.json")
@@ -253,7 +274,7 @@ def run(args) -> None:
 
     from core.learning.frozen_decoder_prefix import NativeDecoderSuffix
 
-    states = open_reused_prefix(training["reused_prefix_contract"], training, supervision)
+    states = calibration_states(args.training_directory, training, supervision)
     started = time.monotonic()
     results = {}
     with (standalone_model_lane(owner_id=f"native-residual:{args.directory.name}",
