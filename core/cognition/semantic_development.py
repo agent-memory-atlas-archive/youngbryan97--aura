@@ -110,7 +110,7 @@ class SemanticCase:
     outcome_name: str
     outcome: bool
     features: Mapping[str, Any]
-    observed_at: float = field(default_factory=time.time)
+    observed_at: float = field(default_factory=lambda: time.time())
     origin: str = "observation"
     intervention: str = ""
     candidate_dependencies: tuple[str, ...] = ()

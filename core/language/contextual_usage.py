@@ -131,7 +131,7 @@ class UsageEvent:
     source_id: str
     context_id: str
     terms: tuple[str, ...]
-    observed_at: float = field(default_factory=time.time)
+    observed_at: float = field(default_factory=lambda: time.time())
     setting: str = ""
     community: str = ""
     speaker: str = ""
@@ -252,7 +252,7 @@ class MeaningFeedback:
     term: str
     sense: str
     origin: str
-    observed_at: float = field(default_factory=time.time)
+    observed_at: float = field(default_factory=lambda: time.time())
     stance: str = "supports"
     mode: str = "unresolved"
 
