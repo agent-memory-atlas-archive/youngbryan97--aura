@@ -77,6 +77,10 @@ from .vector_memory_engine_fallbacks import _EmbedsWithoutAModel
 
 logger = logging.getLogger("Aura.VectorMemory")
 
+#: Refusal reasons already warned about, so a retry that is refused for the same
+#: reason is logged at info.
+_REFUSALS_REPORTED: set[str] = set()
+
 _VECTOR_SQLITE_ERRORS = (OSError, sqlite3.Error, RuntimeError, TypeError, ValueError)
 
 #: How many query vectors one engine keeps. A recall asks one question of
@@ -353,7 +357,16 @@ class EmbeddingEngine(_EmbedsWithoutAModel):
                     },
                 )
             except ModelLaneControlError as exc:
-                logger.warning("Embedding model admission refused; using bounded fallback: %s", exc)
+                # Once per reason. The engine retries whenever the lanes change,
+                # and on 29 September one training job holding the lane
+                # exclusively produced this warning 61 times in a night, each
+                # saying the same thing.
+                reason = str(exc)
+                if reason in _REFUSALS_REPORTED:
+                    logger.info("Embedding model admission still refused (%s); bounded fallback", reason)
+                else:
+                    _REFUSALS_REPORTED.add(reason)
+                    logger.warning("Embedding model admission refused; using bounded fallback: %s", reason)
                 self._init_tfidf_fallback()
                 self._refused_under = _lane_stamp()
                 self._initialized = True
