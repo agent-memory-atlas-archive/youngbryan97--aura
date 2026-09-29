@@ -1442,6 +1442,34 @@ class _UnderstandsThePage:
             if on_progress is not None:
                 on_progress("a question measured")
         if measured:
+            # Placed against the strongest of them, not each on its own.
+            #
+            # How consistently her record points one way saturates: twenty
+            # things all a hair closer to one side read the same as twenty
+            # decisively closer, and a page came out with thirty-four of sixty
+            # items at the far end, which is not a person answering a
+            # questionnaire. The questions on a screen are all asked of the
+            # same record, so the widest gap among them is what "as far as she
+            # goes" means here and the rest are placed in proportion.
+            try:
+                from core.self.where_i_stand import Lean, against_the_rest
+
+                shares = against_the_rest([item["lean"] for item in measured])
+                for item, share in zip(measured, shares, strict=False):
+                    lean = item["lean"]
+                    item["lean"] = Lean(
+                        toward=share,
+                        first=lean.first,
+                        second=lean.second,
+                        because=lean.because,
+                        measured=lean.measured,
+                        gap=lean.gap,
+                    )
+                    placed = item["lean"].position_in(item["count"])
+                    if placed is not None:
+                        item["index"] = placed
+            except ImportError as exc:
+                record_degradation("sovereign_browser.against", exc, severity="debug")
             # Her whole mind, the same assembly a conversation uses, because
             # the shallow answers came from taking it away.
             mind = await self._assembled_mind()
