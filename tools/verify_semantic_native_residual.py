@@ -31,10 +31,24 @@ def verify_residual(directory: Path, training_directory: Path) -> dict:
     training_report = verified_document(training_directory / "report.json")
     supervision = verified_document(training_directory / "supervision.json")
     competitions = calibration_competitions(training, supervision)
+    joint = training["schema"].endswith(".v7")
+    graph_rows = {source: [] for source in sorted(competitions)} if joint else {}
+    if joint:
+        if supervision.get("graph_contrast_contract") != training.get("graph_contrast_contract"):
+            raise ValueError("residual graph supervision contract differs")
+        for row in supervision.get("graph_rows", []):
+            if row.get("source") in graph_rows:
+                graph_rows[row["source"]].append(row)
+        for rows in graph_rows.values():
+            rows.sort(key=lambda row: row["choice_index"])
+            if (len(rows) < 2 or [row["choice_index"] for row in rows] != list(range(len(rows)))
+                    or [row.get("positive") for row in rows] != [True] + [False] * (len(rows) - 1)):
+                raise ValueError("residual graph supervision differs")
     plan = verified_document(directory / "plan.json", "plan_sha256")
     report = verified_document(directory / "report.json")
     scales, sources = plan["scales"], sorted(competitions)
-    if (plan.get("schema") != "aura.native_residual_calibration_plan.v1"
+    if (plan.get("schema") != ("aura.native_residual_calibration_plan.v2" if joint
+                               else "aura.native_residual_calibration_plan.v1")
             or plan.get("training_plan_sha256") != training["plan_sha256"]
             or plan.get("training_report_receipt_sha256") != training_report["receipt_sha256"]
             or plan.get("baseline_checkpoint_receipt_sha256") != selected["receipt_sha256"]
@@ -47,7 +61,10 @@ def verify_residual(directory: Path, training_directory: Path) -> dict:
             or plan.get("held_labels_used") is not False
             or plan.get("training_selection_unchanged") is not True
             or plan.get("serving_authority") is not False
-            or report.get("schema") != "aura.native_residual_calibration.v1"
+            or (joint and plan.get("graph_programs") != {source: [row["program_sha256"] for row in rows]
+                                                          for source, rows in graph_rows.items()})
+            or report.get("schema") != ("aura.native_residual_calibration.v2" if joint
+                                        else "aura.native_residual_calibration.v1")
             or report.get("plan_sha256") != plan["plan_sha256"]
             or report.get("held_labels_used") is not False
             or report.get("training_selection_unchanged") is not True
@@ -69,9 +86,10 @@ def verify_residual(directory: Path, training_directory: Path) -> dict:
     expected_names = {f"{scale:g}-{source}.json" for scale in scales for source in sources}
     if {path.name for path in (directory / "rows").glob("*.json")} != expected_names:
         raise ValueError("residual calibration row inventory differs")
-    rows_by_scale, receipts, totals, exact = {}, {}, {}, {}
+    rows_by_scale, receipts, totals, exact, graph_correct = {}, {}, {}, {}, {}
     for scale in scales:
         rows, receipts[str(scale)] = [], {}
+        graph_correct[scale] = set()
         for source in sources:
             row = verified_document(directory / "rows" / f"{scale:g}-{source}.json")
             if (row.get("schema") != "aura.native_residual_calibration_row.v1"
@@ -88,6 +106,21 @@ def verify_residual(directory: Path, training_directory: Path) -> dict:
             profile = native_path_profile(row["decisions"])
             if row.get("profile") != profile:
                 raise ValueError("residual calibration path profile differs")
+            if joint:
+                graph = row.get("whole_graph")
+                expected_graph = graph_rows[source]
+                if (not isinstance(graph, dict) or graph.get("positive_index") != 0
+                        or graph.get("program_sha256s") != [item["program_sha256"]
+                                                             for item in expected_graph]
+                        or not isinstance(graph.get("scores"), list)
+                        or len(graph["scores"]) != len(expected_graph)
+                        or any(type(value) not in {int, float} or not math.isfinite(value)
+                               for value in graph["scores"])):
+                    raise ValueError("residual graph alternatives differ")
+                if graph["scores"][0] > max(graph["scores"][1:]):
+                    graph_correct[scale].add(source)
+            elif "whole_graph" in row:
+                raise ValueError("residual graph was not declared")
             if scale in endpoint_rows:
                 previous = endpoint_rows[scale][source]
                 errors = [abs(actual - expected)
@@ -96,18 +129,36 @@ def verify_residual(directory: Path, training_directory: Path) -> dict:
                 if (max(errors, default=0.) > 0.015625
                         or profile != native_path_profile(previous["decisions"])):
                     raise ValueError("residual endpoint scores differ from measured checkpoint")
+                if joint:
+                    actual, expected = row["whole_graph"], previous["whole_graph"]
+                    graph_errors = [abs(a - b) for a, b in
+                                    zip(actual["scores"], expected["scores"], strict=True)]
+                    if (actual["program_sha256s"] != expected["program_sha256s"]
+                            or max(graph_errors, default=0.) > 0.015625
+                            or (source in graph_correct[scale])
+                               != (expected["scores"][0] > max(expected["scores"][1:]))):
+                        raise ValueError("residual graph endpoint differs from measured checkpoint")
             rows.append(row)
             receipts[str(scale)][source] = row["receipt_sha256"]
         rows_by_scale[scale] = rows
         totals[str(scale)] = native_path_totals(rows, sources)
         exact[scale] = {row["source"] for row in rows if row["profile"]["exact_teacher_path"]}
     baseline = exact[0.]
-    adjudication = [{"scale": scale, "exact_teacher_paths": totals[str(scale)]["exact_teacher_paths"],
-                     "lost_baseline_sources": sorted(baseline - exact[scale]),
-                     "new_exact_sources": sorted(exact[scale] - baseline),
-                     "eligible": baseline <= exact[scale]} for scale in scales]
+    adjudication = []
+    for scale in scales:
+        row = {"scale": scale, "exact_teacher_paths": totals[str(scale)]["exact_teacher_paths"],
+               "lost_baseline_sources": sorted(baseline - exact[scale]),
+               "new_exact_sources": sorted(exact[scale] - baseline),
+               "eligible": baseline <= exact[scale]}
+        if joint:
+            row.update({"positive_graph_rankings": len(graph_correct[scale]),
+                        "lost_baseline_graph_sources": sorted(graph_correct[0.] - graph_correct[scale]),
+                        "new_positive_graph_sources": sorted(graph_correct[scale] - graph_correct[0.])})
+            row["eligible"] = row["eligible"] and graph_correct[0.] <= graph_correct[scale]
+        adjudication.append(row)
     selected_scale = min((row for row in adjudication if row["eligible"]),
-                         key=lambda row: (-row["exact_teacher_paths"], row["scale"]))["scale"]
+                         key=lambda row: (-row.get("positive_graph_rankings", 0),
+                                          -row["exact_teacher_paths"], row["scale"]))["scale"]
     if (report.get("totals") != totals or report.get("adjudication") != adjudication
             or report.get("selected_scale") != selected_scale
             or report.get("row_receipts") != receipts):
@@ -121,6 +172,9 @@ def verify_residual(directory: Path, training_directory: Path) -> dict:
             "totals": totals,
             "baseline_paths_lost_at_selected_scale": len(baseline - exact[selected_scale]),
             "new_paths_at_selected_scale": len(exact[selected_scale] - baseline),
+            **({"baseline_graphs_lost_at_selected_scale": len(graph_correct[0.] - graph_correct[selected_scale]),
+                "new_graphs_at_selected_scale": len(graph_correct[selected_scale] - graph_correct[0.])}
+               if joint else {}),
             "source_only": True, "model_scores_independently_recomputed": False,
             "free_decode_measured": False, "general_transfer_proven": False,
             "serving_authority": False,
