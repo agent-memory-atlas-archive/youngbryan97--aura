@@ -1512,42 +1512,7 @@ class _UnderstandsThePage:
                     "expect": "",
                 }
 
-        chosen = await asyncio.gather(
-            *(decide_one(options) for _group, options in open_questions[: self.PURSUE_PARALLEL_ITEMS]),
-            return_exceptions=True,
-        )
-        answers = [item for item in chosen if isinstance(item, dict)]
-        for outcome in chosen:
-            if isinstance(outcome, BaseException):
-                record_degradation(
-                    "sovereign_browser.answer_item",
-                    outcome,
-                    severity="debug",
-                    action="one question of a screen went unanswered",
-                )
-        if not answers:
-            return None
-        return {
-            # Each answer carries the words she would say for it, so the loop
-            # can say that one and then make that one. The lines used to travel
-            # separately and were all said after every click had landed: one
-            # bubble at the end of a round listing what had already happened,
-            # rather than a reason arriving with its choice.
-            "resolved_actions": [
-                {
-                    "selector": answer["selector"],
-                    "name": answer["name"],
-                    "said": str(answer.get("said") or ""),
-                }
-                for answer in answers
-            ],
-            # Each answer as she would say it: the question, what she chose,
-            # and why. One line a question, because the reasons are hers
-            # question by question, and joined they were one blur.
-            "answered": [answer["said"] for answer in answers if answer.get("said")],
-            "why": "; ".join(dict.fromkeys(a["why"] for a in answers if a["why"]))[:400],
-            "expect": next((a["expect"] for a in answers if a["expect"]), ""),
-        }
+        return None
 
     async def _decide_next_actions(
         self,

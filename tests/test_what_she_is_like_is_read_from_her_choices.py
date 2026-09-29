@@ -147,3 +147,16 @@ def test_a_question_about_her_on_a_page_is_answered_with_the_record_in_front_of_
     mechanics = {"url": "u", "title": "t", "text": "", "elements": [{"role": "button", "name": "Next", "selector": "#n"}]}
     asyncio.run(skill._decide_next_actions("go on", mechanics, [], None))
     assert all("MARK" not in prompt for prompt in seen), "a page of mechanics is not about her"
+
+
+def test_unmeasurable_question_screen_returns_to_whole_page_decision(monkeypatch):
+    import asyncio
+
+    from core.skills.sovereign_browser import SovereignBrowserSkill
+
+    skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+    monkeypatch.setattr(skill, "_unanswered_questions", lambda _observation: [
+        ("first", [{"name": "A"}]), ("second", [{"name": "B"}]),
+    ])
+    monkeypatch.setattr(skill, "_measure_where_she_stands", lambda _options: None)
+    assert asyncio.run(skill._answer_each_question("goal", {}, [], None)) is None
