@@ -1230,6 +1230,8 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
             return {"ok": False, "error": self._could_not_load(url)}
 
         steps: list[dict[str, Any]] = []
+        #: Whether she has yet said what she expects this thing to report.
+        forecast_made = False
         last_good_url = str(url or "")
         understanding: dict[str, Any] | None = None
         surprised = False
@@ -1368,13 +1370,23 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                     # nothing: she did not yet know what the thing measures.
                     # Read from the page instead, said out loud, and kept as
                     # the thing the result is held against at the end.
-                    if not said_before:
-                        said_before = await self._what_she_expects_it_to_say(
+                    #
+                    # Once per run, and whatever the caller handed in. Gating
+                    # it on an empty `said_before` meant the reply she gave the
+                    # person before opening anything counted as her forecast,
+                    # so the page-read one never ran at all and there was
+                    # nothing for the result to be held against: LIVE
+                    # 2026-09-29, `page_forecast` appears zero times in a run
+                    # that answered thirty-two items and reached its results.
+                    if not forecast_made:
+                        forecast_made = True
+                        read_it = await self._what_she_expects_it_to_say(
                             goal, observation, mind
                         )
-                        if said_before:
-                            self._say_out_loud(said_before)
-                            await self._hold_for_reading(said_before)
+                        said_before = read_it or said_before
+                        if read_it:
+                            self._say_out_loud(read_it)
+                            await self._hold_for_reading(read_it)
                     decision = await self._answer_each_question(
                         goal, observation, steps, understanding, on_progress=still_going
                     )

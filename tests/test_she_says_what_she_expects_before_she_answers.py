@@ -116,7 +116,15 @@ def test_the_forecast_becomes_what_the_result_is_held_against(monkeypatch):
     assert held and held[0] == "I expect it to call me reflective."
 
 
-def test_a_forecast_the_caller_already_supplied_is_not_replaced(monkeypatch):
+def test_a_forecast_read_from_the_page_replaces_one_made_before_arriving(monkeypatch):
+    """A reply given before opening anything is not a forecast about this.
+
+    Gating the page-read forecast on an empty `said_before` meant the reply she
+    gave the person before opening anything counted as one, so the informed
+    forecast never ran and there was nothing for the result to be held against:
+    LIVE 2026-09-29, `page_forecast` appears zero times in a run that answered
+    thirty-two items and reached its results.
+    """
     said: list[str] = []
     skill, asked, held = _skill(monkeypatch, said)
     asyncio.run(
@@ -124,7 +132,18 @@ def test_a_forecast_the_caller_already_supplied_is_not_replaced(monkeypatch):
             _Instrument(), None, "take it", 3, said_before="I said ENTP earlier."
         )
     )
-    assert not asked, "she forecast again over a forecast she had already made"
+    assert asked, "she never read the page before forecasting"
+    assert held and held[0] == "I expect it to call me reflective."
+
+
+def test_what_she_said_before_arriving_stands_when_the_page_says_nothing(monkeypatch):
+    said: list[str] = []
+    skill, asked, held = _skill(monkeypatch, said, forecast="")
+    asyncio.run(
+        skill._handle_pursue(
+            _Instrument(), None, "take it", 3, said_before="I said ENTP earlier."
+        )
+    )
     assert held and held[0] == "I said ENTP earlier."
 
 
