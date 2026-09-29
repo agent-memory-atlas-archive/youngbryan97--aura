@@ -55,7 +55,7 @@ def rig(monkeypatch):
             for lag in lags
         }
 
-    def decide(slot, *, tau_seconds, seed, alpha, draws=200, permutation_draws=199):
+    def decide(slot, *, tau_seconds, seed, alpha, draws=200, permutation_draws=199, paired=False):
         levels.append(alpha)
         rig_draws.append(draws)
         take = len(slot["intact"])
@@ -137,7 +137,7 @@ def _sweep(decided: int, **over) -> dict:
         "looks": list(isc_v5.LOOKS), "draws": isc_v5.DRAWS, "alpha_per_look": isc_v5.ALPHA / len(isc_v5.LOOKS),
         "deciding": True, "screened": False, "shard": "", "cuts_tested": 511, "cuts_in_full": 511,
         "cuts_decided": decided, "undecided": [] if decided == 511 else ["P|IAGCSMWDN"],
-        "playback_decided": 0, **over,
+        "playback_decided": 0, "paired": isc_v5.PAIRED, **over,
     }
 
 
@@ -204,7 +204,28 @@ def test_v5_reads_synergy_with_the_clocks_out_and_needs_every_triple() -> None:
 def test_the_runner_takes_its_v5_design_from_one_place() -> None:
     chosen = isc_v5.design()
     assert chosen["looks"] == [8, 16, 32, 64, 96, 128] and chosen["draws"] == 1000
-    assert chosen["deciding"] == [33] and chosen["lags"] == [33, 66] and chosen["anchors"] == 128
+    assert chosen["deciding"] == [66] and chosen["lags"] == [33, 66] and chosen["anchors"] == 128
+
+
+def test_two_turns_is_the_shortest_horizon_at_which_the_rest_can_reach_the_body() -> None:
+    """The fact the deciding horizon rests on, held where it can break.
+
+    The proprioceptive phase writes the body first in every turn, from the
+    state the turn opened with, and interoception is stepped once a second,
+    which is once a turn. So at the end of one turn the body in a cut arm and
+    in the untouched arm were both written from the anchor, and nothing the
+    rest did in that turn can have reached it. Two turns is the first horizon
+    at which it can. If the body moves later in the turn or samples faster,
+    this fails and the horizon has to be argued again.
+    """
+    from core.runtime.pipeline_blueprint import kernel_phase_attribute_order
+    from core.subject.driver import SECONDS_PER_TURN
+    from core.subject.steppable import LAYERS
+
+    assert kernel_phase_attribute_order()[0] == "proprioceptive_phase"
+    interoception = next(layer for layer in LAYERS if layer.name == "EmbodiedInteroception")
+    assert interoception.hz * SECONDS_PER_TURN == 1.0
+    assert isc_v5.DECIDING_LAG == 2 * 33 and 33 in isc_v5.REPORTED_LAGS
 
 
 def test_the_fingerprint_moves_with_the_design() -> None:

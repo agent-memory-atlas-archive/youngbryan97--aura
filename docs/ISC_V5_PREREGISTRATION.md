@@ -1374,3 +1374,77 @@ the free loops stopped and a declared host, so the load the four share reaches
 each the same way. A criterion that moves in an arm and not the control is
 credited to that arm's mechanism; the control is also the first battery reading
 with every fork and estimator fix of today in it.
+
+## Addendum, 29 September 2026, morning: the deciding horizon is two turns
+
+Named before any run that decides anything reads it. The code is the commit
+that carries this addendum; `isc_v5.DECIDING_LAG` is 66 and
+`isc_v5.REPORTED_LAGS` is (33,).
+
+### What seed 7 read at one turn and at two
+
+At `bb3faa54a`, every switch off, 128 anchors, two-turn rollouts, the paired
+estimator. P, A, D and N come from the fail-fast carrier run; G, I, C, S, M
+and W from three looks that scored their two cuts each to the last look.
+
+| alone against the rest | one turn: excess, lower bound | two turns: excess, lower bound |
+|---|---|---|
+| G | 0.0421, +0.0019 | 0.0353, +0.0110 |
+| I | 0.0042, −0.0234 | 0.0172, +0.0022 |
+| C | 0.0096, −0.0207 | 0.0058, −0.0101 |
+| S | 0.0592, +0.0117 | 0.0257, +0.0100 |
+| M | 0.0369, +0.0075 | 0.0659, +0.0375 |
+| W | 0.0164, −0.0166 | 0.0127, +0.0011 |
+
+P, A, D and N were decided at both. The sham rate was 0.0 at one turn on every
+cut and at most 0.0012 at two: the forks are now the same computation.
+
+### Why one turn cannot decide the body
+
+The proprioceptive phase is the first phase of every turn, and interoception
+is stepped once a second, which at one second a turn is once a turn. So the
+body is written at the start of the turn from the state the turn opened with.
+In a cut that holds the rest, and in the untouched run, that state is the
+anchor, and at the end of the first turn the body has been written from the
+same thing in both. Nothing the rest did during the turn can have reached it
+yet. At one turn a cut of I is read in one direction only, and the line asks
+whether the halves need each other, which is both.
+
+The v5 text says a cut matters "if holding one side for one turn changes where
+the other ends it". For I, holding the rest for one turn cannot change where I
+ends it, by the schedule, whatever the coupling. Two turns is the shortest
+horizon at which every domain can have been reached by every other.
+`tests/test_the_interventional_line_runs_to_its_preregistered_design.py`
+holds the two facts this rests on, the phase order and the rate, and fails if
+either moves.
+
+### What moves and what does not
+
+The deciding horizon is 66 frames; 33 is scored on the same rollouts and
+reported beside it. The rollouts were already two turns long, so the cost does
+not change. The looks, the level per look, the draws, the anchors, the paired
+estimator and the intersection-union rule do not move.
+
+The change was made after seed 7 had been read at both horizons, so seed 7 is
+a look under it and cannot be the decisive reading. The decisive reading is
+seed 23, run to this design.
+
+### What it does not do
+
+It does not rescue C. C against the rest is undecided at both horizons, with
+the smaller excess at two turns, so on seed 7 the line fails at either one.
+And I at two turns is marginal at 128 anchors: this look read a lower bound of
++0.0022, and the carrier run's shard, a separate organism on the same seed,
+read −0.0032. Those two organisms were not the same organism (below), which is
+its own defect.
+
+### Two shards on one seed were two organisms
+
+The carrier run's merge refused authority: each shard's anchors differed from
+the coordinator's at p = 0.0006. Their recordings differ from the first frame
+in 170 to 206 of 438 columns, among them belief counts, initiative urgency and
+goal profiles. Each process ran its free loops on the machine's clock through
+bring-up and the whole baseline before stopping them for the anchors, and four
+processes on a loaded machine got different amounts of that. A sharded sweep is
+only a sweep of her if every shard is the same organism, so no sharded run
+decides anything until two processes on one seed record the same baseline.

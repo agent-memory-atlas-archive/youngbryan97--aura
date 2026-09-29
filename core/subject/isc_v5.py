@@ -13,8 +13,12 @@ below, and everything else in the conjunction is v3's.
 The design is fixed here and in docs/ISC_V5_PREREGISTRATION.md, and the runner
 reads it from here, so the two cannot drift apart:
 
-    horizon     one turn, 33 frames at the experiment clock, decides; two turns
-                are reported beside it and decide nothing
+    horizon     two turns, 66 frames at the experiment clock, decide; one turn
+                is reported beside it and decides nothing. Until 29 September
+                it was the other way round. The body is written first in each
+                turn, from the state the turn opened with, so at one turn no
+                cut can show the rest reaching it; see the addendum of that
+                date in the preregistration
     looks       a cut is scored at its first 8, 16, 32, 64, 96 and 128 anchors
                 and stops at the first look where its lower bound clears zero
     level       each look at alpha / 6, so a cut that costs nothing is decided
@@ -51,8 +55,8 @@ __all__ = [
 LOOKS: tuple[int, ...] = (8, 16, 32, 64, 96, 128)
 ALPHA: float = 0.05
 DRAWS: int = 1000
-DECIDING_LAG: int = 33
-REPORTED_LAGS: tuple[int, ...] = (66,)
+DECIDING_LAG: int = 66
+REPORTED_LAGS: tuple[int, ...] = (33,)
 ANCHORS: int = max(LOOKS)
 #: Cross-fitting keeps each anchor's arms in one fold. Without it two
 #: identical samples read a distance squared of 0.056 at 128 anchors, which was
@@ -67,7 +71,7 @@ def design() -> dict[str, Any]:
         "alpha": ALPHA,
         "alpha_per_look": ALPHA / len(LOOKS),
         "draws": DRAWS,
-        "lags": [DECIDING_LAG, *REPORTED_LAGS],
+        "lags": sorted({DECIDING_LAG, *REPORTED_LAGS}),
         "deciding": [DECIDING_LAG],
         "anchors": ANCHORS,
         "paired": PAIRED,
