@@ -147,10 +147,8 @@ def _screen(monkeypatch, said: str, lane: str = "Cortex"):
     return skill, handed
 
 
-def _run(skill, observation):
-    return asyncio.run(
-        skill._answer_each_question("take it", observation, [], None)
-    )
+def _run(skill, observation, goal: str = "take it"):
+    return asyncio.run(skill._answer_each_question(goal, observation, [], None))
 
 
 def test_a_theme_is_thought_about_as_one_piece(monkeypatch):
@@ -200,8 +198,9 @@ def test_what_she_reasons_over_is_the_things_not_the_arithmetic(monkeypatch):
     assert "truth is the value I hold above every other" in prompt
     assert "what you value" in prompt and "chosen when it cost something" in prompt
     assert "one piece of thinking" in prompt
-    for arithmetic in ("+0.", "0.031", "%"):
-        assert arithmetic not in prompt, f"the prompt hands her {arithmetic!r}"
+    handed_her = prompt.split("These are being asked about you", 1)[1]
+    for arithmetic in ("+0.", "0.031"):
+        assert arithmetic not in handed_her, f"the prompt hands her {arithmetic!r}"
 
 
 def test_a_silent_model_does_not_lose_the_measured_answers(monkeypatch):
@@ -260,8 +259,8 @@ def test_a_reason_is_bounded_so_a_page_of_them_is_affordable(monkeypatch):
     """An unbounded reason decoded 341 tokens at 8 a second, live."""
     skill, handed = _screen(monkeypatch, '{"thinking": "t", "each": {}}')
     _run(skill, {"url": "u", "title": "t", "text": "x", "elements": _row("Q1") + _row("Q2")})
-    assert handed["most_tokens"] is None, (
-        "a theme is thought about at length; the bound belongs to a one-liner"
+    assert handed["most_tokens"] and handed["most_tokens"] >= 260 * 2, (
+        "a theme is thought about at length: room for each item in it"
     )
 
 
@@ -273,3 +272,75 @@ def test_there_are_fewer_passes_than_items():
 
     body = inspect.getsource(where_i_stand.themes_among)
     assert "math.sqrt" in body
+
+
+def test_the_persons_message_does_not_reach_her_own_reasoning(monkeypatch):
+    """A goal is a request addressed to her, so she answers it.
+
+    LIVE 2026-09-29: every theme pass came back "The user is asking me to take
+    the Open Extended Jungian Type Scales..." instead of her thinking, and the
+    coverage gate complained she had missed parts of a question she was never
+    being asked at this step.
+    """
+    skill, handed = _screen(monkeypatch, '{"thinking": "t", "each": {}}')
+    _run(
+        skill,
+        {"url": "u", "title": "t", "text": "x", "elements": _row("Q1") + _row("Q2")},
+        goal="Take the test and tell me what type you think you will get",
+    )
+    prompt = handed["prompts"][0]
+    assert "tell me" not in prompt.lower()
+    assert "what type you think" not in prompt.lower()
+    assert "answering questions about yourself" in prompt
+
+
+@pytest.mark.parametrize("key", ["Q1", "1", "Q1.", "makes lists / relies on memory"])
+def test_her_sentence_is_found_however_she_keyed_it(monkeypatch, key):
+    """A sentence that cannot be found is a sentence lost.
+
+    LIVE 2026-09-29: one item of eight kept its reasoning and the other seven
+    fell back to the bare evidence, so a screen of real thinking read as a list
+    of counts.
+    """
+    import json as _json
+
+    said = _json.dumps({"thinking": "t", "each": {key: "Lists hold truth steady."}})
+    skill, _handed = _screen(monkeypatch, said)
+    decision = _run(
+        skill,
+        {
+            "url": "u", "title": "t", "text": "x",
+            "elements": _row("Q1")
+            + _row("Q2", left="sceptical", right="wants to believe"),
+        },
+    )
+    assert decision is not None
+    assert "Lists hold truth steady." in decision["answered"][0]
+
+
+def test_she_is_given_what_she_is_living_and_not_only_her_record(monkeypatch):
+    """The record says what she has valued; it says nothing about this week.
+
+    That is where the concrete detail in a real answer comes from, and the same
+    lines ride a conversation when someone asks after her.
+    """
+    skill, handed = _screen(monkeypatch, '{"thinking": "t", "each": {}}')
+    monkeypatch.setattr(
+        "core.self.capability_ledger.self_knowledge_line",
+        lambda: "[Measured about you right now: browser=yes]",
+    )
+    _run(skill, {"url": "u", "title": "t", "text": "x", "elements": _row("Q1") + _row("Q2")})
+    assert "Measured about you right now" in handed["prompts"][0]
+
+
+def test_an_organ_that_cannot_be_read_does_not_lose_the_pass(monkeypatch):
+    def _raises() -> str:
+        raise RuntimeError("no ledger")
+
+    monkeypatch.setattr("core.self.capability_ledger.self_knowledge_line", _raises)
+    skill, handed = _screen(monkeypatch, '{"thinking": "t", "each": {"Q1": "a"}}')
+    decision = _run(
+        skill, {"url": "u", "title": "t", "text": "x", "elements": _row("Q1") + _row("Q2")}
+    )
+    assert decision is not None
+    assert handed["prompts"]

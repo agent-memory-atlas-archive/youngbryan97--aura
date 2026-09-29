@@ -666,10 +666,32 @@ def _pursuit_account(result: dict) -> list[str]:
     """
 
     lines: list[str] = []
+    # Hers first: what she made of it once it was finished.
+    #
+    # This went last, and the account is clipped to a maximum length, so the
+    # verdict was the thing cut. LIVE 2026-09-29: she read her result, held it
+    # against what she had predicted and said so out loud, and the reply ended
+    # mid-sentence sixteen items earlier with nothing about the outcome. What
+    # was asked for is the verdict; the working is what supports it.
+    concluded = str(result.get("concluded") or "").strip()
+    if concluded:
+        lines.append(concluded)
     narration = result.get("narration")
     if isinstance(narration, list):
         for entry in narration:
             if not isinstance(entry, dict):
+                continue
+            # Her own sentence per answer where the round produced them: the
+            # question as the page puts it, where she placed herself on it, and
+            # why. A round of eight answers has eight of these, and the
+            # round-level line below has one heading and eight control names.
+            said = [
+                " ".join(str(one).split())
+                for one in (entry.get("said") or [])
+                if str(one or "").strip()
+            ]
+            if said:
+                lines.extend(said)
                 continue
             chose = [str(choice) for choice in (entry.get("chose") or []) if choice]
             if not chose:
@@ -685,10 +707,6 @@ def _pursuit_account(result: dict) -> list[str]:
         # The tail, not the head: a result page repeats its navigation before
         # it says anything, and what a page concludes with is what it is for.
         lines.append("The page ends with:\n" + ending[-600:].strip())
-    concluded = str(result.get("concluded") or "").strip()
-    if concluded:
-        # Hers, last: what she made of the page once it was finished.
-        lines.append(concluded)
     return lines
 
 
@@ -768,7 +786,17 @@ def _desktop_deliverable_text(result: Any) -> str:
         # that answered most of a sixty-item questionnaire had no deliverable
         # and the reply fell back to counting steps. What she chose, and why,
         # is what happened; the page's own words are what it said back.
-        written.extend(_pursuit_account(result))
+        # An account of work she was asked to narrate is not a quotation, and
+        # the cap below is for quotations.
+        #
+        # 1,200 characters is the right size for "here is the paragraph I wrote
+        # into your file". An instrument of sixty items answered as herself is
+        # sixty sentences, and the cap kept three of them: LIVE 2026-09-29, the
+        # reply ended mid-word inside her reason for the third round, with her
+        # verdict, twenty-nine answers and the result all cut. How long the
+        # account runs is set by how many questions the page asked, which is the
+        # request. Each line in it is bounded where it is written.
+        return "\n\n".join(_pursuit_account(result)).strip()
     if not written:
         return ""
     body = "\n\n".join(written).strip()

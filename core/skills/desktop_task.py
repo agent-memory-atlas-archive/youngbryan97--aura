@@ -4754,6 +4754,22 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
         # was already there, and the objective dies holding a result that
         # worked — "expectation incomplete: steps_requested; steps_completed",
         # printed next to "Completed 1/1 steps".
+        def _what_the_round_did(step: Mapping[str, Any]) -> str:
+            chose = ", ".join(str(one) for one in (step.get("chose") or []) if one)
+            where = str(step.get("url") or "").strip()
+            landed = int(step.get("landed") or 0)
+            said = []
+            if chose:
+                said.append(f"pressed {chose}")
+            elif landed:
+                said.append(f"{landed} control(s) took the click")
+            if where:
+                said.append(f"on {where}")
+            if not said:
+                # Nothing it did, so whatever it said is all there is.
+                return str(step.get("why") or "")[:240]
+            return " ".join(said)[:240]
+
         rounds = [step for step in steps if step.get("chose")]
         receipts = [
             {
@@ -4761,7 +4777,15 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
                 "action": "browse_pursue",
                 "ok": bool(step.get("ok")),
                 "effect_verified": bool(step.get("moved", step.get("ok"))),
-                "effect_evidence": str(step.get("why") or ""),
+                # What the round DID, not what she said about it.
+                #
+                # Her reason stood in for the evidence, so a round whose
+                # sentence was missing read as a round with no effect and the
+                # whole objective was refused: LIVE 2026-09-29,
+                # `step_13_missing_effect_evidence (31/31 steps)` on a run that
+                # answered every item, submitted, and reached its results. What
+                # happened is the controls it pressed, at the page it was on.
+                "effect_evidence": _what_the_round_did(step),
                 "reason": str(step.get("asked") or ""),
                 "expect": str(step.get("expected") or ""),
                 "result": {"ok": bool(step.get("ok"))},

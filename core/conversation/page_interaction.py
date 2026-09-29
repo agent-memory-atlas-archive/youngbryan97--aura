@@ -64,6 +64,18 @@ _INTERACTION_VERB_RE = re.compile(
     re.IGNORECASE,
 )
 
+#: What comes before an interaction word when it is not an instruction to her:
+#: an infinitive inside a question about whether to act ("whether to sign up"),
+#: somebody else's action ("before I buy it"), or a determiner, which makes the
+#: word a noun and not a verb at all ("the checkout page", "your order").
+#: "you" is not here, because "you should take it" is an instruction.
+_NOT_TOLD_TO_HER_RE = re.compile(
+    r"(?:\bto|\bi|\bwe|\bthey|\bhe|\bshe|\bsomeone|\bpeople"
+    r"|\bthe|\ba|\ban|\bthis|\bthat|\bmy|\byour|\btheir|\bits|\bno|\bany)"
+    r"\s+$",
+    re.IGNORECASE,
+)
+
 #: Phrasings that are unambiguously about getting the page's CONTENT back. When
 #: one of these is present the request is retrieval even if an action verb also
 #: appears — "read it and tell me whether to sign up" is a reading.
@@ -100,11 +112,42 @@ def page_interaction_target(text: Any) -> str:
                 break
         if not page:
             return ""
-    if _RETRIEVAL_RE.search(body):
-        return ""
-    if not _INTERACTION_VERB_RE.search(body):
+    # An interaction word she was not told to act on is not a request to act.
+    # A bare match let "what does the sign up flow on example.com look like" —
+    # a question about a page, with "sign up" as a noun in it — name a page to
+    # be worked.
+    if not _told_to_do_it(body):
         return ""
     return page
+
+
+def _told_to_do_it(body: str) -> bool:
+    """Whether an interaction verb here is an instruction given to HER.
+
+    The retrieval veto above exists so that asking about a page is not sent to
+    the lane that acts on one, and "read it and tell me whether to sign up" is
+    the case it was written for: the reading is the request and the signing up
+    is what she is being asked about.
+
+    It vetoed the opposite case just as hard. LIVE 2026-09-29: "Take the Open
+    Extended Jungian Type Scales personality test on openpsychometrics.org …
+    When you get your result, read it and tell me whether you think it is
+    accurate about you." The same request without its last sentence routed to
+    the lane that can work a page; with it, two words — "read it" — sent the
+    whole thing to retrieval, and she answered in prose that she could not take
+    a test she had not walked through. The more completely the request was
+    described, the less of it was recognised.
+
+    A result does not exist until the work is done, so reading one cannot be
+    served by fetching. What separates the two is not which clause comes first
+    but whether she is being TOLD to do the thing: an imperative, or "you" and a
+    verb. An infinitive in a question about whether to act is not, and neither is
+    something the person says they will do themselves.
+    """
+    for found in _INTERACTION_VERB_RE.finditer(body):
+        if not _NOT_TOLD_TO_HER_RE.search(body[: found.start()]):
+            return True
+    return False
 
 
 def asks_to_act_on_a_page(text: Any) -> bool:

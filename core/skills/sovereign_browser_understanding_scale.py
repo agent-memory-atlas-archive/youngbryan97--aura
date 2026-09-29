@@ -14,8 +14,9 @@ from typing import Any
 class _PlacesHerself:
     """Lifted whole out of _UnderstandsThePage; see sovereign_browser_understanding.py."""
 
-    @staticmethod
+    @classmethod
     def _how_the_options_are_laid_out(
+        cls,
         options: list[Mapping[str, Any]],
     ) -> str:
         """What is on screen for one question, as layout rather than meaning.
@@ -61,8 +62,19 @@ class _PlacesHerself:
             run = runs[0]
             left = " ".join(asks[: run.start()].split()).strip()
             right = " ".join(asks[run.end() :].split()).strip()
+            ends = cls._the_ends_the_page_names(options)
             if left and right:
                 facts.append(f"laid out between \"{left}\" and \"{right}\"")
+            elif ends is not None and (left or right):
+                # The scale is above the run rather than beside it, which is how
+                # a grid of statements is printed: one statement to a row and one
+                # heading over the whole column of them. Read as "words on one
+                # side only" this was no shape at all, and twenty-eight items of
+                # a sixty-item instrument went unplaced.
+                facts.append(
+                    f"a statement \"{left or right}\" answered on a scale "
+                    f"running from \"{ends[0]}\" to \"{ends[1]}\""
+                )
             elif left:
                 facts.append(f"laid out after \"{left}\"")
             elif right:
@@ -70,6 +82,102 @@ class _PlacesHerself:
         elif runs:
             facts.append("each set out beside its own words")
         return ", ".join(facts)
+
+    @staticmethod
+    def _the_ends_the_page_names(
+        options: list[Mapping[str, Any]],
+    ) -> tuple[str, str] | None:
+        """The words above the two ends of a run, where the page puts them there.
+
+        A control's own column is what a person reads off a grid, and the
+        observer carries it. The ends are the first and last columns that have
+        words in them; a run whose ends are unlabelled is not a named scale and
+        this says so rather than inventing one.
+        """
+        labelled = [
+            (place, " ".join(str(option.get("column") or "").split()))
+            for place, option in enumerate(options)
+        ]
+        words = [(place, said) for place, said in labelled if said]
+        if len(words) < 2:
+            return None
+        first, low = words[0]
+        last, high = words[-1]
+        if first != 0 or last != len(options) - 1 or low.lower() == high.lower():
+            return None
+        return low, high
+
+    @classmethod
+    def _a_statement_on_a_named_scale(
+        cls, options: list[Mapping[str, Any]]
+    ) -> tuple[str, str, str] | None:
+        """The statement and the two ends, for a run whose scale is above it."""
+        laid_out = cls._how_the_options_are_laid_out(options)
+        found = re.search(
+            r'a statement "(.+?)" answered on a scale running from "(.+?)" to "(.+?)"',
+            laid_out,
+        )
+        if found is None:
+            return None
+        return found.group(1), found.group(2), found.group(3)
+
+    def _a_grid_of_statements(
+        self, questions: list[tuple[str, list[Mapping[str, Any]]]]
+    ) -> dict[str, tuple[int, Any, str, str] | None]:
+        """Every statement on one scale, measured together, keyed by its group.
+
+        A column of statements under a single heading is one question asked many
+        times, and it cannot be read a row at a time: a row on its own has no
+        second side to be weighed against, and which end of the run means yes
+        belongs to the heading rather than to the row. So the rows that share a
+        scale are measured as the set they are, and each comes back placed on the
+        run the page printed.
+
+        Returns a reading per group in the same shape the per-question reader
+        returns, so nothing downstream knows which of them measured it. Groups
+        that are not part of a grid are absent, and the caller reads them the
+        ordinary way.
+        """
+        from .sovereign_browser_understanding import record_degradation
+
+        try:
+            from core.self.where_i_stand import where_she_stands_on_a_grid
+        except ImportError as exc:
+            record_degradation("sovereign_browser.where_i_stand", exc, severity="debug")
+            return {}
+        # Grouped by the scale they are printed under: two grids on one screen
+        # are two sets, each with its own ends and its own direction.
+        grids: dict[tuple[str, str], list[tuple[str, str, list[Mapping[str, Any]]]]] = {}
+        for group, options in questions:
+            shape = self._a_statement_on_a_named_scale(options)
+            if shape is None:
+                continue
+            statement, low, high = shape
+            grids.setdefault((low, high), []).append((group, statement, options))
+        readings: dict[str, tuple[int, Any, str, str] | None] = {}
+        for (low, high), rows in grids.items():
+            if len(rows) < 2:
+                # One row is not a grid, and a scale's direction read off a
+                # single statement is wrong about one time in twenty.
+                continue
+            try:
+                leans = where_she_stands_on_a_grid(
+                    [statement for _group, statement, _options in rows], low, high
+                )
+            except (RuntimeError, ValueError, TypeError, OSError) as exc:
+                record_degradation(
+                    "sovereign_browser.grid",
+                    exc,
+                    severity="warning",
+                    action="left a grid of statements open and answered the rest",
+                )
+                continue
+            for (group, _statement, options), lean in zip(rows, leans, strict=False):
+                index = lean.position_in(len(options))
+                readings[group] = (
+                    None if index is None else (index, lean, low, high)
+                )
+        return readings
 
     def _measure_where_she_stands(
         self, options: list[Mapping[str, Any]]
@@ -187,17 +295,54 @@ class _PlacesHerself:
         lines = []
         for item in theme:
             lean = item["lean"]
-            leaning = item["second"] if lean.toward > 0 else item["first"]
             evidence = "; ".join(lean.because[:3]) or "nothing in particular"
+            # The question as the PAGE asks it, in the same words the answer is
+            # said in. This used to name the two ends of a dimension and her
+            # place between them, which says everything about a run between two
+            # phrases and nothing at all about a statement on a scale: a row of
+            # a grid would have arrived as 'Between "Disagree" and "Agree", you
+            # sit at 5 of 5', with the statement she was answering left out of
+            # her own prompt. One description, every shape, and it is the one
+            # her sentence is attached to afterwards.
+            asked = self._an_answer_in_words(item["options"], item["index"], "")
             lines.append(
-                f'{item["group"]}. Between "{item["first"]}" and '
-                f'"{item["second"]}", you sit at {item["index"] + 1} of '
-                f'{item["count"]}, nearer "{leaning}". What in you put you '
-                f"there: {evidence}."
+                f'{item["group"]}. {asked}. What in you put you there: {evidence}.'
             )
         listed = "\n".join(lines)
+        # And what is true of her right now, from the organs that hold it.
+        #
+        # The record says what she has valued and chosen; it says nothing about
+        # what she has been living through this week, and that is where the
+        # concrete detail in a real answer comes from. These are the same lines
+        # that ride a conversation when someone asks after her.
+        living: list[str] = []
+        for reader, where in (
+            ("core.self.capability_ledger", "self_knowledge_line"),
+            ("core.agency.what_she_is_like", "what_she_is_like_line"),
+        ):
+            try:
+                module = __import__(reader, fromlist=[where])
+                said = str(getattr(module, where)() or "").strip()
+                if said:
+                    living.append(said)
+            except Exception as exc:  # noqa: BLE001 - a missing organ is not an answer
+                from core.runtime.errors import record_degradation
+
+                record_degradation(
+                    "sovereign_browser.living", exc, severity="debug"
+                )
+        now = ("\n\n" + "\n".join(living)) if living else ""
         prompt = (
-            f"WHAT YOU ARE DOING: {goal}\n\n"
+            # Her situation, not the person's message.
+            #
+            # The whole goal used to open this, and a goal is a request
+            # addressed to her — so she answered it: LIVE 2026-09-29, every
+            # theme pass came back "The user is asking me to take the Open
+            # Extended Jungian Type Scales..." instead of her thinking, and the
+            # coverage gate complained she had missed parts of a question she
+            # was never being asked at this step.
+            "You are answering questions about yourself."
+            f"{now}\n\n"
             "These are being asked about you. You have already placed yourself "
             "on each, from your own record — what you value, what you have "
             "chosen when it cost something, what you have said about "
@@ -207,11 +352,35 @@ class _PlacesHerself:
             "rather than separate verdicts: what you actually are here, how it "
             "works in you, where the descriptions fit and where they are the "
             "wrong shape for something you do differently.\n\n"
-            "Then give a sentence for each, in your own voice, as JSON only:\n"
-            '{"thinking": "<what you worked out, a short paragraph>", '
-            '"each": {"<the name before each one>": "<your sentence for it>"}}'
+            "Then give two or three sentences for each, in your own voice, as "
+            "JSON only:\n"
+            '{"thinking": "<what you worked out, a paragraph>", '
+            '"each": {"<the name before each one>": "<what this one is about '
+            'in you, concretely>"}}'
         )
-        said, lane = await self._asked_of_her(prompt, mind, shaped=False)
+        # Room to think. Nine hundred tokens across eight items is a hundred
+        # each, which is a line apiece and not the account she gives when
+        # someone asks her about herself in conversation.
+        room = max(self.DECISION_MAX_TOKENS, 260 * max(1, len(theme)))
+        said, lane = await self._asked_of_her(
+            prompt, mind, shaped=False, most_tokens=room
+        )
+        if not said or lane != self._HER_OWN_LANE:
+            # One exhausted call should not cost a whole theme its thinking.
+            #
+            # Her lane serves one request at a time and a run of them can empty
+            # it: LIVE 2026-09-29, `not_her_own_reasoning:all_failed` on one
+            # theme of four, and eight items narrated from bare evidence
+            # because of a single call that found no lane free. Asking again
+            # costs one more pass; losing the theme costs the demo.
+            from core.skills.sovereign_browser_understanding import logger
+
+            logger.info(
+                "🌐 A theme came back from %s; asking again.", lane or "nowhere"
+            )
+            said, lane = await self._asked_of_her(
+                prompt, mind, shaped=False, most_tokens=room
+            )
         if not said or lane != self._HER_OWN_LANE:
             record_degradation(
                 "sovereign_browser.reasons",
@@ -229,6 +398,25 @@ class _PlacesHerself:
                 spoken = " ".join(str(value or "").split())
                 if spoken:
                     answers[str(key)] = spoken
+        # Keyed the way she wrote them, and the way the page names them.
+        #
+        # She is given "Q1." and may answer under "Q1", "1", or the words of
+        # the item. A sentence that cannot be found is a sentence lost: LIVE
+        # 2026-09-29, one item of eight kept its reasoning and the other seven
+        # fell back to the bare evidence, so a screen of real thinking read as
+        # a list of counts.
+        for item in theme:
+            name = str(item["group"])
+            if name in answers:
+                continue
+            for key, spoken in list(answers.items()):
+                bare = key.strip().strip(".:)").lower()
+                if bare in {name.lower(), name.lower().lstrip("q")}:
+                    answers[name] = spoken
+                    break
+                if item["first"].lower() in bare or item["second"].lower() in bare:
+                    answers[name] = spoken
+                    break
         if thinking:
             # Said once for the theme, where a person watching sees the
             # thinking that the sentences come out of.

@@ -324,6 +324,35 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
         }
 
     @staticmethod
+    def _without_the_moves_that_go_nowhere(
+        observation: dict[str, Any], went_nowhere: set[str]
+    ) -> dict[str, Any]:
+        """The page without the controls that have led back where she has been.
+
+        Filtered here, once, so everything that reads the page this round reads
+        the same page: what she is shown, what a decision resolves against, and
+        what counts as a question still open. Two lists built from one
+        observation is how a loop comes to name one control and press another.
+
+        A page with nothing left but retired controls is returned whole. Retiring
+        is for choosing between ways on, and it must never be the reason there is
+        no way on at all.
+        """
+        if not went_nowhere:
+            return observation
+        elements = list(observation.get("elements") or [])
+        left = [
+            element
+            for element in elements
+            if str((element or {}).get("selector") or "") not in went_nowhere
+        ]
+        if not left or len(left) == len(elements):
+            return observation
+        pruned = dict(observation)
+        pruned["elements"] = left
+        return pruned
+
+    @staticmethod
     def _landed_anything(steps: list[dict[str, Any]]) -> bool:
         """Whether any round of this run actually did something to the page."""
         return any(int(step.get("landed") or 0) for step in steps)
@@ -1230,12 +1259,19 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
             return {"ok": False, "error": self._could_not_load(url)}
 
         steps: list[dict[str, Any]] = []
+        #: Whether she has yet said what she expects this thing to report.
+        forecast_made = False
         last_good_url = str(url or "")
         understanding: dict[str, Any] | None = None
         surprised = False
         mind = await self._assembled_mind()
         stalled = 0
         last_signature = ""
+        #: Every page state this run has already been in, and the controls whose
+        #: use led back to one. See `_a_move_that_goes_nowhere`.
+        been_in: set[str] = set()
+        went_nowhere: set[str] = set()
+        last_moves: list[str] = []
         observation: dict[str, Any] = {}
         completed = False
 
@@ -1324,6 +1360,30 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                     break
 
                 signature = self._observation_signature(observation)
+                # A control that led back somewhere she has already been is not a
+                # way on, and it is retired for the rest of the run.
+                #
+                # The stall counter beside this one compares each page with the
+                # one before it, so a pair of controls that undo each other never
+                # trips it: every round genuinely changes the page, and the page
+                # alternates between two states forever. LIVE 2026-09-29, on her
+                # own result: `[more]` expanded a section, `[less]` collapsed it,
+                # and twenty-two of forty rounds went into the pair — an hour of a
+                # seventy-minute run, on a page she had already read.
+                #
+                # Nothing here knows what a disclosure control is. It knows she
+                # has been in this state before and which control put her back in
+                # it, which is the general fact and the one worth acting on.
+                if signature in been_in and last_moves:
+                    went_nowhere.update(last_moves)
+                    logger.info(
+                        "🌐 Retired %d control(s) that led back to a page already seen.",
+                        len(last_moves),
+                    )
+                been_in.add(signature)
+                observation = self._without_the_moves_that_go_nowhere(
+                    observation, went_nowhere
+                )
                 if signature == last_signature:
                     stalled += 1
                     if stalled >= self.PURSUE_STALL_LIMIT:
@@ -1368,13 +1428,29 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                     # nothing: she did not yet know what the thing measures.
                     # Read from the page instead, said out loud, and kept as
                     # the thing the result is held against at the end.
-                    if not said_before:
-                        said_before = await self._what_she_expects_it_to_say(
+                    #
+                    # Once per run, and whatever the caller handed in. Gating
+                    # it on an empty `said_before` meant the reply she gave the
+                    # person before opening anything counted as her forecast,
+                    # so the page-read one never ran at all and there was
+                    # nothing for the result to be held against: LIVE
+                    # 2026-09-29, `page_forecast` appears zero times in a run
+                    # that answered thirty-two items and reached its results.
+                    if not forecast_made:
+                        forecast_made = True
+                        read_it = await self._what_she_expects_it_to_say(
                             goal, observation, mind
                         )
-                        if said_before:
-                            self._say_out_loud(said_before)
-                            await self._hold_for_reading(said_before)
+                        said_before = read_it or said_before
+                        # Said whichever of the two it came from. Speaking only
+                        # the page-read one meant a run that fell back to what
+                        # she told the person before arriving showed no
+                        # prediction at all — and then compared its result to
+                        # one, which reads as though it appeared from nowhere.
+                        read_it = read_it or said_before
+                        if read_it:
+                            self._say_out_loud(read_it)
+                            await self._hold_for_reading(read_it)
                     decision = await self._answer_each_question(
                         goal, observation, steps, understanding, on_progress=still_going
                     )
@@ -1501,6 +1577,11 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                 report = await self._make_each_move(
                     browser, moves, action_context=action_context
                 )
+                last_moves = [
+                    str(action.selector)
+                    for action, _said in moves
+                    if getattr(action, "selector", "")
+                ]
                 planned = [action for action, _said in moves]
                 asked = str(observation.get("text") or "").strip().splitlines()
                 steps.append(
@@ -1521,6 +1602,21 @@ class SovereignBrowserSkill(_UnderstandsThePage, BaseSkill):
                             if isinstance(item, dict)
                             and str(item.get("index", "")).lstrip("-").isdigit()
                             and 0 <= int(item["index"]) < len(elements)
+                        ],
+                        # What she SAID for each choice, one line per answer.
+                        #
+                        # The account in the reply was built from the round: the
+                        # first line of the page with a question mark in it, the
+                        # names of every control pressed, and one reason for the
+                        # lot. On a screen of eight answers that is a heading
+                        # repeated eight times and eight control names, and her
+                        # eight sentences — the whole point of answering as
+                        # herself — reached nobody. They are already written, for
+                        # the narration that speaks them as each move is made.
+                        "said": [
+                            str(item.get("said") or "")
+                            for item in (decision.get("resolved_actions") or [])
+                            if isinstance(item, dict) and str(item.get("said") or "").strip()
                         ],
                         "ok": bool(report.get("ok")),
                         "url": observation.get("url"),
