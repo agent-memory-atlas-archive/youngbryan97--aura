@@ -501,6 +501,25 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   accumulate nothing, and lags a window apart are not a streak.
   Every named hold in R06 is now closed. Resident replay on this build
   follows.
+  2026-09-29, a new class from the night's live run: eight loop stalls of
+  5.4 to 8.1 seconds between 02:33 and 04:33, every dump inside
+  `GoalEngine._fetch_records`. Not the query: on a copy of the live store
+  (3,622 goals) `build_snapshot` takes 11ms. It was where it ran. Callers
+  that ask for her own goals without the external ones skipped the
+  stale-while-revalidate snapshot the hot path was given in July, so
+  initiative synthesis, the mind tick, the task engine and the inner-state
+  route each built a fresh snapshot, reconciliation writes included, on the
+  loop; and five async mutations (`add_goal`, `track_dispatch`,
+  `update_task_lifecycle`, `update_goal_status`, `evaluate_goals`)
+  re-projected inline. On a host at load 8 each build took seconds. Now the
+  snapshot carries her own goals beside the whole list, readers take them
+  from it, a mutation re-projects on a worker thread, and a caller that must
+  see its own write says `fresh`. The same pass found the task engine writing
+  the raw goal list over the goal engine's projection after every plan,
+  which dropped the urgency the workspace prices deliberation's bid on; it
+  calls `GoalEngine.project_onto` now.
+  `tests/test_the_goal_store_is_not_read_on_the_loop.py` fails on the old
+  code for both paths.
   2026-09-16, a loaded host (load 34 to 124 on 18 cores, other agents' jobs).
   A day of stalls that were not the loop's: the loop thread was getting 2% of
   a core. Every monitor now tells starved from stuck by the thread's own CPU
@@ -3178,6 +3197,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   past 400 lines.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-09-29: two more, both resolved, and the order they depended on is
+  pytest-randomly's. It is installed and shuffles modules, classes and
+  functions every run, so an order dependence shows as a flake. The
+  technological-autonomy report was a test asserting that 67 others had
+  already recorded scores; the shuffle put it first about one run in sixteen.
+  It is a module finalizer now. The control-policy health test relied on
+  importing the engine to register the sweep, which happens once per process,
+  and read `{'error'}` whenever a registry-clearing test ran between; it
+  registers the sweep itself now.
   2026-09-22, a class, 76 sites in 51 files. `monkeypatch.setattr(module.time,
   "sleep", fake)` reads like it patches the module and does not: `module.time`
   IS the `time` module, so the fake replaced `time.sleep`, `time.time` or

@@ -993,7 +993,7 @@ class AutonomousTaskEngine(_BuildsAPlanWithoutTheModel):
         plan.token_id = token.token_id
 
         self._active_plans[plan.plan_id] = plan
-        self._update_state_goals(plan)
+        await asyncio.to_thread(self._update_state_goals, plan)
         self._persist_plan_state(plan)
 
         # Pause if escalation required (except in shadow mode)
@@ -1015,7 +1015,7 @@ class AutonomousTaskEngine(_BuildsAPlanWithoutTheModel):
                 self._approval_events.pop(plan.plan_id, None)
             if not approved or plan.status == "rejected":
                 plan.status = "rejected"
-                self._update_state_goals(plan)
+                await asyncio.to_thread(self._update_state_goals, plan)
                 self._active_plans.pop(plan.plan_id, None)
                 self._persist_active_plans()
                 return TaskResult(
@@ -1129,7 +1129,7 @@ class AutonomousTaskEngine(_BuildsAPlanWithoutTheModel):
         # Wrap in try/finally so the plan is always cleaned up even if
         # the goal engine write fails — prevents zombie active plans.
         try:
-            self._update_state_goals(plan)
+            await asyncio.to_thread(self._update_state_goals, plan)
             # Mark the associated goal as completed via lifecycle when plan succeeded
             if result.succeeded:
                 try:
@@ -2772,6 +2772,11 @@ The plan is a JSON array of steps:
             if cognition is None:
                 return
 
+            # The goal engine owns this projection; the raw list written here
+            # dropped the urgency the workspace prices deliberation's bid on.
+            if goal_engine and hasattr(goal_engine, "project_onto"):
+                goal_engine.project_onto(cognition)
+                return
             if goal_engine and hasattr(goal_engine, "get_active_goals"):
                 try:
                     cognition.active_goals = goal_engine.get_active_goals(

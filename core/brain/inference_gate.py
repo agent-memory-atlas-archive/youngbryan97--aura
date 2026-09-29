@@ -11,6 +11,8 @@ This module is the FAST PATH for user-facing chat. It injects Aura's full
 identity/personality system prompt so responses sound like Aura, not a bare LLM.
 Timeouts are kept tight (45s) for conversational responsiveness.
 """
+from .inference_gate_initialization import _GateInitializationMixin
+from .inference_gate_thinking_budget import _ThinkingBudgetMixin
 import asyncio
 import contextvars
 import copy
@@ -74,7 +76,7 @@ from core.runtime.errors import (
 from core.runtime.flags import FlagKind as _FlagKind
 from core.runtime.flags import declare as _declare_flag
 from core.runtime.flags import env_str  # noqa: F401  (read at call time by the lifted module)
-from core.runtime.lockdep import LockRank, checked_async_lock, checked_lock
+from core.runtime.lockdep import LockRank, checked_async_lock, checked_lock  # noqa: F401 - inference_gate_initialization reads checked_async_lock at call time
 from core.runtime.process_identity import assert_owned, capture_identity
 from core.runtime.proof_policy import (
     is_proof_evaluation_purpose,
@@ -2502,7 +2504,7 @@ def _a_turn_ledger_is_bound() -> bool:
         return False
 
 
-class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
+class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _WatchesTheCortexComeUp, _BuildsAndFitsThePrompt):
     """Isolated inference gateway for Aura's managed local runtime."""
 
     # Class-level defaults for observation-path cooldowns so partially
@@ -8095,185 +8097,6 @@ class InferenceGate(_ServesTheTurn, _SetsTheTurnUp, _BuildsTheLivingContext, _Wa
             self._say_when_the_thinking_ate_the_answer(label, origin, cleaned)
             return self._strip_silence(cleaned)
         return None
-
-    def _say_when_the_thinking_ate_the_answer(
-        self, label: str, origin: str, cleaned: str
-    ) -> None:
-        """Name the caller when a whole token budget produced a stub of an answer.
-
-        A reasoning model charges its private channel to the same budget as the
-        answer. Where a caller has not declared what the answer needs, the channel
-        is neither opened under a bound nor paid for, the model searches wherever
-        it likes, and the budget can be gone before it concludes. What reaches the
-        log is two true lines that look unrelated: the worker reporting that it
-        decoded every token it was given, and the gate reporting a short answer.
-
-        LIVE 2026-09-29: "decode=900 tokens/76.42s" and "Cortex response received
-        (len=10)" — ten characters, "Okay. Here", where her verdict on her own
-        result should have been. Nothing was wrong with either line and nothing
-        was watching them together, so the reply fell back to reciting the rounds
-        and the cause took a log read to find.
-
-        This is that comparison, once, where both numbers are already known. It
-        does not fix the caller — the fix is for the caller to declare its floor —
-        but it says which caller, and the class is silent otherwise.
-        """
-        metadata = self.get_last_generation_metadata()
-        if not metadata:
-            return
-        try:
-            decoded = int(metadata.get("generated_tokens") or 0)
-            allowed = int(
-                metadata.get("actual_max_tokens")
-                or metadata.get("requested_max_tokens")
-                or 0
-            )
-        except (TypeError, ValueError):
-            # not a failure: a receipt whose counts will not parse cannot be
-            # compared, and this reports nothing rather than guessing.
-            return
-        if decoded <= 0 or allowed <= 0 or decoded < allowed:
-            return
-        # Tokens the answer actually carries, against the tokens it was charged.
-        # A budget spent in full on an answer that is a fraction of it went
-        # somewhere else, and the private channel is the only other place.
-        said = len(str(cleaned or "").split())
-        if said >= decoded / 4:
-            return
-        record_degradation(
-            "inference.answer_budget",
-            RuntimeError(
-                f"thinking_spent_the_answer_budget:{origin or 'unattributed'}:"
-                f"{decoded}_tokens_for_{said}_words"
-            ),
-            severity="warning",
-            action=(
-                f"{label} decoded its whole {allowed}-token budget for a "
-                f"{said}-word answer; the caller declares no completion floor, "
-                "so the private channel was unbounded"
-            ),
-        )
-
-    async def initialize(self):
-        """Boot-time initialization — prepares the managed local client.
-
-        Singleflight: concurrent initialize calls must not race client
-        replacement or spawn duplicate prewarm/maintenance tasks.
-        """
-        init_lock = getattr(self, "_init_lock", None)
-        if init_lock is None:
-            # checked_async_lock, not asyncio.Lock: lockdep only sees the locks
-            # it wraps, and boot is exactly where an ABBA deadlock costs a
-            # whole runtime rather than a turn.
-            init_lock = checked_async_lock("inference_gate.initialize", rank=LockRank.LEAF)
-            self._init_lock = init_lock
-        async with init_lock:
-            if self._initialized:
-                logger.debug("InferenceGate.initialize skipped: already initialized.")
-                return
-            await self._initialize_locked()
-
-    def initialization_receipt(self) -> dict[str, Any]:
-        """What boot actually achieved, as opposed to what it attempted.
-
-        ``_initialized`` means setup RAN. It is True after a deferred or
-        RAM-guarded boot, where no generation lane exists yet, and after an
-        eager boot whose warmup did not complete. Anything that needs "can this
-        serve a turn" wants :meth:`is_inference_ready`; this says which of the
-        three boots happened and whether Cortex came up.
-        """
-        return copy.deepcopy(getattr(self, "_initialization_receipt", {}))
-
-    async def _initialize_locked(self):
-        receipt: dict[str, Any] = {
-            "mode": "unknown",
-            "cortex_ready": False,
-            "reason": "",
-            "at": time.time(),
-        }
-        self._initialization_receipt = receipt
-        try:
-            from core.brain.llm.mlx_client import get_mlx_client
-            from core.brain.llm.model_registry import ACTIVE_MODEL, get_runtime_model_path
-
-            model_path = str(get_runtime_model_path(ACTIVE_MODEL))
-            self._mlx_client = get_mlx_client(model_path=model_path)
-
-            if self._boot_should_eager_warmup():
-                self._extend_startup_quiet_window(90.0)
-                try:
-                    self._prewarm_task = get_task_tracker().create_task(
-                        self._mlx_client.warmup(),
-                        name="InferenceGate.cortex_prewarm",
-                    )
-                    # Eager boot warmup gets the same load budget as the
-                    # foreground lane to avoid starting chat half-initialized.
-                    warmup_result = await asyncio.wait_for(
-                        asyncio.shield(self._prewarm_task), timeout=300.0
-                    )
-                    ready, lane, incomplete_reason = self._confirmed_cortex_warmup(
-                        warmup_result
-                    )
-                    receipt["mode"] = "eager_warmup"
-                    receipt["cortex_ready"] = bool(ready)
-                    if ready:
-                        self._extend_startup_quiet_window(5.0)
-                        logger.info("✅ InferenceGate ONLINE (Cortex fully warmed).")
-                    else:
-                        receipt["reason"] = str(incomplete_reason or "warmup_incomplete")
-                        logger.warning(
-                            "⚠️ InferenceGate ONLINE with Cortex warmup incomplete "
-                            "(state=%s, reason=%s). Will retry on foreground demand.",
-                            lane.get("state", "unknown"),
-                            incomplete_reason,
-                        )
-                except _INFERENCE_RECOVERABLE_ERRORS as warmup_err:
-                    receipt["mode"] = "eager_warmup"
-                    receipt["reason"] = f"warmup_error:{type(warmup_err).__name__}"
-                    _record_inference_degradation(
-                        warmup_err,
-                        action="continued initialization with degraded warmup path",
-                    )
-                    logger.warning(
-                        "⚠️ Cortex warmup slow/failed: %s. Will retry on first request.", warmup_err
-                    )
-            elif self._boot_should_schedule_deferred_prewarm():
-                deferred_delay = 45.0 if self._desktop_safe_boot_enabled() else 12.0
-                self._schedule_background_cortex_prewarm(delay=deferred_delay)
-                receipt["mode"] = "deferred_prewarm"
-                receipt["reason"] = "warmup_deferred_until_post_boot"
-                logger.info(
-                    "⏸️ InferenceGate ONLINE (%s warmup deferred until post-boot memory settles).",
-                    _primary_lane_label(),
-                )
-            else:
-                receipt["mode"] = "ram_admitted"
-                receipt["reason"] = "warmup_requires_ram_admission"
-                logger.info(
-                    "🛡️ InferenceGate ONLINE (desktop resource guard: %s warmup is RAM-admitted).",
-                    _primary_lane_label(),
-                )
-
-            if self._maintenance_task is None or self._maintenance_task.done():
-                self._maintenance_task = get_task_tracker().create_task(
-                    self._maintenance_loop(),
-                    name="InferenceGate.maintenance",
-                )
-
-            self._initialized = True
-
-        except _INFERENCE_RECOVERABLE_ERRORS as e:
-            _record_inference_degradation(
-                e,
-                action="continued initialization with degraded warmup path",
-            )
-            self._init_error = str(e)
-            self._initialized = False
-            receipt["reason"] = f"init_error:{type(e).__name__}"
-            logger.error(
-                "❌ InferenceGate init failed: %s. Gate remains unhealthy until explicit recovery succeeds.",
-                e,
-            )
 
     #: State the identity prompt is built FROM. ContextAssembler reads far
     #: more than the six fields the old key covered — personality, goals,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .goal_engine_projection import _GoalProjectionMixin
 import asyncio
 import json
 import logging
@@ -19,12 +20,12 @@ from core.cognition.what_it_is_worth_by_the_time_it_comes import HowFarSheUsuall
 from core.cognition.where_to_spend_the_next_one import where_to_spend_it
 from core.container import ServiceContainer
 from core.goals.goal_engine_reconciliation import _GoalReconciliationMixin
-from core.goals.goal_text import is_actionable_goal_text, is_intrinsic_goal_text
+from core.goals.goal_text import is_actionable_goal_text, is_intrinsic_goal_text  # noqa: F401 - goal_engine_projection reads the second at call time
 from core.goals.objective_lifecycle import is_transient_foreground_projection
 from core.runtime.atomic_writer import atomic_write_text
 from core.runtime.errors import FallbackClassification, Severity, record_degradation
 from core.runtime.state_ownership import state_root
-from core.state.aura_state import _origin_is_user_anchored
+from core.state.aura_state import _origin_is_user_anchored  # noqa: F401 - goal_engine_projection reads it at call time
 
 logger = logging.getLogger("Aura.GoalEngine")
 
@@ -424,7 +425,7 @@ def _the_one_to_get_on_with(active: list[dict[str, Any]]) -> dict[str, Any]:
         return active[0]
 
 
-class GoalEngine(_GoalReconciliationMixin):
+class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
     """
     Canonical durable goal lifecycle manager.
 
@@ -1111,7 +1112,7 @@ class GoalEngine(_GoalReconciliationMixin):
                     extra={"phase": "belief_reinforcement", "goal_id": record.id},
                 )
                 logger.debug("Goal belief reinforcement skipped: %s", exc)
-        self._sync_state_view()
+        await self._sync_state_view_off_loop()
         return record.to_dict()
 
     async def track_dispatch(
@@ -1139,7 +1140,7 @@ class GoalEngine(_GoalReconciliationMixin):
             attention_policy="interruptible" if quick_win else "sustained",
             metadata={"dispatch_source": source},
         )
-        self._sync_state_view()
+        await self._sync_state_view_off_loop()
         return record.to_dict()
 
     async def update_task_lifecycle(
@@ -1184,7 +1185,7 @@ class GoalEngine(_GoalReconciliationMixin):
             created_at=existing.created_at,
             started_at=existing.started_at,
         )
-        self._sync_state_view()
+        await self._sync_state_view_off_loop()
         return record.to_dict()
 
     def get_goal(self, goal_id: str) -> dict[str, Any] | None:
@@ -1294,7 +1295,7 @@ class GoalEngine(_GoalReconciliationMixin):
             created_at=existing.created_at,
             started_at=existing.started_at,
         )
-        self._sync_state_view()
+        await self._sync_state_view_off_loop()
         return record.to_dict()
 
     async def evaluate_goals(self) -> None:
@@ -1343,7 +1344,7 @@ class GoalEngine(_GoalReconciliationMixin):
                 created_at=goal.created_at,
                 started_at=goal.started_at,
             )
-        self._sync_state_view()
+        await self._sync_state_view_off_loop()
 
     def sync_task_plan(self, plan: Any, context: dict[str, Any] | None = None) -> dict[str, Any]:
         plan_context = dict(getattr(plan, "context", {}) or {})
@@ -1397,8 +1398,9 @@ class GoalEngine(_GoalReconciliationMixin):
         *,
         include_external: bool = True,
         actionable_only: bool = False,
+        fresh: bool = False,
     ) -> list[dict[str, Any]]:
-        if include_external and int(limit or 12) <= 30:
+        if not fresh and int(limit or 12) <= 30:
             # Hot path: EVERY tool authorization descends here
             # (authorize_tool_execution → executive_core temporal-identity
             # context), plus mind_tick, chat, and topic selection — all on
@@ -1407,7 +1409,16 @@ class GoalEngine(_GoalReconciliationMixin):
             # was the dominant live stall class (26 dumps on Jul 8 alone).
             # Mutations reset the cache age, so staleness is bounded by the
             # 5s TTL plus one background refresh.
+            #
+            # Internal goals come from the same snapshot. Asked for without the
+            # external ones, this built a fresh snapshot on the loop every time,
+            # and initiative synthesis, the mind tick and the task engine all
+            # ask that way (29 September: the stalls named at
+            # `_sync_state_view_off_loop`). A caller that must see its own
+            # write passes `fresh`.
             snapshot = self._cached_snapshot()
+            if not include_external:
+                snapshot = {"items": snapshot.get("internal_items", snapshot["items"])}
         else:
             snapshot = self.build_snapshot(limit=limit, include_external=include_external)
         active = [
@@ -1449,25 +1460,8 @@ class GoalEngine(_GoalReconciliationMixin):
         items = list(internal_items)
         if include_external:
             items.extend(self._external_goal_items())
-
-        deduped: list[dict[str, Any]] = []
-        seen_ids: set[str] = set()
-        seen_active_signatures: set[str] = set()
-        for item in self._sort_items(items):
-            item_id = str(item.get("id", "") or f"{item.get('source','goal')}::{item.get('objective') or item.get('name')}")
-            if item_id in seen_ids:
-                continue
-            seen_ids.add(item_id)
-            status = str(item.get("status", "") or "")
-            if status in ACTIVE_GOAL_STATUSES:
-                signature = self._goal_signature(item.get("objective") or item.get("name") or "")
-                horizon = str(item.get("horizon", "") or "")
-                active_key = f"{horizon}::{signature}" if signature else ""
-                if active_key and active_key in seen_active_signatures:
-                    continue
-                if active_key:
-                    seen_active_signatures.add(active_key)
-            deduped.append(item)
+        deduped = self._deduplicated(items)
+        internal = self._deduplicated(internal_items) if include_external else deduped
 
         active = [item for item in deduped if str(item.get("status", "")) in ACTIVE_GOAL_STATUSES]
         completed = [item for item in deduped if str(item.get("status", "")) == GoalStatus.COMPLETED.value]
@@ -1486,6 +1480,7 @@ class GoalEngine(_GoalReconciliationMixin):
         }
         return {
             "items": deduped[: max(1, int(limit or 30))],
+            "internal_items": internal[: max(1, int(limit or 30))],
             "summary": summary,
         }
 
@@ -1645,75 +1640,6 @@ class GoalEngine(_GoalReconciliationMixin):
             or ""
         )
         return is_actionable_goal_text(text)
-
-    def _sync_state_view(self, limit: int = 6) -> None:
-        try:
-            state = getattr(self.state_repo, "_current", None)
-            if state is None:
-                return
-            cognition = getattr(state, "cognition", None)
-            if cognition is None:
-                return
-            active = self.get_active_goals(limit=limit, include_external=False, actionable_only=True)
-            if not active:
-                active = self.get_active_goals(limit=limit, include_external=True, actionable_only=True)
-            shown = active[:limit]
-            # What each of these is asking to be thought about now, beside how
-            # important the work is once it has been chosen. The workspace
-            # prices deliberation's bid on `urgency` and this projection stated
-            # none, so every goal she has ever held entered attention at the
-            # same neutral default: nothing about what she was trying to do
-            # could change what she attended to. The number is the engine's own
-            # comparison — what it costs to leave each one alone — read per
-            # goal rather than only for the one it picks.
-            leaving = what_leaving_each_costs(shown)
-            cognition.active_goals = [
-                {
-                    "id": item.get("id"),
-                    "goal": item.get("objective") or item.get("name"),
-                    "description": item.get("objective") or item.get("name"),
-                    "status": item.get("status"),
-                    "horizon": item.get("horizon"),
-                    "priority": item.get("priority"),
-                    "urgency": round(cost, 4),
-                    "steps_done": item.get("steps_done"),
-                    "steps_total": item.get("steps_total"),
-                    "plan_id": item.get("plan_id"),
-                    "task_id": item.get("task_id"),
-                    "source": item.get("source"),
-                }
-                for item, cost in zip(shown, leaving, strict=True)
-            ]
-            current_objective = str(getattr(cognition, "current_objective", "") or "")
-            current_origin = str(getattr(cognition, "current_origin", "") or "")
-            actionable_labels = {
-                str(item.get("objective") or item.get("name") or "")
-                for item in active
-            }
-            if active and (
-                not current_objective
-                or is_intrinsic_goal_text(current_objective)
-                or (
-                    not _origin_is_user_anchored(current_origin)
-                    and current_objective not in actionable_labels
-                )
-            ):
-                cognition.current_objective = str(
-                    _the_one_to_get_on_with(active).get("objective")
-                    or _the_one_to_get_on_with(active).get("name")
-                    or ""
-                )
-            elif not active and is_intrinsic_goal_text(current_objective):
-                cognition.current_objective = None
-        except (OSError, ConnectionError, TimeoutError) as exc:
-            _record_goal_degradation(
-                exc,
-                severity="warning",
-                action="left cognition.active_goals unchanged after state sync failure",
-                classification=FallbackClassification.SILENT_LOSS_OF_CAPABILITY,
-                extra={"phase": "state_sync"},
-            )
-            logger.debug("GoalEngine state sync skipped: %s", exc)
 
     def _external_goal_items(self) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
