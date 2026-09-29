@@ -1,4 +1,4 @@
-"""An answer that fights its own reason is asked again, once.
+"""An answer that fights its own reason is noticed, and the place stands.
 
 LIVE 2026-09-28: "3 of 5, between 'makes lists' and 'relies on memory'. I am
 choosing the middle option because I genuinely hold a strong preference for
@@ -13,7 +13,6 @@ check that guesses is worse than no check. Nothing here rewrites what she chose.
 from __future__ import annotations
 
 import asyncio
-from typing import Any
 
 import pytest
 
@@ -78,27 +77,40 @@ def test_labelled_options_are_not_judged_this_way():
     assert S._the_choice_disagrees_with_its_reason(labelled, 1, "I agree") == ""
 
 
-def test_she_is_asked_again_and_the_second_answer_stands(monkeypatch):
-    skill = S()
-    asked: list[str] = []
-    answers = [
-        {"actions": [{"index": 2}], "why": "I rely on memory constantly."},
-        {"actions": [{"index": 4}], "why": "I rely on memory constantly."},
-    ]
+def _placed_in_the_middle(monkeypatch, words: str):
+    """Her record puts her at 3 of 5 on the first row; her sentence is ``words``."""
+    from core.self import where_i_stand
 
-    async def _decide(goal, observation, history, understanding=None, **kwargs):
-        asked.append(str(kwargs.get("noticed") or ""))
-        return answers[min(len(asked) - 1, len(answers) - 1)]
+    skill = S.__new__(S)
+    middle = where_i_stand.Lean(toward=0.0, first=0.5, second=0.5, because=("x",), measured=True)
 
-    monkeypatch.setattr(skill, "_decide_next_actions", _decide)
-    observation = {"url": "u", "title": "t", "text": "x", "elements": _row()}
-    result = asyncio.run(
-        skill._answer_each_question("take it", {**observation, "elements": _row() + _row_q2()}, [], None)
-    )
-    assert len(asked) >= 2, "a contradicting answer was not asked again"
-    assert asked[0] == "", "the first ask must not carry a notice"
-    assert "equally you" in asked[1]
-    assert result and "#Q1V5" in str(result)
+    def measure(options):
+        return 2, middle, options[0]["asks"].split(" [")[0], options[0]["asks"].split("] ")[-1]
+
+    async def mind():
+        return ""
+
+    async def thinking(goal, theme, mind):
+        return {item["group"]: words for item in theme}
+
+    monkeypatch.setattr(skill, "_measure_where_she_stands", measure)
+    monkeypatch.setattr(skill, "_assembled_mind", mind)
+    monkeypatch.setattr(skill, "_her_thinking_about", thinking)
+    monkeypatch.setattr(where_i_stand, "themes_among", lambda names: [list(range(len(names)))])
+    observation = {"url": "u", "title": "t", "text": "x", "elements": _row() + _row_q2()}
+    return asyncio.run(skill._answer_each_question("take it", observation, [], None))
+
+
+def test_a_sentence_that_leans_away_from_her_place_is_noticed_and_the_place_stands(monkeypatch):
+    """The place is her record's; a sentence that fights it is reported, not obeyed."""
+    result = _placed_in_the_middle(monkeypatch, "I rely on memory constantly.")
+    assert "#Q1V3" in str(result["resolved_actions"]), "the measured place was rewritten"
+    assert any("equally you" in notice for notice in result["noticed"])
+
+
+def test_a_sentence_that_agrees_with_her_place_raises_nothing(monkeypatch):
+    result = _placed_in_the_middle(monkeypatch, "I am genuinely balanced here.")
+    assert result["noticed"] == []
 
 
 def _row_q2():
@@ -112,24 +124,9 @@ def _row_q2():
 
 def test_the_notice_says_what_disagrees_and_not_what_to_pick(monkeypatch):
     """Telling her what to choose would make the answer the check's."""
-    skill = S()
-    notices: list[str] = []
-
-    async def _decide(goal, observation, history, understanding=None, **kwargs):
-        notices.append(str(kwargs.get("noticed") or ""))
-        return {"actions": [{"index": 2}], "why": "I rely on memory constantly."}
-
-    monkeypatch.setattr(skill, "_decide_next_actions", _decide)
-    asyncio.run(
-        skill._answer_each_question(
-            "take it",
-            {"url": "u", "title": "t", "text": "x", "elements": _row() + _row_q2()},
-            [], None,
-        )
-    )
-    said = [notice for notice in notices if notice]
-    assert said
-    for notice in said:
+    result = _placed_in_the_middle(monkeypatch, "I rely on memory constantly.")
+    assert result["noticed"]
+    for notice in result["noticed"]:
         lowered = notice.lower()
         assert "choose" not in lowered.replace("the answer chosen", "")
         assert "should" not in lowered
