@@ -527,7 +527,10 @@ class _UnderstandsThePage(_PlacesHerself):
         not taken.
         """
         prompt = (
-            f"WHAT YOU ARE ABOUT TO DO: {goal}\n\n"
+            # Her situation, not the person's message: a goal is a request
+            # addressed to her and she answers it instead of doing the step.
+            "You are about to answer an instrument that will report something "
+            "about you.\n\n"
             f"{self._render_observation(observation, goal)}\n\n"
             "Before you answer anything: from what this page says this is and "
             "what it measures, say what you expect it to conclude about you, "
@@ -652,7 +655,8 @@ class _UnderstandsThePage(_PlacesHerself):
         if not said:
             return ""
         prompt = (
-            f"WHAT YOU WERE DOING: {goal}\n\n"
+            "You have finished an instrument that reports something about "
+            "you.\n\n"
             f"WHAT YOU SAID BEFORE YOU BEGAN: {said}\n\n"
             f"{self._render_observation(observation, goal)}\n\n"
             "You have finished. Read what is in front of you and say, in your "

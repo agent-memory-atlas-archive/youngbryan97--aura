@@ -147,10 +147,8 @@ def _screen(monkeypatch, said: str, lane: str = "Cortex"):
     return skill, handed
 
 
-def _run(skill, observation):
-    return asyncio.run(
-        skill._answer_each_question("take it", observation, [], None)
-    )
+def _run(skill, observation, goal: str = "take it"):
+    return asyncio.run(skill._answer_each_question(goal, observation, [], None))
 
 
 def test_a_theme_is_thought_about_as_one_piece(monkeypatch):
@@ -273,3 +271,23 @@ def test_there_are_fewer_passes_than_items():
 
     body = inspect.getsource(where_i_stand.themes_among)
     assert "math.sqrt" in body
+
+
+def test_the_persons_message_does_not_reach_her_own_reasoning(monkeypatch):
+    """A goal is a request addressed to her, so she answers it.
+
+    LIVE 2026-09-29: every theme pass came back "The user is asking me to take
+    the Open Extended Jungian Type Scales..." instead of her thinking, and the
+    coverage gate complained she had missed parts of a question she was never
+    being asked at this step.
+    """
+    skill, handed = _screen(monkeypatch, '{"thinking": "t", "each": {}}')
+    _run(
+        skill,
+        {"url": "u", "title": "t", "text": "x", "elements": _row("Q1") + _row("Q2")},
+        goal="Take the test and tell me what type you think you will get",
+    )
+    prompt = handed["prompts"][0]
+    assert "tell me" not in prompt.lower()
+    assert "what type you think" not in prompt.lower()
+    assert "answering questions about yourself" in prompt

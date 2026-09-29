@@ -197,7 +197,15 @@ class _PlacesHerself:
             )
         listed = "\n".join(lines)
         prompt = (
-            f"WHAT YOU ARE DOING: {goal}\n\n"
+            # Her situation, not the person's message.
+            #
+            # The whole goal used to open this, and a goal is a request
+            # addressed to her — so she answered it: LIVE 2026-09-29, every
+            # theme pass came back "The user is asking me to take the Open
+            # Extended Jungian Type Scales..." instead of her thinking, and the
+            # coverage gate complained she had missed parts of a question she
+            # was never being asked at this step.
+            "You are answering questions about yourself.\n\n"
             "These are being asked about you. You have already placed yourself "
             "on each, from your own record — what you value, what you have "
             "chosen when it cost something, what you have said about "
