@@ -46,6 +46,31 @@ baseline, and stopped them only for the anchors.
   `tools/same_organism.py` is the proof that two processes are one organism.
   That proof is queued (`one_clock_probe.sh`) and has not run.
 
+### Making the carrier run faster, and every number the same
+
+- A cut's decision spent 7.2 seconds of estimator per horizon at 32 anchors and
+  22.5 at 128, on one core while most of the host waited. The draws are drawn
+  in order and evaluated across processes now: 2.6 and 8.2 seconds on three,
+  identical values (`bd06ef403`).
+- The coordinator learned the grain alone for 6 h 20 min after the shards had
+  finished their cuts in 45 minutes. Every process now claims anchors for the
+  grain one at a time, and the coordinator gathers rows it has verified against
+  its own anchors (`7880242b8`).
+- A look can keep each cut's samples (`00f62d24e`), and
+  `tools/which_columns_a_cut_moved.py` reads which of her columns a cut moved.
+
+### Three of the carrier's authority blockers, preregistered for seed 23
+
+The coordinator at `bb3faa54a` refused authority for five reasons. C's power
+and the organism are one; the other four:
+
+- shards that were four organisms: `ONE_CLOCK`, proof queued;
+- duplicated channels raised the rate, 0.0032 to 0.0083: `ONE_SIGNAL`, a signal
+  counts once in the estimator (`97dad19ba`);
+- the grain's rank was not stable: her spectrum has no gap, so v5 asks the
+  grain refitted without each fold to stay sufficient instead (`6ccd33118`);
+- one cut undecided: C, which the looks under each arm are for.
+
 ### What is queued, in order
 
 1. The reports ground on her cortex, `reports-s7-bb3faa54a`, started 06:24.
