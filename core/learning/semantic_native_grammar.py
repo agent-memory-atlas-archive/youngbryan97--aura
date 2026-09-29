@@ -25,6 +25,9 @@ class NativeGrammarDecision:
     text: str
     span: tuple[int, int]
     value: str | int
+    step_index: int = -1
+    role_index: int = -1
+    operation_name: str = ""
 
 
 @dataclass(frozen=True)
@@ -111,11 +114,14 @@ def decode_native_grammar(input_types: tuple[str, ...],
                       "scores": scores, "chosen": choice.value})
         return choice
 
-    def extend(prefix: str, value: str | int, *, string: bool = False) -> NativeGrammarDecision:
+    def extend(prefix: str, value: str | int, *, string: bool = False,
+               step_index: int = -1, role_index: int = -1,
+               operation_name: str = "") -> NativeGrammarDecision:
         atom = str(value)
         rendered = ('"' + atom + '"') if string else atom
         left = len(prefix) + (1 if string else 0)
-        return NativeGrammarDecision(prefix + rendered, (left, left + len(atom)), value)
+        return NativeGrammarDecision(prefix + rendered, (left, left + len(atom)), value,
+                                     step_index, role_index, operation_name)
 
     forced = False
     for ordinal in range(max_steps):
@@ -124,7 +130,7 @@ def decode_native_grammar(input_types: tuple[str, ...],
             signature = semantic_primitive_type_signature(name)
             if signature is not None and all(kind in types for kind in signature[0]):
                 operations.append(name)
-        operation = choose(tuple(extend(text + "[", name, string=True)
+        operation = choose(tuple(extend(text + "[", name, string=True, step_index=ordinal)
                                  for name in operations), "operation")
         text = operation.text + ",["
         signature = semantic_primitive_type_signature(str(operation.value))
@@ -134,7 +140,8 @@ def decode_native_grammar(input_types: tuple[str, ...],
                 text += ","
             reference = choose(tuple(extend(text,
                 RegisterIdentity.from_absolute(index, input_count=len(input_types)).encode()
-                if relative else index, string=relative)
+                if relative else index, string=relative, step_index=ordinal,
+                role_index=role, operation_name=str(operation.value))
                 for index, actual in enumerate(types) if actual == kind), "reference")
             text = reference.text
             refs.append(RegisterIdentity.parse(reference.value).to_absolute(

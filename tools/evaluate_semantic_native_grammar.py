@@ -211,6 +211,10 @@ def main():
                         help="verified source-only residual calibration for target-blind decode")
     parser.add_argument("--factorized-residual", type=Path,
                         help="verified source-only decision-kind parameter isolation receipt")
+    parser.add_argument("--role-rule-bank", type=Path,
+                        help="training-only induced operand-role evidence")
+    parser.add_argument("--role-rule-strength", type=float,
+                        help="nonpositive competing-reference penalty for the induced rule")
     parser.add_argument("--prefix-strategy", choices=("full", "trie"), default="full")
     parser.add_argument("--decision-score-execution", choices=("individual", "causal_groups"),
                         default="individual")
@@ -259,6 +263,10 @@ def main():
         parser.error("residual calibration belongs only to residual decode")
     if args.weight_mode != "factorized" and args.factorized_residual is not None:
         parser.error("decision-kind isolation belongs only to factorized decode")
+    if ((args.role_rule_bank is None) != (args.role_rule_strength is None)
+            or args.role_rule_strength is not None and
+            (not math.isfinite(args.role_rule_strength) or args.role_rule_strength <= 0)):
+        parser.error("role evidence needs a bank and positive finite strength")
     seed = 0 if args.dataset in RETAINED_DATASETS else (3141592 if args.seed is None else args.seed)
     if seed < 0:
         parser.error("native grammar seed must be nonnegative")
@@ -327,6 +335,14 @@ def main():
     forbidden = set(training["fit_ids"]) | set(training["calibration_ids"]) | set(training["held_ids"])
     if forbidden & set(sources) or len(set(sources)) != len(sources):
         raise ValueError("native grammar evaluation sources overlap training")
+    role_rule_fit = role_rule_bank = None
+    if args.role_rule_bank is not None:
+        from core.learning.semantic_role_rule_induction import RoleRuleBank
+        from tools.fit_semantic_role_rule_bank import read_role_rule_fit
+
+        role_rule_fit = read_role_rule_fit(args.role_rule_bank, training=training,
+                                          held_source_sha256s=tuple(sources))
+        role_rule_bank = RoleRuleBank.from_dict(role_rule_fit["bank"])
     paths = ("tools/evaluate_semantic_native_grammar.py",
              "core/learning/semantic_native_grammar.py",
              "core/learning/semantic_native_search.py",
@@ -362,6 +378,9 @@ def main():
         paths += ("core/learning/semantic_native_factorized_residual.py",
                   "tools/factor_semantic_native_residual.py",
                   "tools/verify_semantic_native_factorized_residual.py")
+    if role_rule_fit is not None:
+        paths += ("core/learning/semantic_role_rule_induction.py",
+                  "tools/fit_semantic_role_rule_bank.py")
     from tools.semantic_native_execution import EXECUTION_PATHS, execution_from_plan
     paths += EXECUTION_PATHS
     execution = execution_from_plan(training, check_installed=True)
@@ -390,6 +409,8 @@ def main():
         schema_version = "v12"
     if residual is not None and args.prefix_strategy == "full":
         schema_version = "v13"
+    if role_rule_fit is not None:
+        schema_version = "v14"
     body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": scored_checkpoint["receipt_sha256"],
@@ -428,6 +449,13 @@ def main():
             "report_receipt_sha256": factorized["report_receipt_sha256"],
             "selected_scales": factorized["selected_scales"],
             "baseline_checkpoint_receipt_sha256": selected["receipt_sha256"],
+            "source_only": True, "serving_authority": False}
+    if role_rule_fit is not None:
+        body["role_rule_evidence"] = {
+            "path": str(args.role_rule_bank.resolve()),
+            "receipt_sha256": role_rule_fit["receipt_sha256"],
+            "strength": args.role_rule_strength,
+            "fit_sources": role_rule_fit["fit_sources"],
             "source_only": True, "serving_authority": False}
     plan = {**body, "plan_sha256": digest(body)}
     _save_if_absent(args.directory / "plan.json", plan)
@@ -498,10 +526,13 @@ def main():
             graph_score_input_receipts = []
             decision_parameter_scales = []
             decision_group_forwards = []
+            role_rule_decisions = []
             branches = None
             def score(choices, *, source=scored_source, source_identity=identity,
                       receipts=score_input_receipts, scales=decision_parameter_scales,
-                      transcript=search_score_transcript):
+                      transcript=search_score_transcript,
+                      group_receipts=decision_group_forwards,
+                      role_receipts=role_rule_decisions, input_types=types):
                 nonlocal scored, branches
                 if factorized is not None:
                     from core.learning.semantic_native_factorized_residual import (
@@ -536,7 +567,19 @@ def main():
                     max_tokens=training["max_sequence_tokens"], strategy=args.prefix_strategy,
                     execution=args.decision_score_execution, branches=branches)
                 if group_forwards is not None:
-                    decision_group_forwards.append(group_forwards)
+                    group_receipts.append(group_forwards)
+                if role_rule_bank is not None:
+                    from core.learning.semantic_role_rule_induction import (
+                        native_role_rule_adjustments,
+                    )
+
+                    adjustments = native_role_rule_adjustments(role_rule_bank,
+                        "" if args.source_evidence == "source_token_erasure" else source,
+                        choices, input_count=len(input_types), strength=args.role_rule_strength)
+                    role_receipts.append({"choices": [choice.value for choice in choices],
+                                          "adjustments": adjustments})
+                    scores = tuple(value + delta for value, delta in zip(
+                        scores, adjustments, strict=True))
                 receipts.append(input_receipts)
                 if args.search_completions:
                     transcript.append({"choices": [choice.value for choice in choices],
@@ -627,6 +670,8 @@ def main():
                 row_body["decision_group_forwards"] = decision_group_forwards
             if factorized is not None:
                 row_body["decision_parameter_scales"] = decision_parameter_scales
+            if role_rule_bank is not None:
+                row_body["role_rule_decisions"] = role_rule_decisions
             row = {**row_body, "receipt_sha256": digest(row_body)}
             _save_if_absent(args.directory / "rows" / f"{identity}.json", row)
             rows.append(row)
