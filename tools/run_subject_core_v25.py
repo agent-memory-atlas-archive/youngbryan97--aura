@@ -352,6 +352,44 @@ async def _learn_grain(
     }
 
 
+#: Where the coordinator leaves its anchors for the shards.
+ANCHOR_BANK = "anchor_bank.bin"
+
+
+def _write_anchor_bank(path: Path, bank: dict[str, Any]) -> int:
+    """The coordinator's anchors, doses and scales, moved into place whole."""
+    from core.subject.anchor_travel import dumps
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = dumps(bank)
+    partial = path.with_suffix(".partial")
+    partial.write_bytes(data)
+    partial.replace(path)
+    return len(data)
+
+
+async def _read_anchor_bank(path: Path, runtime: Any, wait_seconds: float) -> dict[str, Any]:
+    """The coordinator's bank, each snapshot's functions filled from this organism's own.
+
+    Two processes on one seed are two organisms (tools/same_organism.py), so a
+    shard that forked from anchors of its own swept another organism. From
+    these it sweeps the coordinator's.
+    """
+    from dataclasses import replace
+
+    from core.subject.anchor_travel import fill_snapshot, loads
+
+    deadline = time.monotonic() + max(0.0, wait_seconds)
+    while not await asyncio.to_thread(path.exists):
+        if time.monotonic() >= deadline:
+            raise SystemExit(f"refusing: no anchor bank at {path} when the wait ran out")
+        await asyncio.sleep(30.0)
+    bank = loads(await asyncio.to_thread(path.read_bytes))
+    own = runtime.snapshot()
+    bank["anchors"] = [replace(anchor, snapshot=fill_snapshot(anchor.snapshot, own)) for anchor in bank["anchors"]]
+    return bank
+
+
 def _seed_every_generator(seed: int) -> None:
     """The process's global generators, from the run's seed, before the organism exists.
 
@@ -834,6 +872,14 @@ async def main() -> int:
         ),
     )
     parser.add_argument(
+        "--share-anchors", action="store_true",
+        help=(
+            "shard workers fork from the coordinator's anchors, read from the shard "
+            "directory, instead of collecting their own: two processes on one seed "
+            "are two organisms. The shard launcher turns it on"
+        ),
+    )
+    parser.add_argument(
         "--grain-claims", action="store_true",
         help=(
             "share the grain's signature rows between the coordinator and the shard "
@@ -1076,6 +1122,18 @@ async def main() -> int:
 
     try:
         failures_before = dict(getattr(runtime, "failures", {}) or {})
+        # ── a worker sharing the coordinator's anchors reads them, and no baseline of its own ──
+        shared_bank: dict[str, Any] | None = None
+        if shard is not None and args.share_anchors:
+            bank_path = Path(args.shard_dir or (args.out / "shards")) / ANCHOR_BANK
+            _log(f"waiting for the coordinator's anchors at {bank_path}")
+            shared_bank = await _read_anchor_bank(bank_path, runtime, float(args.shard_wait_seconds or 86400.0))
+            doses = dict(shared_bank["doses"])
+            scale = np.asarray(shared_bank["scale"])
+            live_mask = np.asarray(shared_bank["live_mask"])
+            baseline_mean = np.asarray(shared_bank["baseline_mean"])
+            _log(f"  {len(shared_bank['anchors'])} anchors from the coordinator")
+            done_v25 = tuple(done_v25) + ("baseline",)
         # ── the baseline, which every scale is read against ────────────
         if "baseline" not in done_v25:
             _log(f"baseline: {args.rounds} rounds over {len(conditions)} conditions")
@@ -1153,7 +1211,10 @@ async def main() -> int:
         # the nulls forks anything, so a run resumed past them does not pay for
         # a bank it will not use.
         anchors: list[Any] = []
-        if "nulls" not in done_v25:
+        if shared_bank is not None:
+            evidence["stopped_loops"] = stopped_at_boot + await quiesce_organism(runtime)
+            anchors = list(shared_bank["anchors"])
+        elif "nulls" not in done_v25:
             # Everything from here forks paired arms off these anchors, so the
             # free-running loops stop before any anchor is taken, as
             # run_subject_core.py stops them before its interventions. Left
@@ -1175,6 +1236,15 @@ async def main() -> int:
             _log(f"  {len(anchors)} anchors, history {args.history_turns} turns")
             if len(anchors) < 2:
                 raise RuntimeError("fewer than two anchors; nothing can be forked")
+            if args.from_shards and args.share_anchors:
+                # Every shard forks from these, so every cut is a cut of one
+                # organism; see core.subject.anchor_travel.
+                written = await asyncio.to_thread(
+                    _write_anchor_bank, Path(args.from_shards) / ANCHOR_BANK,
+                    {"anchors": anchors, "doses": dict(doses), "scale": scale, "live_mask": live_mask,
+                     "baseline_mean": baseline_mean},
+                )
+                _log(f"  wrote the anchors for the shards, {written} bytes")
 
         # ── a shard worker scores its share of the cuts and stops ──────
         if shard is not None:
