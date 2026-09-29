@@ -46,7 +46,8 @@ class _Questions(HTMLParser):
                 {
                     "group": got.get("name", ""),
                     "value": got.get("value", ""),
-                    "label": "",
+                    # A label the page gives the control itself, where it does.
+                    "label": got.get("aria-label", "") or got.get("title", ""),
                 }
             )
             self._text.append("[]")
@@ -59,10 +60,18 @@ class _Questions(HTMLParser):
             self._row, self._text = None, []
 
     def handle_data(self, data: str) -> None:
-        if self._row is not None:
-            said = " ".join(data.split())
-            if said:
-                self._text.append(said)
+        if self._row is None:
+            return
+        said = " ".join(data.split())
+        if not said:
+            return
+        # Words straight after a control, before the next one, are that
+        # control's own label where it has none of its own.
+        if self._row and self._text and self._text[-1] == "[]":
+            last = self._row[-1]
+            if not last["label"]:
+                last["label"] = said
+        self._text.append(said)
 
 
 def _sides(asks: str) -> tuple[str, str] | None:
