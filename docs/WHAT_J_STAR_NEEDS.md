@@ -90,3 +90,32 @@ membrane of `4eff1db6e` does, and is a prediction it can be held to.
 Lineage is recorded and signed: 328 stages, 204 roots, no branch points. The
 markers hold — perturbational complexity, re-entry and global access all pass.
 Those two are not at issue.
+
+## 28 September, evening: what changed
+
+The carrier's blockers turned out to be two instrument faults and a run design,
+none of them her.
+
+**The floor was the estimator.** The sham arm read 0.062 to 0.107 against
+singleton effects inside 0.028. Two identical samples cross-fitted without
+their anchors read 0.056 apart at 128 anchors: each test row's twin sat in the
+training fold with the other label. Cross-fitted by anchor, with an even
+neighbour count and ties counted whole, identical samples read exactly zero and
+a cut moving 6 of her 438 columns by one spread is decided from 32 anchors
+(9441d011f). The fork leaks found the same day were real and are fixed too:
+free loops live during the arms, a bridge the fork did not carry, a clamp that
+held other services, and a generator the restore wrote nothing into.
+
+**The re-encoding drift** came from the same estimator, and the last look read
+the rate invariant (drift 0.030) once the fork was fixed.
+
+**A machine-week is no longer the cost.** `--fail-fast` takes the singletons
+first and stops at the first cut left undecided, so a failing carrier reads in
+the time one cut takes; shards stop each other. A passing one is 511 cuts across
+four shards, a few hours.
+
+The carrier run is `carrier-s7-bb3faa54a`: `--v5 --fail-fast --turns 2`, grain
+learned, four shards, started 20:18. The structure term is re-measured in
+`content-s7-c093fcfb7` with the same estimator fix, and the content run's
+presentations run with the loops stopped, which takes it from 18 hours to about
+three.
