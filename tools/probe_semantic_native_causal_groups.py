@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import sys
+import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -87,10 +88,12 @@ def replay_case_inventory(generation_directory, training, sources):
     return plan, cases
 
 
-def score_probe_cases(cases, generation_directory, training, prefix, suffix, tokenizer):
+def score_probe_cases(cases, generation_directory, training, prefix, suffix, tokenizer,
+                      *, cached_model=None):
     """Compute each declared group twice without using a task target."""
     import mlx.core as mx
 
+    from core.learning.frozen_prefix_branches import FrozenPrefixBranches, native_source_anchor
     from core.learning.semantic_native_causal_groups import score_native_causal_groups
     from core.learning.semantic_native_program import native_text_decision_sequence
     from core.learning.semantic_native_search import search_native_grammar
@@ -106,6 +109,7 @@ def score_probe_cases(cases, generation_directory, training, prefix, suffix, tok
         example = by_source[source]
         row = verified_document(generation_directory / "rows" / f"{source}.json")
         index = 0
+        branches = None
 
         def scorer(choices, *, example=example, row=row, source=source):
             nonlocal index
@@ -118,16 +122,37 @@ def score_probe_cases(cases, generation_directory, training, prefix, suffix, tok
                 if ([choice.value for choice in choices] != case["values"]
                         or [digest(sequence.tokens) for sequence in sequences] != case["token_sha256"]):
                     raise ValueError("causal probe frozen decision changed")
+                started = time.perf_counter()
                 direct = tuple(-native_loss(suffix, prefix.capture(
                     mx.array([sequence.tokens[:-1]], dtype=mx.int32)), sequence,
                     summed=True, scope="semantic_decisions").item() for sequence in sequences)
+                direct_seconds = time.perf_counter() - started
+                started = time.perf_counter()
                 shared, receipt = score_native_causal_groups(prefix, suffix, sequences)
+                shared_seconds = time.perf_counter() - started
                 if list(case["shape"]) != [len(sequences), receipt["full_single_row_forwards"]]:
                     raise ValueError("causal probe frozen group shape changed")
-                measured.append({"source_sha256": source, "decision_index": index,
+                observation = {"source_sha256": source, "decision_index": index,
                                  "shape": case["shape"], "direct": direct, "shared": shared,
                                  "recorded_scores": case["recorded_scores"],
-                                 "shared_forwards": receipt["shared_forwards"]})
+                                 "shared_forwards": receipt["shared_forwards"],
+                                 "direct_seconds": direct_seconds, "shared_seconds": shared_seconds}
+                if cached_model is not None:
+                    nonlocal branches
+                    started = time.perf_counter()
+                    anchor = native_source_anchor(sequences)
+                    if branches is None:
+                        branches = FrozenPrefixBranches(cached_model, split_at=prefix.split_at,
+                            anchor_tokens=anchor, max_tokens=training["max_sequence_tokens"])
+                    elif branches.anchor_tokens != anchor:
+                        raise ValueError("causal probe changed the frozen source anchor")
+                    cached, cached_receipt = score_native_causal_groups(
+                        prefix, suffix, sequences, branches=branches)
+                    observation.update(cached=cached,
+                        cached_seconds=time.perf_counter() - started,
+                        cached_forwards=cached_receipt["full_single_row_forwards"],
+                        prefix_execution=branches.receipt())
+                measured.append(observation)
                 print(json.dumps({"stage": "causal_probe", "source_sha256": source,
                                   "decision_index": index, "exact": direct == shared,
                                   "shared_forwards": receipt["shared_forwards"]}), flush=True)
@@ -143,6 +168,28 @@ def score_probe_cases(cases, generation_directory, training, prefix, suffix, tok
     return measured
 
 
+def cached_probe_metrics(measured):
+    """Describe observed score and winner agreement without conferring authority."""
+    if not measured or any(not case.get("cached") or not case.get("direct")
+                           or not case.get("recorded_scores") for case in measured):
+        raise ValueError("cached probe lacks complete measured decisions")
+
+    def winner(scores):
+        return max(range(len(scores)), key=scores.__getitem__)
+
+    return {
+        "max_direct_cached_score_error": max(abs(left - right) for case in measured
+            for left, right in zip(case["direct"], case["cached"], strict=True)),
+        "cached_winners_match_direct": all(winner(case["direct"]) == winner(case["cached"])
+                                           for case in measured),
+        "cached_winners_match_recorded": all(
+            winner(case["recorded_scores"]) == winner(case["cached"]) for case in measured),
+        "observed_seconds": {name: sum(case[f"{name}_seconds"] for case in measured)
+                             for name in ("direct", "shared", "cached")},
+        "cached_group_forwards": sum(case["cached_forwards"] for case in measured),
+    }
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--training-directory", type=Path, required=True)
@@ -150,6 +197,7 @@ def main():
     parser.add_argument("--residual-calibration", type=Path, required=True)
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--sources", nargs="+", required=True)
+    parser.add_argument("--cached-groups", action="store_true")
     parser.add_argument("--plan-only", action="store_true")
     args = parser.parse_args()
 
@@ -162,11 +210,13 @@ def main():
             or generation["residual_calibration"]["selected_scale"] != residual["selected_scale"]):
         raise ValueError("causal probe residual differs from generated search")
     paths = ("core/learning/semantic_native_causal_groups.py",
-             "tools/probe_semantic_native_causal_groups.py")
-    body = {"schema": "aura.native_causal_group_probe_plan.v1",
+             "tools/probe_semantic_native_causal_groups.py") + ((
+             "core/learning/frozen_prefix_branches.py",) if args.cached_groups else ())
+    body = {"schema": "aura.native_causal_group_probe_plan.v2",
             "training_plan_sha256": training["plan_sha256"],
             "generation_plan_sha256": generation["plan_sha256"],
             "residual_report_receipt_sha256": residual["report_receipt_sha256"],
+            "cached_groups_requested": args.cached_groups,
             "implementation": {path: hashlib.sha256((ROOT / path).read_bytes()).hexdigest()
                                for path in paths}, "cases": cases,
             "serving_authority": False, "qualification_evidence": False}
@@ -213,18 +263,21 @@ def main():
         split = len(model.layers) - training["suffix_layers"]
         prefix, suffix = FrozenDecoderPrefix(model, split_at=split), NativeDecoderSuffix(model, split_at=split)
         measured = score_probe_cases(cases, args.generation_directory, training,
-                                     prefix, suffix, tokenizer)
+                                     prefix, suffix, tokenizer,
+                                     cached_model=model if args.cached_groups else None)
     errors = [abs(left - right) for case in measured
               for left, right in zip(case["direct"], case["shared"], strict=True)]
     history_errors = [abs(left - right) for case in measured
                       for left, right in zip(case["direct"], case["recorded_scores"], strict=True)]
-    result = {"schema": "aura.native_causal_group_probe.v1",
+    cached = cached_probe_metrics(measured) if args.cached_groups else {}
+    result = {"schema": "aura.native_causal_group_probe.v2",
               "plan_sha256": plan["plan_sha256"], "population": len(measured),
               "alternatives": sum(case["shape"][0] for case in measured),
               "full_single_row_forwards": sum(case["shape"][1] for case in measured),
               "max_direct_shared_score_error": max(errors),
               "max_history_score_error": max(history_errors),
               "exact_direct_shared_scores": all(error == 0. for error in errors),
+              **cached,
               "model_scores_independently_recomputed": True,
               "qualifies_other_sources": False, "serving_authority": False,
               "cases": measured}
