@@ -1319,6 +1319,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Source-role rule and cheap go/no-go probes](evidence/G03_SOURCE_ROLE_RULE_PROBE_2026-09-29.md)
+  measured two new exact conditional teacher paths and zero losses on 185
+  calibration sources, but no role coverage on any of nine frozen relation
+  controls. This rule alone is not a model-active promotion candidate.
   [Fit-matched v7 residual](evidence/G03_V7_FIT_MATCHED_RESIDUAL_2026-09-29.md)
   independently replays a newly measured source-only scale of 0.5: exact
   teacher paths 51 to 112 out of 185 and positive graph rankings 160 to 183,

@@ -267,6 +267,9 @@ def main():
             or args.role_rule_strength is not None and
             (not math.isfinite(args.role_rule_strength) or args.role_rule_strength <= 0)):
         parser.error("role evidence needs a bank and positive finite strength")
+    if args.role_rule_bank is not None and (args.prefix_strategy != "full"
+            or not args.search_completions or args.weight_mode == "factorized"):
+        parser.error("role evidence needs searched full-prefix fitted, base, or residual decode")
     seed = 0 if args.dataset in RETAINED_DATASETS else (3141592 if args.seed is None else args.seed)
     if seed < 0:
         parser.error("native grammar seed must be nonnegative")
@@ -688,7 +691,10 @@ def main():
                 or residual is not None and verify_residual(
                     args.residual_calibration, args.training_directory) != residual
                 or factorized is not None and verify_factorized_residual(
-                    args.factorized_residual, args.training_directory) != factorized):
+                    args.factorized_residual, args.training_directory) != factorized
+                or role_rule_fit is not None and read_role_rule_fit(
+                    args.role_rule_bank, training=training,
+                    held_source_sha256s=tuple(sources)) != role_rule_fit):
             raise ValueError("native grammar implementation, model, or checkpoint drifted")
         pair_totals = grammar_pair_totals(rows, dataset=args.dataset)
         result = {"schema": f"aura.semantic_native_grammar.{schema_version}",
@@ -718,6 +724,8 @@ def main():
             result["residual_calibration"] = body["residual_calibration"]
         if factorized is not None:
             result["factorized_residual"] = body["factorized_residual"]
+        if role_rule_fit is not None:
+            result["role_rule_evidence"] = body["role_rule_evidence"]
         _save_if_absent(args.directory / "report.json", {**result, "receipt_sha256": digest(result)})
         print(json.dumps({key: value for key, value in result.items() if key != "row_receipts"}), flush=True)
 

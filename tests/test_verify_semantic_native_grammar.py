@@ -17,6 +17,8 @@ from tools.verify_semantic_native_grammar import (
     verified_input_grounding,
     verified_pair_totals,
     verified_public_inputs,
+    verified_role_rule_bank,
+    verified_role_rule_decision,
     verified_source_window,
     verified_weight_mode,
     verify_grammar_row,
@@ -191,6 +193,74 @@ def test_causal_execution_receipt_requires_all_decisions_and_exact_total():
     with pytest.raises(ValueError, match="complete decisions"):
         verified_decision_score_execution(plan, report,
             [{**row, "decision_group_forwards": [1]}])
+
+
+def test_role_decision_receipt_is_recomputed_from_source_and_erasure():
+    from core.learning.semantic_native_grammar import NativeGrammarDecision
+    from core.learning.semantic_role_rule_induction import RoleObservation, induce_role_rules
+
+    source = "Subtract 4 from 32."
+    second = "Remove 5 from 40."
+    bank = induce_role_rules((
+        RoleObservation(source, (0, 8), ((16, 18), (9, 10)), "a", "sub"),
+        RoleObservation(second, (0, 6), ((14, 16), (7, 8)), "b", "sub"),
+    ))
+    choices = (NativeGrammarDecision("", (0, 0), 0, 0, 0, "sub"),
+               NativeGrammarDecision("", (0, 0), 1, 0, 0, "sub"))
+    plan = {"source_evidence": "source_text", "role_rule_evidence": {"strength": 2.}}
+    receipt = {"choices": [0, 1], "adjustments": [-2., 0.]}
+    verified_role_rule_decision(bank, plan, source, choices, receipt, input_count=2)
+    with pytest.raises(ValueError, match="role decision"):
+        verified_role_rule_decision(bank, plan, source, choices,
+            {**receipt, "adjustments": [0., -2.]}, input_count=2)
+    erased = {**plan, "source_evidence": "source_token_erasure"}
+    with pytest.raises(ValueError, match="role decision"):
+        verified_role_rule_decision(bank, erased, source, choices, receipt, input_count=2)
+    verified_role_rule_decision(bank, erased, source, choices,
+        {**receipt, "adjustments": [0., 0.]}, input_count=2)
+
+
+def test_role_aware_schema_requires_its_fit_and_preserves_old_schema_boundary(tmp_path):
+    from core.learning.semantic_role_rule_induction import RoleObservation, induce_role_rules
+    from core.runtime.file_write_gateway import get_file_write_gateway
+    from tools.evaluate_semantic_native_checkpoint import digest
+    from tools.fit_semantic_role_rule_bank import SCHEMA, _implementation
+
+    source = "Subtract 4 from 32."
+    other = "Remove 5 from 40."
+    bank = induce_role_rules((
+        RoleObservation(source, (0, 8), ((16, 18), (9, 10)), "a", "sub"),
+        RoleObservation(other, (0, 6), ((14, 16), (7, 8)), "b", "sub"),
+    ))
+    body = {"schema": SCHEMA, "native_training_plan_sha256": "plan",
+            "source_report_sha256": "report", "fit_source_sha256s": ["fit"],
+            "fit_sources": 1, "observations": 2, "minimum_constructions": 2,
+            "implementation": _implementation(), "bank": bank.to_dict(),
+            "serving_authority": False}
+    fit = {**body, "receipt_sha256": digest(body)}
+    path = tmp_path / "fit.json"
+    get_file_write_gateway().write_json(path, fit, schema_version=1,
+        schema_name=SCHEMA, source="test_verify_semantic_native_grammar")
+    contract = {"path": str(path), "receipt_sha256": fit["receipt_sha256"],
+                "strength": 2., "fit_sources": 1, "source_only": True,
+                "serving_authority": False}
+    plan = {"schema": "aura.semantic_native_grammar_plan.v14", "weight_mode": "fitted",
+            "search_mode": "best_first_then_complete_graph_score",
+            "role_rule_evidence": contract}
+    report = {"schema": "aura.semantic_native_grammar.v14", "weight_mode": "fitted",
+              "role_rule_evidence": contract}
+    training = {"plan_sha256": "plan", "source_report_sha256": "report",
+                "fit_ids": ["fit"]}
+    assert verified_weight_mode(plan, report) == "fitted"
+    assert verified_role_rule_bank(plan, report, training=training, sources=("held",)) == bank
+    with pytest.raises(ValueError, match="overlaps"):
+        verified_role_rule_bank(plan, report, training=training, sources=("fit",))
+    with pytest.raises(ValueError, match="contract"):
+        verified_role_rule_bank({**plan, "role_rule_evidence": {**contract, "strength": 0.}},
+                                report, training=training, sources=("held",))
+    with pytest.raises(ValueError, match="historical"):
+        verified_role_rule_bank({**plan, "schema": "aura.semantic_native_grammar_plan.v13"},
+                                report, training=training, sources=("held",))
 
 
 @pytest.mark.parametrize("mode", ["source_text", "source_token_erasure", "source_pair_swap"])

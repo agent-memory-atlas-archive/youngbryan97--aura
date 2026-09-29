@@ -1,5 +1,7 @@
 """Role rules are induced from relations, not numeric values or construction IDs."""
 
+from types import SimpleNamespace
+
 import pytest
 
 from core.learning.procedure_induction import Instruction, Program
@@ -219,3 +221,23 @@ def test_role_fit_receipt_is_bound_to_training_and_excludes_held_sources(tmp_pat
         read_role_rule_fit(path, training=training, held_source_sha256s=("fit",))
     with pytest.raises(ValueError, match="ancestry"):
         read_role_rule_fit(path, training={**training, "fit_ids": ["other"]})
+
+
+def test_coverage_preflight_reports_wrong_and_absent_bindings_without_model() -> None:
+    from tools.probe_semantic_role_coverage import cohort_coverage
+
+    bank = induce_role_rules((
+        _observation("Subtract 4 from 32.", "Subtract", "4", "32", "one"),
+        _observation("Remove 5 from 40.", "Remove", "5", "40", "two"),
+    ))
+    def example(source, args):
+        return SimpleNamespace(source_text=source, construction_id="held",
+            instructions=(SimpleNamespace(instruction=Instruction("sub", args)),))
+
+    cohort = cohort_coverage(bank, (
+        example("Subtract 7 from 31.", (1, 0)),
+        example("Subtract 9 from 20.", (0, 1)),
+        example("Find the difference between 9 and 20.", (0, 1)),
+    ))
+    assert (cohort["population"], cohort["correct"], cohort["wrong"],
+            cohort["abstain"]) == (3, 1, 1, 1)
