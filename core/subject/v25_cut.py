@@ -220,6 +220,13 @@ class SweepReport:
     #: Whether each anchor's arms were cross-fitted in one fold. See
     #: `crossfit_fisher_rao`: without it two identical samples read as apart.
     paired: bool = False
+    #: Which estimator decided these cuts, and whether a channel written twice
+    #: counted once. Both are preregistered and neither was recorded, so a sweep
+    #: under the old Fisher-Rao estimator was scored by `isc_v5.lines` exactly as
+    #: one under the paired displacement: nothing carried the name and nothing
+    #: checked it. `isc_v5._conforms` refuses a mismatch now.
+    estimator: str = ""
+    one_signal: bool = False
 
     @property
     def weakest(self) -> CutVerdict | None:
@@ -269,6 +276,8 @@ class SweepReport:
             "deciding": self.deciding,
             "stopped_after": self.stopped_after,
             "paired": self.paired,
+            "estimator": self.estimator,
+            "one_signal": self.one_signal,
             "irreducible": self.irreducible,
             "weakest_cut": None if weakest is None else weakest.name,
             "weakest_lower_bound": None if weakest is None else round(weakest.lower_bound, 6),
@@ -317,15 +326,19 @@ def merge_sweeps(shards: Sequence[dict[str, Any]], *, cuts_in_full: int) -> Swee
         (
             tuple(s.get("looks", ())), float(s.get("alpha_per_look", 0.05)), int(s.get("draws", 200)),
             bool(s.get("deciding", True)), bool(s.get("paired", False)),
+            # A merge of two estimators is two experiments, and reads as one.
+            str(s.get("estimator", "")), bool(s.get("one_signal", False)),
         )
         for s in shards
     }
     if len(designs) != 1:
         raise ValueError(f"shards were run to different designs: {sorted(designs)}")
-    looks, alpha_per_look, draws, deciding, paired = designs.pop()
+    looks, alpha_per_look, draws, deciding, paired, estimator, one_signal = designs.pop()
     return SweepReport(
         tau_seconds=float(shards[0]["tau_seconds"]),
         cuts_in_full=cuts_in_full,
+        estimator=estimator,
+        one_signal=one_signal,
         unscorable=sum(int(s.get("cuts_unscorable", 0)) for s in shards),
         verdicts=verdicts,
         undecided=sorted(v.name for v in verdicts if not v.decided) if deciding else [],
@@ -659,6 +672,7 @@ async def sweep_cuts_over_lags(
     paired: bool = False,
     kept: dict[str, dict[int, dict[str, np.ndarray]]] | None = None,
     estimator: str = "fisher_rao",
+    one_signal: bool = False,
 ) -> dict[int, SweepReport]:
     """Every bipartition at every horizon, from one set of rollouts per cut.
 
@@ -725,6 +739,8 @@ async def sweep_cuts_over_lags(
             draws=int(draws),
             deciding=lag in decides,
             paired=bool(paired),
+            estimator=str(estimator or ""),
+            one_signal=bool(one_signal),
         )
         for lag in ladder
     }

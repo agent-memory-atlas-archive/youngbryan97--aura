@@ -137,7 +137,9 @@ def _sweep(decided: int, **over) -> dict:
         "looks": list(isc_v5.LOOKS), "draws": isc_v5.DRAWS, "alpha_per_look": isc_v5.ALPHA / len(isc_v5.LOOKS),
         "deciding": True, "screened": False, "shard": "", "cuts_tested": 511, "cuts_in_full": 511,
         "cuts_decided": decided, "undecided": [] if decided == 511 else ["P|IAGCSMWDN"],
-        "playback_decided": 0, "paired": isc_v5.PAIRED, **over,
+        "playback_decided": 0, "paired": isc_v5.PAIRED,
+        # Both preregistered, and both refused when a sweep does not carry them.
+        "estimator": isc_v5.ESTIMATOR, "one_signal": isc_v5.ONE_SIGNAL, **over,
     }
 
 

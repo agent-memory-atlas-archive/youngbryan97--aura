@@ -144,6 +144,21 @@ def _conforms(sweep: Mapping[str, Any]) -> list[str]:
         problems.append("a screen of the cuts, which never decides the line")
     if sweep.get("shard"):
         problems.append(f"shard {sweep.get('shard')} on its own, not the merged sweep")
+    # The estimator and the one-signal rule are preregistered and were neither
+    # recorded nor checked, so a sweep decided by the Fisher-Rao estimator read
+    # here exactly as one decided by the paired displacement. A sweep from
+    # before either was recorded says nothing rather than saying the wrong
+    # thing, and is refused for that.
+    if str(sweep.get("estimator") or "") != ESTIMATOR:
+        problems.append(
+            f"decided by {sweep.get('estimator') or 'an estimator it did not record'}, "
+            f"not {ESTIMATOR}"
+        )
+    if bool(sweep.get("one_signal")) != ONE_SIGNAL:
+        problems.append(
+            "a channel written twice counted twice" if ONE_SIGNAL
+            else "a channel written twice counted once"
+        )
     return problems
 
 
