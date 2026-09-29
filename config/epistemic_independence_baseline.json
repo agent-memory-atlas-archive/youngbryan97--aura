@@ -1,12 +1,12 @@
 {
-  "description": "Comparisons whose threshold is derived, in the same function, from the value being compared. May only SHRINK. Each one is a mechanism that cannot fail.",
+  "description": "Comparisons whose threshold is derived, in the same function, from the value being compared. May only SHRINK. Every entry here was read and is a legitimate data-derived threshold rather than a defect: median binarisation, a threshold taken from a baseline window and applied to a response window, clustering tolerance from typical spacing, adaptive noise floors, a cut position inside a string, and a first-half against second-half trend test \u2014 which is how a trend test SHOULD be written and looks exactly like the defect. Do not 'fix' these. The gate exists to catch the shape when it is real: a bar set from the result it judges.",
   "count": 16,
   "sites": [
     "core/connectome/beyond.py::VariantTrial.as_json:528 [mean is an aggregate or rescaling of differences]",
-    "core/consciousness/closed_loop.py::SelfPredictiveCore.free_energy_trend:597 [first_half is an aggregate or rescaling of h]",
-    "core/consciousness/closed_loop.py::SelfPredictiveCore.free_energy_trend:597 [second_half is an aggregate or rescaling of h]",
-    "core/consciousness/closed_loop.py::SelfPredictiveCore.free_energy_trend:599 [first_half is an aggregate or rescaling of h]",
-    "core/consciousness/closed_loop.py::SelfPredictiveCore.free_energy_trend:599 [second_half is an aggregate or rescaling of h]",
+    "core/consciousness/closed_loop.py::SelfPredictiveCore.free_energy_trend:598 [first_half is an aggregate or rescaling of h]",
+    "core/consciousness/closed_loop.py::SelfPredictiveCore.free_energy_trend:598 [second_half is an aggregate or rescaling of h]",
+    "core/consciousness/closed_loop.py::SelfPredictiveCore.free_energy_trend:600 [first_half is an aggregate or rescaling of h]",
+    "core/consciousness/closed_loop.py::SelfPredictiveCore.free_energy_trend:600 [second_half is an aggregate or rescaling of h]",
     "core/consciousness/integrated_information.py::exact_state_phi:657 [med is an aggregate or rescaling of Xk]",
     "core/consciousness/perturbational_probe.py::PerturbationalProbe.run:373 [med is an aggregate or rescaling of baseline]",
     "core/engineering/draw/sheet.py::_findings_panel:292 [size is an aggregate or rescaling of canvas]",

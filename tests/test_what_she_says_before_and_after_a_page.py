@@ -22,7 +22,7 @@ from core.skills.sovereign_browser import SovereignBrowserSkill
 SAID = "I expect INTJ: I plan, and I would rather think alone."
 
 
-def _decision_prompt(monkeypatch, page, said_before=SAID) -> str:
+def _decision_prompt(monkeypatch, page, said_before=SAID, about_her=None) -> str:
     seen: list[str] = []
 
     class Router:
@@ -37,7 +37,11 @@ def _decision_prompt(monkeypatch, page, said_before=SAID) -> str:
         return "her mind"
 
     skill._assembled_mind = mind
-    asyncio.run(skill._decide_next_actions("take the test", page, [], None, said_before=said_before))
+    asyncio.run(
+        skill._decide_next_actions(
+            "take the test", page, [], None, said_before=said_before, about_her=about_her
+        )
+    )
     return seen[0]
 
 
@@ -58,7 +62,9 @@ def test_a_question_about_her_is_never_answered_with_her_forecast_in_view(monkey
             for v in range(1, 6)
         ],
     }
-    assert SAID not in _decision_prompt(monkeypatch, item)
+    # A decision about her is one the caller marks as such; the page's shape
+    # no longer makes the whole-page decision one.
+    assert SAID not in _decision_prompt(monkeypatch, item, about_her=True)
 
 
 def _delegated(monkeypatch, steps, context):
@@ -203,9 +209,13 @@ def test_each_question_decided_is_reported_as_progress(monkeypatch):
             for v in range(1, 4)
         ],
     }
+    from core.self import where_i_stand
+
+    # Every item measured first, then one pass of thinking per theme.
+    monkeypatch.setattr(where_i_stand, "themes_among", lambda names: [list(range(len(names)))])
     heard: list[str] = []
     asyncio.run(skill._answer_each_question("take the test", page, [], None, on_progress=heard.append))
-    assert heard == ["a question decided"] * 3
+    assert heard == ["a question measured"] * 3 + ["a theme thought about"]
 
     async def in_a_run():
         slot = a_place_to_report_it()

@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import math
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Mapping, Sequence
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     import mlx.core as mx
@@ -54,10 +55,14 @@ def native_path_risk_loss(losses: mx.array) -> mx.array:
     return mx.logsumexp(losses) - math.log(losses.shape[0])
 
 
-def native_grammar_path_objective(scorer, decisions, *, partner_decisions=None,
-                                  pair=None, typed_pairs=None, partners=None,
-                                  measured_scores=None, graph_keys=None,
-                                  measured_graph_scores=None) -> mx.array:
+def native_grammar_path_objective(scorer: Callable[[str], mx.array], decisions: Sequence[Any], *,
+                                  partner_decisions: Sequence[Any] | None = None,
+                                  pair: Mapping[str, Any] | None = None,
+                                  typed_pairs: Sequence[Mapping[str, Any]] | None = None,
+                                  partners: Mapping[str, Sequence[Any]] | None = None,
+                                  measured_scores: list[mx.array] | None = None,
+                                  graph_keys: tuple[str, ...] | None = None,
+                                  measured_graph_scores: list[mx.array] | None = None) -> mx.array:
     """Compete all weak choices and the source contrast on one loss scale.
 
     An operation-only source interaction must not receive the weight of an

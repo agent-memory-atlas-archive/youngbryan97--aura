@@ -570,6 +570,24 @@
       "disposition": "WIRE_PENDING",
       "lines": 48,
       "reason": "exposes ['get_timeline_engine', 'get_timeline']"
+    },
+    "core.cognition.semantic_source_consultation": {
+      "classified": "TEST_ONLY",
+      "disposition": "STAGED",
+      "lines": 155,
+      "reason": "reached only by tests/test_semantic_source_consultation.py: the local and model-assisted hypothesis sources for semantic development, which propose relations and never certify them; kept for the semantic-development path that has not been joined to a runtime caller"
+    },
+    "core.reasoning.procedure_value": {
+      "classified": "TEST_ONLY",
+      "disposition": "STAGED",
+      "lines": 182,
+      "reason": "reached only by tests/test_procedure_task_feedback.py and test_procedure_plan_alternatives.py: whole-task procedure feedback through the outcome/value learner, which needs an independent observed outcome that no runtime path supplies yet"
+    },
+    "core.skills.practising_in_a_world": {
+      "classified": "TEST_ONLY",
+      "disposition": "STAGED",
+      "lines": 91,
+      "reason": "reached only by tests/test_she_practises_on_her_own.py: SIMA 2's self-improvement loop (set a task, try it, let the world grade it, keep it), built from parts that each run; the play stack has no idle turn that starts a practice yet"
     }
   },
   "note": "Every unreachable module has a decision here. Defaults come from tools/triage_orphan_modules.py and are a starting point, not a verdict \u2014 change one and it is never overwritten by a re-run."

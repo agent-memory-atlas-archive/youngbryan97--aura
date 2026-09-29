@@ -3129,6 +3129,36 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   MLX contract test still handed the worker a model name after 768afe36f
   made a name a refused download, so the fake loader it asserts on was
   never reached.
+  2026-09-28, evening, at 9c571c94e. Five gates were red again, all from the
+  afternoon's pushes; four are green in this commit.
+  - module-size: a 14:50 lift had taken `_PlacesHerself` out of the browser
+    skill, and the self-report commits after it were written against the
+    file from before the lift. They restored its methods inline, so the base
+    class and its import disappeared, the class reached 36 methods and 2,020
+    lines, and the lifted module became dead code (reachability's one new
+    orphan). The current methods are lifted again, and the morphogenesis
+    claims come out of `model_validation` for the 16 lines the total was
+    over.
+  - typed-surface: eleven signatures in six modules, annotated from how each
+    parameter is used; two baseline rows for modules retired on 27 September
+    removed.
+  - epistemic-independence: H1 in `named_readings` is now judged through a
+    sealed criterion, its registered bar of zero separation, rather than a
+    bare inequality. Three geometric tolerances are restated in the object's
+    own units against a constant, and an image the detector enlarges has its
+    own name, so the scan no longer reads a patch size as a measurement of
+    the input. The listing of new sites ignores line numbers, and a rewrite
+    keeps the baseline's reviewed description, which an earlier rewrite had
+    dropped (its test was red on main for that reason).
+  - reachability: three modules no runtime path imports are recorded as
+    STAGED with what each waits for; the test-only count falls, 257 to 254.
+  - Three tests red on main were fixed on the way: the lost-question guard
+    in `_answer_each_question` was gone (one failing question discarded the
+    whole screen), and two tests still asserted that the page's shape
+    decides a question is about her, after 18:03 made that the caller's
+    call.
+  Still red: method-size, fourteen tracked functions that grew and four new
+  past 400 lines.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
   2026-09-22, a class, 76 sites in 51 files. `monkeypatch.setattr(module.time,

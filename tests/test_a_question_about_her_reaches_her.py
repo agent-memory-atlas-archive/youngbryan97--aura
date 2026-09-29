@@ -137,7 +137,42 @@ class TestEachQuestionIsItsOwnDecision:
         loop = inspect.getsource(SovereignBrowserSkill._handle_pursue)
         assert 'decision.get("resolved_actions")' in loop
 
-    def test_one_failed_item_does_not_lose_the_screen(self):
-        body = inspect.getsource(SovereignBrowserSkill._answer_each_question)
-        assert "return_exceptions=True" in body
-        assert "record_degradation" in body, "a lost question must be recorded"
+    def test_one_failed_item_does_not_lose_the_screen(self, monkeypatch):
+        """A question her record cannot be read against is left open, recorded,
+        and the other questions on the screen are still answered."""
+        import asyncio
+
+        from core.self import where_i_stand
+        from core.skills import sovereign_browser_understanding as understanding
+
+        first = [{"selector": "#a1", "name": "Disagree"}, {"selector": "#a2", "name": "Agree"}]
+        second = [{"selector": "#b1", "name": "Disagree"}, {"selector": "#b2", "name": "Agree"}]
+        recorded = []
+        skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
+
+        def measure(options):
+            if options is first:
+                raise RuntimeError("her record could not be read")
+            lean = where_i_stand.Lean(toward=0.8, first=0.1, second=0.9, because=("x",), measured=True)
+            return 1, lean, "Disagree", "Agree"
+
+        async def mind():
+            return ""
+
+        async def thinking(goal, theme, mind):
+            return {}
+
+        monkeypatch.setattr(skill, "_unanswered_questions", lambda _obs: [("q1", first), ("q2", second)])
+        monkeypatch.setattr(skill, "_measure_where_she_stands", measure)
+        monkeypatch.setattr(skill, "_assembled_mind", mind)
+        monkeypatch.setattr(skill, "_her_thinking_about", thinking)
+        monkeypatch.setattr(where_i_stand, "themes_among", lambda names: [[i] for i in range(len(names))])
+        monkeypatch.setattr(
+            understanding, "record_degradation", lambda subsystem, exc, **_k: recorded.append(subsystem)
+        )
+
+        decided = asyncio.run(skill._answer_each_question("answer it", {}, [], None))
+
+        chosen = [a["selector"] for a in decided["resolved_actions"]]
+        assert len(chosen) == 1 and chosen[0].startswith("#b"), chosen
+        assert "sovereign_browser.question" in recorded

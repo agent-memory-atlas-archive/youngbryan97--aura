@@ -1,6 +1,6 @@
 {
  "description": "Production modules that do not annotate every parameter and every return. This list may only SHRINK: tools/check_typed_surface.py fails on any unannotated module not listed here and refuses to add one.",
- "count": 1090,
+ "count": 1088,
  "untyped_modules": [
   "core/actuators/actuator_registry.py",
   "core/actuators/authority.py",
@@ -834,14 +834,12 @@
   "core/search/research_pipeline.py",
   "core/security/ast_guard.py",
   "core/security/audit_log.py",
-  "core/security/audit_trail.py",
   "core/security/conscience.py",
   "core/security/emergency_protocol.py",
   "core/security/ice_sentinel.py",
   "core/security/immune_system.py",
   "core/security/input_sanitizer.py",
   "core/security/integrity_guardian.py",
-  "core/security/output_guardrails.py",
   "core/security/permission_guard.py",
   "core/security/plugin_allowlist.py",
   "core/security/state_attestation.py",

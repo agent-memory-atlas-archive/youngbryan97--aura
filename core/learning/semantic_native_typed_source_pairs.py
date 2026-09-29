@@ -5,9 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from difflib import SequenceMatcher
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from core.learning.semantic_graph_counterexamples import (
     compare_program_meanings,
@@ -37,7 +37,7 @@ TYPED_SOURCE_PAIR_CONTRACT = {
 _KINDS = ("operation", "reference", "termination")
 
 
-def _shared_divergence(left, right):
+def _shared_divergence(left: Sequence[Any], right: Sequence[Any]) -> dict | None:
     for ordinal, (own, peer) in enumerate(zip(left, right, strict=False)):
         if (own.kind != peer.kind or tuple(choice.value for choice in own.choices)
                 != tuple(choice.value for choice in peer.choices)):

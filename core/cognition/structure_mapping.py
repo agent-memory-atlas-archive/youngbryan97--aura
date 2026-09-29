@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import itertools
 import random
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -239,7 +239,7 @@ _MAX_PREDICATE_READINGS = 4096
 def _candidate_alignments(
     source: Graph, target: Graph, max_objects: int, *,
     require_complete: bool = False,
-):
+) -> Iterator[Alignment]:
     source_objects, target_objects = source.objects, target.objects
     if not source_objects or not target_objects:
         return

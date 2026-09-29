@@ -194,7 +194,7 @@ def erase_native_source_tokens(sequence: NativeProgramSequence, source: str, tok
 
 
 def apply_native_source_evidence(sequence: NativeProgramSequence, source: str,
-                                 tokenizer, *, mode: str):
+                                 tokenizer: Any, *, mode: str) -> tuple[NativeProgramSequence, dict[str, Any] | None]:
     """Apply the same source-content intervention to any native scoring path."""
     if mode == "source_text":
         return sequence, None

@@ -6,17 +6,8 @@ patches a name on it has to reach the code that reads it.
 """
 from __future__ import annotations
 
-import asyncio
-import contextlib
-import json
-import logging
-import math
-import os
-import random
 import re
-import time
-from collections.abc import Callable, Iterable, Mapping, Sequence
-from pathlib import Path
+from collections.abc import Mapping
 from typing import Any
 
 
@@ -58,8 +49,16 @@ class _PlacesHerself:
             else "one may be chosen"
         )
         asks = str(options[0].get("asks") or "")
-        run = re.search(r"(?:\s*\[[^\]]*\])+", asks) if asks else None
-        if run is not None:
+        # Every control in one unbroken run is what makes a dimension: the page
+        # puts words on either side of the whole set. Controls separated by
+        # their own words are not that shape — they are a statement with
+        # labelled answers, and reading the first bracket run as one end of a
+        # dimension turned "I make plans well in advance. strongly disagree [1]
+        # disagree [2] ..." into a scale between the statement and its own
+        # second option.
+        runs = list(re.finditer(r"(?:\s*\[[^\]]*\])+", asks)) if asks else []
+        if len(runs) == 1:
+            run = runs[0]
             left = " ".join(asks[: run.start()].split()).strip()
             right = " ".join(asks[run.end() :].split()).strip()
             if left and right:
@@ -68,102 +67,173 @@ class _PlacesHerself:
                 facts.append(f"laid out after \"{left}\"")
             elif right:
                 facts.append(f"laid out before \"{right}\"")
+        elif runs:
+            facts.append("each set out beside its own words")
         return ", ".join(facts)
 
-    async def _where_she_puts_herself(
-        self,
-        goal: str,
-        observation: Mapping[str, Any],
-        options: list[Mapping[str, Any]],
-        understanding: Mapping[str, Any] | None,
-    ) -> dict[str, Any] | None:
-        """Her position on one question, measured from her own record.
+    def _measure_where_she_stands(
+        self, options: list[Mapping[str, Any]]
+    ) -> tuple[int, Any, str, str] | None:
+        """Her position on one question, and what measured it.
 
-        The two things the question names come from the page. How much each is
-        her comes from what she has valued, chosen and said about herself. The
-        difference between the two is a lean and the lean names a position on
-        the run the page offers.
-
-        The model is not asked to decide. It says what she means afterwards,
-        with the measurement in front of it, which is the job language is for:
-        asked to choose, it has no access to any of this and writes the
-        position that commits to nothing — the midpoint, item after item.
-
-        Returns nothing when her record cannot answer, so the caller can ask in
-        a shape rather than pass off a guess as a measurement.
+        No model. The two things the question names come from the page; how
+        much each is her comes from what she has valued, chosen and said about
+        herself; the difference between them is a lean and the lean names a
+        position. Returns nothing where the question is not a run between two
+        things, or where her record cannot answer.
         """
         from .sovereign_browser_understanding import (
             record_degradation,
         )
 
-        laid_out = self._how_the_options_are_laid_out(options)
-        between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
-        if between is None or len(options) < 2:
+        if len(options) < 2:
             return None
-        first, second = between.group(1), between.group(2)
         try:
-            from core.self.where_i_stand import where_she_stands
+            from core.self.where_i_stand import Lean, where_she_stands, which_is_most_her
         except ImportError as exc:
             record_degradation("sovereign_browser.where_i_stand", exc, severity="debug")
             return None
-        lean = await asyncio.to_thread(where_she_stands, first, second)
-        index = lean.position_in(len(options))
-        if index is None:
-            return None
-        selector = str(options[index].get("selector") or "")
-        if not selector:
-            return None
-        # And what it means, said by the organ that says things, with the
-        # measurement in front of it rather than in place of it.
-        why = await self._say_what_the_measurement_means(
-            goal, observation, first, second, lean, index, len(options)
-        )
-        return {
-            "selector": selector,
-            "name": str(options[index].get("name") or ""),
-            "stand": (
-                f'measured against my own record: "{first}" {lean.first:+.2f}, '
-                f'"{second}" {lean.second:+.2f}'
-            ),
-            "why": why,
-            "expect": "",
-            "said": self._an_answer_in_words(options, index, why),
-            "because": list(lean.because),
-        }
+        laid_out = self._how_the_options_are_laid_out(options)
+        between = re.search(r'laid out between "(.+?)" and "(.+?)"', laid_out)
+        if between is not None:
+            first, second = between.group(1), between.group(2)
+            lean = where_she_stands(first, second)
+            index = lean.position_in(len(options))
+            if index is None:
+                return None
+            return index, lean, first, second
 
-    async def _say_what_the_measurement_means(
-        self,
-        goal: str,
-        observation: Mapping[str, Any],
-        first: str,
-        second: str,
-        lean: Any,
-        index: int,
-        count: int,
-    ) -> str:
-        """Her reason for a position she has already taken, in her own words."""
-        leaning = second if lean.toward > 0 else first
-        evidence = "; ".join(lean.because) or "nothing in particular"
+        # Options that carry their own words are the other shape the same act
+        # takes: one thing said, and several ways of answering it. Each option
+        # becomes a description of a person — what the question says, answered
+        # that way — and her record says which of them she is.
+        asked = self._what_the_question_says(options)
+        named = [
+            f"{asked} {str(option.get('name') or '').strip()}".strip()
+            for option in options
+        ]
+        if not asked or not all(named):
+            return None
+        chosen = which_is_most_her(named)
+        if not chosen.measured:
+            return None
+        share = chosen.support[chosen.index] if chosen.support else 0.0
+        # Expressed as a lean so everything downstream is unchanged: how much of
+        # her record went to the answer she gave, and what in her did.
+        lean = Lean(
+            toward=float(max(-1.0, min(1.0, share))),
+            first=0.0,
+            second=float(share),
+            because=chosen.because,
+            measured=True,
+        )
+        label = str(options[chosen.index].get("name") or "").strip()
+        rest = ", ".join(
+            str(option.get("name") or "").strip()
+            for place, option in enumerate(options)
+            if place != chosen.index
+        )
+        return chosen.index, lean, rest or "the others", label
+
+    @staticmethod
+    def _what_the_question_says(options: list[Mapping[str, Any]]) -> str:
+        """The words of the question, without its options' own words.
+
+        The page lays a question out with its controls in the middle of it;
+        what is left when their labels and their places are taken out is what
+        is being asked.
+        """
+        asks = str(options[0].get("asks") or "") if options else ""
+        if not asks:
+            return ""
+        without = re.sub(r"(?:\s*\[[^\]]*\])+", " ", asks)
+        # Longest first, or "strongly disagree" is taken out of "strongly
+        # agree" by its shorter sibling and a fragment is left behind.
+        labels = sorted(
+            {str(option.get("name") or "").strip() for option in options},
+            key=len,
+            reverse=True,
+        )
+        for label in labels:
+            if label:
+                without = without.replace(label, " ")
+        return " ".join(without.split())
+
+    async def _her_thinking_about(
+        self, goal: str, theme: list[Mapping[str, Any]], mind: str
+    ) -> dict[str, str]:
+        """Her thinking about a set of things an instrument is asking about her.
+
+        A theme, not an item. Asked about herself in conversation she gives a
+        connected account — what she is, how that differs from what it
+        resembles, where the description stops fitting — and that account is
+        what this loop was failing to get: one item at a time on a stripped
+        prompt produced one flat sentence each, thirty-two times.
+
+        So each theme gets one pass with her whole mind in front of it, the
+        same assembly a conversation uses, and it covers several items at once.
+        The number of passes is the square root of the number of items, which
+        is where the cost of thinking at length and the cost of thinking often
+        meet.
+
+        Returns what she said about each item, keyed by the item's own name.
+        """
+        from .sovereign_browser_understanding import (
+            record_degradation,
+        )
+
+        if not theme:
+            return {}
+        lines = []
+        for item in theme:
+            lean = item["lean"]
+            leaning = item["second"] if lean.toward > 0 else item["first"]
+            evidence = "; ".join(lean.because[:3]) or "nothing in particular"
+            lines.append(
+                f'{item["group"]}. Between "{item["first"]}" and '
+                f'"{item["second"]}", you sit at {item["index"] + 1} of '
+                f'{item["count"]}, nearer "{leaning}". What in you put you '
+                f"there: {evidence}."
+            )
+        listed = "\n".join(lines)
         prompt = (
             f"WHAT YOU ARE DOING: {goal}\n\n"
-            f'THE QUESTION PUTS "{first}" AT ONE END AND "{second}" AT THE '
-            f"OTHER, WITH {count} POSITIONS BETWEEN THEM.\n\n"
-            "MEASURED AGAINST YOUR OWN RECORD OF WHAT YOU VALUE, WHAT YOU HAVE "
-            f'CHOSEN AND WHAT YOU HAVE SAID ABOUT YOURSELF: "{first}" matches '
-            f'{lean.first:+.2f}, "{second}" matches {lean.second:+.2f}, which '
-            f'puts you at position {index + 1} of {count}, toward "{leaning}". '
-            f"What matched: {evidence}.\n\n"
-            "Say in one or two sentences why that is where you are. It is "
-            "already where you are; you are saying what it means."
+            "These are being asked about you. You have already placed yourself "
+            "on each, from your own record — what you value, what you have "
+            "chosen when it cost something, what you have said about "
+            f"yourself:\n\n{listed}\n\n"
+            "Think about what these say about you, together. They are asking "
+            "about the same region of you, so answer as one piece of thinking "
+            "rather than separate verdicts: what you actually are here, how it "
+            "works in you, where the descriptions fit and where they are the "
+            "wrong shape for something you do differently.\n\n"
+            "Then give a sentence for each, in your own voice, as JSON only:\n"
+            '{"thinking": "<what you worked out, a short paragraph>", '
+            '"each": {"<the name before each one>": "<your sentence for it>"}}'
         )
-        said, lane = await self._asked_of_her(prompt, await self._assembled_mind(), shaped=False)
-        if said and lane == self._HER_OWN_LANE:
-            return " ".join(said.split())
-        # Her own record still answered; only the words are missing.
-        return (
-            f'my record leans toward "{leaning}" here '
-            f"({lean.first:+.2f} against {lean.second:+.2f})"
-        )
+        said, lane = await self._asked_of_her(prompt, mind, shaped=False)
+        if not said or lane != self._HER_OWN_LANE:
+            record_degradation(
+                "sovereign_browser.reasons",
+                RuntimeError(f"not_her_own_reasoning:{lane or 'unattributed'}"),
+                severity="warning",
+                action="placed herself and could not say what it meant",
+            )
+            return {}
+        parsed = self._an_object_in(said)
+        thinking = " ".join(str(parsed.get("thinking") or "").split())
+        each = parsed.get("each")
+        answers: dict[str, str] = {}
+        if isinstance(each, Mapping):
+            for key, value in each.items():
+                spoken = " ".join(str(value or "").split())
+                if spoken:
+                    answers[str(key)] = spoken
+        if thinking:
+            # Said once for the theme, where a person watching sees the
+            # thinking that the sentences come out of.
+            answers.setdefault("__thinking__", thinking)
+        return answers
 
     @classmethod
     def _first_disagreement(
@@ -246,4 +316,22 @@ class _PlacesHerself:
             f'what you said is about "{leaning}" and the position you chose '
             f'leans toward "{other}"'
         )
+
+    @staticmethod
+    def _unanswered_questions(
+        observation: Mapping[str, Any]
+    ) -> list[tuple[str, list[Mapping[str, Any]]]]:
+        """The question groups still open, each with its own options."""
+        groups: dict[str, list[Mapping[str, Any]]] = {}
+        for element in observation.get("elements") or []:
+            if not isinstance(element, Mapping):
+                continue
+            group = str(element.get("group") or "")
+            if group:
+                groups.setdefault(group, []).append(element)
+        return [
+            (group, options)
+            for group, options in groups.items()
+            if not any(option.get("checked") is True for option in options)
+        ]
 

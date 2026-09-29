@@ -28,6 +28,7 @@ import argparse
 import ast
 import json
 import pathlib
+import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -299,10 +300,13 @@ def main() -> int:
         if len(findings) > limit and BASELINE.exists():
             print(f"❌ refusing to raise the baseline from {limit} to {len(findings)}.")
             return 1
+        # The description is kept: it records that these entries were read
+        # and judged legitimate, which is what stops the next reader
+        # "fixing" a correct trend test.
         BASELINE.write_text(
             json.dumps(
                 {
-                    "description": (
+                    "description": baseline.get("description") or (
                         "Comparisons whose threshold is derived, in the same "
                         "function, from the value being compared. May only "
                         "SHRINK. Each one is a mechanism that cannot fail."
@@ -319,7 +323,14 @@ def main() -> int:
         return 0
 
     if len(findings) > limit:
-        new = sorted(set(findings) - set(baseline.get("sites", [])))
+        # A site is its file, function and finding. The line is only where it
+        # sits today: keyed by line, an edit above an old site listed it here
+        # as new, and the real newcomers were hidden among the moved ones.
+        def unplaced(site: str) -> str:
+            return re.sub(r":\d+ \[", " [", site)
+
+        known = {unplaced(site) for site in baseline.get("sites", [])}
+        new = sorted(site for site in findings if unplaced(site) not in known)
         print(f"❌ {len(findings) - limit} new self-referential criteria:")
         for item in new[:20]:
             print(f"   • {item}")

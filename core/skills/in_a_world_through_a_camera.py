@@ -31,9 +31,12 @@ import asyncio
 import time
 from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from core.perception.how_wide_the_view_is import HowWideTheViewIs
 
 from core.agency.going_to_what_she_sees import GoingTo, seen_named
 from core.agency.what_hands_do import Chunk, Slot
@@ -194,7 +197,7 @@ async def measure_view(
     *,
     slot_s: float,
     most_turns: int = 240,
-):
+) -> HowWideTheViewIs:
     """Own the actions used by the perception-only field-of-view measurement."""
     from core.perception.how_wide_the_view_is import turn_all_the_way_round
 

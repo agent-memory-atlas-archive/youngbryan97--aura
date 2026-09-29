@@ -286,15 +286,33 @@ def check_families(report: dict[str, Any]) -> dict[str, Any]:
     if within is None or to_loss is None or to_frustration is None:
         return {"measured": False, "passes": None, "why": "a family pair has no measured distance"}
     floor = max((float(v) for v in (report.get("internal_floor") or {}).values()), default=0.0)
+    # How much farther the nearer other family is than warmth is from itself.
+    # Both registered inequalities hold exactly when this is above zero.
+    separation = min(to_loss, to_frustration) - within
     return {
         "measured": True,
         "within_warmth": round(within, 6),
         "warmth_to_loss": round(to_loss, 6),
         "warmth_to_frustration": round(to_frustration, 6),
         "internal_floor": round(floor, 6),
-        "margins_clear_the_floor": bool(to_loss - within > floor and to_frustration - within > floor),
-        "passes": bool(within < to_loss and within < to_frustration),
+        "margins_clear_the_floor": bool(separation > floor),
+        "passes": _h1_criterion().judge(separation).passed,
     }
+
+
+def _h1_criterion() -> Any:
+    """H1's bar, sealed: zero separation, as it was registered before any run."""
+    from core.verify.epistemic_independence import declare
+
+    return declare(
+        "subject.h1.warmth_nearer_itself",
+        threshold=0.0,
+        rationale=(
+            "H1 as registered: the warmth kinds sit nearer one another than to "
+            "loss and to frustration, so the bar is any separation above zero; "
+            "fixed in the registration, before a content run was read"
+        ),
+    )
 
 
 # ── H4: a being of drives alone, read off a campaign's nulls ───────────────

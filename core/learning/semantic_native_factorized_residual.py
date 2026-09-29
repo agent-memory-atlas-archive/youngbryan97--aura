@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from itertools import product
+from typing import Any
 
 from core.learning.procedure_induction import PRIMITIVES_BY_NAME
 from core.learning.semantic_native_path_calibration import native_path_profile, native_path_totals
@@ -23,7 +24,7 @@ FACTORIZED_RESIDUAL_CONTRACT = {
 }
 
 
-def validated_kind_scales(scales):
+def validated_kind_scales(scales: dict[str, float]) -> dict[str, float]:
     if (not isinstance(scales, dict) or set(scales) != set(DECISION_KINDS)
             or any(type(value) not in {int, float} or not math.isfinite(value)
                    or not 0. <= value <= 1. for value in scales.values())):
@@ -31,7 +32,7 @@ def validated_kind_scales(scales):
     return {kind: float(scales[kind]) for kind in DECISION_KINDS}
 
 
-def native_competition_kind(choices):
+def native_competition_kind(choices: tuple[Any, ...]) -> str:
     """Read the existing grammar's disjoint atom types, never the source wording."""
     if not isinstance(choices, tuple) or not choices:
         raise ValueError("native factorization needs a nonempty typed competition")
@@ -57,7 +58,7 @@ def native_competition_kind(choices):
     raise ValueError("native factorization received mixed or undeclared grammar atoms")
 
 
-def matched_residual_paths(rows_by_scale, sources):
+def matched_residual_paths(rows_by_scale: dict[float, list[dict]], sources: list[str]) -> list[dict]:
     """Keep every source, alternative, and source-positive index identical."""
     if (not isinstance(rows_by_scale, dict) or len(rows_by_scale) < 2 or 0. not in rows_by_scale
             or any(type(scale) not in {int, float} or not math.isfinite(scale)
@@ -78,7 +79,8 @@ def matched_residual_paths(rows_by_scale, sources):
     return baseline
 
 
-def factorized_paths(rows_by_scale, sources, scales):
+def factorized_paths(rows_by_scale: dict[float, list[dict]], sources: list[str],
+                     scales: dict[str, float]) -> list[dict]:
     """Replay measured conditional scores; no numeric interpolation is performed."""
     scales = validated_kind_scales(scales)
     if any(scale not in rows_by_scale for scale in scales.values()):
@@ -90,7 +92,7 @@ def factorized_paths(rows_by_scale, sources, scales):
         for index, (source, row) in enumerate(zip(sources, baseline, strict=True))]
 
 
-def factorized_residual_admission(rows_by_scale, sources):
+def factorized_residual_admission(rows_by_scale: dict[float, list[dict]], sources: list[str]) -> dict:
     baseline = matched_residual_paths(rows_by_scale, sources)
     exact_base = {row["source"] for row in baseline
                   if native_path_profile(row["decisions"])["exact_teacher_path"]}

@@ -68,8 +68,12 @@ def reads_as_a_thing(region: dict[str, Any]) -> bool:
         return False
     wide = float(region.get("width", 0.0))
     left = float(region.get("x", float(region.get("center_x", 0.5)) - wide / 2.0))
-    half_a_letter = wide / max(1, len(said)) / 2.0
-    return left > half_a_letter and left + wide < 1.0 - half_a_letter
+    letter = wide / max(1, len(said))
+    if letter <= 0.0:
+        return 0.0 < left < 1.0
+    # Clear of both edges by more than half a letter of its own writing:
+    # a word the edge cuts into is part of something that goes on past it.
+    return min(left, 1.0 - (left + wide)) / letter > 0.5
 
 
 def seen_named(layout: Sequence[dict[str, Any]], named: str) -> list[Sighting]:
@@ -254,9 +258,11 @@ class GoingTo:
         sight = seen[0]
         off = self._where_it_will_be(sight) - 0.5
         self._last = sight.across
-        # In front means inside its own width of the middle: a wide thing is
-        # faced sooner than a narrow one, and nothing here picks a tolerance.
-        if abs(off) > max(sight.wide / 2.0, 1e-3):
+        # In front means the middle of the view falls inside it: measured in
+        # its own widths, it is off to one side past half of one. A wide
+        # thing is faced sooner than a narrow one, and nothing here picks a
+        # tolerance.
+        if abs(off) / max(sight.wide, 2e-3) > 0.5:
             travel = self.turn_for(-off)
             # Once it has been walked toward, she keeps walking as she turns,
             # the way a person runs and steers at once: anything in view is

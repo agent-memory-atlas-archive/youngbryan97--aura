@@ -88,10 +88,11 @@ def looks_like(frame: Any, example: Any, *, name: str) -> dict | None:
     # almost no inside to find features in: 15 at 96 pixels, 353 at 192.
     # Smaller than four patches across, it is scaled up to four.
     across = 4 * orb.getPatchSize()
+    described = wanted
     if min(wanted.shape) < across:
         scale = across / float(min(wanted.shape))
-        wanted = cv2.resize(wanted, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
-    kp_wanted, des_wanted = orb.detectAndCompute(wanted, None)
+        described = cv2.resize(wanted, None, fx=scale, fy=scale, interpolation=cv2.INTER_LINEAR)
+    kp_wanted, des_wanted = orb.detectAndCompute(described, None)
     kp_seen, des_seen = orb.detectAndCompute(seen, None)
     if des_wanted is None or des_seen is None or len(kp_seen) < 2:
         return None
@@ -104,7 +105,7 @@ def looks_like(frame: Any, example: Any, *, name: str) -> dict | None:
     homography, inliers = cv2.findHomography(source, target, cv2.RANSAC)
     if homography is None or inliers is None or int(inliers.sum()) < _A_HOMOGRAPHY:
         return None
-    high, wide = wanted.shape
+    high, wide = described.shape
     corners = np.float32([[0, 0], [wide, 0], [wide, high], [0, high]]).reshape(-1, 1, 2)
     placed = cv2.perspectiveTransform(corners, homography).reshape(-1, 2)
     box = (placed[:, 0].min(), placed[:, 1].min(), placed[:, 0].max(), placed[:, 1].max())
