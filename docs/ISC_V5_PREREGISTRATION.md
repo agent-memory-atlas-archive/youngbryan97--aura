@@ -1348,3 +1348,29 @@ the same 20 classes, as before.
 A result either way is read as the structure term's reading on seed 7. If the
 agreement clears 0.3 and moves-together does not, the verdict is
 AGREES_BUT_DOES_NOT_TRACK and the displacement is the next thing to build for.
+
+## Addendum, 28 September 2026, evening: the arms as they will run
+
+Named before any arm runs. The code is at `0675c4217`, which holds the fork and
+clamp fixes, the paired estimator, the membrane taken from her own state, the
+relay heard in each field's own units, and the null table across processes.
+
+| arm | membrane | workspace pool | dominance | relay |
+|---|---|---|---|---|
+| control | off | off | off | off |
+| relay | off | off | off | 0.35 |
+| carried | on | off | off | off |
+| joined | off | on | on | off |
+
+The afferent filter is the instrument's and is off in every arm. The relay was
+corrected before it ran: each domain's numbers were squashed raw, so C, N, P and
+D sat at 1.0 and contributed a fixed pattern; each field is now read in units of
+its own spread and a field that has only ever grown is left out.
+
+The four run at once, seed 7, 370 rounds, six trials, three-turn arms, nothing
+skipped, after the reports ground releases the machine
+(`~/.aura/subject_core/scratch/arms_parallel.sh`). Every paired stage runs with
+the free loops stopped and a declared host, so the load the four share reaches
+each the same way. A criterion that moves in an arm and not the control is
+credited to that arm's mechanism; the control is also the first battery reading
+with every fork and estimator fix of today in it.
