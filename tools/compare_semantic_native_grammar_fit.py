@@ -169,8 +169,11 @@ def main():
     parser.add_argument("--base-directory", required=True, type=Path)
     parser.add_argument("--training-directory", required=True, type=Path)
     parser.add_argument("--erasure-directory", type=Path)
+    parser.add_argument("--relation-controls-directory", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
+    if args.relation_controls_directory is not None and args.erasure_directory is None:
+        parser.error("relation controls require the preceding matched source-erasure stage")
     from tools.evaluate_semantic_native_checkpoint import digest, verified_document
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
     from tools.refit_semantic_argument_proposals import configure_refit_environment
@@ -223,6 +226,21 @@ def main():
     if erasure is not None:
         body["erasure_report_receipt_sha256"] = erasure_verification["report_receipt_sha256"]
         body["source_intervention"] = erasure
+    if args.relation_controls_directory is not None:
+        from tools.semantic_native_relation_transfer import adjudicate_native_relation_transfer
+
+        controlled_verification = verify_grammar(args.relation_controls_directory,
+                                                args.training_directory)
+        controlled_plan = verified_document(args.relation_controls_directory / "plan.json", "plan_sha256")
+        controlled_rows = [verified_document(args.relation_controls_directory / "rows" / f"{source}.json")
+                           for source in controlled_plan["sources"]]
+        reference_rows = [verified_document(args.fitted_directory / "rows" / f"{source}.json")
+                          for source in plans[0]["sources"]]
+        body["schema"] = "aura.native_grammar_fit_comparison.v4"
+        body["relation_controls_report_receipt_sha256"] = controlled_verification["report_receipt_sha256"]
+        body["relation_transfer"] = adjudicate_native_relation_transfer(
+            plans[0], controlled_plan, verifications[0], controlled_verification,
+            reference_rows, controlled_rows)
     result = {**body, "receipt_sha256": digest(body)}
     _save_if_absent(args.output, result)
     print(json.dumps(result, sort_keys=True))

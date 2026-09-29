@@ -8,6 +8,61 @@ The [retained-constraint design](G_SEMANTIC_CONSTRAINT_DESIGN.md) derives the
 bounded correctness conditions and separates numerical fitting, capacity
 expansion and fresh transfer. It adds no new master-ledger identifiers.
 
+## Current promotion path, 2026-09-28
+
+One v7 candidate follows the stages below in order. The model-active fit is
+running detached from its frozen source checkout. Mechanical checks of the
+grammar, evaluator, and verifier have passed; neither micro-probe has generated
+a v7 outcome yet. These are different evidence classes.
+
+| Stage | Current state | Required result before advancing |
+| --- | --- | --- |
+| Fit and independent replay | Running | Complete source-only schedule, exact model/source identities, checked weights, and replayed calibration selection. No held answers used to select a checkpoint. |
+| Three unseen-construction requests | Not run | The [frozen target-blind protocol](evidence/G04_V7_TARGET_BLIND_MICRO_PROTOCOL_2026-09-28.md), with fitted, base, and fitted source-erasure arms. Report all three interpretations and controls individually. |
+| Nine relation controls | Not run | The [mechanism micro-probe](evidence/G04_V7_RELATION_MECHANISM_MICRO_PROTOCOL_2026-09-28.md) reuses the three reference results and tests paraphrase invariance, role reversal, and dependency changes. All nine must recover the intended graph and public value, with no forced completion. |
+| Six retained development requests | Not run | The [frozen source-held protocol](evidence/G03_V7_MICRO_PROBE_PROTOCOL_2026-09-28.md), with the same three arms. Report baseline successes and losses, not only the fitted total. |
+| Full development bank | Not run | All three micro cohorts must be entirely exact with correct public values, zero lost baseline-exact procedures, no forced completions, complete independent verification, and at least one new exact procedure showing source dependence. Then measure all 500 development requests under frozen matched budgets. No micro outcome closes G03. |
+| Fresh transfer and controls | Not run | Freeze the development-selected candidate; satisfy the original G04-G08 construction, vocabulary, depth, family, causal-control, power, contamination, and verification requirements. |
+| Public and live qualification | Not run for this candidate | Satisfy G05 and current-model G10-G11. Prove ordinary public answers, materialization or fusion, rollback, and eligible live use. Historical activation cannot qualify v7. |
+| Broad and frontier measurement | Not run for this candidate | Satisfy G09 and G12 on independent broad tasks and named current baselines with fair tool/resource accounting. Bounded integer-procedure success is not this claim. |
+
+The micro launch bar is stricter than the protocols' criterion for reporting
+one bounded gain. A single exact gain remains useful evidence even when the
+cohort is not ready for a full run. It must not be called full cohort success.
+
+Stage receipts are immutable and bound to the candidate, source population,
+code, model, and budget. For the same identities, a passed stage is reused,
+not decoded again. A later failure stays at the later stage. A repair that
+changes an identity creates a new candidate and requires only the affected
+acceptance and regression checks; the earlier evidence remains valid for the
+earlier candidate and must not be relabeled as proof of the changed one.
+
+For each target-blind miss, retain one of these causal diagnoses:
+
+1. The intended graph was absent from the generated proposals: interpretation
+   or bounded search reach failed. A ranking change cannot repair an absent graph.
+2. The intended graph was generated but lost whole-graph selection: ranking
+   failed. Preserve every proposal, score and source-token receipt.
+3. The selected graph was exact but its answer or public emission was wrong:
+   execution or output integration failed. Do not retrain interpretation to
+   hide this boundary.
+4. A gain survived source erasure unchanged: exactness was measured, but that
+   observation does not establish source-dependent interpretation.
+
+Correct primitive semantics and semantics-preserving composition support an
+inductive executor proof. Three correctly interpreted requests prove those
+three interpretations; they do not establish a universal learned compiler.
+The larger transfer test therefore remains a substantive test of coverage and
+generalization, not merely a longer repetition of the same computation.
+
+Search receipts now retain scores for discarded branches and source-token
+receipts for whole-graph selection. The independent verifier reconstructs
+search and selection from those saved scores. It checks numerical
+self-consistency and source binding; it does not independently recompute the
+model's logits. Use `tools/compare_semantic_native_grammar_fit.py` with
+`--erasure-directory` for one matched three-arm adjudication. Its bounded
+micro-gain verdict grants no serving, broad-gain or general-transfer authority.
+
 ## Implementation and acceptance
 
 - [x] S01 Capacity certificates. Convert frozen score comparisons into linear

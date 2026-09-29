@@ -1235,7 +1235,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Exact-contract activation validates; composition remains shadow-only.
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
-- [ ] G03 Close learned semantic binding/composition failures on development
+- [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Current linear promotion path](G_SEMANTIC_REFINEMENT_WORKPLAN.md#current-promotion-path-2026-09-28)
+  separates fit, three-case unseen-construction, nine relation-control, and
+  six-case source-held probes, full development, fresh transfer, live
+  qualification, and broad comparisons. Mechanical passes are not generated
+  capability results.
   [V7 six-source micro-probe protocol](evidence/G03_V7_MICRO_PROBE_PROTOCOL_2026-09-28.md)
   freezes a target-blind fitted/base/erasure comparison before the model-active
   fit. The protocol has no generated outcome and grants no promotion.
@@ -1992,6 +1997,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   51/60. The candidate is not promoted; component attribution continues.
 - [ ] G04 Demonstrate held-out construction, vocabulary, depth, and family
   transfer; separate neural computation from executable-system assistance.
+  [V7 relation mechanism protocol](evidence/G04_V7_RELATION_MECHANISM_MICRO_PROTOCOL_2026-09-28.md)
+  adds nine fixed paraphrase, role, and dependency controls to the three
+  reference requests. No v7 generated outcome is available yet; this is a
+  bounded mechanism diagnostic, not general-transfer qualification.
   [V7 three-source target-blind protocol](evidence/G04_V7_TARGET_BLIND_MICRO_PROTOCOL_2026-09-28.md)
   freezes one new source per withheld three-step domain before the v7 fit
   completes. No generated result or G04 closure follows from preflight.

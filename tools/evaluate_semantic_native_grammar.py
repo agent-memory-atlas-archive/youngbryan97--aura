@@ -64,6 +64,12 @@ def grammar_examples(*, dataset, seed, count):
         )
         ordered = tuple(examples[index] for sample in range(24) for index in
                         (sample, sample + 24, sample + 48))
+    elif dataset == "relation_transfer_controls":
+        from tools.semantic_native_relation_transfer import build_native_relation_transfer
+
+        ordered = tuple(case.controlled for case in build_native_relation_transfer(seed=seed))
+        if count != len(ordered):
+            raise ValueError("native relation transfer needs all nine controlled requests")
     elif dataset in INTERVENTION_DATASETS:
         if dataset == "operation_intervention":
             from tools.semantic_native_operation_interventions import (
@@ -186,7 +192,8 @@ def main():
     parser.add_argument("--source-evidence", choices=("source_text", "source_token_erasure",
                                                       "source_pair_swap"),
                         default="source_text")
-    parser.add_argument("--dataset", choices=("natural_request", *sorted(INTERVENTION_DATASETS | RETAINED_DATASETS)),
+    parser.add_argument("--dataset", choices=("natural_request", "relation_transfer_controls",
+                                            *sorted(INTERVENTION_DATASETS | RETAINED_DATASETS)),
                         default="natural_request")
     parser.add_argument("--source-report", type=Path)
     parser.add_argument("--bundle", action="append")
@@ -198,7 +205,7 @@ def main():
         parser.error("finite depth, population, and runtime bounds required")
     if not 0 <= args.search_completions <= 128 or not 1 <= args.search_nodes <= 100000:
         parser.error("finite search node and completion bounds required")
-    if args.dataset in INTERVENTION_DATASETS and args.seed is None:
+    if args.dataset in INTERVENTION_DATASETS | {"relation_transfer_controls"} and args.seed is None:
         parser.error("operation interventions require an explicit frozen seed")
     if args.dataset in RETAINED_DATASETS:
         if args.source_report is None or not args.bundle or args.seed is not None:
@@ -295,6 +302,11 @@ def main():
     if args.dataset in {"role_intervention", "dependency_intervention"}:
         paths += ("tools/semantic_native_graph_interventions.py",
                   "tools/semantic_native_paraphrase_interventions.py")
+    if args.dataset == "relation_transfer_controls":
+        paths += ("tools/semantic_native_relation_transfer.py",
+                  "tools/semantic_native_graph_interventions.py",
+                  "tools/semantic_native_paraphrase_interventions.py",
+                  "tools/semantic_native_operation_interventions.py")
     if args.dataset in RETAINED_DATASETS:
         paths += ("tools/semantic_native_retained_sources.py",
                   "core/learning/semantic_program_feature_materialization.py")
@@ -325,6 +337,8 @@ def main():
         schema_version = "v9"
     if factorized is not None:
         schema_version = "v10"
+    if args.dataset == "relation_transfer_controls":
+        schema_version = "v11"
     body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": scored_checkpoint["receipt_sha256"],

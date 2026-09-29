@@ -303,7 +303,7 @@ def verify_source_separation(training, source_report_path, bundles, target_examp
 
 def verified_weight_mode(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    if (version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"}
+    if (version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11"}
             or plan["schema"] != f"aura.semantic_native_grammar_plan.{version}"
             or report.get("schema") != f"aura.semantic_native_grammar.{version}"):
         raise ValueError("native grammar schema versions differ")
@@ -321,7 +321,7 @@ def verified_weight_mode(plan, report):
 
 def verified_input_grounding(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    expected = ("semantic_public_character_inputs.v1" if version in {"v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"}
+    expected = ("semantic_public_character_inputs.v1" if version in {"v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11"}
                 else "declared_public_inputs")
     if (plan.get("input_grounding") != expected
             or report.get("input_grounding") != plan["input_grounding"]):
@@ -341,6 +341,8 @@ def verified_dataset(plan, report):
                else {"natural_request", "operation_intervention"})
     if version == "v5":
         allowed = {"role_intervention", "dependency_intervention"}
+    if version == "v11":
+        allowed = {"relation_transfer_controls"}
     if version == "v7":
         allowed = {"operation_intervention", "definition_intervention", "equation_intervention",
                    "role_intervention", "dependency_intervention"}
@@ -420,6 +422,12 @@ def verified_examples(plan, *, dataset, seed):
         )
         ordered = tuple(corpus[index] for sample in range(24)
                         for index in (sample, sample + 24, sample + 48))
+    elif dataset == "relation_transfer_controls":
+        from tools.semantic_native_relation_transfer import build_native_relation_transfer
+
+        ordered = tuple(case.controlled for case in build_native_relation_transfer(seed=seed))
+        if count != len(ordered):
+            raise ValueError("native relation transfer needs its complete controlled inventory")
     else:
         from tools.semantic_native_operation_interventions import (
             build_native_operation_interventions,
@@ -637,7 +645,7 @@ def verify_grammar(directory, training_directory):
         if ("source_evidence" in plan and row.get("scored_source_sha256")
                 != hashlib.sha256(scored_source.encode()).hexdigest()):
             raise ValueError("native grammar scored source differs")
-        if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8", ".v9", ".v10")):
+        if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8", ".v9", ".v10", ".v11")):
             from core.learning.semantic_public_inputs import semantic_public_character_inputs
 
             receipt = semantic_public_character_inputs(example.source_text).receipt()
@@ -704,7 +712,7 @@ def verify_grammar(directory, training_directory):
               "answer_correct": sum(correct for _, correct in outcomes),
               "bound_forced_completion": sum(row["bound_forced_completion"] for row in rows),
               "depth_bound_reached": sum(row["depth_bound_reached"] for row in rows)}
-    if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8", ".v9", ".v10")):
+    if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8", ".v9", ".v10", ".v11")):
         totals.update(verified_pair_totals(rows, dataset=dataset))
     if any(report[key] != value for key, value in totals.items()):
         raise ValueError("native grammar reported totals differ from execution")
