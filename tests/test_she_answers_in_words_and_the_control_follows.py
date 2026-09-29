@@ -19,7 +19,7 @@ from typing import Any
 
 import pytest
 
-from core.self.where_i_stand import Lean
+from core.self.where_i_stand import Choice, Lean
 from core.skills import sovereign_browser_understanding as u
 from core.skills.sovereign_browser import SovereignBrowserSkill as S
 
@@ -88,6 +88,14 @@ def test_options_with_their_own_words_take_the_other_measured_path(monkeypatch):
         "core.self.where_i_stand.where_she_stands",
         lambda first, second, record=None: called.append("wrong") or _lean(-0.9),
     )
+    descriptions: list[str] = []
+
+    def choose(named, record=None):
+        descriptions.extend(named)
+        return Choice(index=2, support=(0.1, 0.2, 0.7),
+                      because=("measured choice",), measured=True)
+
+    monkeypatch.setattr("core.self.where_i_stand.which_is_most_her", choose)
     labelled = [
         {"group": "q", "role": "radio", "name": name, "selector": f"#q{n}",
          "asks": f"how much? agree [1] neutral [2] disagree [3]"}
@@ -95,7 +103,17 @@ def test_options_with_their_own_words_take_the_other_measured_path(monkeypatch):
     ]
     reading = S()._measure_where_she_stands(labelled)
     assert reading is not None, "a labelled question must be measured too"
+    assert descriptions == ["how much? agree", "how much? neutral", "how much? disagree"]
+    assert reading[0] == 2 and reading[1].because == ("measured choice",)
     assert not called, "it is not a run between two ends"
+
+
+def test_labelled_answers_without_record_support_remain_unmeasured(monkeypatch):
+    monkeypatch.setattr("core.self.where_i_stand.which_is_most_her",
+                        lambda named, record=None: Choice(index=0, measured=False))
+    labelled = [{"name": name, "asks": "how much? agree [1] neutral [2] disagree [3]"}
+                for name in ("agree", "neutral", "disagree")]
+    assert S()._measure_where_she_stands(labelled) is None
 
 
 def _screen(monkeypatch, said: str, lane: str = "Cortex"):

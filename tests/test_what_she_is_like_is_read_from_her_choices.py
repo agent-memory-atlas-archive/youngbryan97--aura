@@ -140,8 +140,12 @@ def test_a_question_about_her_on_a_page_is_answered_with_the_record_in_front_of_
             for v in range(1, 6)
         ],
     }
-    asyncio.run(skill._decide_next_actions("take the test", page, [], None))
+    asyncio.run(skill._decide_next_actions("answer this question", page, [], None, about_her=True))
     assert seen and "from your own record of choices: MARK" in seen[0]
+
+    seen.clear()
+    asyncio.run(skill._decide_next_actions("advance the page", page, [], None))
+    assert seen and all("MARK" not in prompt for prompt in seen)
 
     seen.clear()
     mechanics = {"url": "u", "title": "t", "text": "", "elements": [{"role": "button", "name": "Next", "selector": "#n"}]}
