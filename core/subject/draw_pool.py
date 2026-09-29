@@ -1,8 +1,9 @@
 """Bootstrap and permutation draws across processes, in the order one process takes them.
 
-A cut's decision costs 12 to 22 seconds of estimator per horizon on this host:
-a thousand bootstrap draws, each a cross-fitted estimate, one after another on
-the one core its shard runs on, while most of the machine's other cores wait.
+A cut's decision cost 7.2 seconds of estimator per horizon at 32 anchors on
+this host, and 22.5 at 128: a thousand bootstrap draws, each a cross-fitted
+estimate, one after another on the one core its shard runs on, while most of
+the machine's other cores waited.
 The draws are independent once their resampled indices are drawn, so the
 parent draws every index from its generator in order, the pool evaluates the
 draws in contiguous chunks, and the values come back in draw order. The numbers
