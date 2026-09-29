@@ -1505,3 +1505,25 @@ its fold and bi-cross-validated readings are still reported.
 
 This rule was written after seed 7 failed the old one, so seed 7 cannot pass
 under it; it applies to seed 23 and after.
+
+## Addendum, 29 September 2026, midday: C on an organism as old as the battery's
+
+A look, not a decision. Named before it runs.
+
+On every arm of the looks at `00f62d24e`, C against the rest stayed undecided
+at one turn and at two (control 0.0067, lower bound -0.0077; the relay, which
+drives every domain into the substrate, 0.0111 and -0.0055). The arms add
+pathways into C. The pathway out of C is `core/consciousness/substrate_gates`,
+read by motivation, initiative and recall, and it is learned: each gate's
+weight starts at zero and moves at 1 / min(turns, 256). A run starts every
+gate at zero, rightly, so the carrier's 24-round baseline (192 turns) measures
+C's reach into the rest before the gates have finished their first window,
+while the battery's organism lives 370 rounds (2,960 turns).
+
+The look: seed 7, C against the rest only, `--rounds 370`, two-turn rollouts,
+128 anchors, the v5 design at the commit that runs it. If C is decided there
+and not at 24 rounds, the carrier's baseline length is a design choice that
+decides the line, and the organism the carrier measures should be the one the
+battery measures; that change would be preregistered for seed 23 before it
+runs. If C is undecided at 370 rounds too, the gates are not the missing
+pathway, and the next thing to build is one that is.
