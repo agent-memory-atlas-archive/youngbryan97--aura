@@ -49,7 +49,7 @@ import numpy as np
 
 logger = logging.getLogger("Aura.DomainRelay")
 
-__all__ = ["DOMAINS", "DomainRelay", "relay_strength", "summarise"]
+__all__ = ["DOMAINS", "DomainRelay", "RelayScope", "relay_strength", "summarise"]
 
 #: The ten domains, in the order the state schema declares them. Named here so
 #: this organ does not import the instrument that measures it.
@@ -155,6 +155,58 @@ def summarise(state: Any) -> dict[str, list[float]]:
             float(dig("ontogeny.era", 0.0) or 0.0),
         ],
     }
+
+
+#: The window her other ledgers share: a rate of 1 / min(n, 256).
+_WINDOW = 256
+#: Which ways a field has moved: up, down, or both.
+_UP, _DOWN = 1, 2
+
+
+class RelayScope:
+    """Each field of each domain in units of its own spread, carried on her state.
+
+    `summarise` reads her numbers in their own units, from a share to a step
+    count, and `drive` squashed each domain's root mean square with a tanh. So a
+    domain holding a count, a list length or a budget level sat at 1.0 for good:
+    C through `cognition.loop_cycle`, N through `ontogeny.steps`, P through the
+    objective's length in characters, D through its budget levels. A constant
+    contribution carries nothing, and a cut that removes it removes nothing.
+
+    Here each field becomes its distance from its own recent mean in units of
+    its own recent spread, which moves when the field moves and not otherwise,
+    and a field that has only ever grown is left out: a count or a clock
+    standardised is a trend, and a trend fed into her substrate is a clock in C.
+    It rides on her state so a fork carries it, as the membrane does.
+    """
+
+    def __init__(self) -> None:
+        self._stats: dict[tuple[str, int], tuple[int, float, float]] = {}
+        self._last: dict[tuple[str, int], float] = {}
+        self._moved: dict[tuple[str, int], int] = {}
+
+    def standardise(self, readings: Mapping[str, Sequence[float]]) -> dict[str, list[float]]:
+        out: dict[str, list[float]] = {}
+        for domain in DOMAINS:
+            values: list[float] = []
+            for position, value in enumerate(_floats(readings.get(domain))):
+                key = (domain, position)
+                last = self._last.get(key)
+                if last is not None and value != last:
+                    self._moved[key] = self._moved.get(key, 0) | (_UP if value > last else _DOWN)
+                self._last[key] = value
+                n, mean, var = self._stats.get(key, (0, 0.0, 0.0))
+                n += 1
+                rate = 1.0 / min(n, _WINDOW)
+                delta = value - mean
+                mean += rate * delta
+                var = (1.0 - rate) * (var + rate * delta * delta)
+                self._stats[key] = (n, mean, var)
+                if self._moved.get(key, 0) != _UP | _DOWN or var <= 0.0:
+                    continue
+                values.append((value - mean) / math.sqrt(var))
+            out[domain] = values
+        return out
 
 
 class DomainRelay:

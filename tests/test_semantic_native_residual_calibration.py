@@ -8,6 +8,8 @@ import pytest
 
 from core.learning.semantic_native_path_calibration import native_path_profile
 from tools.calibrate_semantic_native_residual import (
+    calibration_states,
+    graph_competitions,
     measured_row,
     residual_admission,
     residual_scales,
@@ -98,3 +100,65 @@ def test_residual_row_is_bound_to_scale_and_teacher_choices(tmp_path):
     with pytest.raises(ValueError, match="alternatives differ"):
         measured_row(path, plan={"plan_sha256": "plan"}, source="source",
                      scale=0.08, choices=choices)
+
+
+def test_joint_graph_residual_keeps_both_baseline_success_sets():
+    from core.learning.semantic_native_path_objective import (
+        GRAMMAR_PATH_CONTRACT, JOINT_GRAPH_CONTRAST_CONTRACT,
+    )
+    from core.learning.semantic_native_typed_source_pairs import TYPED_SOURCE_PAIR_CONTRACT
+
+    plan = {"schema": "aura.semantic_native_fit_plan.v7", "suffix_layers": 1,
+            "reused_prefix_contract": {}, "joint_graph_contrast_limit": 3,
+            "grammar_source_pair_contract": dict(TYPED_SOURCE_PAIR_CONTRACT),
+            "grammar_path_objective_contract": dict(GRAMMAR_PATH_CONTRACT),
+            "graph_contrast_contract": dict(JOINT_GRAPH_CONTRAST_CONTRACT),
+            "contrast_policy": "all_native_type_admitted_teacher_decisions_v1"}
+    residual_training_contract(plan, {"step": 0})
+    supervision = {"graph_contrast_contract": dict(JOINT_GRAPH_CONTRAST_CONTRACT), "graph_rows": [
+        {"source": source, "choice_index": index, "positive": index == 0,
+         "program_sha256": f"{source}-{index}"}
+        for source in ("a", "b") for index in range(2)]}
+    assert len(graph_competitions(plan, supervision, ["a", "b"])) == 2
+    supervision["graph_rows"].pop()
+    with pytest.raises(ValueError, match="graph competition differs"):
+        graph_competitions(plan, supervision, ["a", "b"])
+
+    def row(source, path_correct, graph_correct):
+        return {**_row(source, path_correct), "whole_graph": {
+            "program_sha256s": [source + "-0", source + "-1"], "positive_index": 0,
+            "scores": [2., 1.] if graph_correct else [1., 2.]}}
+
+    rows = {0.: [row("a", True, True), row("b", False, False)],
+            0.1: [row("a", True, False), row("b", True, True)],
+            0.2: [row("a", True, True), row("b", True, True)]}
+    result = residual_admission(rows, ["a", "b"])
+    assert result["selected_scale"] == 0.2
+    assert result["adjudication"][1]["lost_baseline_graph_sources"] == ["a"]
+    assert result["adjudication"][1]["eligible"] is False
+    rows[0.2][0].pop("whole_graph")
+    with pytest.raises(ValueError, match="graph measurements are incomplete"):
+        residual_admission(rows, ["a", "b"])
+
+
+def test_joint_residual_reads_fits_complete_capture_including_graphs(monkeypatch, tmp_path):
+    from core.learning.frozen_state_store import FrozenStateStore
+
+    observed = {}
+
+    def open_existing(directory, **kwargs):
+        observed.update({"directory": directory, **kwargs})
+        return observed
+
+    monkeypatch.setattr(FrozenStateStore, "open_existing", open_existing)
+    training = {"schema": "aura.semantic_native_fit_plan.v7", "plan_sha256": "a" * 64,
+                "prefix_storage_contract": {"max_resident_bytes": 1024}}
+    supervision = {"rows": [{"source": "s", "decision_index": 0,
+                             "choice_index": 0, "tokens": [1, 2]}],
+                   "graph_rows": [{"source": "s", "choice_index": 0, "tokens": [1, 3]}]}
+    assert calibration_states(tmp_path, training, supervision) is observed
+    assert observed["directory"] == tmp_path / "prefix-states"
+    assert set(observed["sequence_digests"]) == {("s", 0, 0), ("s", -1, 0)}
+    supervision["graph_rows"].append(dict(supervision["graph_rows"][0]))
+    with pytest.raises(ValueError, match="captured supervision keys differ"):
+        calibration_states(tmp_path, training, supervision)

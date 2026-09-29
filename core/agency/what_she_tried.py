@@ -49,7 +49,7 @@ class Episode:
     played: list[str] = field(default_factory=list)
     #: What kind of thing was tried, for counting what she is good at.
     skill: str = ""
-    at: float = field(default_factory=time.time)
+    at: float = field(default_factory=lambda: time.time())
     #: Where the pictures she saw before each chunk are kept, beside this file.
     looks_file: str = ""
 

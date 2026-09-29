@@ -8,7 +8,6 @@ sovereign_browser.py; this is the half that thinks about what came back.
 """
 from __future__ import annotations
 
-from .sovereign_browser_understanding_scale import _PlacesHerself
 import asyncio
 import json
 import logging
@@ -19,6 +18,8 @@ from typing import Any
 from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.service_access import optional_service
+
+from .sovereign_browser_understanding_scale import _PlacesHerself
 
 logger = logging.getLogger("Skills.SovereignBrowser")
 
@@ -1227,6 +1228,16 @@ class _UnderstandsThePage(_PlacesHerself):
                 why = item.get("why") or (
                     next(iter(lean.because), f'this is nearer "{leaning}" for me')
                 )
+                # Her own words held against the place her record gave. The
+                # place stands, because it is the measurement; a sentence that
+                # leans the other way is noticed and reported beside it. LIVE
+                # 2026-09-28: "3 of 5 ... I genuinely hold a strong preference
+                # for externalized structure", and nothing noticed.
+                disagrees = (
+                    self._the_choice_disagrees_with_its_reason(options, index, item["why"])
+                    if item.get("why")
+                    else ""
+                )
                 answers.append(
                     {
                         "selector": selector,
@@ -1236,6 +1247,7 @@ class _UnderstandsThePage(_PlacesHerself):
                         "expect": "",
                         "said": self._an_answer_in_words(options, index, why),
                         "because": list(lean.because),
+                        "disagrees": disagrees,
                     }
                 )
             if answers:
@@ -1253,6 +1265,7 @@ class _UnderstandsThePage(_PlacesHerself):
                         dict.fromkeys(answer["why"] for answer in answers if answer["why"])
                     )[:400],
                     "expect": "",
+                    "noticed": [answer["disagrees"] for answer in answers if answer["disagrees"]],
                 }
 
         return None

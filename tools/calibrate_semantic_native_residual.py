@@ -38,18 +38,81 @@ def residual_scales(values: list[float]) -> tuple[float, ...]:
 def residual_training_contract(training: dict, selected: dict) -> None:
     """Admit only completed, rejected path fits with the same calibration basis."""
     if (training.get("schema") not in {"aura.semantic_native_fit_plan.v5",
-                                      "aura.semantic_native_fit_plan.v6"}
+                                      "aura.semantic_native_fit_plan.v6",
+                                      "aura.semantic_native_fit_plan.v7"}
             or selected.get("step") != 0 or training.get("suffix_layers") != 1
             or "reused_prefix_contract" not in training):
         raise ValueError("native residual requires a measured, rejected path suffix fit")
-    if training["schema"].endswith(".v6"):
-        from core.learning.semantic_native_path_objective import GRAMMAR_PATH_CONTRACT
+    if training["schema"].endswith((".v6", ".v7")):
+        from core.learning.semantic_native_path_objective import (
+            GRAMMAR_PATH_CONTRACT, JOINT_GRAPH_CONTRAST_CONTRACT,
+        )
         from core.learning.semantic_native_typed_source_pairs import TYPED_SOURCE_PAIR_CONTRACT
 
         if (training.get("grammar_source_pair_contract") != TYPED_SOURCE_PAIR_CONTRACT
                 or training.get("grammar_path_objective_contract") != GRAMMAR_PATH_CONTRACT
                 or training.get("contrast_policy") != "all_native_type_admitted_teacher_decisions_v1"):
-            raise ValueError("native residual v6 source contrast contract differs")
+            raise ValueError("native residual source contrast contract differs")
+        if training["schema"].endswith(".v7") and (
+                training.get("graph_contrast_contract") != JOINT_GRAPH_CONTRAST_CONTRACT
+                or type(training.get("joint_graph_contrast_limit")) is not int
+                or training["joint_graph_contrast_limit"] < 1):
+            raise ValueError("native residual joint graph contract differs")
+
+
+def graph_competitions(training: dict, supervision: dict, sources: list[str]) -> dict[str, list[dict]]:
+    """Recover the v7 whole-graph choices from source-calibration supervision."""
+    if not training["schema"].endswith(".v7"):
+        return {}
+    if supervision.get("graph_contrast_contract") != training["graph_contrast_contract"]:
+        raise ValueError("native residual graph supervision contract differs")
+    grouped = {source: [] for source in sources}
+    for row in supervision.get("graph_rows", []):
+        if row.get("source") in grouped:
+            grouped[row["source"]].append(row)
+    for source, rows in grouped.items():
+        rows.sort(key=lambda row: row["choice_index"])
+        if (len(rows) < 2 or [row["choice_index"] for row in rows] != list(range(len(rows)))
+                or [row.get("positive") for row in rows] != [True] + [False] * (len(rows) - 1)
+                or len({row.get("program_sha256") for row in rows}) != len(rows)):
+            raise ValueError(f"native residual graph competition differs: {source}")
+    return grouped
+
+
+def graph_winners(rows: list[dict]) -> set[str]:
+    winners = set()
+    for row in rows:
+        graph = row.get("whole_graph")
+        if (not isinstance(graph, dict) or graph.get("positive_index") != 0
+                or not isinstance(graph.get("scores"), list) or len(graph["scores"]) < 2
+                or any(type(score) not in {int, float} or not math.isfinite(score)
+                       for score in graph["scores"])):
+            raise ValueError("native residual whole-graph scores differ")
+        if graph["scores"][0] > max(graph["scores"][1:]):
+            winners.add(row["source"])
+    return winners
+
+
+def calibration_states(training_directory: Path, training: dict, supervision: dict):
+    if not training["schema"].endswith(".v7"):
+        from tools.semantic_native_prefix_reuse import open_reused_prefix
+
+        return open_reused_prefix(training["reused_prefix_contract"], training, supervision)
+    from core.learning.frozen_state_store import FrozenStateStore
+
+    sequences = {
+        (row["source"], row["decision_index"], row["choice_index"]): digest(row["tokens"])
+        for row in supervision["rows"]}
+    graphs = {(row["source"], -1, row["choice_index"]): digest(row["tokens"])
+              for row in supervision["graph_rows"]}
+    if (len(sequences) != len(supervision["rows"])
+            or len(graphs) != len(supervision["graph_rows"])
+            or set(sequences) & set(graphs)):
+        raise ValueError("native residual captured supervision keys differ")
+    return FrozenStateStore.open_existing(
+        training_directory / "prefix-states", plan_sha256=training["plan_sha256"],
+        max_resident_bytes=training["prefix_storage_contract"]["max_resident_bytes"],
+        sequence_digests={**sequences, **graphs})
 
 
 def residual_admission(rows_by_scale: dict[float, list[dict]], sources: list[str]) -> dict:
@@ -61,13 +124,25 @@ def residual_admission(rows_by_scale: dict[float, list[dict]], sources: list[str
                      if native_path_profile(row["decisions"])["exact_teacher_path"]}
              for scale, rows in rows_by_scale.items()}
     baseline = exact[0.]
-    adjudication = [{"scale": scale, "exact_teacher_paths": totals[scale]["exact_teacher_paths"],
-                     "lost_baseline_sources": sorted(baseline - exact[scale]),
-                     "new_exact_sources": sorted(exact[scale] - baseline),
-                     "eligible": baseline <= exact[scale]}
-                    for scale in sorted(rows_by_scale)]
+    joint = all("whole_graph" in row for rows in rows_by_scale.values() for row in rows)
+    if not joint and any("whole_graph" in row for rows in rows_by_scale.values() for row in rows):
+        raise ValueError("native residual graph measurements are incomplete")
+    graphs = {scale: graph_winners(rows) for scale, rows in rows_by_scale.items()} if joint else {}
+    adjudication = []
+    for scale in sorted(rows_by_scale):
+        row = {"scale": scale, "exact_teacher_paths": totals[scale]["exact_teacher_paths"],
+               "lost_baseline_sources": sorted(baseline - exact[scale]),
+               "new_exact_sources": sorted(exact[scale] - baseline),
+               "eligible": baseline <= exact[scale]}
+        if joint:
+            row.update({"positive_graph_rankings": len(graphs[scale]),
+                        "lost_baseline_graph_sources": sorted(graphs[0.] - graphs[scale]),
+                        "new_positive_graph_sources": sorted(graphs[scale] - graphs[0.])})
+            row["eligible"] = row["eligible"] and graphs[0.] <= graphs[scale]
+        adjudication.append(row)
     selected = min((row for row in adjudication if row["eligible"]),
-                   key=lambda row: (-row["exact_teacher_paths"], row["scale"]))
+                   key=lambda row: (-row.get("positive_graph_rankings", 0),
+                                    -row["exact_teacher_paths"], row["scale"]))
     return {"selected_scale": selected["scale"], "adjudication": adjudication,
             "totals": {str(scale): totals[scale] for scale in sorted(totals)}}
 
@@ -90,7 +165,7 @@ def native_lora_sites(model, training) -> tuple:
 
 
 def measured_row(path: Path, *, plan: dict, source: str, scale: float,
-                 choices: list[list[dict]]) -> dict:
+                 choices: list[list[dict]], graph_choices: list[dict] | None = None) -> dict:
     row = verified_document(path)
     if (row.get("schema") != "aura.native_residual_calibration_row.v1"
             or row.get("plan_sha256") != plan["plan_sha256"] or row.get("source") != source
@@ -105,6 +180,15 @@ def measured_row(path: Path, *, plan: dict, source: str, scale: float,
             raise ValueError("native residual alternatives differ")
     if row["profile"] != native_path_profile(row["decisions"]):
         raise ValueError("native residual path profile differs")
+    if graph_choices is not None:
+        graph = row.get("whole_graph")
+        if (not isinstance(graph, dict) or graph.get("positive_index") != 0
+                or graph.get("program_sha256s") != [item["program_sha256"] for item in graph_choices]
+                or len(graph.get("scores", [])) != len(graph_choices)):
+            raise ValueError("native residual graph alternatives differ")
+        graph_winners([row])
+    elif "whole_graph" in row:
+        raise ValueError("native residual undeclared graph measurement")
     return row
 
 
@@ -116,7 +200,6 @@ def run(args) -> None:
     from tools.probe_semantic_proposer_crossfit import _save_if_absent
     from tools.refit_semantic_argument_proposals import configure_refit_environment
     from tools.semantic_native_execution import apply_execution, execution_from_plan
-    from tools.semantic_native_prefix_reuse import open_reused_prefix
     from tools.train_semantic_native_program import native_loss
 
     configure_refit_environment(args.directory / "report.json")
@@ -131,6 +214,7 @@ def run(args) -> None:
     supervision = verified_document(args.training_directory / "supervision.json")
     competitions = calibration_competitions(training, supervision)
     sources = sorted(competitions)
+    graph_choices = graph_competitions(training, supervision, sources)
     endpoint_rows = {
         0.: {row["source"]: row for row in
              verified_document(args.training_directory / "calibration-paths-0.json")["rows"]},
@@ -156,9 +240,12 @@ def run(args) -> None:
              "core/learning/frozen_decoder_prefix.py",
              "core/learning/semantic_native_path_calibration.py",
              "tools/semantic_native_prefix_reuse.py")
-    if training["schema"].endswith(".v6"):
+    if training["schema"].endswith((".v6", ".v7")):
         paths += ("core/learning/semantic_native_typed_source_pairs.py",)
-    body = {"schema": "aura.native_residual_calibration_plan.v1",
+    if graph_choices:
+        paths += ("core/learning/semantic_native_path_objective.py",)
+    body = {"schema": "aura.native_residual_calibration_plan.v2" if graph_choices
+            else "aura.native_residual_calibration_plan.v1",
             "training_plan_sha256": training["plan_sha256"],
             "training_report_receipt_sha256": verified_document(
                 args.training_directory / "report.json")["receipt_sha256"],
@@ -166,6 +253,8 @@ def run(args) -> None:
             "candidate_checkpoint_receipt_sha256": candidate["receipt_sha256"],
             "supervision_receipt_sha256": supervision["receipt_sha256"],
             "scales": scales, "sources": sources, "max_seconds": args.max_seconds,
+            **({"graph_programs": {source: [row["program_sha256"] for row in rows]
+                                   for source, rows in graph_choices.items()}} if graph_choices else {}),
             "model_descriptor_sha256": spec.descriptor_sha256,
             "pointer_sha256": spec.pointer_sha256,
             "implementation": {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
@@ -185,7 +274,7 @@ def run(args) -> None:
 
     from core.learning.frozen_decoder_prefix import NativeDecoderSuffix
 
-    states = open_reused_prefix(training["reused_prefix_contract"], training, supervision)
+    states = calibration_states(args.training_directory, training, supervision)
     started = time.monotonic()
     results = {}
     with (standalone_model_lane(owner_id=f"native-residual:{args.directory.name}",
@@ -214,7 +303,7 @@ def run(args) -> None:
                 path = args.directory / "rows" / f"{scale:g}-{source}.json"
                 if path.exists():
                     row = measured_row(path, plan=plan, source=source, scale=scale,
-                                       choices=competitions[source])
+                                       choices=competitions[source], graph_choices=graph_choices.get(source))
                 else:
                     decisions = []
                     for alternatives in competitions[source]:
@@ -229,10 +318,22 @@ def run(args) -> None:
                             "correct_index": alternatives[0]["correct_index"],
                             "choices": [choice["choice"] for choice in alternatives],
                             "scores": scores})
+                    whole_graph = {}
+                    if graph_choices:
+                        scores = []
+                        for choice in graph_choices[source]:
+                            key = (source, -1, choice["choice_index"])
+                            sequence = NativeProgramSequence(tuple(choice["tokens"]),
+                                choice["continuation_start"], tuple(choice["semantic_positions"]))
+                            scores.append(-native_loss(suffix, states[key], sequence, summed=True,
+                                                       scope="semantic_decisions").item())
+                        whole_graph = {"whole_graph": {
+                            "program_sha256s": [choice["program_sha256"] for choice in graph_choices[source]],
+                            "scores": scores, "positive_index": 0}}
                     row_body = {"schema": "aura.native_residual_calibration_row.v1",
                                 "plan_sha256": plan["plan_sha256"], "source": source,
                                 "scale": scale, "decisions": decisions,
-                                "profile": native_path_profile(decisions)}
+                                "profile": native_path_profile(decisions), **whole_graph}
                     row = {**row_body, "receipt_sha256": digest(row_body)}
                     _save_if_absent(path, row)
                 if scale in endpoint_rows:
@@ -243,12 +344,22 @@ def run(args) -> None:
                     if (max(errors, default=0.) > 0.015625
                             or row["profile"] != native_path_profile(reference["decisions"])):
                         raise ValueError("native residual endpoint does not reproduce measured checkpoint")
+                    if graph_choices:
+                        actual, expected = row["whole_graph"], reference["whole_graph"]
+                        graph_errors = [abs(a - b) for a, b in
+                                        zip(actual["scores"], expected["scores"], strict=True)]
+                        if (actual["program_sha256s"] != expected["program_sha256s"]
+                                or max(graph_errors, default=0.) > 0.015625
+                                or (source in graph_winners([row]))
+                                   != (source in graph_winners([reference]))):
+                            raise ValueError("native residual graph endpoint differs")
                 measured.append(row)
                 print(json.dumps({"stage": "source", "scale": scale,
                                   "observed": len(measured), "population": len(sources)}), flush=True)
             results[scale] = measured
     admission = residual_admission(results, sources)
-    report_body = {"schema": "aura.native_residual_calibration.v1",
+    report_body = {"schema": "aura.native_residual_calibration.v2" if graph_choices
+                   else "aura.native_residual_calibration.v1",
                    "plan_sha256": plan["plan_sha256"], **admission,
                    "row_receipts": {str(scale): {row["source"]: row["receipt_sha256"] for row in rows}
                                     for scale, rows in results.items()},

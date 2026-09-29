@@ -402,6 +402,7 @@ async def _spectrum(
         whiten=whiten,
         fail_fast=fail_fast,
         stop_file=stop_file,
+        paired=bool(chosen.get("paired")),
     )
     for lag in sorted(reports):
         report = reports[lag]
@@ -478,7 +479,8 @@ def _recoded(block: np.ndarray, seed: int) -> np.ndarray:
 
 
 def _invariance(
-    samples: dict[str, np.ndarray], *, tau_seconds: float, seed: int, whiten: bool = False
+    samples: dict[str, np.ndarray], *, tau_seconds: float, seed: int, whiten: bool = False,
+    paired: bool = False,
 ) -> dict[str, Any]:
     """Score one cut three ways: raw, re-encoded, and with duplicate channels.
 
@@ -494,6 +496,7 @@ def _invariance(
             mapped["intact"], mapped["cut"], mapped["sham_a"], mapped["sham_b"],
             tau_seconds=tau_seconds, context=mapped.get("context"), seed=seed,
             whiten=whiten,
+            groups=np.arange(len(mapped["intact"])) if paired else None,
         )
         return float(estimate.excess_rate)
 
@@ -528,6 +531,7 @@ def _v25_nulls(
     seed: int,
     alpha: float = 0.05,
     draws: int = 200,
+    paired: bool = False,
 ) -> dict[str, Any]:
     """The four controls v25 adds, scored with the same estimator.
 
@@ -544,6 +548,7 @@ def _v25_nulls(
             intrinsic_rate_from_samples(
                 intact, cut, sham_a, sham_b,
                 tau_seconds=tau_seconds, context=samples.get("context"), seed=seed,
+                groups=np.arange(len(intact)) if paired else None,
             ).excess_rate
         )
 
@@ -573,7 +578,8 @@ def _v25_nulls(
         # the honest rate is zero, and estimator noise failed it (v25screen,
         # 21 September).
         "playback_is_zero": not playback_decided(
-            samples, tau_seconds=tau_seconds, seed=seed + 5, alpha=alpha, draws=draws
+            samples, tau_seconds=tau_seconds, seed=seed + 5, alpha=alpha, draws=draws,
+            **({"paired": True} if paired else {}),
         ),
         "playback_rule": "undecided by the cut rule at the same level and draws",
         "duplicate_coordinates": round(duplicate, 6),
@@ -740,6 +746,7 @@ async def main() -> int:
         collect_partition_samples,
     )
 
+    preset: dict[str, Any] = {}
     if args.v5:
         from core.subject.isc_v5 import design as v5_design
 
@@ -760,6 +767,9 @@ async def main() -> int:
         "deciding": list(_ints(args.deciding_lags)) or None,
         "lags": list(ladder),
         "v5": bool(args.v5),
+        # Cross-fitted by anchor under v5. Left out of this table, a v5 run
+        # used the estimator that reads two identical samples as apart.
+        "paired": bool(args.v5 and preset["paired"]),
     }
     support = tuple(args.domains.split(",")) if args.domains else tuple(DOMAINS)
     conditions = CONDITIONS[: args.conditions] if args.conditions else CONDITIONS
@@ -1072,12 +1082,14 @@ async def main() -> int:
             tau_best = float(best_lag) * frame_seconds
             try:
                 evidence["representation_invariance"] = _invariance(
-                    samples, tau_seconds=tau_best, seed=args.seed, whiten=bool(args.whiten)
+                    samples, tau_seconds=tau_best, seed=args.seed, whiten=bool(args.whiten),
+                    paired=bool(sweep_design.get("paired")),
                 )
                 evidence["v25_nulls"] = _v25_nulls(
                     samples, tau_seconds=tau_best, seed=args.seed,
                     alpha=float(args.alpha) / max(1, len(sweep_design["looks"]) or args.cut_rounds),
                     draws=int(args.draws),
+                    paired=bool(sweep_design.get("paired")),
                 )
             except (ValueError, KeyError, IndexError) as exc:
                 # Same reason as inside them: what is already measured is worth

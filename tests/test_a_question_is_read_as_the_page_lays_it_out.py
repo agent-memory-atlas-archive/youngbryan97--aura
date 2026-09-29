@@ -158,7 +158,8 @@ def test_an_answer_is_said_as_its_question_its_choice_and_its_reason():
     ]
     assert (
         SovereignBrowserSkill._an_answer_in_words(unlabelled, 1, "I like to know where I am going.")
-        == "plans ahead … improvises — 2 of 5. I like to know where I am going."
+        == 'plans ahead … improvises — 2 of 5, between "plans ahead" and "improvises". '
+        "I like to know where I am going."
     )
     labelled = [
         {"role": "radio", "name": label, "group": "C1", "value": value,
@@ -180,9 +181,21 @@ def test_each_answer_about_her_is_said_out_loud_as_it_lands(monkeypatch):
 
     skill = SovereignBrowserSkill.__new__(SovereignBrowserSkill)
 
-    async def decide(goal, observation, history, understanding=None):
-        group = observation["elements"][0]["group"]
-        return {"actions": [{"index": 1, "type": "click"}], "why": f"my reason for {group}"}
+    from core.self import where_i_stand
+
+    # Where she stands comes from her record, and what she says about it from
+    # her thinking; both are given here so the test hears what is said.
+    lean = where_i_stand.Lean(toward=-0.5, first=0.7, second=0.3, because=("x",), measured=True)
+
+    def measure(options):
+        ends = options[0]["asks"].split(" [")[0], options[0]["asks"].split("] ")[-1]
+        return 1, lean, ends[0], ends[1]
+
+    async def thinking(goal, theme, mind):
+        return {item["group"]: f"my reason for {item['group']}" for item in theme}
+
+    monkeypatch.setattr(where_i_stand, "themes_among", lambda names: [list(range(len(names)))])
+    monkeypatch.setattr(where_i_stand, "against_the_rest", lambda leans: [one.toward for one in leans])
 
     async def understand(goal, observation, prior, mind, recalled=""):
         return {"here": "a scale", "done_when": "all answered"}
@@ -193,7 +206,8 @@ def test_each_answer_about_her_is_said_out_loud_as_it_lands(monkeypatch):
     async def interact(browser, url, actions, *, action_context=None):
         return {"ok": True}
 
-    skill._decide_next_actions = decide
+    skill._measure_where_she_stands = measure
+    skill._her_thinking_about = thinking
     skill._understand_page = understand
     skill._assembled_mind = mind
     skill._handle_interact = interact
@@ -209,5 +223,5 @@ def test_each_answer_about_her_is_said_out_loud_as_it_lands(monkeypatch):
             return page
 
     asyncio.run(skill._handle_pursue(Browser(), None, "take the test", 2))
-    assert "plans ahead … improvises — 2 of 5. my reason for A0" in said
-    assert "quiet … talkative — 2 of 5. my reason for A1" in said
+    assert 'plans ahead … improvises — 2 of 5, between "plans ahead" and "improvises". my reason for A0' in said
+    assert 'quiet … talkative — 2 of 5, between "quiet" and "talkative". my reason for A1' in said

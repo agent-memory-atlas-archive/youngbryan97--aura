@@ -141,6 +141,9 @@ class ClassSamples:
     context: list[np.ndarray]
     futures_b: list[np.ndarray] = field(default_factory=list)
     retrieved_b: list[frozenset[str]] = field(default_factory=list)
+    #: (anchor, condition) of each row, so two classes are compared on the
+    #: presentations both of them have and cross-fitted by anchor.
+    keys: list[tuple[int, int]] = field(default_factory=list)
 
 
 #: Recall writes each recollection with the score it was kept at, and that
@@ -216,8 +219,8 @@ async def sample_classes(
         index = min(max(1, lag) * per_turn - 1, len(rows) - 1)
         return np.asarray(rows[index].vector(), dtype=np.float64), _retrieved(runtime)
 
-    for anchor in anchors:
-        for condition in conditions:
+    for anchor_index, anchor in enumerate(anchors):
+        for condition_index, condition in enumerate(conditions):
             for cls in classes:
                 first = await one_arm(anchor, condition, cls)
                 second = await one_arm(anchor, condition, cls)
@@ -229,6 +232,7 @@ async def sample_classes(
                 slot.futures_b.append(second[0])
                 slot.retrieved_b.append(second[1])
                 slot.context.append(np.asarray(anchor.current, dtype=np.float64))
+                slot.keys.append((anchor_index, condition_index))
     return out
 
 
@@ -239,12 +243,19 @@ def internal_geometry(
     folds: int = 5,
     seed: int = 2604,
     with_context: bool = True,
+    paired: bool = False,
 ) -> tuple[dict[tuple[int, int], float], dict[tuple[int, int], float]]:
     """Fisher-Rao distance between every pair of classes, and the same-class floor.
 
     The context is the anchor each sample forked from, appended to both arms.
     Its marginal is identical on both sides, so discrimination can only come
     from the conditional future, which is the thing being compared.
+
+    `paired` compares two classes on the presentations both of them have, row
+    for row, and cross-fits by anchor. Unpaired, a test row's twin from the
+    other class sat in the training fold with the other label, and a class read
+    about 0.05 from itself (seed 7, 4e1923da1): the estimator's own floor on two
+    identical samples, 0.056 at that size, not her noise.
     """
     distances: dict[tuple[int, int], float] = {}
     floor: dict[tuple[int, int], float] = {}
@@ -269,6 +280,25 @@ def internal_geometry(
         return np.hstack([np.vstack(rows.context)[: len(future)], future])
 
     blocks = {name: block(name) for name in names}
+
+    def anchors_of(name: str) -> np.ndarray | None:
+        rows = samples.get(name)
+        if not paired or rows is None or len(rows.keys) != len(rows.futures):
+            return None
+        return np.asarray([anchor for anchor, _condition in rows.keys])
+
+    def aligned(left_name: str, right_name: str) -> tuple[np.ndarray, np.ndarray, np.ndarray] | None:
+        """The rows both classes have, in one order, and the anchor of each."""
+        a, b = samples[left_name], samples[right_name]
+        where = {key: index for index, key in enumerate(b.keys)}
+        pairs = [(index, where[key]) for index, key in enumerate(a.keys) if key in where]
+        if len(pairs) < folds:
+            return None
+        left_rows = np.asarray([i for i, _ in pairs])
+        right_rows = np.asarray([j for _, j in pairs])
+        anchors = np.asarray([a.keys[i][0] for i, _ in pairs])
+        return blocks[left_name][left_rows], blocks[right_name][right_rows], anchors
+
     for i, left_name in enumerate(names):
         left = blocks[left_name]
         if left is None:
@@ -281,14 +311,21 @@ def internal_geometry(
         second = block_b(left_name)
         if second is not None and len(second) >= folds:
             same = crossfit_fisher_rao(
-                left, second, folds=folds, seed=seed
+                left, second, folds=folds, seed=seed, groups=anchors_of(left_name)
             )
             floor[(i, i)] = float(same.distance_sq)
         for j in range(i + 1, len(names)):
             right = blocks[names[j]]
             if right is None:
                 continue
-            estimate = crossfit_fisher_rao(left, right, folds=folds, seed=seed)
+            if anchors_of(left_name) is not None and anchors_of(names[j]) is not None:
+                matched = aligned(left_name, names[j])
+                if matched is None:
+                    continue
+                p, q, anchors = matched
+                estimate = crossfit_fisher_rao(p, q, folds=folds, seed=seed, groups=anchors)
+            else:
+                estimate = crossfit_fisher_rao(left, right, folds=folds, seed=seed)
             distances[(i, j)] = float(estimate.distance_sq)
     return distances, floor
 

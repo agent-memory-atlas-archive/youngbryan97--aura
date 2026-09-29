@@ -5,6 +5,64 @@ what broke, what fixed it, and where the evidence is. Runs live in
 `~/subject-core-runs/`; the order runs are read in is
 `~/.aura/subject_core/scratch/AFTER_THE_DECISIVE_RUN.md`.
 
+## 28 September
+
+### The floor under every paired arm was the estimator, and the fork
+
+Every v25 look read a sham rate of 0.062 to 0.107 while every undecided
+singleton's effect sat inside 0.028, so no number of anchors could decide them
+and the carrier could not resolve. Three causes, found in this order.
+
+The runners forked their arms with nine free-running loops still live. The v25
+sweep and the reports ground quiesced only at teardown, so each layer was
+ticked by its own loop on the machine's clock on top of the harness's step, and
+two untouched forks of one anchor parted within a frame or three: 65 to 109 of
+438 columns apart by the end of a turn. Both now stop the loops the harness
+steps before the anchor bank (6117505af). The fork also left out the
+consciousness bridge the organism builds for itself, whose record of the last
+chemistry tick carried one arm's pull into the next, and the mesh stamped
+spikes with the machine's clock. With those, seven of eight conditions differ
+in eight self-model columns by at most 4e-4. A parallel session found a fourth
+leak the same day: a `random.Random` that the restore wrote nothing back into
+(babe01a06).
+
+The clamp that holds a side still captured every organ whole, including the
+other services an organ points at. Holding the rest put C's substrate back after
+every phase through `homeostasis._substrate`, so C was frozen in the arm where
+it was meant to run free, and each apply deep-copied services it had no
+business holding (31f284829).
+
+And after all of that the sham still read 0.077 to 0.107, which is when the
+estimator was tested on two identical samples: 0.056 at 128 anchors, 0.103 at
+64. Each anchor contributes a paired row to both arms, and cross-fitting that
+split an anchor across folds put each test row's twin in the training fold
+with the other label. Folds now keep an anchor's rows together, the neighbour
+count is even for paired rows, and ties are counted whole; identical samples
+read exactly zero and a cut moving 6 of 438 columns by one spread is decided
+from 32 anchors (9441d011f). The content run's internal geometry had the same
+fault — "a class lies about 0.05 from itself" was this — and is fixed the same
+way (1ef192fb9).
+
+### A run that fails says so in minutes
+
+The carrier's full sweep was a machine-week. `--fail-fast` takes the most
+lopsided cuts first, each to its decision, and stops at the first that ends
+undecided; the verdict is the same because the line is a conjunction, and
+shards stop each other through a file (80d087b83, 444e5de6b). The first
+fail-fast run, before the estimator fix, stopped at `PIAGCSMWD|N` after 23
+minutes where the ten-cut look had taken two and a half hours. The null table
+of the v3 campaign, 4 h 35 min in one process, now spreads across processes
+with identical rows (a97e0b649), and the content run's presentations drop from
+1.8 s each to about 0.5 with the loops stopped.
+
+### Two organism changes that were not hers yet
+
+The membrane took its channels from the battery's own column list and ran only
+in the harness; it now takes every float in her state that has moved both ways
+and her kernel and chat pipeline settle it after every phase (1245d58ca). The
+afferent surface filtered only the recording, so it moved to the instrument and
+no arm switches it on.
+
 ## 27 September
 
 ### Why the reports ground read nothing, twice

@@ -57,6 +57,9 @@ os.environ.setdefault("AURA_TESTING", "1")
 #: says which emotions a percept may move, so affect is where the content
 #: geometry is predicted to live. Declared before the run, not chosen after it.
 DISPLACED_DOMAIN: str = "A"
+#: The internal geometry compares classes on the presentations both have and
+#: cross-fits by anchor (core.subject.content_runtime.internal_geometry).
+PAIRED: bool = True
 
 #: How strongly the two geometries must agree before the run says they are one
 #: structure. Spearman rank correlation, which is the weakest assumption that
@@ -244,6 +247,7 @@ async def main() -> int:
         "scope": "substrate_only",
         "displaced_domain": DISPLACED_DOMAIN,
         "agreement_bar": AGREEMENT_BAR,
+        "paired": PAIRED,
         "classes": [
             {
                 "name": c.name,
@@ -287,6 +291,15 @@ async def main() -> int:
             )
         _log(f"  {recording.frames} frames; her feelings span {dose:.5g}")
 
+        # Every presentation from here is a fork of an anchor, so the loops
+        # the harness steps stop before any anchor is taken, as
+        # run_subject_core.py stops them before its interventions. Left
+        # running, they ticked their layers on the machine's clock on top of
+        # the harness's step, so a class presented twice from one anchor came
+        # back different, and each presentation took 1.8 s where one turn takes
+        # 0.4 (seed 7, 4e1923da1: 7,680 presentations a stage in 3 h 46 min).
+        evidence["stopped_loops"] = await quiesce_organism(runtime)
+        _log(f"stopped {len(evidence['stopped_loops'])} free-running loops before the anchors")
         _log(f"collecting {args.anchors} anchors")
         anchors = await collect_anchor_bank(
             runtime, conditions,
@@ -301,7 +314,7 @@ async def main() -> int:
         base = await sample_classes(
             runtime, anchors, conditions, classes, turns=args.turns, lag=args.lag
         )
-        internal, floor = internal_geometry(base, classes, seed=args.seed)
+        internal, floor = internal_geometry(base, classes, seed=args.seed, paired=PAIRED)
         behavioural, coverage = behavioural_geometry(base, classes)
         evidence["internal"] = _as_json(internal)
         evidence["internal_floor"] = {f"{i}-{j}": round(v, 6) for (i, j), v in floor.items()}
@@ -332,7 +345,7 @@ async def main() -> int:
             runtime, anchors, conditions, classes,
             turns=args.turns, lag=args.lag, reference=dose, valence=valence_dose,
         )
-        moved_internal, _ = internal_geometry(moved, classes, seed=args.seed)
+        moved_internal, _ = internal_geometry(moved, classes, seed=args.seed, paired=PAIRED)
         moved_behavioural, _ = behavioural_geometry(moved, classes)
 
         _log("sham: the same measurement again, displacing nothing")
@@ -342,7 +355,7 @@ async def main() -> int:
         # The same folds as the two geometries it is compared against. With
         # its own seed the sham's changes carried fold-assignment noise the
         # displaced changes did not, which widened the floor it sets.
-        sham_internal, _ = internal_geometry(sham, classes, seed=args.seed)
+        sham_internal, _ = internal_geometry(sham, classes, seed=args.seed, paired=PAIRED)
         sham_behavioural, _ = behavioural_geometry(sham, classes)
 
         tracked = moves_together(

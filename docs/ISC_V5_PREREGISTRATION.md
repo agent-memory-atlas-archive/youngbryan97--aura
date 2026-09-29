@@ -1276,3 +1276,101 @@ floor the probe mis-sized. The fix is real and its size is not yet known, so the
 control arm is read as the first battery reading with the generator fault closed
 and no size is predicted for it. The probes now calibrate and the re-measurement
 is queued.
+
+## Addendum, 28 September 2026, evening: the floor was the estimator, and a sweep that fails says so early
+
+Named before the run that reads it. The code is at `9441d011f`.
+
+**The sham floor was the estimator.** A sham arm and the untouched arm it is
+compared with are two forks of one anchor, and every anchor contributes one row
+to each. Cross-fitting that split an anchor across folds left each test row's
+twin in the training fold as its nearest neighbour with the other label, and
+two identical samples read a distance squared of 0.056 at 128 anchors and 0.103
+at 64 — the floor of every v25 look, 0.062 to 0.107. The fork leaks found today
+were real and are fixed (`6117505af`, `babe01a06`, `31f284829`), but after them
+the fail-fast look at `80d087b83` still read a sham rate of 0.077 to 0.107 on
+forks that differ in eight columns by 4e-4. So the floor was the instrument.
+
+`crossfit_fisher_rao` now takes the anchor of each row: folds keep an anchor's
+rows together, the neighbour count is even for paired rows, and ties at the
+k-th neighbour are counted whole. On identical samples every anchor count reads
+exactly zero, and a cut moving 6 of 438 columns by one spread is decided from 32
+anchors. `isc_v5.PAIRED` makes it the design, and a sweep that was not paired
+does not conform.
+
+**A failing sweep stops at the failing cut** (`80d087b83`). `--fail-fast` takes
+the cuts most lopsided first, each to its decision, and stops at the first that
+ends undecided. The line is a conjunction, so the verdict is the same as the
+full sweep's; a failing run costs one cut's rollouts instead of 511 cuts'.
+
+**The next carrier run** is `--v5 --fail-fast --turns 2`, grain learned, seed 7,
+at `9441d011f`. What it can say:
+
+- stopped at a cut: irreducibility and the carrier fail on seed 7, and the cut
+  it names is the next thing to build for;
+- every cut decided: the line holds on seed 7, the carrier's rate is the
+  weakest cut's lower bound, and seed 23 runs the same design as the decisive
+  reading.
+
+No bar moves. The decision rule, looks, level and draws are the ones above.
+
+**The arms.** The membrane now takes its channels from her own state and runs in
+her kernel as well as the harness (`1245d58ca`). The afferent surface filtered
+only the recording, so it moved to `core/subject` and no arm switches it on;
+`carried` is the membrane alone. The arms run after the carrier run and the
+reports ground, each at one commit with its own control.
+
+## Addendum, 28 September 2026, evening: the structure term, measured with the same estimator fixed
+
+Named before the content run that reads it. The code is at `1ef192fb9`.
+
+The structure term of J* read an agreement of 0.274 against its bar of 0.3
+(`content-s7-24-4e1923da1`), and its report put the cause in one line: a class
+lay about 0.05 from itself, as far as two classes lay from each other. That was
+the estimator of the addendum above. Every class is forked from the same
+anchors, and the same-class floor is two identical samples, which read 0.056 at
+that size. So the internal geometry's close pairs were all floor, and a rank
+correlation reads the close pairs too.
+
+Two changes to the content run, and nothing else:
+
+- the internal geometry compares two classes on the presentations both have,
+  row for row, and cross-fits by anchor (`internal_geometry(paired=True)`);
+- the runner stops the free-running loops before the anchor bank, as the
+  carrier and reports runners now do, so two presentations of one class from
+  one anchor are the same computation.
+
+The bars do not move: agreement and moves-together each at a rank correlation
+of at least 0.3 with p under 0.01, and moves-together above its sham floor.
+The behavioural geometry is unchanged. Seed 7, 24 anchors, 24 baseline rounds,
+the same 20 classes, as before.
+
+A result either way is read as the structure term's reading on seed 7. If the
+agreement clears 0.3 and moves-together does not, the verdict is
+AGREES_BUT_DOES_NOT_TRACK and the displacement is the next thing to build for.
+
+## Addendum, 28 September 2026, evening: the arms as they will run
+
+Named before any arm runs. The code is at `0675c4217`, which holds the fork and
+clamp fixes, the paired estimator, the membrane taken from her own state, the
+relay heard in each field's own units, and the null table across processes.
+
+| arm | membrane | workspace pool | dominance | relay |
+|---|---|---|---|---|
+| control | off | off | off | off |
+| relay | off | off | off | 0.35 |
+| carried | on | off | off | off |
+| joined | off | on | on | off |
+
+The afferent filter is the instrument's and is off in every arm. The relay was
+corrected before it ran: each domain's numbers were squashed raw, so C, N, P and
+D sat at 1.0 and contributed a fixed pattern; each field is now read in units of
+its own spread and a field that has only ever grown is left out.
+
+The four run at once, seed 7, 370 rounds, six trials, three-turn arms, nothing
+skipped, after the reports ground releases the machine
+(`~/.aura/subject_core/scratch/arms_parallel.sh`). Every paired stage runs with
+the free loops stopped and a declared host, so the load the four share reaches
+each the same way. A criterion that moves in an arm and not the control is
+credited to that arm's mechanism; the control is also the first battery reading
+with every fork and estimator fix of today in it.
