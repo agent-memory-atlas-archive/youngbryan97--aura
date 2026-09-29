@@ -3263,6 +3263,16 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   past 400 lines.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-09-29, evening: the full run at 40 chunks read five failures in its
+  first thirteen chunks, four passing alone. A class, and fixed as one: a
+  singleton a test builds through `get_x()` stayed for every test after it
+  (the agency ledger set a goal aside after four failures instead of five;
+  the interiority service read a calm sentence as negative), and 135 of the
+  162 resets in core were called by nothing. The conftest now empties every
+  private slot a module's source declares `None` once the test that filled
+  it ends; chunk 8 at its own order went from two failures to 1780 passed.
+  The lock-order claim now reads a reset register, as its own source asks.
+  The fifth was a gate that could not see `**extra`; fixed at the gate.
   2026-09-29: two more, both resolved, and the order they depended on is
   pytest-randomly's. It is installed and shuffles modules, classes and
   functions every run, so an order dependence shows as a flake. The
