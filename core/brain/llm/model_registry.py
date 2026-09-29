@@ -263,6 +263,25 @@ def _validate_identity_transition(
     return previous_sha256, transition_sha256, True
 
 
+def _pointer_failure_is_worth_reporting(exc: BaseException) -> bool:
+    """Whether a failure to read the active cortex pointer is an error.
+
+    A run that serves no cortex pins no migration authority key, and the key's
+    absence is then the same fact as a missing descriptor: there is no spec to
+    read. Every arm of the battery campaign of 29 September logged
+    `migration_authority_key_unavailable` at ERROR twice, which is how a log
+    teaches its reader to skip errors, and the neural stream is read by hand.
+
+    A key somebody DID pin and that cannot be read stays an error: the registry
+    cannot then confirm the cortex it has loaded, and her affective steering
+    never attaches (core/learning/cortex_migration_authority.py). So does every
+    other way the pointer can be invalid.
+    """
+    if str(exc) != "migration_authority_key_unavailable":
+        return True
+    return bool(os.environ.get("AURA_CORTEX_AUTHORITY_KEY_FILE", "").strip())
+
+
 def _read_active_cortex_spec(
     manifest: Path | None = None,
     *,
@@ -398,6 +417,11 @@ def _read_active_cortex_spec(
         # is what every caller checks None for.
         return None
     except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+        if not _pointer_failure_is_worth_reporting(exc):
+            logger.info(
+                "No active cortex pointer: nothing pinned a migration authority key."
+            )
+            return None
         logger.error("Active cortex pointer is invalid: %s", exc)
         return None
 

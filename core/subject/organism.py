@@ -127,7 +127,7 @@ async def bring_up(*, with_bridge: bool = True, quiet: bool = False) -> Organism
     try:
         from core.consciousness.system import ConsciousnessSystem
 
-        organism.consciousness = ConsciousnessSystem(orchestrator)
+        organism.consciousness = ConsciousnessSystem(orchestrator, offline_organism=True)
         _note(organism, "consciousness_system")
     except Exception as exc:  # noqa: BLE001
         _note(organism, "consciousness_system", exc)

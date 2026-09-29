@@ -28,6 +28,14 @@ from .temporal_binding import TemporalBindingEngine
 
 logger = logging.getLogger("Consciousness")
 
+
+class _NoPeerToReach(Exception):
+    """A layer that exists to reach another instance, in an organism that has none.
+
+    Not a fault: it leaves the layer's try block without the handler below
+    recording a degradation for something nobody asked to start.
+    """
+
 _RECOVERABLE_SYSTEM_ERRORS = (
     AttributeError,
     ImportError,
@@ -49,8 +57,12 @@ def _record_system_degradation(
 
 
 class ConsciousnessSystem:
-    def __init__(self, orchestrator):
+    def __init__(self, orchestrator, *, offline_organism: bool = False):
         self.orch = orchestrator
+        #: True when nothing outside this process will ever talk to it: a
+        #: subject-core fork, a battery arm. Layers that exist only to reach
+        #: another instance are not started.
+        self.offline_organism = bool(offline_organism)
         self.attention_schema = resolve_attention_schema(default=None) or AttentionSchema()
         self.global_workspace = resolve_global_workspace(default=None) or GlobalWorkspace(
             self.attention_schema
@@ -560,9 +572,30 @@ class ConsciousnessSystem:
             logger.warning("Could not boot BranchManager: %s", e)
 
         # Layer 8: Aura Protocol — inter-instance communication
+        #
+        # Not in an organism that has no other instance to reach. A subject-core
+        # run is a fork measured against its own arms, and the listener is a
+        # fixed port: on the four-arm campaign of 29 September the first arm to
+        # boot took it and the other three each recorded a bind failure, an
+        # incident and a degraded layer at bring-up. Arms that are meant to
+        # differ in one switch differed in which layers were online.
+        # `quiesce_organism` already stops this listener; it should not have
+        # bound in the first place.
         try:
             from .aura_protocol import get_protocol_server
 
+            if self.offline_organism:
+                if not hasattr(self, "layer_status"):
+                    self.layer_status = {}
+                    self.layer_detail = {}
+                self.layer_status["aura_protocol"] = "not_started"
+                self.layer_detail["aura_protocol"] = (
+                    "no other instance to reach, so no listener was bound"
+                )
+                logger.info(
+                    "🧠 Layer 8: AuraProtocol not started — this organism has no peer to reach."
+                )
+                raise _NoPeerToReach
             self.aura_protocol = get_protocol_server()
             protocol_started = await self.aura_protocol.start()
             if protocol_started:
@@ -587,6 +620,8 @@ class ConsciousnessSystem:
                     self.aura_protocol._port,
                     self._degraded_layers["aura_protocol"],
                 )
+        except _NoPeerToReach:
+            pass
         except (ImportError, AttributeError, RuntimeError) as e:
             self._mark_layer_degraded(
                 "aura_protocol",
