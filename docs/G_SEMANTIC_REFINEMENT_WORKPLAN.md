@@ -42,6 +42,10 @@ The [prospective screen runner](evidence/G03_PROSPECTIVE_REFERENCE_SCREEN_2026-0
 now freezes those three arms and verifies their receipts. It has not been run
 on a new candidate. A failed screen is a development stop decision, not an
 inference that the candidate cannot succeed at 256 nodes.
+The verified baseline arm completed at one exact procedure and answer among
+three. Paired retrospective replay has fitted 3/3 versus base 0/3 at 16 nodes
+and fitted 3/3 versus base 1/3 at 256. The source-erasure arm is still needed
+before the reference stage can pass.
 
 Stage receipts are immutable and bound to the candidate, source population,
 code, model, and budget. For the same identities, a passed stage is reused,
