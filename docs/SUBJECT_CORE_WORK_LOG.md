@@ -5,6 +5,58 @@ what broke, what fixed it, and where the evidence is. Runs live in
 `~/subject-core-runs/`; the order runs are read in is
 `~/.aura/subject_core/scratch/AFTER_THE_DECISIVE_RUN.md`.
 
+## 29 September
+
+### The night's three runs, read
+
+**Structure.** The content run at `c093fcfb7` (seed 7, 24 anchors, the paired
+geometry, loops stopped before the anchors) read an agreement of rho 0.443,
+p 0.001, against a bar of 0.3. It was 0.274 before the estimator was fixed.
+Design recovery is 0.713. Moves-together is −0.157, p 0.975, and the verdict
+is AGREES_BUT_DOES_NOT_TRACK. Neither half of that is noise: the displacement
+moved the internal geometry 0.166 against a sham of 0.009, and the recall
+geometry 0.035 against a sham of exactly zero. They moved in different pairs.
+Recall is keyed by what a percept is and by the valence she arrived with, so a
+valence displacement shifts recall for every class in the same direction, while
+the internal geometry is read over all 438 columns and moves wherever the
+displacement propagates. That is a finding about her, and the displacement is
+the next thing to build for; nothing here was changed to move it.
+
+**Carrier.** At `bb3faa54a`, every switch off, with the sham now reading 0.0:
+P, A, D, N, G, S and M alone against the rest are decided at one turn; I, C and
+W are not. At two turns everything but C is decided (table in the
+preregistration's 29 September addendum). C against the rest is undecided at
+both, 0.0096 and 0.0058, so seed 7 fails the line at either horizon.
+
+**The shards were four organisms.** The coordinator refused authority because
+each shard's anchors differed from its own at p = 0.0006.
+`tools/same_organism.py` finds them apart at the first frame in 170 to 206 of
+438 columns: belief counts, initiative urgency, goal profiles. Each process ran
+its free loops on the machine's clock through bring-up and the six-minute
+baseline, and stopped them only for the anchors.
+
+### What changed
+
+- The deciding horizon is two turns (`e5e4abe1b`). The proprioceptive phase
+  opens each turn and interoception steps once a turn, so at one turn a cut of
+  I cannot show the rest reaching the body. A test holds both facts. Seed 7 was
+  read before the change, so it stays a look and seed 23 decides.
+- `isc_v5.ONE_CLOCK` stops the free loops at bring-up (`686ddb77f`), the shard
+  launcher gives every process one hash seed, and `--baseline-only` with
+  `tools/same_organism.py` is the proof that two processes are one organism.
+  That proof is queued (`one_clock_probe.sh`) and has not run.
+
+### What is queued, in order
+
+1. The reports ground on her cortex, `reports-s7-bb3faa54a`, started 06:24.
+   The run of 02:52 refused because a live instance was up.
+2. Two baselines on one seed under ONE_CLOCK, beside step 3.
+3. C, I and W against the rest under each arm's switches at `0675c4217`
+   (`arm_looks_then_arms.sh`), about 75 minutes. The relay drives every
+   domain's summary into the substrate and reads back through gates that
+   already exist, so it is the arm most likely to decide C.
+4. The four arms' campaigns, as preregistered.
+
 ## 28 September
 
 ### The floor under every paired arm was the estimator, and the fork
