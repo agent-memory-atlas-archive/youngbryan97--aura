@@ -20,16 +20,19 @@ from tools.evaluate_semantic_native_checkpoint import digest, verified_document 
 
 def stage_jobs(*, training_directory, fit_verification, directory, source_report, bundles,
                training_plan_sha256, python, candidate_weight_mode="fitted",
-               residual_calibration=None):
+               residual_calibration=None, max_seconds=3600.):
     """Freeze commands and budgets before any arm can observe an outcome."""
     if ((candidate_weight_mode not in {"fitted", "residual"})
             or (residual_calibration is None) != (candidate_weight_mode == "fitted")):
         raise ValueError("native micro candidate mode lacks its calibration binding")
+    if (type(max_seconds) not in {int, float} or not math.isfinite(max_seconds)
+            or not 0 < max_seconds <= 14400):
+        raise ValueError("native micro decode requires a finite declared runtime bound")
     common = [python, str(ROOT / "tools/evaluate_semantic_native_grammar.py"),
               "--training-directory", str(training_directory), "--max-steps", "8",
               "--search-completions", "4", "--search-nodes", "256",
               "--search-score-mode", "native_nonpositive", "--prefix-strategy", "full",
-              "--max-seconds", "3600"]
+              "--max-seconds", str(int(max_seconds) if max_seconds == int(max_seconds) else max_seconds)]
     source = ["--source-report", str(source_report)]
     for bundle in bundles:
         source += ["--bundle", bundle]
@@ -57,7 +60,7 @@ def stage_jobs(*, training_directory, fit_verification, directory, source_report
                       "--directory", str(output), "--training-directory", str(training_directory),
                       "--output", str(output / "verification.json"), "--meaning-audit", *source]
             arm_jobs.append({"directory": str(output), "decode": job(name + "-decode", command,
-                directory, timeout=3900.), "verify": job(name + "-verify", verify, directory, timeout=1800.)})
+                directory, timeout=max_seconds + 300.), "verify": job(name + "-verify", verify, directory, timeout=1800.)})
         progress_path = directory / (cohort + "-progress.json")
         adjudicate = [python, str(ROOT / "tools/adjudicate_semantic_native_micro_stages.py"),
                      "--training-directory", str(training_directory), "--fit-verification", str(fit_verification),
@@ -125,6 +128,9 @@ def check_existing_plan(path, *, training, checkpoint, command=None,
                    for name, sha in plan["implementation"].items())):
         raise ValueError("native micro continuation changed its frozen candidate or code")
     if command is not None:
+        if "--max-seconds" in command and plan.get("max_seconds") != float(
+                command[command.index("--max-seconds") + 1]):
+            raise ValueError("native micro continuation changed its frozen runtime bound")
         contract = plan.get("residual_calibration")
         if plan.get("weight_mode") != mode:
             raise ValueError("native micro continuation changed its candidate mode")
@@ -190,6 +196,8 @@ def main():
     parser.add_argument("--fit-wait-seconds", type=float, default=10800.)
     parser.add_argument("--candidate-weight-mode", choices=("fitted", "residual"), default="fitted")
     parser.add_argument("--residual-calibration", type=Path)
+    parser.add_argument("--max-seconds", type=float, default=3600.,
+                        help="per-arm model-active bound, frozen into the pipeline and broker policy")
     args = parser.parse_args()
     if ((args.wait_fit_supervisor is None) != (args.fit_bank is None)
             or (args.wait_fit_supervisor is None) != (args.fit_parent is None)
@@ -207,7 +215,7 @@ def main():
         directory=args.directory, source_report=args.source_report, bundles=args.bundle,
         training_plan_sha256=training["plan_sha256"], python=sys.executable,
         candidate_weight_mode=args.candidate_weight_mode,
-        residual_calibration=args.residual_calibration)
+        residual_calibration=args.residual_calibration, max_seconds=args.max_seconds)
     if args.wait_fit_supervisor is not None:
         command = [sys.executable, str(ROOT / "tools/verify_semantic_native_fit.py"),
                    "--directory", str(args.training_directory), "--bank", str(args.fit_bank),

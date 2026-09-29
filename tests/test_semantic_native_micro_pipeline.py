@@ -46,6 +46,7 @@ def executor(jobs, training, checkpoint, *, failed_stage=None, verification_defe
             save(directory / "plan.json", {"training_plan_sha256": training["plan_sha256"],
                 "checkpoint_receipt_sha256": checkpoint["receipt_sha256"],
                 "weight_mode": command[command.index("--weight-mode") + 1],
+                "max_seconds": float(command[command.index("--max-seconds") + 1]),
                 "implementation": implementation}, "plan_sha256")
         elif item["name"].endswith("-decode"):
             directory = Path(command[command.index("--directory") + 1])
@@ -87,6 +88,41 @@ def test_every_arm_has_the_same_frozen_budget_and_broker_invocation_bound(tmp_pa
                 assert command.count("--bundle") == 2
             else:
                 assert command[command.index("--seed") + 1] == str(int("ffffffff", 16))
+
+
+def test_micro_policy_freezes_explicit_longer_bound_into_every_arm(tmp_path):
+    jobs = stage_jobs(training_directory=tmp_path / "training",
+        fit_verification=tmp_path / "fit-verification.json", directory=tmp_path / "micro",
+        source_report=tmp_path / "source.json", bundles=["source=/source"],
+        training_plan_sha256="f" * 64, python="/python", max_seconds=14400)
+    for stage in jobs["stages"]:
+        for arm in stage["arms"]:
+            command = arm["decode"]["command"]
+            assert command[command.index("--max-seconds") + 1] == "14400"
+            assert arm["decode"]["timeout_s_max"] == 14700
+    assert all(item["max_invocations"] == 1 for item in broker_policy(jobs))
+
+
+@pytest.mark.parametrize("bound", [0, -1, 14401, float("inf"), float("nan"), True])
+def test_micro_policy_refuses_unbounded_or_invalid_decode_time(tmp_path, bound):
+    with pytest.raises(ValueError, match="runtime bound"):
+        stage_jobs(training_directory=tmp_path / "training",
+            fit_verification=tmp_path / "fit-verification.json", directory=tmp_path / "micro",
+            source_report=tmp_path / "source.json", bundles=["source=/source"],
+            training_plan_sha256="f" * 64, python="/python", max_seconds=bound)
+
+
+def test_micro_resume_refuses_a_different_decode_budget(tmp_path):
+    saved = tmp_path / "plan.json"
+    save(saved, {"training_plan_sha256": "train", "checkpoint_receipt_sha256": "candidate",
+                 "weight_mode": "fitted", "max_seconds": 3600., "implementation": {}}, "plan_sha256")
+    check_existing_plan(saved, training={"plan_sha256": "train"},
+                        checkpoint={"receipt_sha256": "candidate"},
+                        command=["--weight-mode", "fitted", "--max-seconds", "3600"])
+    with pytest.raises(ValueError, match="runtime bound"):
+        check_existing_plan(saved, training={"plan_sha256": "train"},
+                            checkpoint={"receipt_sha256": "candidate"},
+                            command=["--weight-mode", "fitted", "--max-seconds", "14400"])
 
 
 def test_residual_micro_policy_uses_one_source_calibration_for_every_candidate_arm(tmp_path):
