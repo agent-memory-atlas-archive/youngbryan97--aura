@@ -1018,6 +1018,26 @@ class _WarmsUpAndSwapsAdapters:
             if self._warmup_inflight is task and task.done():
                 self._warmup_inflight = None
 
+    def _deferral_cause(self) -> str:
+        """Why a warm-up that could not bring its worker up is waiting.
+
+        The warm-up sets the lane to "warming" with no reason before it asks
+        for a worker, so a reason on the lane now was put there by that ask:
+        an admission refusal names who holds the lane. Writing the generic
+        "warmup_deferred" over it threw that away. LIVE 2026-09-28: a training
+        job held the exclusive model lane for forty minutes, and the health
+        pulse said "conversation_lane: recovering (warmup_deferred)" 324
+        times without once naming the job.
+
+        The class word stays first. The router's `_only_warming` and the
+        shared backpressure markers read "warmup_deferred" to know the lane
+        is waiting rather than broken, so the cause follows it.
+        """
+        cause = str(self._lane_error or "")
+        if not cause or cause.startswith("warmup_deferred"):
+            return cause or "warmup_deferred"
+        return f"warmup_deferred:{cause}"
+
     async def _warmup_impl(
         self,
         *,
@@ -1076,7 +1096,7 @@ class _WarmsUpAndSwapsAdapters:
                         )
                         if not alive:
                             if self._lane_state != "failed":
-                                self._set_lane_state("recovering", "warmup_deferred")
+                                self._set_lane_state("recovering", self._deferral_cause())
                             logger.info(
                                 "⏸️ [MLX] Warmup deferred for %s.", os.path.basename(self.model_path)
                             )
@@ -1160,7 +1180,7 @@ class _WarmsUpAndSwapsAdapters:
             )
             if not alive:
                 if self._lane_state != "failed":
-                    self._set_lane_state("recovering", "warmup_deferred")
+                    self._set_lane_state("recovering", self._deferral_cause())
                 logger.info("⏸️ [MLX] Warmup deferred for %s.", os.path.basename(self.model_path))
                 return False
             if request_is_background and _foreground_owner_active() and not self._is_primary_lane():
