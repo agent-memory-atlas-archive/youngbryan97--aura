@@ -342,6 +342,18 @@
         "name": "tests/test_the_body_reads_the_host_the_turn_declared.py",
         "why": "Decides the same clause for the subject-core measurements: a busy machine does not reach a calm turn, and everything that reads the host through psutil sees the run's declared host instead."
       }
+    ],
+    "IIT-SYSTEM-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_the_carrier_is_measured_not_assumed.py",
+        "why": "Decides the whole-runtime integration program's exhaustive-versus-heuristic labelling and its controls: ten domains make 511 cuts and none is excluded, one undecided cut refuses the conjunction, a screened sweep never reads as irreducible and says how many cuts it skipped, the sham floor is subtracted, the playback null collapses, duplicating channels does not raise the rate, and the verdict is never the word conscious. It does not decide the abstraction-error bounds, the branch-and-bound certificate, the treewidth work or the independent implementation."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_two_identical_samples_read_as_one.py",
+        "why": "Decides that the sham control measures nothing on identical laws: arms forked from one anchor are cross-fitted by anchor, two identical samples read exactly zero at every anchor count, and a real difference is still decided. Without it every paired comparison of the program carried a floor of its own estimator."
+      }
     ]
   }
 }
