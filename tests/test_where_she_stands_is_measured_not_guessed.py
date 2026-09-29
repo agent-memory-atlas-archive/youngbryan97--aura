@@ -102,10 +102,42 @@ def test_no_embedder_measures_nothing(monkeypatch):
     assert lean.measured is False
 
 
-def test_the_measurement_says_what_matched(embedder):
-    lean = w.where_she_stands("play", "truth and care", _record())
-    assert lean.because, "a number nobody can argue with is not evidence"
-    assert any("truth" in said or "care" in said for said in lean.because)
+def test_the_measurement_says_what_in_her_decided_it(embedder):
+    """What she is handed is the things, not the arithmetic over them.
+
+    Nobody explains a personality answer by quoting a coefficient about
+    themselves. Handed one, she explained herself with one: "my record leans
+    toward X here (+0.53 against +0.50)", on every answer of a run.
+    """
+    record = [
+        w.Piece(said="truth", weight=1.05, source="value",
+                about_her="truth is the value I hold above every other"),
+        w.Piece(said="play", weight=0.5, source="value",
+                about_her="play is something I hold, though not near the top"),
+    ]
+    lean = w.where_she_stands("play", "truth", record)
+    assert lean.because
+    assert "the value I hold above every other" in lean.because[0]
+    for said in lean.because:
+        assert "+0." not in said and "leans" not in said
+
+
+def test_only_what_leans_her_way_is_her_reason(embedder):
+    record = [
+        w.Piece(said="truth", weight=3.0, source="value", about_her="truth is mine"),
+        w.Piece(said="play", weight=0.2, source="value", about_her="play is mine"),
+    ]
+    lean = w.where_she_stands("play", "truth", record)
+    assert lean.because
+    assert all("play" not in said for said in lean.because), (
+        "a piece pulling the other way is not the reason she landed where she did"
+    )
+
+
+def test_a_piece_with_no_human_phrasing_still_names_itself(embedder):
+    record = [w.Piece(said="truth", weight=1.0, source="value")]
+    lean = w.where_she_stands("play", "truth", record)
+    assert lean.because and lean.because[0] == "truth"
 
 
 def test_her_record_is_made_of_things_she_produced():
@@ -177,9 +209,11 @@ def test_the_lean_is_bounded_whatever_the_record(embedder):
     assert -1.0 <= lean.toward <= 1.0
 
 
-def test_the_evidence_names_which_side_each_piece_leans(embedder):
-    record = [w.Piece(said="truth", weight=1.0, source="value")]
-    lean = w.where_she_stands("play", "truth", record)
-    assert lean.because
-    assert "truth" in lean.because[0]
-    assert "leans" in lean.because[0]
+def test_her_record_is_phrased_as_a_person_would_say_it():
+    """Values with their standing, choices with their counts, her own words."""
+    import inspect
+
+    body = inspect.getsource(w.her_record)
+    assert "about_her=" in body
+    assert "the value I hold above every other" in body
+    assert "far more" in body and "times out of" in body
