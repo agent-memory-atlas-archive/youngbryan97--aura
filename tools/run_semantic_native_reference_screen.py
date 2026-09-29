@@ -47,15 +47,48 @@ def screen_verdict(comparison):
             and comparison["source_intervention"]["source_dependent_gains"] > 0)
 
 
+def check_screen_plan_contract(path, command, training):
+    from core.learning.semantic_native_codec import register_encoding_from_plan
+    from tools.evaluate_semantic_native_grammar import grammar_examples
+
+    plan = verified_document(path, "plan_sha256")
+    def flag(name):
+        return command[command.index(name) + 1]
+
+    seed = int(flag("--seed"))
+    sources = [hashlib.sha256(example.source_text.encode()).hexdigest()
+               for example in grammar_examples(dataset="natural_request", seed=seed, count=3)]
+    expected = {"dataset": "natural_request", "seed": seed, "sources": sources,
+                "source_pair_map": {},
+                "source_evidence": flag("--source-evidence"),
+                "max_steps": int(flag("--max-steps")),
+                "search_nodes": int(flag("--search-nodes")),
+                "search_completions": int(flag("--search-completions")),
+                "search_score_mode": flag("--search-score-mode"),
+                "search_mode": "best_first_then_complete_graph_score",
+                "register_encoding": register_encoding_from_plan(training),
+                "candidate_inventory": "none",
+                "input_grounding": "semantic_public_character_inputs.v1",
+                "model_descriptor_sha256": training["model_descriptor_sha256"],
+                "pointer_sha256": training["pointer_sha256"],
+                "target_available_to_scorer": False,
+                "held_labels_used_for_fit_or_selection": False}
+    if (any(plan.get(key) != value for key, value in expected.items())
+            or plan.get("prefix_strategy", "full") != flag("--prefix-strategy")):
+        raise ValueError("native screen saved plan changed its source or search contract")
+
+
 def run_screen(plans, arms, *, training, checkpoint, baseline_checkpoint,
                residual_report_receipt_sha256, invoke, compare):
     for item in plans:
         command = item["command"]
         path = Path(command[command.index("--directory") + 1]) / "plan.json"
-        invoke(item)
+        if not path.exists():
+            invoke(item)
         check_existing_plan(path, training=training, checkpoint=checkpoint,
             baseline_checkpoint=baseline_checkpoint, command=command,
             residual_report_receipt_sha256=residual_report_receipt_sha256)
+        check_screen_plan_contract(path, command, training)
     for arm in arms:
         output = Path(arm["directory"])
         if not (output / "report.json").exists():
@@ -63,8 +96,10 @@ def run_screen(plans, arms, *, training, checkpoint, baseline_checkpoint,
                 raise ValueError("partial native screen decode requires a new declared attempt")
             invoke(arm["decode"])
         verified_document(output / "report.json")
-        invoke(arm["verify"])
-        verification = verified_document(output / "verification.json")
+        verification_path = output / "verification.json"
+        if not verification_path.exists():
+            invoke(arm["verify"])
+        verification = verified_document(verification_path)
         if (verification.get("artifacts_verified") is not True
                 or verification.get("current_implementation_drift") != []):
             raise ValueError("native screen arm lacks independent verification")

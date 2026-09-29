@@ -35,3 +35,28 @@ cohort result. The frozen 256-node campaign remains the promotion comparison.
 A separate prospectively frozen 16-node screen can reject weak later candidates
 quickly; success there would advance to, not replace, the full matched search
 and held controls. G03, G04, general transfer, fusion, and serving remain open.
+
+## Paired baseline replay after its verified completion
+
+The baseline arm subsequently completed and passed independent verification:
+one exact procedure and public answer among three at 256 nodes. Its saved
+scores reconstructed all three full-budget outputs under the same search code.
+The baseline budget receipt is
+`/Users/bryan/.aura/rlc-evidence/semantic-native-v7-reference-base-budget-frontier-20260929.json`
+(`f15704edba9f1064124036e179500e92cc27ea2dbd2c4500a8af7f4a83f9218c`).
+
+| Node bound | Fitted exact and correct | Base exact and correct | Fitted alternatives | Base alternatives |
+| ---: | ---: | ---: | ---: | ---: |
+| 16 | 3/3 | 0/3 | 255 | 162 |
+| 32 | 3/3 | 1/3 | 495 | 342 |
+| 64 | 3/3 | 1/3 | 963 | 1,009 |
+| 128 | 3/3 | 1/3 | 1,100 | 2,322 |
+| 256 | 3/3 | 1/3 | 1,100 | 4,108 |
+
+At 256 nodes, the baseline reaches the first exact graph and misses the
+second and third. At 16 it reaches none; all three fitted graphs are exact.
+Both arms have the same historical grammar file-byte difference in the replay
+environment, while their full-budget decisions and outcomes reconstruct from
+the saved scores. This is bounded paired development evidence. The source-
+erasure and relation-control outcomes are still pending, so no mechanism or
+general-transfer claim follows from this table.

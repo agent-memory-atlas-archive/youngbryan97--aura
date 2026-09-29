@@ -1326,6 +1326,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   [Prospective three-arm screen](evidence/G03_PROSPECTIVE_REFERENCE_SCREEN_2026-09-29.md)
   is implemented but has no generated result. It can stop a weak future
   candidate before the full gate; its pass cannot close G03.
+  The source-matched baseline arm has completed and verified at 1/3 exact
+  against fitted 3/3. Paired score replay gives 0/3 versus 3/3 at 16 nodes;
+  source erasure and controls remain open.
   [Source-role rule and cheap go/no-go probes](evidence/G03_SOURCE_ROLE_RULE_PROBE_2026-09-29.md)
   measured two new exact conditional teacher paths and zero losses on 185
   calibration sources, but no role coverage on any of nine frozen relation

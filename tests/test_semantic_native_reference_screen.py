@@ -1,9 +1,13 @@
 """A small native screen can reject candidates without claiming promotion."""
 
+import hashlib
 import json
 from pathlib import Path
 
+import pytest
+
 from tools.evaluate_semantic_native_checkpoint import digest
+from tools.evaluate_semantic_native_grammar import grammar_examples
 from tools.run_semantic_native_micro_stages import stage_jobs
 from tools.run_semantic_native_reference_screen import (
     reference_screen_jobs,
@@ -61,7 +65,9 @@ def test_screen_pass_requires_full_cohort_and_source_dependent_gain():
 def test_screen_reuses_complete_reports_but_reverifies_before_comparison(tmp_path):
     plans, arms = _jobs(tmp_path)
     calls = []
-    training = {"plan_sha256": "f" * 64}
+    training = {"plan_sha256": "f" * 64,
+                "model_descriptor_sha256": "d" * 64, "pointer_sha256": "p" * 64,
+                "register_encoding": "role_relative_v1"}
     candidate = {"receipt_sha256": "c" * 64}
     baseline = {"receipt_sha256": "b" * 64}
 
@@ -70,12 +76,29 @@ def test_screen_reuses_complete_reports_but_reverifies_before_comparison(tmp_pat
         command = item["command"]
         directory = Path(command[command.index("--directory") + 1]) if "--directory" in command else None
         if item["name"].endswith("-plan"):
+            seed = int(command[command.index("--seed") + 1])
             body = {"training_plan_sha256": training["plan_sha256"],
                     "checkpoint_receipt_sha256": baseline["receipt_sha256"] if
                     "--weight-mode" in command and command[command.index("--weight-mode") + 1] == "base"
                     else candidate["receipt_sha256"],
                     "weight_mode": command[command.index("--weight-mode") + 1],
                     "max_seconds": 1800., "search_nodes": 16,
+                    "sources": [hashlib.sha256(example.source_text.encode()).hexdigest()
+                                for example in grammar_examples(
+                                    dataset="natural_request", seed=seed, count=3)],
+                    "source_pair_map": {},
+                    "dataset": "natural_request", "seed": seed,
+                    "source_evidence": command[command.index("--source-evidence") + 1],
+                    "max_steps": 8, "search_completions": 4,
+                    "search_score_mode": "native_nonpositive",
+                    "search_mode": "best_first_then_complete_graph_score",
+                    "register_encoding": "role_relative_v1",
+                    "candidate_inventory": "none",
+                    "input_grounding": "semantic_public_character_inputs.v1",
+                    "model_descriptor_sha256": training["model_descriptor_sha256"],
+                    "pointer_sha256": training["pointer_sha256"],
+                    "target_available_to_scorer": False,
+                    "held_labels_used_for_fit_or_selection": False,
                     "decision_score_execution": "causal_groups", "implementation": {},
                     "residual_calibration": {"directory": str((tmp_path / "calibration").resolve()),
                         "report_receipt_sha256": "r" * 64} if
@@ -98,5 +121,12 @@ def test_screen_reuses_complete_reports_but_reverifies_before_comparison(tmp_pat
     calls.clear()
     assert execute()["screen_passed"] is True
     assert not any(name.endswith("-decode") for name in calls)
-    assert sum(name.endswith("-plan") for name in calls) == 3
-    assert sum(name.endswith("-verify") for name in calls) == 3
+    assert not any(name.endswith("-plan") for name in calls)
+    assert not any(name.endswith("-verify") for name in calls)
+    plan_path = Path(plans[0]["command"][plans[0]["command"].index("--directory") + 1]) / "plan.json"
+    stale = json.loads(plan_path.read_text())
+    stale["sources"] = list(reversed(stale["sources"]))
+    _save(plan_path, {key: value for key, value in stale.items() if key != "plan_sha256"},
+          "plan_sha256")
+    with pytest.raises(ValueError, match="source or search contract"):
+        execute()
