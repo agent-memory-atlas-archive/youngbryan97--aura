@@ -256,6 +256,14 @@ async def main() -> int:
         "distribution rather than one draw of a weight matrix",
     )
     parser.add_argument(
+        "--null-workers",
+        type=int,
+        default=1,
+        help="processes the null table is computed in. Each architecture is its own "
+        "toy system, so the rows are the same numbers whatever this is; one process "
+        "took 4 h 35 min on seed 7",
+    )
+    parser.add_argument(
         "--surrogate-draws",
         type=int,
         default=64,
@@ -1634,105 +1642,22 @@ def _nulls(
             "kind": "surrogate",
         }
 
-    for name in architectures:
-        # Several instantiations of each, so a null is a distribution rather
-        # than one draw of a random weight matrix. A single instantiation can
-        # be lucky in either direction and the comparison is with its tail.
-        values: list[float] = []
-        graphs: list[Any] = []
-        for draw in range(args.null_draws):
-            system = architecture(name, seed=args.seed + draw)
-            toy = toy_recording(system, steps=2500, seed=args.seed + draw)
-            values.append(round(phi_do(toy).phi, 5))
-            if draw == 0:
-                edges = toy_edges(system, trials=args.trials, seed=args.seed)
-                graphs.append(analyse_graph(domains, edges))
-        graph = graphs[0]
-        # And whether the null's own core is closed. A broker outside K makes
-        # every domain depend on every other one, so the graph of a hidden
-        # broker is indistinguishable from a mind's — measured, not assumed:
-        # one component, vertex connectivity three, every node re-entering.
-        # What separates them is that K's future depends on a variable no
-        # reading of K contains, which is what this measures and what the
-        # battery keeps causal closure for.
-        #
-        # Since the periphery walk stopped counting an empty periphery as closed,
-        # a null with no broker read as open, and that included the recurrent
-        # reference: the positive control failed closure on every run and
-        # `beats_every_null` could not pass for anything. A toy's state can be
-        # listed, so `toy_closure` reads "nothing outside K" off it.
-        closed = True
-        leak = 0.0
-        try:
-            from core.subject.nulls import toy_closure
+    # One row per architecture, computed apart from the others; see
+    # core/subject/null_table.py. The same numbers in the same order whether
+    # one process computes them or several.
+    from core.subject.null_table import null_rows
 
-            system = architecture(name, seed=args.seed)
-            closed, leak = toy_closure(system, steps=2500, seed=args.seed)
-        except (ImportError, ValueError, RuntimeError, AttributeError) as exc:
-            _log(f"  closure unavailable for the {name} null: {exc}")
-        # And the rest of the suite, on the same toy recording. A null suite
-        # that only measures irreducibility answers one line of a conjunction
-        # and leaves the other twenty-three untested on exactly the systems
-        # built to fake them: independent noise is what a differentiation bar
-        # read one way rewards, a common driver is what an observational
-        # spread measure cannot tell from coupling, and a memory-only system
-        # is what intrinsic persistence was written to catch.
-        extra: dict[str, Any] = {}
-        try:
-            from core.subject.differentiation import effective_dimension
-            from core.subject.intrinsic import intrinsic_gain
-            from core.subject.synergy import synergy_suite
-
-            reference_system = architecture(name, seed=args.seed)
-            scored = toy_recording(reference_system, steps=2500, seed=args.seed)
-            spectrum = effective_dimension(scored)
-            extra["d_eff"] = round(float(spectrum.d_eff), 4)
-            extra["d_eff_normalised"] = round(float(spectrum.normalised), 4)
-            extra["largest_component_share"] = round(float(spectrum.top_share), 4)
-            extra["intrinsic_gain"] = round(float(intrinsic_gain(scored, seed=args.seed).gain), 5)
-            # `normalised`, the report's own field. This read `.fraction`, which
-            # the report has never had: every run raised here, the except below
-            # logged it nineteen times a run, and no null was ever scored on
-            # synergy or on spread, because spread came after this line in the
-            # same block.
-            reports = synergy_suite(scored, seed=args.seed)
-            extra["synergy"] = [round(float(r.normalised), 4) for r in reports]
-            extra["synergy_passes"] = [bool(r.passes) for r in reports]
-            # And on the change, which is what the v2 conjunction judges a null
-            # by, with ISC-v3's line read off the same reports.
-            change = synergy_suite(scored, seed=args.seed, of="change")
-            extra["synergy_v2_passes"] = [bool(r.passes) for r in change]
-            extra["synergy_v3_passes"] = [bool(r.passes_v3) for r in change]
-            extra["synergy_min"] = (
-                round(min(float(r.normalised) for r in reports), 4) if reports else 0.0
-            )
-        except (ImportError, ValueError, RuntimeError, AttributeError, TypeError) as exc:
-            _log(f"  the wider suite was unavailable for the {name} null: {exc}")
-        # Spread in its own block. It needs nothing the lines above produce,
-        # and sharing their failure is how it went unmeasured for every null.
-        # Spread is how far a displacement travels: the share of the other
-        # domains a source reaches, taken at the source that reaches most.
-        reached: dict[str, set[str]] = {}
-        for source, target in edges:
-            reached.setdefault(source, set()).add(target)
-        extra["spread"] = round(
-            max((len(v) for v in reached.values()), default=0) / max(1, len(domains) - 1), 4
-        )
-
-        table[name] = {
-            "phi_do": round(float(np.quantile(values, 0.95)), 5),
-            "draws": values,
-            "max": max(values),
-            "median": round(float(np.median(values)), 5),
-            "quantile": 0.95,
-            "kind": "architecture",
-            "one_component": graph.one_component,
-            "vertex_connectivity": graph.connectivity,
-            "reentry": graph.every_node_reenters,
-            "closed": closed,
-            "leak": round(leak, 5),
-            **extra,
-        }
+    for name, row, notes in null_rows(
+        list(architectures),
+        seed=args.seed,
+        null_draws=args.null_draws,
+        trials=args.trials,
+        domains=domains,
+        workers=int(getattr(args, "null_workers", 1) or 1),
+    ):
+        for note in notes:
+            _log(note)
+        table[name] = row
 
     beaten = {
         name: real_phi > float(row["phi_do"])
