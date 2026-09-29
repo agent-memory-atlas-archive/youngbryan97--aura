@@ -63,6 +63,15 @@ waits for that existing trainer's verified terminal receipt, runs independent
 fit verification in a brokered CPU process, then starts the same micro stages.
 It never restarts the trainer or loads a model while its process remains alive.
 
+The [complete development window contract](evidence/G03_DEVELOPMENT_WINDOW_EXECUTION_2026-09-28.md)
+adds `--source-offset` for the later 500-request stage. Each window binds the
+whole ordered population and retains the same per-request scorer and search.
+`tools/adjudicate_semantic_native_development.py` replays all matched windows
+and refuses missing requests or changed budgets. Completed windows can be
+retained while the remaining fixed windows run. A complete micro result is
+still required before that broader stage; the window implementation supplies
+no generated v7 outcome or G03 closure.
+
 For each target-blind miss, retain one of these causal diagnoses:
 
 1. The intended graph was absent from the generated proposals: interpretation

@@ -178,6 +178,8 @@ def main():
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--max-steps", type=int, default=8)
     parser.add_argument("--canary", type=int, default=3)
+    parser.add_argument("--source-offset", type=int,
+                        help="fixed window in the complete 500-source retained development population")
     parser.add_argument("--max-seconds", type=float, default=3600.)
     parser.add_argument("--search-completions", type=int, default=0)
     parser.add_argument("--search-nodes", type=int, default=256)
@@ -205,6 +207,10 @@ def main():
         parser.error("finite depth, population, and runtime bounds required")
     if not 0 <= args.search_completions <= 128 or not 1 <= args.search_nodes <= 100000:
         parser.error("finite search node and completion bounds required")
+    if args.source_offset is not None and (args.dataset not in RETAINED_DATASETS
+            or args.source_offset < 0 or args.source_offset + args.canary > 500
+            or args.prefix_strategy != "full" or args.weight_mode not in {"fitted", "base"}):
+        parser.error("source windows require full-prefix retained fitted/base evaluation")
     if args.dataset in INTERVENTION_DATASETS | {"relation_transfer_controls"} and args.seed is None:
         parser.error("operation interventions require an explicit frozen seed")
     if args.dataset in RETAINED_DATASETS:
@@ -266,11 +272,19 @@ def main():
             or spec.model_path.resolve() != Path(training["model_path"]).resolve()):
         raise ValueError("native grammar model identity differs from training")
     source_basis = None
+    source_window = None
     if args.dataset in RETAINED_DATASETS:
         from tools.semantic_native_retained_sources import load_retained_native_sources
 
-        examples, source_basis = load_retained_native_sources(args.source_report, args.bundle,
-            split=args.dataset.removeprefix("retained_"), count=args.canary)
+        if args.source_offset is None:
+            examples, source_basis = load_retained_native_sources(args.source_report, args.bundle,
+                split=args.dataset.removeprefix("retained_"), count=args.canary)
+        else:
+            from tools.semantic_native_retained_sources import retained_native_source_window
+
+            examples, source_basis, source_window = retained_native_source_window(
+                args.source_report, args.bundle, split=args.dataset.removeprefix("retained_"),
+                offset=args.source_offset, count=args.canary)
         if source_basis["source_report_sha256"] != training["source_report_sha256"]:
             raise ValueError("retained native evaluation differs from the trained source basis")
     else:
@@ -339,6 +353,8 @@ def main():
         schema_version = "v10"
     if args.dataset == "relation_transfer_controls":
         schema_version = "v11"
+    if source_window is not None:
+        schema_version = "v12"
     body = {"schema": f"aura.semantic_native_grammar_plan.{schema_version}",
             "training_plan_sha256": training["plan_sha256"],
             "checkpoint_receipt_sha256": scored_checkpoint["receipt_sha256"],
@@ -360,6 +376,8 @@ def main():
         body["prefix_strategy"] = "trie"
     if source_basis is not None:
         body["source_cohort_basis"] = source_basis
+    if source_window is not None:
+        body["source_window"] = source_window
     if residual is not None:
         body["residual_calibration"] = {
             "directory": str(args.residual_calibration.resolve()),
@@ -604,6 +622,8 @@ def main():
             result["prefix_strategy"] = "trie"
         if source_basis is not None:
             result["source_cohort_basis"] = source_basis
+        if source_window is not None:
+            result["source_window"] = source_window
         if residual is not None:
             result["residual_calibration"] = body["residual_calibration"]
         if factorized is not None:

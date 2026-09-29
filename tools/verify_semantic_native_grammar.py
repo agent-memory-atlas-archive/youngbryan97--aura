@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from core.verify.invariants import Violation, invariant  # noqa: E402
+
 _INTERVENTION_DATASETS = frozenset({
     "operation_intervention", "definition_intervention", "equation_intervention",
     "role_intervention", "dependency_intervention",
@@ -303,7 +305,7 @@ def verify_source_separation(training, source_report_path, bundles, target_examp
 
 def verified_weight_mode(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    if (version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11"}
+    if (version not in {"v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12"}
             or plan["schema"] != f"aura.semantic_native_grammar_plan.{version}"
             or report.get("schema") != f"aura.semantic_native_grammar.{version}"):
         raise ValueError("native grammar schema versions differ")
@@ -321,7 +323,7 @@ def verified_weight_mode(plan, report):
 
 def verified_input_grounding(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
-    expected = ("semantic_public_character_inputs.v1" if version in {"v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11"}
+    expected = ("semantic_public_character_inputs.v1" if version in {"v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10", "v11", "v12"}
                 else "declared_public_inputs")
     if (plan.get("input_grounding") != expected
             or report.get("input_grounding") != plan["input_grounding"]):
@@ -331,6 +333,7 @@ def verified_input_grounding(plan, report):
 
 def verified_dataset(plan, report):
     version = plan.get("schema", "").rsplit(".", 1)[-1]
+    verified_source_window(plan, report)
     if version in {"v1", "v2"}:
         if any(name in document for document in (plan, report)
                for name in ("dataset", "seed")):
@@ -346,7 +349,7 @@ def verified_dataset(plan, report):
     if version == "v7":
         allowed = {"operation_intervention", "definition_intervention", "equation_intervention",
                    "role_intervention", "dependency_intervention"}
-    if version in {"v6", "v8", "v9", "v10"}:
+    if version in {"v6", "v8", "v9", "v10", "v12"}:
         allowed = {"retained_validation", "retained_test"}
         if (seed != 0 or not isinstance(plan.get("source_cohort_basis"), dict)
                 or plan["source_cohort_basis"] != report.get("source_cohort_basis")):
@@ -358,6 +361,43 @@ def verified_dataset(plan, report):
             or report.get("dataset") != dataset or report.get("seed") != seed):
         raise ValueError("native grammar dataset or seed differs")
     return dataset, seed
+
+
+def verified_source_window(plan, report):
+    """A window must retain its complete population identity in both artifacts."""
+    window = plan.get("source_window")
+    if not plan["schema"].endswith(".v12"):
+        if window is not None or "source_window" in report:
+            raise ValueError("historical native grammar acquired a source window")
+        return None
+    if (not isinstance(window, dict) or set(window) != {
+            "offset", "count", "population", "ordered_sources_sha256"}
+            or report.get("source_window") != window
+            or any(type(window[key]) is not int for key in ("offset", "count", "population"))
+            or window["population"] != 500 or window["offset"] < 0 or window["count"] < 1
+            or window["offset"] + window["count"] > 500
+            or window["count"] != len(plan["sources"])
+            or not isinstance(window["ordered_sources_sha256"], str)
+            or len(window["ordered_sources_sha256"]) != 64
+            or any(character not in "0123456789abcdef" for character in window["ordered_sources_sha256"])):
+        raise ValueError("native grammar complete source window differs")
+    return window
+
+
+@invariant("learning.native_development_windows_bind_complete_population", scope="learning",
+           owner="tools/verify_semantic_native_grammar.py", observational=False)
+def _native_development_window_contract():
+    plan = {"schema": "aura.semantic_native_grammar_plan.v12", "sources": ["source"],
+            "source_window": {"offset": 499, "count": 1, "population": 500,
+                              "ordered_sources_sha256": "a" * 64}}
+    verified_source_window(plan, plan)
+    for change in ({"count": True}, {"offset": 500}, {"population": 499}):
+        invalid = {**plan, "source_window": {**plan["source_window"], **change}}
+        try:
+            verified_source_window(invalid, invalid)
+        except ValueError:
+            continue
+        yield Violation(subject="source-window", message="invalid complete population was admitted")
 
 
 def verified_prefix_execution(plan, report, row=None):
@@ -410,9 +450,19 @@ def verified_examples(plan, *, dataset, seed):
         basis = plan["source_cohort_basis"]
         if basis["split"] != dataset.removeprefix("retained_"):
             raise ValueError("retained native development split differs")
-        examples, rebuilt = load_retained_native_sources(basis["source_report_path"],
-            [f"{name}={path}" for name, path in sorted(basis["source_manifest_paths"].items())],
-            split=basis["split"], count=count)
+        bundles = [f"{name}={path}" for name, path in sorted(basis["source_manifest_paths"].items())]
+        if plan.get("schema", "").endswith(".v12"):
+            from tools.semantic_native_retained_sources import retained_native_source_window
+
+            window = verified_source_window(plan, plan)
+            examples, rebuilt, rebuilt_window = retained_native_source_window(
+                basis["source_report_path"], bundles, split=basis["split"],
+                offset=window["offset"], count=window["count"])
+            if rebuilt_window != window:
+                raise ValueError("native grammar source window reconstruction differs")
+        else:
+            examples, rebuilt = load_retained_native_sources(basis["source_report_path"],
+                bundles, split=basis["split"], count=count)
         if rebuilt != basis:
             raise ValueError("retained native development source reconstruction differs")
         return examples
@@ -592,7 +642,7 @@ def verify_grammar(directory, training_directory):
             raise ValueError("native grammar trie training arithmetic differs")
     input_grounding = verified_input_grounding(plan, report)
     dataset, seed = verified_dataset(plan, report)
-    if (plan["schema"].endswith((".v6", ".v8", ".v9", ".v10"))
+    if (plan["schema"].endswith((".v6", ".v8", ".v9", ".v10", ".v12"))
             and plan["source_cohort_basis"]["source_report_sha256"] != training["source_report_sha256"]):
         raise ValueError("retained native source basis differs from the fitted checkpoint")
     if (plan["training_plan_sha256"] != training["plan_sha256"]
@@ -645,7 +695,7 @@ def verify_grammar(directory, training_directory):
         if ("source_evidence" in plan and row.get("scored_source_sha256")
                 != hashlib.sha256(scored_source.encode()).hexdigest()):
             raise ValueError("native grammar scored source differs")
-        if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8", ".v9", ".v10", ".v11")):
+        if plan["schema"].endswith((".v3", ".v4", ".v5", ".v6", ".v7", ".v8", ".v9", ".v10", ".v11", ".v12")):
             from core.learning.semantic_public_inputs import semantic_public_character_inputs
 
             receipt = semantic_public_character_inputs(example.source_text).receipt()
@@ -759,7 +809,7 @@ def main():
         training, _ = selected_checkpoint(args.training_directory)
         plan = verified_document(args.directory / "plan.json", "plan_sha256")
         examples = verified_examples(plan, dataset=result["dataset"], seed=result["seed"])
-        if plan["schema"].endswith((".v6", ".v8", ".v9", ".v10")):
+        if plan["schema"].endswith((".v6", ".v8", ".v9", ".v10", ".v12")):
             from tools.semantic_native_retained_sources import load_retained_native_sources
 
             _, basis = load_retained_native_sources(args.source_report, args.bundle,

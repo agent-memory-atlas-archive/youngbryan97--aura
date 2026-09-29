@@ -86,3 +86,18 @@ def load_retained_native_sources(source_report_path, bundles, *, split, count):
         "target_coordinates": "public_literal_character_order_v1",
         "exposure": "previously_exposed_development"}
     return ordered[:count], basis
+
+
+def retained_native_source_window(source_report_path, bundles, *, split, offset, count):
+    """Partition all 500 ordered requests without selecting by measured outcomes."""
+    if (type(offset) is not int or type(count) is not int
+            or offset < 0 or count < 1 or offset + count > 500):
+        raise ValueError("retained native source window exceeds the complete population")
+    examples, basis = load_retained_native_sources(source_report_path, bundles,
+                                                   split=split, count=500)
+    identities = [hashlib.sha256(example.source_text.encode()).hexdigest() for example in examples]
+    from tools.evaluate_semantic_native_checkpoint import digest
+
+    window = {"offset": offset, "count": count, "population": 500,
+              "ordered_sources_sha256": digest(identities)}
+    return examples[offset:offset + count], basis, window
