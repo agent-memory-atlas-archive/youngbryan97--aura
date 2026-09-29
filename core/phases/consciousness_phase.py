@@ -202,6 +202,7 @@ class ConsciousnessPhase(BasePhase):
         try:
             from core.consciousness.domain_relay import (
                 DomainRelay,
+                RelayScope,
                 relay_strength,
                 summarise,
             )
@@ -216,7 +217,13 @@ class ConsciousnessPhase(BasePhase):
                 return
             if cls._RELAY is None or cls._RELAY.base + cls._RELAY.width != len(substrate.x):
                 cls._RELAY = DomainRelay(len(substrate.x))
-            size = cls._RELAY.into(substrate, summarise(state), strength)
+            # Each field in units of its own spread, clocks left out; on her
+            # state, so a fork carries what the relay has seen.
+            scope = getattr(state, "relay_scope", None)
+            if not isinstance(scope, RelayScope):
+                scope = RelayScope()
+                state.relay_scope = scope
+            size = cls._RELAY.into(substrate, scope.standardise(summarise(state)), strength)
             state.response_modifiers["domain_relay"] = round(size, 8)
         except _CONSCIOUSNESS_PHASE_ERRORS as exc:
             record_degradation(
