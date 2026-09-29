@@ -158,7 +158,8 @@ def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_
         raise ValueError("native grammar trie has no scored source anchor")
 
 
-def replay_search_decisions(row, *, example, plan, input_types, input_receipts_for_choices):
+def replay_search_decisions(row, *, example, plan, input_types,
+                            input_receipts_for_choices, input_receipt_for_program):
     """Rebuild every searched branch from saved scores, including dead ends."""
     from core.learning.semantic_native_search import search_native_grammar
     from core.learning.semantic_program_floor import semantic_programs_structurally_equivalent
@@ -196,10 +197,14 @@ def replay_search_decisions(row, *, example, plan, input_types, input_receipts_f
     if consumed != len(transcript):
         raise ValueError("native search transcript contains unvisited decisions")
     graph_scores = observed.get("complete_graph_scores")
+    graph_receipts = observed.get("graph_score_input_receipts")
     if (not isinstance(graph_scores, list) or len(graph_scores) != len(replayed.candidates)
             or any(type(score) not in {int, float} or not math.isfinite(score)
-                   for score in graph_scores)):
-        raise ValueError("native search lacks finite whole-graph scores")
+                   for score in graph_scores)
+            or not isinstance(graph_receipts, list)
+            or graph_receipts != [input_receipt_for_program(candidate.result.program)
+                                  for candidate in replayed.candidates]):
+        raise ValueError("native search lacks source-bound whole-graph scores")
     chosen = max(range(len(graph_scores)), key=graph_scores.__getitem__) if graph_scores else None
     expected = {"expanded_nodes": replayed.expanded_nodes,
         "scored_decisions": replayed.scored_decisions,
@@ -211,6 +216,7 @@ def replay_search_decisions(row, *, example, plan, input_types, input_receipts_f
         "halt_reason": replayed.halt_reason,
         "requested_top_k_proven": replayed.requested_top_k_proven,
         "score_transcript": transcript,
+        "graph_score_input_receipts": graph_receipts,
         "selected_index": chosen, "complete_graph_scores": graph_scores,
         "proposals": [{"program": candidate.result.program.to_dict(),
             "log_probability": candidate.log_probability,
@@ -671,10 +677,27 @@ def verify_grammar(directory, training_directory):
                     receipts.append(native_score_input_receipt(sequence, control))
                 return receipts
 
+            def input_receipt_for_program(program, *, source=scored_source):
+                from core.learning.semantic_native_codec import native_sequence_for_encoding
+                from core.learning.semantic_native_source_control import (
+                    apply_native_source_evidence,
+                    native_score_input_receipt,
+                )
+
+                sequence = native_sequence_for_encoding(source, program, tokenizer,
+                    max_tokens=training["max_sequence_tokens"],
+                    register_encoding=plan["register_encoding"],
+                    decision_basis=training.get("semantic_decision_basis", "program_atoms_v1"))
+                sequence, control = apply_native_source_evidence(sequence, source, tokenizer,
+                    mode="source_text" if plan["source_evidence"] == "source_pair_swap"
+                    else plan["source_evidence"])
+                return native_score_input_receipt(sequence, control)
+
             replay_search_decisions(row, example=example, plan=plan,
                 input_types=tuple("integer_sequence" if isinstance(value, tuple) else "integer"
                                   for value in public_values),
-                input_receipts_for_choices=input_receipts_for_choices)
+                input_receipts_for_choices=input_receipts_for_choices,
+                input_receipt_for_program=input_receipt_for_program)
         rows.append(row)
     totals = {"population": len(outcomes),
               "program_equivalent": sum(equivalent for equivalent, _ in outcomes),

@@ -114,6 +114,9 @@ def test_search_replay_rebuilds_discarded_branches_and_rejects_forged_selection(
               "halt_reason": searched.halt_reason,
               "requested_top_k_proven": searched.requested_top_k_proven,
               "score_transcript": transcript,
+              "graph_score_input_receipts": [
+                  {"program": candidate.result.program.to_dict()}
+                  for candidate in searched.candidates],
               "selected_index": chosen,
               "complete_graph_scores": [0.0, 1.0, 2.0, -1.0],
               "proposals": [{"program": candidate.result.program.to_dict(),
@@ -134,7 +137,8 @@ def test_search_replay_rebuilds_discarded_branches_and_rejects_forged_selection(
     def verify(candidate):
         replay_search_decisions(candidate, example=example, plan=plan,
             input_types=("integer", "integer"),
-            input_receipts_for_choices=expected_receipts)
+            input_receipts_for_choices=expected_receipts,
+            input_receipt_for_program=lambda program: {"program": program.to_dict()})
 
     verify(row)
     for path, value in (
@@ -142,6 +146,8 @@ def test_search_replay_rebuilds_discarded_branches_and_rejects_forged_selection(
         (("search", "score_transcript", 0, "scores", 0), 7.0),
         (("score_input_receipts", 0, 0, "choice"), "forged"),
         (("search", "selected_index"), 0),
+        (("search", "graph_score_input_receipts", 0, "program"),
+         selected.program.to_dict()),
         (("search", "proposals", 0, "program"), selected.program.to_dict()),
         (("program",), searched.candidates[0].result.program.to_dict()),
     ):

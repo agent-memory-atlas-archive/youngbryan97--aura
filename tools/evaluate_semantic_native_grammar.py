@@ -425,6 +425,7 @@ def main():
             scored = 0
             score_input_receipts = []
             search_score_transcript = []
+            graph_score_input_receipts = []
             decision_parameter_scales = []
             branches = None
             def score(choices, *, source=scored_source, source_identity=identity,
@@ -479,16 +480,18 @@ def main():
                     searched = search_native_grammar(types, score, max_steps=args.max_steps,
                         max_nodes=args.search_nodes, completions=args.search_completions,
                         register_encoding=register_encoding, score_mode=args.search_score_mode)
-                    def whole_graph_score(program, *, source=scored_source):
+                    def whole_graph_score(program, *, source=scored_source,
+                                          receipts=graph_score_input_receipts):
                         if time.monotonic() - started > args.max_seconds:
                             raise TimeoutError("native grammar run reached its finite bound")
                         sequence = native_sequence_for_encoding(source, program, tokenizer,
                             max_tokens=training["max_sequence_tokens"], register_encoding=register_encoding,
                             decision_basis=training.get("semantic_decision_basis", "program_atoms_v1"))
-                        sequence, _control = apply_native_source_evidence(
+                        sequence, control = apply_native_source_evidence(
                             sequence, source, tokenizer,
                             mode="source_text" if args.source_evidence == "source_pair_swap"
                             else args.source_evidence)
+                        receipts.append(native_score_input_receipt(sequence, control))
                         hidden = prefix.capture(mx.array([sequence.tokens[:-1]], dtype=mx.int32))
                         return -native_loss(suffix, hidden, sequence, summed=True,
                                            scope="semantic_decisions").item()
@@ -503,6 +506,7 @@ def main():
                         "halt_reason": searched.halt_reason,
                         "requested_top_k_proven": searched.requested_top_k_proven,
                         "score_transcript": search_score_transcript,
+                        "graph_score_input_receipts": graph_score_input_receipts,
                         "selected_index": chosen, "complete_graph_scores": graph_scores,
                         "proposals": [{"program": candidate.result.program.to_dict(),
                             "log_probability": candidate.log_probability,
