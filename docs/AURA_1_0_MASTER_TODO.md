@@ -1319,6 +1319,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Verified-row budget frontier](evidence/G03_NATIVE_BUDGET_FRONTIER_2026-09-29.md)
+  replays the three fitted reference requests exactly at 16 rather than 256
+  search nodes. It is a faster retrospective screening basis, not a matched
+  baseline result or a replacement for the frozen full-budget gate.
   [Source-role rule and cheap go/no-go probes](evidence/G03_SOURCE_ROLE_RULE_PROBE_2026-09-29.md)
   measured two new exact conditional teacher paths and zero losses on 185
   calibration sources, but no role coverage on any of nine frozen relation

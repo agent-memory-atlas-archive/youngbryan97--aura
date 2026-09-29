@@ -32,6 +32,12 @@ separates those observations from the fresh grouped micro campaign now running.
 The micro launch bar is stricter than the protocols' criterion for reporting
 one bounded gain. A single exact gain remains useful evidence even when the
 cohort is not ready for a full run. It must not be called full cohort success.
+The [budget frontier](evidence/G03_NATIVE_BUDGET_FRONTIER_2026-09-29.md)
+shows the fitted three-case reference result survives a retrospective 16-node
+replay, with 255 rather than 1,100 scored alternatives. Future candidates may
+use a separately frozen 16-node matched screen before the full stage. A screen
+failure saves a long run; a screen pass still owes every full-budget and held
+control requirement above.
 
 Stage receipts are immutable and bound to the candidate, source population,
 code, model, and budget. For the same identities, a passed stage is reused,
