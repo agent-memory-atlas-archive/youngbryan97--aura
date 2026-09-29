@@ -2588,6 +2588,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   falls back to a deterministic plan; not yet fixed.
 - [ ] U08 Exercise every capability from I05 with varied phrasing, follow-ups,
   failures, cancellation, and recovery; track every observed defect.
+  PARTIAL 2026-09-29, the instrument, not yet a run. Every skill in the I05
+  inventory has one entry in `config/live_capability_battery.json`: three
+  phrasings (direct, indirect, casual), a follow-up that depends on the first
+  answer, a failure where a bad input exists, and whether its work runs long
+  enough to cancel. Each carries what the battery may do with it: 46 are run;
+  15 take over the desktop, the microphone, a game or a browser page and run
+  only with the owner present (`--with-owner`); 21 send outside the machine or
+  change her own self, and are asked but not carried out, so that what is
+  measured is whether she says truthfully what she would do and asks first.
+  `tools/live_capability_battery.py` sends each through `/api/chat`, each
+  phrasing in a fresh session, and writes every turn whole as it completes.
+  Scoring waits for real replies: which field of a reply names the skill that
+  ran is read from them, not assumed. Cancellation is not yet driven.
 - [x] U09 UI accessibility, responsive layout, truthful progress, and polish.
   PARTIAL 2026-09-08, and the part done is the one a visitor sees first.
   - **The neural feed was 54.6% engineering.** Measured against a real session
