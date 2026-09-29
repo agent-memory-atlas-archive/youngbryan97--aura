@@ -1750,6 +1750,9 @@ def install_declared_host(runtime: Any) -> Any:
     declared = _DeclaredHost(get_resource_observer(), hardware)
     runtime.previous_observer = set_resource_observer_for_test(declared)
     runtime.declared_host = declared
+    from core.subject.declared_network import declare_the_network
+
+    declare_the_network(runtime)
     return declared
 
 
@@ -1766,6 +1769,9 @@ def release_declared_host(runtime: Any) -> None:
     set_resource_observer_for_test(getattr(runtime, "previous_observer", None))
     runtime.declared_host = None
     runtime.previous_observer = None
+    from core.subject.declared_network import release_the_network
+
+    release_the_network(runtime)
 
 
 async def calibrate_clock(
