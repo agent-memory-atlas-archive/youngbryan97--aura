@@ -557,6 +557,7 @@ async def _spectrum(
         paired=bool(chosen.get("paired")),
         kept=None if keep_samples is None else (kept := {}),
         estimator=str(chosen.get("estimator") or "fisher_rao"),
+        one_signal=bool(chosen.get("one_signal")),
     )
     if keep_samples is not None:
         detail["samples_file"] = str(await asyncio.to_thread(_save_cut_samples, keep_samples, kept))
