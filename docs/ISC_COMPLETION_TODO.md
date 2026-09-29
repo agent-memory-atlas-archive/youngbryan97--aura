@@ -216,7 +216,7 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 - [ ] `P6.5` Improve lowest-spread sources first.
 - [ ] `P6.6` Ensure I, C, N, and D perturbations escape those domains if they remain weak.
 - [ ] `P6.7` Extend legitimate return routes.
-- [ ] `P6.8` Test whether the 2-turn horizon is long enough for slow intended mechanisms.
+- [x] `P6.8` Test whether the 2-turn horizon is long enough for slow intended mechanisms. — two turns is the shortest horizon at which the rest of her can reach the body, and the test says why: the proprioceptive phase writes the body first in every turn from the state the turn opened with, and interoception steps once a turn, so at one turn the body in both arms was written from the anchor and nothing the rest did can have reached it. If the body moves later in the turn or samples faster, that test fails and the horizon is argued again
 - [x] `P6.9` If horizon changes, preregister it before rerunning. — the horizon is a frozen value in the campaign fingerprint, so changing it starts a different campaign
 - [x] `P6.10` Prefer multiple preregistered horizons over choosing the favorable one afterward. — every lag up to the horizon is measured and the lag the effect peaked at is recorded, rather than one horizon chosen afterwards
 - [x] `P6.11` Verify effects persist beyond one instantaneous phase. — each edge records the lag its effect peaked at, so an effect at the horizon is visible
