@@ -24,6 +24,10 @@ reads it from here, so the two cannot drift apart:
     level       each look at alpha / 6, so a cut that costs nothing is decided
                 at any look with probability under alpha
     draws       1000 bootstrap draws behind each lower bound
+    one clock   the free-running loops stop at bring-up, so the recording, the
+                doses, the anchors and every arm are one organism stepped on the
+                harness's clock, and two processes on one seed are the same
+                organism; a sharded sweep is only a sweep of her if they are
 
 `partition_irreducibility` passes when every one of the 511 cuts is decided on
 a sweep that is not a screen and not an unmerged shard: an intersection-union
@@ -45,6 +49,7 @@ __all__ = [
     "DECIDING_LAG",
     "DRAWS",
     "LOOKS",
+    "ONE_CLOCK",
     "PAIRED",
     "REPORTED_LAGS",
     "design",
@@ -62,6 +67,11 @@ ANCHORS: int = max(LOOKS)
 #: identical samples read a distance squared of 0.056 at 128 anchors, which was
 #: the whole sham floor; see core.subject.intrinsic_v25.crossfit_fisher_rao.
 PAIRED: bool = True
+#: The free-running loops stop when the organism comes up, not when the anchors
+#: are taken. Before 29 September each process ran them on the machine's clock
+#: through bring-up and the baseline, and four shards on one seed recorded four
+#: organisms: 170 to 206 of 438 columns apart at the first frame.
+ONE_CLOCK: bool = True
 
 
 def design() -> dict[str, Any]:
@@ -75,6 +85,7 @@ def design() -> dict[str, Any]:
         "deciding": [DECIDING_LAG],
         "anchors": ANCHORS,
         "paired": PAIRED,
+        "one_clock": ONE_CLOCK,
     }
 
 

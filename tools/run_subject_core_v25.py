@@ -642,6 +642,13 @@ async def main() -> int:
     )
     parser.add_argument("--skip-grain", action="store_true")
     parser.add_argument(
+        "--baseline-only", action="store_true",
+        help=(
+            "stop once the baseline recording and its doses are saved. Two runs "
+            "of this on one seed are how shards are shown to be one organism"
+        ),
+    )
+    parser.add_argument(
         "--whiten",
         action="store_true",
         help=(
@@ -814,6 +821,13 @@ async def main() -> int:
             f"refusing: a module kept a path into the shared state root: {state_leaks()[:6]}"
         )
     await start_organism(runtime)
+    stopped_at_boot: list[str] = []
+    if preset.get("one_clock"):
+        # Before the clock is read and before the baseline, so everything this
+        # run measures is the organism the harness steps and nothing it did on
+        # the machine's clock. See isc_v5.ONE_CLOCK.
+        stopped_at_boot = await quiesce_organism(runtime)
+        _log(f"stopped {len(stopped_at_boot)} free-running loops at bring-up")
     clock = await calibrate_clock(runtime, conditions)
     frame_seconds = float(clock.get("step", 1.0 / 33.0))
     _log(f"experiment clock at {frame_seconds:.4f}s a frame")
@@ -823,6 +837,7 @@ async def main() -> int:
         "environment": environment(),
         "scope": "substrate_only",
         "clock": clock,
+        "stopped_at_boot": stopped_at_boot,
         "support": list(support),
         "conditions_used": len(conditions),
         "conditions_available": len(CONDITIONS),
@@ -894,6 +909,9 @@ async def main() -> int:
             )
             evidence["doses_for_resume"] = dict(doses)
             _checkpoint_v25(run_dir, "baseline", evidence)
+            if args.baseline_only:
+                _log(f"baseline only: recording saved in {run_dir}")
+                return 0
         else:
             from core.subject.recording import load_recording
 
@@ -925,8 +943,8 @@ async def main() -> int:
             # parted within a frame or three: that was the sham floor of 0.062
             # to 0.093 on the seed-7 look at 38ef2c9ce, larger than seven
             # singletons' whole effect.
-            evidence["stopped_loops"] = await quiesce_organism(runtime)
-            _log(f"stopped {len(evidence['stopped_loops'])} free-running loops before the anchors")
+            evidence["stopped_loops"] = stopped_at_boot + await quiesce_organism(runtime)
+            _log(f"{len(evidence['stopped_loops'])} free-running loops stopped before the anchors")
             _log(f"collecting {args.anchors} anchors")
             anchors = await collect_anchor_bank(
                 runtime, conditions,

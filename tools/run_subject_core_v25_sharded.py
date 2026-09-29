@@ -158,7 +158,10 @@ def main() -> int:
 
     (base / "logs").mkdir(parents=True, exist_ok=True)
     bound = int(args.hours * 3600)
-    environment = {**os.environ, **thread_budget(len(plan))}
+    # One hash seed for every process. Each shard is its own organism and they
+    # are only one sweep if they are the same organism; a set of strings
+    # iterated in a different order per process is a difference nobody chose.
+    environment = {**os.environ, **thread_budget(len(plan)), "PYTHONHASHSEED": "0"}
     started: list[dict[str, object]] = []
     children: list[subprocess.Popen] = []
     for name, argv in plan:
@@ -173,6 +176,7 @@ def main() -> int:
         "workers": args.workers,
         "bound_seconds": bound,
         "thread_budget": thread_budget(len(plan)),
+        "hash_seed": "0",
         "processes": started,
     }
     (base / "launch.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
