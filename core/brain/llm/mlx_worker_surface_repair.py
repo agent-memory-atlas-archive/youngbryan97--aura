@@ -131,6 +131,7 @@ _DELIVERABLE_RESIDUAL_SURFACE_REASONS = frozenset(
         "missing_requested_list_count",
         "empty_requested_list_item",
         "missing_requested_choice_clarification",
+        "missing_requested_scale_placement",
         "missing_requested_followup_question",
         "too_short_for_user_turn",
         "too_thin_for_user_turn",
@@ -181,6 +182,7 @@ _REQUIREMENT_SHORTFALL_LABELS = {
     "missing_requested_list_count": "hit the number of list items you asked for",
     "empty_requested_list_item": "fill in every list item",
     "missing_requested_choice_clarification": "give you the choice you asked for",
+    "missing_requested_scale_placement": "place it on the scale you asked for",
     "missing_requested_followup_question": "end with the follow-up question you asked for",
 }
 

@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-__all__ = ["answers_the_scale_it_was_asked_for", "asked_scale"]
+__all__ = ["answers_the_scale_it_was_asked_for", "asked_scale", "asks_for_a_rating"]
 
 #: A rating scale the person names: "from -1 (very bad) to 1 (very good)",
 #: "on a scale of 1 to 10", "between 0 and 5", "a 0-10 scale".
@@ -66,3 +66,31 @@ def answers_the_scale_it_was_asked_for(prompt: Any, reply_text: Any) -> bool:
         if low <= value <= high:
             return True
     return False
+
+
+#: What makes a named scale a request to answer on it. "Migrate from 1 to 5
+#: replicas" names two numbers and asks for no placement between them.
+_RATING_REQUEST_RE = re.compile(
+    r"\b(?:rate|rating|rank|score|scored|scale|out\s+of)\b", re.IGNORECASE
+)
+#: Or the ends carry their meaning: "from -1 (very bad) to 1 (very good)" is a
+#: rating scale because its ends are labelled, and a range of anything else is not.
+_LABELLED_END_RE = re.compile(r"[+\-\u2212]?\d+(?:\.\d+)?\s*\([^)]{1,40}\)")
+
+
+def asks_for_a_rating(prompt: Any) -> tuple[float, float] | None:
+    """The scale a message asks to be answered ON, low end first, or None.
+
+    `asked_scale` reads any two numbers joined by "from ... to"; this says
+    whether the message asks for a placement between them. A reply that gives
+    no number on a scale it was asked for has not answered the question, and
+    that is a shortfall the person should see rather than a defect that costs
+    them the reply.
+    """
+    text = str(prompt or "")
+    scale = asked_scale(text)
+    if scale is None:
+        return None
+    if _RATING_REQUEST_RE.search(text) or _LABELLED_END_RE.search(text):
+        return scale
+    return None

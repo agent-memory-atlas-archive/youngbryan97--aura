@@ -504,6 +504,12 @@ ADVISORY_ONLY_REASONS: frozenset[str] = frozenset(
     {
         "borrowed_owner_first_person_speech",
         "reply_abandons_thread",
+        # Asked how she feels from -1 to 1, she sometimes answers "I feel clear
+        # and gathered". That is an answer, and the person should be told the
+        # number is missing from it. Holding it against the reply would be a
+        # check deciding how she has to answer a question about herself, and
+        # a retry at the same temperature returns the same words anyway.
+        "missing_requested_scale_placement",
     }
 )
 
@@ -637,6 +643,7 @@ SHORTFALL_REASONS: frozenset[str] = frozenset(
         "missing_requested_line_count",
         "missing_requested_paragraph_count",
         "missing_requested_list_count",
+        "missing_requested_scale_placement",
         "missing_requested_followup_question",
         "missing_requested_self_process_coverage",
         "missing_requested_objective_facets",

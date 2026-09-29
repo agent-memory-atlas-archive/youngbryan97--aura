@@ -611,6 +611,7 @@ _DOWNSTREAM_REPAIRABLE_USER_FACING_REASONS = frozenset(
         "missing_requested_paragraph_count",
         "missing_requested_list_count",
         "missing_requested_bare_answer",
+        "missing_requested_scale_placement",
         "missing_requested_word_count",
         "missing_requested_sentence_count",
         "missing_requested_followup_question",

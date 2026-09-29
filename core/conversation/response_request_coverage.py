@@ -105,6 +105,17 @@ def _instruction_coverage_reasons(user_message: Any, reply_text: Any) -> list[st
     if _asked_for_a_bare_answer(user) and _word_count(reply) > A_BARE_ANSWER:
         reasons.append("missing_requested_bare_answer")
 
+    # A question that names its scale names the shape of its answer. Asked how
+    # she feels "from -1 (very bad) to 1 (very good)" she answered "I feel clear
+    # and gathered" on 29 of 96 arms of the reports run of 29 September, and the
+    # experiment could not read a report she had not placed. This is a
+    # shortfall, never a hard failure: the prose is still an answer, and the
+    # person sees that the placement they asked for is missing from it.
+    from .asked_scale import answers_the_scale_it_was_asked_for, asks_for_a_rating
+
+    if asks_for_a_rating(user) and not answers_the_scale_it_was_asked_for(user, reply):
+        reasons.append("missing_requested_scale_placement")
+
     requested_word_range = _requested_word_count_range(user)
     if requested_word_range:
         minimum_words, maximum_words = requested_word_range
