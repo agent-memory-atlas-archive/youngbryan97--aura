@@ -53,8 +53,6 @@ def score_native_causal_groups(prefix, suffix, sequences: tuple[NativeProgramSeq
     Sharing applies within this call only; parameter changes cannot reuse it.
     """
     import mlx.core as mx
-    import mlx.nn as nn
-
     groups = native_causal_groups(sequences)
     if any(child.training for module in (*suffix.layers, suffix.norm, suffix.output)
            for child in module.modules()):
@@ -66,14 +64,17 @@ def score_native_causal_groups(prefix, suffix, sequences: tuple[NativeProgramSeq
         logits = suffix(hidden, logit_positions=group.prediction_positions).astype(mx.float32)
         if logits.shape[:2] != (1, len(group.prediction_positions)):
             raise ValueError("native causal sharing lost its selected logit alignment")
+        log_norm = mx.logsumexp(logits, axis=-1)
         for index in group.members:
             sequence = sequences[index]
             targets = mx.array([[sequence.tokens[position] for position in sequence.semantic_positions]],
                                dtype=mx.int32)
-            scores[index] = -mx.sum(nn.losses.cross_entropy(logits, targets)).item()
+            target_logits = mx.take_along_axis(logits, targets[..., None], axis=-1).squeeze(-1)
+            scores[index] = -mx.sum(log_norm - target_logits).item()
     return tuple(scores), {
         "schema": "aura.native_causal_group_execution.v1",
         "alternatives": len(sequences), "full_single_row_forwards": len(groups),
+        "vocabulary_normalizations": len(groups),
         "shared_forwards": len(sequences) - len(groups),
         "groups": [{"representative": group.representative, "members": list(group.members),
                     "prediction_positions": list(group.prediction_positions)} for group in groups],
