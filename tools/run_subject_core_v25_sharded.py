@@ -85,6 +85,18 @@ def thread_budget(processes: int, cores: int | None = None) -> dict[str, str]:
     }
 
 
+def estimator_workers(processes: int, cores: int | None = None) -> int:
+    """How many processes each run's bootstrap draws may use: its share of the cores.
+
+    A cut's decision is a thousand draws of the estimator, one core's work while
+    the rest of the host waits. Each process gets an equal share of what the
+    run's cores leave after one for the host, and the numbers do not change
+    with it (core/subject/draw_pool.py).
+    """
+    cores = _cores_this_run_has() if cores is None else int(cores)
+    return max(1, (cores - 1) // max(1, int(processes)))
+
+
 def commands(args: argparse.Namespace, base: Path) -> list[tuple[str, list[str]]]:
     """Every process to start, as (name, argv). Pure, so the plan can be read before it runs."""
     shared: list[str] = []
@@ -161,7 +173,10 @@ def main() -> int:
     # One hash seed for every process. Each shard is its own organism and they
     # are only one sweep if they are the same organism; a set of strings
     # iterated in a different order per process is a difference nobody chose.
-    environment = {**os.environ, **thread_budget(len(plan)), "PYTHONHASHSEED": "0"}
+    environment = {
+        **os.environ, **thread_budget(len(plan)), "PYTHONHASHSEED": "0",
+        "AURA_ESTIMATOR_WORKERS": str(estimator_workers(len(plan))),
+    }
     started: list[dict[str, object]] = []
     children: list[subprocess.Popen] = []
     for name, argv in plan:
@@ -177,6 +192,7 @@ def main() -> int:
         "bound_seconds": bound,
         "thread_budget": thread_budget(len(plan)),
         "hash_seed": "0",
+        "estimator_workers": estimator_workers(len(plan)),
         "processes": started,
     }
     (base / "launch.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")

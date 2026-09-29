@@ -494,9 +494,20 @@ def bootstrap_rate_difference(
     n = min(len(p), len(q), len(a), len(b))
     ctx = None if context is None else np.asarray(context)[:n]
     rng = np.random.default_rng(seed)
-    values = np.zeros(draws, dtype=np.float64)
-    for draw in range(draws):
-        idx = rng.integers(0, n, size=n)
+    # Every index drawn here, in order, before any draw is evaluated, so the
+    # draws can be spread over processes and come back as one process has them.
+    resampled = [(rng.integers(0, n, size=n), seed + draw + 1) for draw in range(draws)]
+    from core.subject.draw_pool import evaluate_in_order
+
+    shared = (p, q, a, b, ctx, float(tau_seconds), min(5, max(2, n // 4)), bool(paired))
+    return np.asarray(evaluate_in_order(_bootstrap_chunk, shared, resampled), dtype=np.float64)
+
+
+def _bootstrap_chunk(shared: tuple, draws: Sequence[tuple[np.ndarray, int]]) -> list[float]:
+    """Cut-minus-sham rate for each resampled draw, in the order given."""
+    p, q, a, b, ctx, tau_seconds, folds, paired = shared
+    values: list[float] = []
+    for idx, draw_seed in draws:
         estimate = intrinsic_rate_from_samples(
             p[idx],
             q[idx],
@@ -504,11 +515,11 @@ def bootstrap_rate_difference(
             b[idx],
             tau_seconds=tau_seconds,
             context=None if ctx is None else ctx[idx],
-            folds=min(5, max(2, n // 4)),
-            seed=seed + draw + 1,
+            folds=folds,
+            seed=draw_seed,
             groups=idx if paired else None,
         )
-        values[draw] = estimate.raw_rate - estimate.sham_rate
+        values.append(float(estimate.raw_rate - estimate.sham_rate))
     return values
 
 
@@ -555,9 +566,21 @@ def paired_permutation_pvalue(
     observed_stat = observed.raw_rate - observed.sham_rate
 
     rng = np.random.default_rng(seed + 1)
-    exceed = 0
-    for draw in range(draws):
-        swap = rng.random(n) < 0.5
+    swaps = [(rng.random(n) < 0.5, seed + 10 + draw) for draw in range(draws)]
+    from core.subject.draw_pool import evaluate_in_order
+
+    shared = (p, q, a, b, ctx, float(tau_seconds), int(folds), anchor)
+    stats = evaluate_in_order(_permutation_chunk, shared, swaps)
+    exceed = sum(1 for stat in stats if stat >= observed_stat - 1e-15)
+    p_value = (exceed + 1.0) / (draws + 1.0)
+    return float(observed_stat), float(p_value)
+
+
+def _permutation_chunk(shared: tuple, draws: Sequence[tuple[np.ndarray, int]]) -> list[float]:
+    """Cut-minus-sham rate with each draw's arms swapped where its mask says, in order."""
+    p, q, a, b, ctx, tau_seconds, folds, anchor = shared
+    stats: list[float] = []
+    for swap, draw_seed in draws:
         pp = p.copy()
         qq = q.copy()
         pp[swap], qq[swap] = q[swap], p[swap]
@@ -566,14 +589,11 @@ def paired_permutation_pvalue(
             tau_seconds=tau_seconds,
             context=ctx,
             folds=folds,
-            seed=seed + 10 + draw,
+            seed=draw_seed,
             groups=anchor,
         )
-        stat = perm.raw_rate - perm.sham_rate
-        if stat >= observed_stat - 1e-15:
-            exceed += 1
-    p_value = (exceed + 1.0) / (draws + 1.0)
-    return float(observed_stat), float(p_value)
+        stats.append(float(perm.raw_rate - perm.sham_rate))
+    return stats
 
 
 def save_predictive_grain(path: str, grain: PredictiveGrain, **extra: np.ndarray) -> None:

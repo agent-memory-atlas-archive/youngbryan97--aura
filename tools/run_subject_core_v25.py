@@ -642,6 +642,14 @@ async def main() -> int:
     )
     parser.add_argument("--skip-grain", action="store_true")
     parser.add_argument(
+        "--estimator-workers", type=int, default=0,
+        help=(
+            "processes each cut's bootstrap and permutation draws may use; the "
+            "numbers do not change with it (core/subject/draw_pool.py). The shard "
+            "launcher sets it from the run's cores"
+        ),
+    )
+    parser.add_argument(
         "--baseline-only", action="store_true",
         help=(
             "stop once the baseline recording and its doses are saved. Two runs "
@@ -708,6 +716,8 @@ async def main() -> int:
         help="the ISC-v5 design in core/subject/isc_v5.py: its looks, draws, level, horizons and anchors",
     )
     args = parser.parse_args()
+    if args.estimator_workers > 0:
+        os.environ["AURA_ESTIMATOR_WORKERS"] = str(args.estimator_workers)
     only_cuts: tuple[str, ...] = tuple(
         side.strip().upper() for side in args.cuts.split(",") if side.strip()
     )
