@@ -10,9 +10,11 @@ A look run with `--keep-cut-samples` has already paid for those samples. This
 reads them, so the second estimator costs no organism and no cortex, and the two
 readings are of the same rows rather than of two runs.
 
-Nothing here moves a bar. It reports the excess rate, its lower bound and the
-decision under each metric, and each cut's drift under an invertible
-re-encoding, which is the blocker the whitened metric exists to clear.
+Nothing here moves a bar. Per cut it reports the excess rate, its lower bound
+and the decision under each metric, and the rate's drift under an invertible
+re-encoding under each metric, which is the blocker the whitened one exists to
+clear. The tolerance is `run_subject_core_v25.INVARIANCE_TOLERANCE`, read from
+there rather than restated.
 
     tools/read_a_look_both_ways.py <run_dir> [--out both_ways.json]
 """
@@ -66,7 +68,32 @@ def main() -> int:
     parser.add_argument("--seed", type=int, default=7)
     args = parser.parse_args()
 
+    from core.subject.intrinsic_v25 import intrinsic_rate_from_samples
     from core.subject.v25_cut import decide_cut
+    from run_subject_core_v25 import INVARIANCE_TOLERANCE, _recoded
+
+    def drift(arms: dict[str, np.ndarray], *, tau: float, whiten: bool, paired: bool) -> dict[str, Any]:
+        """How far the rate moves when the same information is written differently."""
+
+        def rate(mapped: dict[str, np.ndarray]) -> float:
+            estimate = intrinsic_rate_from_samples(
+                mapped["intact"], mapped["cut"], mapped["sham_a"], mapped["sham_b"],
+                tau_seconds=tau, context=mapped.get("context"), seed=args.seed,
+                whiten=whiten,
+                groups=np.arange(len(mapped["intact"])) if paired else None,
+            )
+            return float(estimate.excess_rate)
+
+        blocks = ("intact", "cut", "sham_a", "sham_b")
+        raw = rate(arms)
+        recoded = rate({**arms, **{k: _recoded(arms[k], args.seed + 31) for k in blocks}})
+        moved = abs(raw - recoded) / max(abs(raw), 1e-9)
+        return {
+            "raw": round(raw, 6),
+            "invertibly_recoded": round(recoded, 6),
+            "recoding_drift": round(moved, 6),
+            "invariant": bool(moved <= INVARIANCE_TOLERANCE),
+        }
 
     samples_file = args.run_dir / "cut_samples.npz"
     if not samples_file.exists():
@@ -94,18 +121,22 @@ def main() -> int:
                 "excess_rate": round(float(estimate.excess_rate), 6),
                 "lower_bound": round(float(lower), 6),
                 "decided": bool(lower > 0.0),
+                **drift(arms, tau=plan["tau_seconds"], whiten=whiten, paired=plan["paired"]),
             }
         rows.append(row)
-        print(
-            f"{cut:>12} {lag}  standardised excess={row['standardised']['excess_rate']:+.6f} "
-            f"lower={row['standardised']['lower_bound']:+.6f} decided={row['standardised']['decided']}"
-        )
-        print(
-            f"{'':>12} {' ' * len(lag)}  whitened     excess={row['whitened']['excess_rate']:+.6f} "
-            f"lower={row['whitened']['lower_bound']:+.6f} decided={row['whitened']['decided']}"
-        )
+        for metric in ("standardised", "whitened"):
+            read = row[metric]
+            print(
+                f"{cut if metric == 'standardised' else '':>12} "
+                f"{lag if metric == 'standardised' else '':>6}  {metric:<13}"
+                f"excess={read['excess_rate']:+.6f} lower={read['lower_bound']:+.6f} "
+                f"decided={str(read['decided']):<5} drift={read['recoding_drift']:.4f} "
+                f"invariant={read['invariant']}"
+            )
     out = args.run_dir / args.out
-    out.write_text(json.dumps({"run": str(args.run_dir), "cuts": rows}, indent=1))
+    out.write_text(json.dumps(
+        {"run": str(args.run_dir), "tolerance": INVARIANCE_TOLERANCE, "cuts": rows}, indent=1
+    ))
     print(f"\nwrote {out}")
     return 0
 
