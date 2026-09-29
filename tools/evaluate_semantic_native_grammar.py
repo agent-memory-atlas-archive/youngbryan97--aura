@@ -424,10 +424,12 @@ def main():
             scored_source_sha256 = hashlib.sha256(scored_source.encode()).hexdigest()
             scored = 0
             score_input_receipts = []
+            search_score_transcript = []
             decision_parameter_scales = []
             branches = None
             def score(choices, *, source=scored_source, source_identity=identity,
-                      receipts=score_input_receipts, scales=decision_parameter_scales):
+                      receipts=score_input_receipts, scales=decision_parameter_scales,
+                      transcript=search_score_transcript):
                 nonlocal scored, branches
                 if factorized is not None:
                     from core.learning.semantic_native_factorized_residual import (
@@ -464,6 +466,9 @@ def main():
                     scope="semantic_decisions").item()
                     for hidden, sequence in zip(states, sequences, strict=True))
                 receipts.append(input_receipts)
+                if args.search_completions:
+                    transcript.append({"choices": [choice.value for choice in choices],
+                                       "scores": scores})
                 print(json.dumps({"stage": "decision", "source_sha256": source_identity,
                                   "scored_prefixes": scored, "choices": len(choices)}), flush=True)
                 return tuple(scores)
@@ -497,6 +502,7 @@ def main():
                         "frontier_log_probability_bound": searched.frontier_log_probability_bound,
                         "halt_reason": searched.halt_reason,
                         "requested_top_k_proven": searched.requested_top_k_proven,
+                        "score_transcript": search_score_transcript,
                         "selected_index": chosen, "complete_graph_scores": graph_scores,
                         "proposals": [{"program": candidate.result.program.to_dict(),
                             "log_probability": candidate.log_probability,
