@@ -539,6 +539,11 @@ class AffectEngineV2(_AppraisesWhatHappened):
         self._seen_event_ids: OrderedDict[str, float] = OrderedDict()
         self._max_seen_event_ids = 2048
         self._last_stimulus_receipt: AffectStimulusReceipt | None = None
+        # How many stimuli have actually been appraised into the markers since
+        # boot. Until one has, the markers hold their configured baseline and
+        # its drift, which is a prior, not a reading of anything that happened.
+        self._stimuli_appraised = 0
+        self._last_appraised_at: float | None = None
         self._last_qualia_observation: Mapping[str, float] | None = None
         self._last_pulse_monotonic = time.monotonic()
         self._pinned_since_monotonic: float | None = None
@@ -808,6 +813,8 @@ class AffectEngineV2(_AppraisesWhatHappened):
                 timestamp=time.time(),
             )
             wheel["stimulus_receipt"] = self._receipt_payload(self._last_stimulus_receipt)
+            self._stimuli_appraised += 1
+            self._last_appraised_at = self._last_stimulus_receipt.timestamp
         finally:
             if self._lock.locked():
                 self._lock.release()
@@ -1326,6 +1333,12 @@ class AffectEngineV2(_AppraisesWhatHappened):
             "curiosity": status.get("curiosity", 50),
             "frustration": status.get("frustration", 0),
             "stability": status.get("stability", 100),
+            # Whether anything that happened has moved these yet. Before the
+            # first appraisal they are the configured baseline, and a surface
+            # that shows them as her mood shows a prior as a feeling.
+            "appraised": self._stimuli_appraised > 0,
+            "stimuli_appraised": self._stimuli_appraised,
+            "last_appraised_at": self._last_appraised_at,
         }
 
     @property

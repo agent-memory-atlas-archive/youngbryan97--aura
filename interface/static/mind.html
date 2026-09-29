@@ -386,7 +386,10 @@ function renderIntent(d){
 function esc(s){return String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));}
 
 function render(d){
-  const valence=(d.affect&&typeof d.affect.valence==='number')?d.affect.valence:null;
+  // Before anything has been appraised the engine holds its configured
+  // baseline; shown as her mood it would be a prior dressed as a feeling.
+  const appraised=!(d.affect&&d.affect.appraised===false);
+  const valence=(appraised&&d.affect&&typeof d.affect.valence==='number')?d.affect.valence:null;
   const c=d.coherence||{};
   let whole=(typeof c.unity_score==='number')?c.unity_score
     :(typeof c.phi==='number')?Math.max(0,Math.min(1,Math.abs(c.phi))):null;

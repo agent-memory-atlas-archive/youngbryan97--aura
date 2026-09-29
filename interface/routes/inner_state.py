@@ -317,8 +317,10 @@ async def get_inner_state() -> JSONResponse:
                     result["affect"] = {k: round(v, 3) if isinstance(v, float) else v
                                         for k, v in state.items()}
                 else:
-                    result["affect"] = {"valence": getattr(state, "valence", 0),
-                                        "arousal": getattr(state, "arousal", 0)}
+                    # A missing reading is reported missing. It was 0, which the
+                    # mind page drew as a steady mood nothing had measured.
+                    result["affect"] = {"valence": getattr(state, "valence", None),
+                                        "arousal": getattr(state, "arousal", None)}
             else:
                 result["affect"] = {"status": "no_sync_api"}
         else:
