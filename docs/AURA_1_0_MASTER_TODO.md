@@ -589,6 +589,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  2026-09-29, read from the night's live log by count. The two loudest classes
+  said nothing actionable at warning: 124 "UI log buffer at capacity" (the
+  replay ring for late clients, info now) and 61 "Embedding model admission
+  refused" for one training job holding the lane (once per reason now). The
+  largest lags, 95.6 and 23.7 seconds, were the goal-store stalls closed under
+  R06 the same day.
   UPDATE 2026-09-19. Seven taken by cause from the feed of 2026-09-16/17
   (load 23-120 on 18 cores), each with the test that holds it:
   - `objective repeatedly unresolved: You are writing Aura`, a degradation,
