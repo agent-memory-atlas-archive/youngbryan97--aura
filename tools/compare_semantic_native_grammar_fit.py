@@ -85,11 +85,90 @@ def matched_generation(fitted_plan, base_plan, fitted_verification, base_verific
             "general_transfer_proven": False, "broad_gain_proven": False, "serving_authority": False}
 
 
+def matched_source_intervention(fitted_plan, base_plan, erasure_plan,
+                                fitted_verification, base_verification, erasure_verification,
+                                fitted_rows, base_rows, erasure_rows):
+    """Grade one frozen decode cohort across weights and source-token erasure."""
+    comparison = matched_generation(fitted_plan, base_plan,
+                                    fitted_verification, base_verification)
+    excluded = {"plan_sha256", "source_evidence"}
+    if (fitted_plan.get("source_evidence") != "source_text"
+            or base_plan.get("source_evidence") != "source_text"
+            or erasure_plan.get("source_evidence") != "source_token_erasure"
+            or {key: value for key, value in fitted_plan.items() if key not in excluded}
+                != {key: value for key, value in erasure_plan.items() if key not in excluded}
+            or erasure_verification.get("plan_sha256") != erasure_plan["plan_sha256"]
+            or erasure_verification.get("weight_mode") != fitted_plan["weight_mode"]
+            or erasure_verification.get("training_plan_sha256")
+                != fitted_plan["training_plan_sha256"]
+            or erasure_verification.get("checkpoint_receipt_sha256")
+                != fitted_plan["checkpoint_receipt_sha256"]
+            or erasure_verification.get("current_implementation_drift") != []
+            or erasure_verification.get("artifacts_verified") is not True):
+        raise ValueError("native source-intervention arms differ beyond erasure")
+    sources = fitted_plan["sources"]
+    if (fitted_plan.get("search_completions", 0) < 1
+            or any(len(rows) != len(sources) for rows in (fitted_rows, base_rows, erasure_rows))):
+        raise ValueError("native source-intervention search coverage differs")
+    erasure_outcomes = erasure_verification.get("meaning_audit", {}).get("comparisons", [])
+    if ([item.get("source_sha256") for item in erasure_outcomes] != sources
+            or any(type(item.get("procedure_equivalent")) is not bool
+                   for item in erasure_outcomes)):
+        raise ValueError("native source-intervention erasure outcomes differ")
+    outcomes = []
+    for source, pair, erased, fitted_row, base_row, erasure_row in zip(
+            sources, comparison["source_outcomes"], erasure_outcomes,
+            fitted_rows, base_rows, erasure_rows, strict=True):
+        if (any(row.get("source_sha256") != source
+                or not isinstance(row.get("search"), dict)
+                or type(row["search"].get("requested_top_k_proven")) is not bool
+                or type(row["search"].get("observed_program_reach")) is not bool
+                for row in (fitted_row, base_row, erasure_row))
+                or any(row.get("decode_status") not in
+                       {"completed", "search_without_completion"}
+                       for row in (fitted_row, base_row, erasure_row))):
+            raise ValueError("native source-intervention row inventory differs")
+        gain = (pair["fitted_procedure"] and pair["fitted_answer"]
+                and not pair["base_procedure"]
+                and not fitted_row["bound_forced_completion"])
+        selection_changed = fitted_row["program"] != erasure_row["program"]
+        lost_under_erasure = not erased["procedure_equivalent"]
+        outcomes.append({"source_sha256": source,
+            "fitted_exact": pair["fitted_procedure"],
+            "base_exact": pair["base_procedure"],
+            "erasure_exact": erased["procedure_equivalent"],
+            "exact_gain": gain,
+            "exact_regression": pair["base_procedure"] and not pair["fitted_procedure"],
+            "gain_changes_under_erasure": gain and (selection_changed or lost_under_erasure),
+            "gain_loses_exactness_under_erasure": gain and lost_under_erasure,
+            "arms": {name: {"decode_status": row["decode_status"],
+                "candidate_count": len(row["search"]["proposals"]),
+                "observed_program_reach": row["search"]["observed_program_reach"],
+                "requested_top_k_proven": row["search"]["requested_top_k_proven"],
+                "halt_reason": row["search"]["halt_reason"],
+                "bound_forced_completion": row["bound_forced_completion"]}
+                for name, row in (("fitted", fitted_row), ("base", base_row),
+                                  ("erasure", erasure_row))}})
+    gains = sum(row["exact_gain"] for row in outcomes)
+    regressions = sum(row["exact_regression"] for row in outcomes)
+    source_dependent_gains = sum(row["gain_changes_under_erasure"] for row in outcomes)
+    return {"population": len(sources), "exact_gains": gains,
+            "exact_regressions": regressions,
+            "source_dependent_gains": source_dependent_gains,
+            "baseline_regression_control_informative":
+                any(row["base_exact"] for row in outcomes),
+            "bounded_micro_probe_passed": gains > 0 and regressions == 0
+                and source_dependent_gains > 0,
+            "source_outcomes": outcomes, "general_transfer_proven": False,
+            "broad_gain_proven": False, "serving_authority": False}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--fitted-directory", required=True, type=Path)
     parser.add_argument("--base-directory", required=True, type=Path)
     parser.add_argument("--training-directory", required=True, type=Path)
+    parser.add_argument("--erasure-directory", type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
     from tools.evaluate_semantic_native_checkpoint import digest, verified_document
@@ -114,13 +193,36 @@ def main():
         verified["meaning_audit"] = audit_grammar_meanings(rows, examples)
         plans.append(plan)
         verifications.append(verified)
-    body = {"schema": ("aura.native_grammar_fit_comparison.v1" if plans[0]["weight_mode"] == "fitted"
-                       else "aura.native_grammar_fit_comparison.v2"),
+    erasure = None
+    erasure_verification = None
+    if args.erasure_directory is not None:
+        verified = verify_grammar(args.erasure_directory, args.training_directory)
+        plan = verified_document(args.erasure_directory / "plan.json", "plan_sha256")
+        report = verified_document(args.erasure_directory / "report.json")
+        dataset, seed = verified_dataset(plan, report)
+        examples = verified_examples(plan, dataset=dataset, seed=seed)
+        rows = [verified_document(args.erasure_directory / "rows" / f"{source}.json")
+                for source in plan["sources"]]
+        verified["meaning_audit"] = audit_grammar_meanings(rows, examples)
+        arm_rows = [[verified_document(directory / "rows" / f"{source}.json")
+                     for source in plan["sources"]]
+                    for directory, plan in zip(
+                        (args.fitted_directory, args.base_directory), plans, strict=True)]
+        erasure = matched_source_intervention(
+            *plans, plan, *verifications, verified, *arm_rows, rows)
+        erasure_verification = verified
+    schema = ("aura.native_grammar_fit_comparison.v3" if erasure is not None
+              else "aura.native_grammar_fit_comparison.v1" if plans[0]["weight_mode"] == "fitted"
+              else "aura.native_grammar_fit_comparison.v2")
+    body = {"schema": schema,
             "fitted_report_receipt_sha256": verifications[0]["report_receipt_sha256"],
             "base_report_receipt_sha256": verifications[1]["report_receipt_sha256"],
             "training_plan_sha256": plans[0]["training_plan_sha256"],
             "checkpoint_receipt_sha256": plans[0]["checkpoint_receipt_sha256"],
             "comparison": matched_generation(*plans, *verifications)}
+    if erasure is not None:
+        body["erasure_report_receipt_sha256"] = erasure_verification["report_receipt_sha256"]
+        body["source_intervention"] = erasure
     result = {**body, "receipt_sha256": digest(body)}
     _save_if_absent(args.output, result)
     print(json.dumps(result, sort_keys=True))

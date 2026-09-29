@@ -4,7 +4,10 @@ from copy import deepcopy
 
 import pytest
 
-from tools.compare_semantic_native_grammar_fit import matched_generation
+from tools.compare_semantic_native_grammar_fit import (
+    matched_generation,
+    matched_source_intervention,
+)
 
 
 def fixture():
@@ -106,3 +109,72 @@ def test_factorized_comparison_requires_exact_added_implementations_and_lineage(
     candidate["implementation"].pop("core/learning/semantic_native_factorized_residual.py")
     with pytest.raises(ValueError, match="lineage"):
         matched_generation(candidate, base, left, right)
+
+
+def intervention_fixture():
+    fitted, base, left, right = fixture()
+    fitted.update(source_evidence="source_text", search_completions=4)
+    base.update(source_evidence="source_text", search_completions=4)
+    erasure = {**fitted, "plan_sha256": "erasure",
+               "source_evidence": "source_token_erasure"}
+    erasure_verified = deepcopy(left)
+    erasure_verified["plan_sha256"] = "erasure"
+    erasure_verified["meaning_audit"]["comparisons"][0].update(
+        procedure_equivalent=False, observed_answer_correct=False)
+
+    def row(source, program):
+        return {"source_sha256": source, "program": program,
+                "decode_status": "completed", "bound_forced_completion": False,
+                "search": {"proposals": [{"program": program}],
+                           "observed_program_reach": True,
+                           "requested_top_k_proven": False,
+                           "halt_reason": "node_bound"}}
+
+    fitted_rows = [row(source, {"id": f"fitted-{source}"}) for source in fitted["sources"]]
+    base_rows = [row(source, {"id": f"base-{source}"}) for source in fitted["sources"]]
+    erasure_rows = [row(source, {"id": f"erasure-{source}"}) for source in fitted["sources"]]
+    return (fitted, base, erasure, left, right, erasure_verified,
+            fitted_rows, base_rows, erasure_rows)
+
+
+def test_micro_probe_requires_exact_source_dependent_gain_and_reports_weak_control():
+    arms = intervention_fixture()
+    result = matched_source_intervention(*arms)
+    assert result["bounded_micro_probe_passed"] is True
+    assert result["exact_gains"] == result["source_dependent_gains"] == 1
+    assert result["exact_regressions"] == 0
+    assert result["baseline_regression_control_informative"] is False
+    assert result["source_outcomes"][0]["arms"]["fitted"]["requested_top_k_proven"] is False
+    assert result["general_transfer_proven"] is False
+
+    *prefix, fitted_rows, base_rows, erasure_rows = intervention_fixture()
+    prefix[5]["meaning_audit"]["comparisons"][0].update(
+        procedure_equivalent=True, observed_answer_correct=True)
+    erasure_rows[0]["program"] = fitted_rows[0]["program"]
+    result = matched_source_intervention(*prefix, fitted_rows, base_rows, erasure_rows)
+    assert result["bounded_micro_probe_passed"] is False
+    assert result["source_dependent_gains"] == 0
+
+
+@pytest.mark.parametrize("defect", ["erasure_mode", "source_population", "erasure_proof",
+                                    "erasure_row", "missing_search", "regression"])
+def test_micro_probe_refuses_unmatched_arms_or_flags_regressions(defect):
+    arms = list(intervention_fixture())
+    if defect == "erasure_mode":
+        arms[2]["source_evidence"] = "source_text"
+    elif defect == "source_population":
+        arms[2]["sources"] = ["a", "b", "other"]
+    elif defect == "erasure_proof":
+        arms[5]["artifacts_verified"] = False
+    elif defect == "erasure_row":
+        arms[8][0]["source_sha256"] = "other"
+    elif defect == "missing_search":
+        arms[6][0]["search"] = None
+    else:
+        arms[4]["meaning_audit"]["comparisons"][1]["procedure_equivalent"] = True
+        result = matched_source_intervention(*arms)
+        assert result["exact_regressions"] == 1
+        assert result["bounded_micro_probe_passed"] is False
+        return
+    with pytest.raises(ValueError):
+        matched_source_intervention(*arms)
