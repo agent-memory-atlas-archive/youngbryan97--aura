@@ -589,6 +589,18 @@
         "name": "tests/test_a_reason_arrives_with_its_choice.py",
         "why": "Decides that each reason is given before the choice it explains and none is held until every click has landed, so the account is made at choice time rather than written afterwards. None of the three decides delegated or randomised choices, hidden intervention, or removal of the choice record."
       }
+    ],
+    "MQ-05": [
+      {
+        "kind": "test",
+        "name": "tests/test_vision_abstains_instead_of_reporting_zero.py",
+        "why": "Decides observed against unknown for what she sees: 'observed, nothing there', 'observed, cannot tell' and 'could not look' stay three outcomes, a null is unknown rather than zero, prose with no count admits the count is unknown, and a malformed or empty reply is an abstention rather than an empty observation."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_epistemic_calibration.py",
+        "why": "Decides that confidence tracks warrant rather than fluency: a claim is classed as formal, normative, speculative or unknowable, an unverified formal claim is capped low and a tool-verified one trusted, speculation is capped and marked, evidence raises empirical warrant, absolute phrasing counts as overreach, and the recommended confidence never exceeds the warrant. Neither suite decides the remembered and predicted grades or revision when later evidence arrives."
+      }
     ]
   }
 }
