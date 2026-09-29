@@ -12,6 +12,7 @@ from tools.verify_semantic_native_grammar import (
     replay_search_decisions,
     source_separation_summary,
     verified_dataset,
+    verified_decision_score_execution,
     verified_examples,
     verified_input_grounding,
     verified_pair_totals,
@@ -164,6 +165,32 @@ def test_search_replay_rebuilds_discarded_branches_and_rejects_forged_selection(
     forged["score_input_receipts"].append(forged["score_input_receipts"][0])
     with pytest.raises(ValueError, match="unvisited decisions"):
         verify(forged)
+    grouped_plan = {**plan, "decision_score_execution": "causal_groups"}
+    grouped_row = {**row, "decision_group_forwards": [1] * len(transcript)}
+    replay_search_decisions(grouped_row, example=example, plan=grouped_plan,
+        input_types=("integer", "integer"),
+        input_receipts_for_choices=lambda choices: (expected_receipts(choices), 1),
+        input_receipt_for_program=lambda program: {"program": program.to_dict()})
+    grouped_row["decision_group_forwards"][0] = 2
+    with pytest.raises(ValueError, match="causal group replay"):
+        replay_search_decisions(grouped_row, example=example, plan=grouped_plan,
+            input_types=("integer", "integer"),
+            input_receipts_for_choices=lambda choices: (expected_receipts(choices), 1),
+            input_receipt_for_program=lambda program: {"program": program.to_dict()})
+
+
+def test_causal_execution_receipt_requires_all_decisions_and_exact_total():
+    plan = {"decision_score_execution": "causal_groups",
+            "search_mode": "best_first_then_complete_graph_score",
+            "implementation": {"core/learning/semantic_native_causal_groups.py": "sha"}}
+    report = {"decision_score_execution": "causal_groups", "decision_group_forwards": 2}
+    row = {"score_input_receipts": [[{}, {}], [{}]], "decision_group_forwards": [1, 1]}
+    assert verified_decision_score_execution(plan, report, [row]) == "causal_groups"
+    with pytest.raises(ValueError, match="reported compute"):
+        verified_decision_score_execution(plan, {**report, "decision_group_forwards": 3}, [row])
+    with pytest.raises(ValueError, match="complete decisions"):
+        verified_decision_score_execution(plan, report,
+            [{**row, "decision_group_forwards": [1]}])
 
 
 @pytest.mark.parametrize("mode", ["source_text", "source_token_erasure", "source_pair_swap"])

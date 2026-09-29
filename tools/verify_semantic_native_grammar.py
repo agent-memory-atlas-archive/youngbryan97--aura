@@ -71,6 +71,34 @@ def verified_source_evidence(plan, report, rows):
     return mode
 
 
+def verified_decision_score_execution(plan, report, rows):
+    """An opt-in compute path has no authority without complete source-bound receipts."""
+    mode = plan.get("decision_score_execution", "individual")
+    if mode == "individual":
+        if ("decision_score_execution" in report or "decision_group_forwards" in report
+                or any("decision_group_forwards" in row for row in rows)):
+            raise ValueError("historical native grammar acquired causal group execution")
+        return mode
+    if (mode != "causal_groups" or report.get("decision_score_execution") != mode
+            or plan["search_mode"] != "best_first_then_complete_graph_score"
+            or "core/learning/semantic_native_causal_groups.py" not in plan["implementation"]
+            or type(report.get("decision_group_forwards")) is not int
+            or report["decision_group_forwards"] < 1):
+        raise ValueError("native causal group execution contract differs")
+    total = 0
+    for row in rows:
+        counts = row.get("decision_group_forwards")
+        competitions = row["score_input_receipts"]
+        if (not isinstance(counts, list) or len(counts) != len(competitions)
+                or any(type(count) is not int or not 1 <= count <= len(choices)
+                       for count, choices in zip(counts, competitions, strict=True))):
+            raise ValueError("native causal group receipt lacks complete decisions")
+        total += sum(counts)
+    if total != report["decision_group_forwards"]:
+        raise ValueError("native causal group reported compute differs")
+    return mode
+
+
 def replay_greedy_decisions(row, *, example, plan, tokenizer=None, max_sequence_tokens=None,
                             scored_source=None):
     from core.learning.semantic_native_grammar import (
@@ -173,6 +201,11 @@ def replay_search_decisions(row, *, example, plan, input_types,
             or not isinstance(receipts, list) or len(receipts) != len(transcript)):
         raise ValueError("native search lacks a complete decision-score transcript")
     consumed = 0
+    grouped = plan.get("decision_score_execution") == "causal_groups"
+    group_forwards = row.get("decision_group_forwards")
+    if grouped and (not isinstance(group_forwards, list)
+                    or len(group_forwards) != len(transcript)):
+        raise ValueError("native causal group replay lacks complete compute receipts")
 
     def recorded_scores(choices):
         nonlocal consumed
@@ -181,12 +214,18 @@ def replay_search_decisions(row, *, example, plan, input_types,
         entry = transcript[consumed]
         values = [choice.value for choice in choices]
         scores = entry.get("scores") if isinstance(entry, dict) else None
+        inputs = input_receipts_for_choices(choices)
+        if grouped:
+            if (not isinstance(inputs, tuple) or len(inputs) != 2
+                    or group_forwards[consumed] != inputs[1]):
+                raise ValueError("native causal group replay differs from source-bound choices")
+            inputs = inputs[0]
         if (not isinstance(entry, dict) or entry.get("choices") != values
                 or not isinstance(scores, list)
                 or len(scores) != len(choices)
                 or any(type(score) not in {int, float} or not math.isfinite(score)
                        for score in scores)
-                or receipts[consumed] != input_receipts_for_choices(choices)):
+                or receipts[consumed] != inputs):
             raise ValueError("native search scored choices or source inputs differ")
         consumed += 1
         return tuple(scores)
@@ -742,6 +781,7 @@ def verify_grammar(directory, training_directory):
                 )
 
                 receipts = []
+                sequences = []
                 for choice in choices:
                     sequence = native_text_decision_sequence(
                         source, choice.text, (choice.span,), tokenizer,
@@ -751,6 +791,11 @@ def verify_grammar(directory, training_directory):
                         mode="source_text" if plan["source_evidence"] == "source_pair_swap"
                         else plan["source_evidence"])
                     receipts.append(native_score_input_receipt(sequence, control))
+                    sequences.append(sequence)
+                if plan.get("decision_score_execution") == "causal_groups":
+                    from core.learning.semantic_native_causal_groups import native_causal_groups
+
+                    return receipts, len(native_causal_groups(tuple(sequences)))
                 return receipts
 
             def input_receipt_for_program(program, *, source=scored_source):
@@ -785,12 +830,15 @@ def verify_grammar(directory, training_directory):
     if any(report[key] != value for key, value in totals.items()):
         raise ValueError("native grammar reported totals differ from execution")
     source_evidence = verified_source_evidence(plan, report, rows)
+    decision_score_execution = verified_decision_score_execution(plan, report, rows)
     drift = sorted(name for name, sha in plan["implementation"].items()
                    if not (ROOT / name).is_file()
                    or hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != sha)
     return {"plan_sha256": plan["plan_sha256"], "report_receipt_sha256": report["receipt_sha256"],
             "weight_mode": weight_mode,
             "source_evidence": source_evidence,
+            **({"decision_score_execution": decision_score_execution}
+               if decision_score_execution != "individual" else {}),
             "input_grounding": input_grounding,
             "dataset": dataset, "seed": seed,
             "training_plan_sha256": training["plan_sha256"],

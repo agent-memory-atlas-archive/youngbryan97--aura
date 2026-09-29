@@ -20,7 +20,8 @@ from tools.evaluate_semantic_native_checkpoint import digest, verified_document 
 
 def stage_jobs(*, training_directory, fit_verification, directory, source_report, bundles,
                training_plan_sha256, python, candidate_weight_mode="fitted",
-               residual_calibration=None, max_seconds=3600.):
+               residual_calibration=None, max_seconds=3600.,
+               decision_score_execution="individual"):
     """Freeze commands and budgets before any arm can observe an outcome."""
     if ((candidate_weight_mode not in {"fitted", "residual"})
             or (residual_calibration is None) != (candidate_weight_mode == "fitted")):
@@ -28,11 +29,15 @@ def stage_jobs(*, training_directory, fit_verification, directory, source_report
     if (type(max_seconds) not in {int, float} or not math.isfinite(max_seconds)
             or not 0 < max_seconds <= 14400):
         raise ValueError("native micro decode requires a finite declared runtime bound")
+    if decision_score_execution not in {"individual", "causal_groups"}:
+        raise ValueError("native micro decision score execution differs")
     common = [python, str(ROOT / "tools/evaluate_semantic_native_grammar.py"),
               "--training-directory", str(training_directory), "--max-steps", "8",
               "--search-completions", "4", "--search-nodes", "256",
               "--search-score-mode", "native_nonpositive", "--prefix-strategy", "full",
               "--max-seconds", str(int(max_seconds) if max_seconds == int(max_seconds) else max_seconds)]
+    if decision_score_execution == "causal_groups":
+        common += ["--decision-score-execution", decision_score_execution]
     source = ["--source-report", str(source_report)]
     for bundle in bundles:
         source += ["--bundle", bundle]
@@ -131,6 +136,10 @@ def check_existing_plan(path, *, training, checkpoint, command=None,
         if "--max-seconds" in command and plan.get("max_seconds") != float(
                 command[command.index("--max-seconds") + 1]):
             raise ValueError("native micro continuation changed its frozen runtime bound")
+        execution = (command[command.index("--decision-score-execution") + 1]
+                     if "--decision-score-execution" in command else "individual")
+        if plan.get("decision_score_execution", "individual") != execution:
+            raise ValueError("native micro continuation changed its decision score execution")
         contract = plan.get("residual_calibration")
         if plan.get("weight_mode") != mode:
             raise ValueError("native micro continuation changed its candidate mode")
@@ -198,6 +207,8 @@ def main():
     parser.add_argument("--residual-calibration", type=Path)
     parser.add_argument("--max-seconds", type=float, default=3600.,
                         help="per-arm model-active bound, frozen into the pipeline and broker policy")
+    parser.add_argument("--decision-score-execution", choices=("individual", "causal_groups"),
+                        default="individual")
     args = parser.parse_args()
     if ((args.wait_fit_supervisor is None) != (args.fit_bank is None)
             or (args.wait_fit_supervisor is None) != (args.fit_parent is None)
@@ -215,7 +226,8 @@ def main():
         directory=args.directory, source_report=args.source_report, bundles=args.bundle,
         training_plan_sha256=training["plan_sha256"], python=sys.executable,
         candidate_weight_mode=args.candidate_weight_mode,
-        residual_calibration=args.residual_calibration, max_seconds=args.max_seconds)
+        residual_calibration=args.residual_calibration, max_seconds=args.max_seconds,
+        decision_score_execution=args.decision_score_execution)
     if args.wait_fit_supervisor is not None:
         command = [sys.executable, str(ROOT / "tools/verify_semantic_native_fit.py"),
                    "--directory", str(args.training_directory), "--bank", str(args.fit_bank),

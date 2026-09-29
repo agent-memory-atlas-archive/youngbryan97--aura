@@ -103,6 +103,24 @@ def test_micro_policy_freezes_explicit_longer_bound_into_every_arm(tmp_path):
     assert all(item["max_invocations"] == 1 for item in broker_policy(jobs))
 
 
+def test_micro_policy_isolates_opt_in_causal_execution(tmp_path):
+    jobs = stage_jobs(training_directory=tmp_path / "training",
+        fit_verification=tmp_path / "fit-verification.json", directory=tmp_path / "micro",
+        source_report=tmp_path / "source.json", bundles=["source=/source"],
+        training_plan_sha256="f" * 64, python="/python",
+        decision_score_execution="causal_groups")
+    for stage in jobs["stages"]:
+        for arm in stage["arms"]:
+            command = arm["decode"]["command"]
+            assert command[command.index("--decision-score-execution") + 1] == "causal_groups"
+    with pytest.raises(ValueError, match="decision score execution"):
+        stage_jobs(training_directory=tmp_path / "training",
+            fit_verification=tmp_path / "fit-verification.json", directory=tmp_path / "micro",
+            source_report=tmp_path / "source.json", bundles=["source=/source"],
+            training_plan_sha256="f" * 64, python="/python",
+            decision_score_execution="unknown")
+
+
 @pytest.mark.parametrize("bound", [0, -1, 14401, float("inf"), float("nan"), True])
 def test_micro_policy_refuses_unbounded_or_invalid_decode_time(tmp_path, bound):
     with pytest.raises(ValueError, match="runtime bound"):

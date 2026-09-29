@@ -7,6 +7,7 @@ import pytest
 from tools.evaluate_semantic_native_grammar import (
     grammar_examples,
     grammar_pair_totals,
+    score_grammar_choices,
     select_search_proposal,
     source_input_types,
     validated_source_pair_map,
@@ -30,6 +31,31 @@ def test_every_program_is_scored_before_choosing_a_later_alternative():
 
 def test_empty_search_does_not_invent_a_candidate():
     assert select_search_proposal(search(()), lambda _: pytest.fail("no graph exists")) == (None, ())
+
+
+def test_opt_in_causal_group_execution_matches_original_decision_scores():
+    import mlx.core as mx
+
+    from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
+    from core.learning.semantic_native_program import NativeProgramSequence
+    from tests.test_frozen_decoder_prefix import _model
+
+    model = _model(hybrid=True, width=32)
+    model.eval()
+    split = len(model.layers) - 1
+    prefix, suffix = FrozenDecoderPrefix(model, split_at=split), NativeDecoderSuffix(model, split_at=split)
+    sequences = (NativeProgramSequence((1, 2, 3, 4, 5), 2, semantic_positions=(3,)),
+                 NativeProgramSequence((1, 2, 3, 8, 9), 2, semantic_positions=(3,)))
+    original, branches, old_count = score_grammar_choices(prefix, suffix, model, sequences,
+        split_at=split, max_tokens=16, strategy="full", execution="individual", branches=None)
+    grouped, grouped_branches, group_count = score_grammar_choices(prefix, suffix, model, sequences,
+        split_at=split, max_tokens=16, strategy="full", execution="causal_groups", branches=None)
+    assert original == grouped
+    assert branches is None and grouped_branches is None and old_count is None and group_count == 1
+    assert mx.isfinite(mx.array(grouped)).all().item()
+    with pytest.raises(ValueError, match="full-prefix"):
+        score_grammar_choices(prefix, suffix, model, sequences, split_at=split,
+            max_tokens=16, strategy="trie", execution="causal_groups", branches=None)
 
 
 def test_source_control_mode_must_match_the_plan_report_and_each_row():
