@@ -61,8 +61,7 @@ baseline, and stopped them only for the anchors.
 
 ### Three of the carrier's authority blockers, preregistered for seed 23
 
-The coordinator at `bb3faa54a` refused authority for five reasons. C's power
-and the organism are one; the other four:
+The coordinator at `bb3faa54a` refused authority for four reasons:
 
 - shards that were four organisms: `ONE_CLOCK`, proof queued;
 - duplicated channels raised the rate, 0.0032 to 0.0083: `ONE_SIGNAL`, a signal
