@@ -216,6 +216,9 @@ class SweepReport:
     #: it could only have been scored for a verdict already given. Empty when
     #: the sweep ran to the end. "another shard" when a sibling shard stopped.
     stopped_after: str = ""
+    #: Whether each anchor's arms were cross-fitted in one fold. See
+    #: `crossfit_fisher_rao`: without it two identical samples read as apart.
+    paired: bool = False
 
     @property
     def weakest(self) -> CutVerdict | None:
@@ -264,6 +267,7 @@ class SweepReport:
             "draws": self.draws,
             "deciding": self.deciding,
             "stopped_after": self.stopped_after,
+            "paired": self.paired,
             "irreducible": self.irreducible,
             "weakest_cut": None if weakest is None else weakest.name,
             "weakest_lower_bound": None if weakest is None else round(weakest.lower_bound, 6),
@@ -309,12 +313,15 @@ def merge_sweeps(shards: Sequence[dict[str, Any]], *, cuts_in_full: int) -> Swee
     if len(seen) != cuts_in_full and not stopped:
         raise ValueError(f"shards scored {len(seen)} of {cuts_in_full} cuts")
     designs = {
-        (tuple(s.get("looks", ())), float(s.get("alpha_per_look", 0.05)), int(s.get("draws", 200)), bool(s.get("deciding", True)))
+        (
+            tuple(s.get("looks", ())), float(s.get("alpha_per_look", 0.05)), int(s.get("draws", 200)),
+            bool(s.get("deciding", True)), bool(s.get("paired", False)),
+        )
         for s in shards
     }
     if len(designs) != 1:
         raise ValueError(f"shards were run to different designs: {sorted(designs)}")
-    looks, alpha_per_look, draws, deciding = designs.pop()
+    looks, alpha_per_look, draws, deciding, paired = designs.pop()
     return SweepReport(
         tau_seconds=float(shards[0]["tau_seconds"]),
         cuts_in_full=cuts_in_full,
@@ -327,6 +334,7 @@ def merge_sweeps(shards: Sequence[dict[str, Any]], *, cuts_in_full: int) -> Swee
         draws=draws,
         deciding=deciding,
         stopped_after=", ".join(stopped),
+        paired=paired,
     )
 
 
@@ -363,7 +371,8 @@ class _Gathered:
 
 
 def playback_decided(
-    samples: dict[str, np.ndarray], *, tau_seconds: float, seed: int, alpha: float, draws: int
+    samples: dict[str, np.ndarray], *, tau_seconds: float, seed: int, alpha: float, draws: int,
+    paired: bool = False,
 ) -> bool:
     """Whether the decision rule decides a cut whose cut arm is the untouched run.
 
@@ -375,7 +384,8 @@ def playback_decided(
     replay = dict(samples)
     replay["cut"] = np.asarray(samples["intact"]).copy()
     _estimate, _excess, lower, _p = decide_cut(
-        replay, tau_seconds=tau_seconds, seed=seed, alpha=alpha, draws=draws, permutation_draws=19
+        replay, tau_seconds=tau_seconds, seed=seed, alpha=alpha, draws=draws, permutation_draws=19,
+        paired=paired,
     )
     return lower > 0.0
 
@@ -389,6 +399,7 @@ def decide_cut(
     seed: int = 0,
     alpha: float = 0.05,
     whiten: bool = False,
+    paired: bool = False,
 ) -> tuple[IntrinsicRateEstimate, float, float, float]:
     """Score one cut: the excess rate, its lower bound, and a paired p-value.
 
@@ -396,8 +407,13 @@ def decide_cut(
     matched contexts, which is what a sequential rule needs: a cut is decided
     when its whole interval sits above the floor, not when its point estimate
     does.
+
+    `paired` cross-fits by anchor: row i of every arm was forked from anchor i,
+    and a fold that split an anchor's rows read separation between two
+    identical samples (see `crossfit_fisher_rao`).
     """
     context = samples.get("context")
+    anchor = np.arange(len(samples["intact"])) if paired else None
     estimate = intrinsic_rate_from_samples(
         samples["intact"],
         samples["cut"],
@@ -407,6 +423,7 @@ def decide_cut(
         context=context,
         seed=seed,
         whiten=whiten,
+        groups=anchor,
     )
     spread = bootstrap_rate_difference(
         samples["intact"],
@@ -417,6 +434,7 @@ def decide_cut(
         context=context,
         draws=draws,
         seed=seed + 1,
+        paired=paired,
     )
     lower = float(np.quantile(spread, alpha))
     try:
@@ -429,6 +447,7 @@ def decide_cut(
             context=context,
             draws=permutation_draws,
             seed=seed + 2,
+            paired=paired,
         )
     except ValueError:
         # Too few matched contexts for a randomization test. The bootstrap
@@ -628,6 +647,7 @@ async def sweep_cuts_over_lags(
     only: Sequence[str] = (),
     fail_fast: bool = False,
     stop_file: str = "",
+    paired: bool = False,
 ) -> dict[int, SweepReport]:
     """Every bipartition at every horizon, from one set of rollouts per cut.
 
@@ -693,6 +713,7 @@ async def sweep_cuts_over_lags(
             alpha_per_look=per_look,
             draws=int(draws),
             deciding=lag in decides,
+            paired=bool(paired),
         )
         for lag in ladder
     }
@@ -764,6 +785,7 @@ async def sweep_cuts_over_lags(
                     alpha=per_look,
                     draws=draws,
                     **({"whiten": True} if whiten else {}),
+                    **({"paired": True} if paired else {}),
                 )
             except ValueError as exc:
                 verdict.note = f"not enough matched contexts: {exc}"
@@ -781,6 +803,7 @@ async def sweep_cuts_over_lags(
                     seed=seed + lag + position + 3,
                     alpha=per_look,
                     draws=draws,
+                    **({"paired": True} if paired else {}),
                 )
 
     stopped_after = ""

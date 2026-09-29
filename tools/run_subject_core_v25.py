@@ -402,6 +402,7 @@ async def _spectrum(
         whiten=whiten,
         fail_fast=fail_fast,
         stop_file=stop_file,
+        paired=bool(chosen.get("paired")),
     )
     for lag in sorted(reports):
         report = reports[lag]

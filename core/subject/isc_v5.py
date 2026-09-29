@@ -41,6 +41,7 @@ __all__ = [
     "DECIDING_LAG",
     "DRAWS",
     "LOOKS",
+    "PAIRED",
     "REPORTED_LAGS",
     "design",
     "lines",
@@ -53,6 +54,10 @@ DRAWS: int = 1000
 DECIDING_LAG: int = 33
 REPORTED_LAGS: tuple[int, ...] = (66,)
 ANCHORS: int = max(LOOKS)
+#: Cross-fitting keeps each anchor's arms in one fold. Without it two
+#: identical samples read a distance squared of 0.056 at 128 anchors, which was
+#: the whole sham floor; see core.subject.intrinsic_v25.crossfit_fisher_rao.
+PAIRED: bool = True
 
 
 def design() -> dict[str, Any]:
@@ -65,6 +70,7 @@ def design() -> dict[str, Any]:
         "lags": [DECIDING_LAG, *REPORTED_LAGS],
         "deciding": [DECIDING_LAG],
         "anchors": ANCHORS,
+        "paired": PAIRED,
     }
 
 
@@ -97,6 +103,8 @@ def _conforms(sweep: Mapping[str, Any]) -> list[str]:
         problems.append(f"looks {sweep.get('looks')} are not the preregistered {list(LOOKS)}")
     if int(sweep.get("draws") or 0) != DRAWS:
         problems.append(f"{sweep.get('draws')} bootstrap draws, not {DRAWS}")
+    if bool(sweep.get("paired")) != PAIRED:
+        problems.append("cross-fitted without keeping each anchor's arms in one fold")
     if abs(float(sweep.get("alpha_per_look") or 0.0) - ALPHA / len(LOOKS)) > 1e-12:
         problems.append(f"each look read at {sweep.get('alpha_per_look')}, not {ALPHA / len(LOOKS)}")
     if not sweep.get("deciding", False):

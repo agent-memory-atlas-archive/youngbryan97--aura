@@ -86,6 +86,7 @@ def crossfit_fisher_rao(
     folds: int = 5,
     seed: int = 0,
     whiten: bool = False,
+    groups: np.ndarray | None = None,
 ) -> FisherRaoEstimate:
     """Estimate Fisher--Rao distance between two continuous sample laws.
 
@@ -106,9 +107,19 @@ def crossfit_fisher_rao(
 
     It is not the default: changing an estimator changes what every earlier run
     measured, so a campaign asks for it and the preregistration says which.
+
+    `groups` names the anchor each row came from, when row i of `intact` and
+    row i of `cut` are two arms forked from one anchor. Folds then keep an
+    anchor's rows together. Without it, a test row's twin from the other arm
+    sat in the training fold as its nearest neighbour with the other label, so
+    the classifier leaned away from each row's own class and read separation
+    where there was none: on two identical samples of 128 anchors the distance
+    squared came out 0.056, and 0.103 at 64, which was the whole sham floor of
+    the v25 looks (0.062 to 0.107). Grouped cross-fitting is the standard remedy
+    for paired rows, and it leaves the quantity estimated as it was.
     """
     from sklearn.decomposition import PCA
-    from sklearn.model_selection import StratifiedKFold
+    from sklearn.model_selection import StratifiedGroupKFold, StratifiedKFold
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.pipeline import make_pipeline
     from sklearn.preprocessing import StandardScaler
@@ -127,11 +138,24 @@ def crossfit_fisher_rao(
     y = np.concatenate([np.ones(n, dtype=np.int8), np.zeros(n, dtype=np.int8)])
 
     posterior = np.zeros(2 * n, dtype=np.float64)
-    splitter = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed)
-    for train, test in splitter.split(x, y):
+    if groups is not None:
+        anchor = np.asarray(groups)[:n]
+        if len(np.unique(anchor)) < folds:
+            raise ValueError("fewer distinct anchors than folds for grouped cross-fitting")
+        grouped = StratifiedGroupKFold(n_splits=folds, shuffle=True, random_state=seed)
+        splits = grouped.split(x, y, groups=np.concatenate([anchor, anchor]))
+    else:
+        splits = StratifiedKFold(n_splits=folds, shuffle=True, random_state=seed).split(x, y)
+    for train, test in splits:
         # k -> infinity and k/n -> 0 is the standard consistency regime.
         k = max(3, int(sqrt(len(train))))
-        if k % 2 == 0:
+        if groups is None and k % 2 == 0:
+            k += 1
+        elif groups is not None and k % 2 == 1:
+            # An odd k breaks a vote. A posterior takes no vote, and paired rows
+            # come as twins: an odd k split one twin pair at every point and left
+            # each posterior one neighbour off a half, 4/k^2 of distance squared on
+            # two identical samples (0.0178 at 128 anchors, k = 15).
             k += 1
         k = min(k, max(1, len(train) - 1))
         if whiten:
@@ -143,6 +167,12 @@ def crossfit_fisher_rao(
             metric: Any = PCA(n_components=keep, whiten=True, random_state=seed)
         else:
             metric = StandardScaler()
+        if groups is not None:
+            fitted = metric.fit(x[train])
+            posterior[test] = _tie_inclusive_posterior(
+                fitted.transform(x[train]), y[train], fitted.transform(x[test]), k
+            )
+            continue
         model = make_pipeline(
             metric,
             KNeighborsClassifier(n_neighbors=k, weights="uniform"),
@@ -153,6 +183,30 @@ def crossfit_fisher_rao(
     bc = float(np.clip(bhattacharyya_from_equal_prior_posterior(posterior), 0.0, 1.0))
     distance = 2.0 * acos(bc)
     return FisherRaoEstimate(bc, distance, distance * distance)
+
+
+def _tie_inclusive_posterior(train: np.ndarray, labels: np.ndarray, test: np.ndarray, k: int) -> np.ndarray:
+    """The share of the first class among each test row's k nearest, counting every tie at the k-th.
+
+    Paired rows come in blocks at one distance: an anchor's two arms, and every
+    copy of an anchor a bootstrap drew twice. A neighbour count that cuts
+    through such a block takes whichever rows come first, and the first class
+    is stacked first, so the posterior leaned one way whenever a bootstrap
+    drew an anchor twice. Counting the whole block keeps it balanced. With no
+    ties this is the ordinary k-nearest-neighbour posterior.
+    """
+    squared = (
+        np.einsum("ij,ij->i", test, test)[:, None]
+        - 2.0 * test @ train.T
+        + np.einsum("ij,ij->i", train, train)[None, :]
+    )
+    np.maximum(squared, 0.0, out=squared)
+    kth = np.partition(squared, k - 1, axis=1)[:, k - 1][:, None]
+    # A relative tolerance, because two copies of one row reach a test row by
+    # arithmetic that need not agree in the last bits.
+    near = squared <= kth + 1e-9 * (1.0 + kth)
+    counts = near.sum(axis=1)
+    return (near * (labels[None, :] == 1)).sum(axis=1) / np.maximum(counts, 1)
 
 
 @dataclass(frozen=True)
@@ -176,6 +230,7 @@ def intrinsic_rate_from_samples(
     folds: int = 5,
     seed: int = 0,
     whiten: bool = False,
+    groups: np.ndarray | None = None,
 ) -> IntrinsicRateEstimate:
     """Finite-data estimate of F_intrinsic for one partition and one lag.
 
@@ -185,6 +240,8 @@ def intrinsic_rate_from_samples(
 
     `whiten` is passed through to `crossfit_fisher_rao` and decides whether the
     rate is a property of the samples or of the coordinates they are written in.
+    `groups` names the anchor of each row, when row i of every arm was forked
+    from the same anchor; see `crossfit_fisher_rao`.
     """
     if tau_seconds <= 0:
         raise ValueError("tau_seconds must be positive")
@@ -201,8 +258,9 @@ def intrinsic_rate_from_samples(
         ctx = np.asarray(context, dtype=np.float64)[:n]
         arrays = [np.hstack([ctx, a]) for a in arrays]
 
-    raw = crossfit_fisher_rao(arrays[0], arrays[1], folds=folds, seed=seed, whiten=whiten)
-    sham = crossfit_fisher_rao(arrays[2], arrays[3], folds=folds, seed=seed + 1, whiten=whiten)
+    anchor = None if groups is None else np.asarray(groups)[:n]
+    raw = crossfit_fisher_rao(arrays[0], arrays[1], folds=folds, seed=seed, whiten=whiten, groups=anchor)
+    sham = crossfit_fisher_rao(arrays[2], arrays[3], folds=folds, seed=seed + 1, whiten=whiten, groups=anchor)
     raw_rate = raw.distance_sq / tau_seconds
     sham_rate = sham.distance_sq / tau_seconds
     return IntrinsicRateEstimate(
@@ -422,8 +480,13 @@ def bootstrap_rate_difference(
     context: np.ndarray | None = None,
     draws: int = 200,
     seed: int = 2504,
+    paired: bool = False,
 ) -> np.ndarray:
-    """Paired bootstrap distribution of cut-minus-sham intrinsic rate."""
+    """Paired bootstrap distribution of cut-minus-sham intrinsic rate.
+
+    `paired` keeps each resampled anchor's rows in one fold, so a row drawn
+    twice is not its own neighbour across folds either.
+    """
     p = np.asarray(intact_future)
     q = np.asarray(cut_future)
     a = np.asarray(sham_a_future)
@@ -443,6 +506,7 @@ def bootstrap_rate_difference(
             context=None if ctx is None else ctx[idx],
             folds=min(5, max(2, n // 4)),
             seed=seed + draw + 1,
+            groups=idx if paired else None,
         )
         values[draw] = estimate.raw_rate - estimate.sham_rate
     return values
@@ -459,6 +523,7 @@ def paired_permutation_pvalue(
     draws: int = 199,
     folds: int = 5,
     seed: int = 2505,
+    paired: bool = False,
 ) -> tuple[float, float]:
     """One-sided paired randomization test for cut damage above sham.
 
@@ -478,12 +543,14 @@ def paired_permutation_pvalue(
     p, q, a, b = p[:n], q[:n], a[:n], b[:n]
     ctx = None if context is None else np.asarray(context, dtype=np.float64)[:n]
 
+    anchor = np.arange(n) if paired else None
     observed = intrinsic_rate_from_samples(
         p, q, a, b,
         tau_seconds=tau_seconds,
         context=ctx,
         folds=folds,
         seed=seed,
+        groups=anchor,
     )
     observed_stat = observed.raw_rate - observed.sham_rate
 
@@ -500,6 +567,7 @@ def paired_permutation_pvalue(
             context=ctx,
             folds=folds,
             seed=seed + 10 + draw,
+            groups=anchor,
         )
         stat = perm.raw_rate - perm.sham_rate
         if stat >= observed_stat - 1e-15:

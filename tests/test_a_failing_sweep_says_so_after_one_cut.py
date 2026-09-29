@@ -38,7 +38,7 @@ def scored(monkeypatch) -> dict[str, list[int]]:
         n = len(anchors)
         return {int(lag): {key: np.zeros((n, 2)) for key in ("context", "intact", "cut", "sham_a", "sham_b")} | {"reached": np.ones((n, 1))} for lag in lags}
 
-    def decide(slot, *, tau_seconds, seed, alpha, draws, whiten):
+    def decide(slot, *, tau_seconds, seed, alpha, draws, **_design):
         name = decide.current
         lower = -0.01 if name in decide.undecided else 0.02
         estimate = SimpleNamespace(raw_rate=0.05, sham_rate=0.0)
