@@ -503,6 +503,7 @@ async def _spectrum(
     whiten: bool = False,
     fail_fast: bool = False,
     stop_file: str = "",
+    keep_samples: Path | None = None,
 ) -> tuple[dict[float, float], dict[str, Any]]:
     """The weakest cut's rate at every horizon on the ladder.
 
@@ -528,7 +529,10 @@ async def _spectrum(
         fail_fast=fail_fast,
         stop_file=stop_file,
         paired=bool(chosen.get("paired")),
+        kept=None if keep_samples is None else (kept := {}),
     )
+    if keep_samples is not None:
+        detail["samples_file"] = str(await asyncio.to_thread(_save_cut_samples, keep_samples, kept))
     for lag in sorted(reports):
         report = reports[lag]
         tau = float(lag) * float(frame_seconds)
@@ -541,6 +545,19 @@ async def _spectrum(
             f"/{report.as_dict()['cuts_tested']} decided"
         )
     return spectrum, detail
+
+
+def _save_cut_samples(target: Path, kept: dict[str, dict[int, dict[str, np.ndarray]]]) -> Path:
+    """Each scored cut's context, intact, cut and sham rows at each horizon, in one file."""
+    arrays = {
+        f"{name}__lag{lag}__{key}": value
+        for name, by_lag in kept.items()
+        for lag, slot in by_lag.items()
+        for key, value in slot.items()
+        if isinstance(value, np.ndarray)
+    }
+    np.savez_compressed(target, **arrays)
+    return target
 
 
 async def _await_shards(directory: Path, wait_seconds: float) -> list[dict[str, Any]]:
@@ -767,6 +784,13 @@ async def main() -> int:
     )
     parser.add_argument("--skip-grain", action="store_true")
     parser.add_argument(
+        "--keep-cut-samples", action="store_true",
+        help=(
+            "write every scored cut's samples to cut_samples.npz beside the report. "
+            "Only with --cuts: all 511 cuts' samples run to gigabytes"
+        ),
+    )
+    parser.add_argument(
         "--grain-claims", action="store_true",
         help=(
             "share the grain's signature rows between the coordinator and the shard "
@@ -858,6 +882,8 @@ async def main() -> int:
         from core.subject.state import DOMAINS
 
         only_cuts = tuple(DOMAINS)
+    if args.keep_cut_samples and not only_cuts:
+        raise SystemExit("--keep-cut-samples needs --cuts: every cut's samples run to gigabytes")
     shard: tuple[int, int] | None = None
     if args.shard:
         index, _, count = args.shard.partition("/")
@@ -1218,6 +1244,7 @@ async def main() -> int:
                     screen=args.screen, design=sweep_design, only=only_cuts,
                     whiten=bool(args.whiten),
                     fail_fast=bool(args.fail_fast),
+                    keep_samples=(run_dir / "cut_samples.npz") if args.keep_cut_samples else None,
                 )
             binding = _horizon_is_binding(spectrum, lags)
             tau_star = max(spectrum, key=lambda tau: spectrum[tau]) if spectrum else None
