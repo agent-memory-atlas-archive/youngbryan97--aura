@@ -56,7 +56,7 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 - [x] `P1.9` Identify weakest incoming coupling for every domain. — and the weakest incoming one
 - [x] `P1.10` Recompute per-source perturbational spread. — perturbational spread is recomputed per source on every run
 - [x] `P1.11` Recompute all four fixed synergy triples. — all four synergy triples are recomputed and tracked by name across runs
-- [ ] `P1.12` Recompute per-condition graphs. — per-condition graphs are recomputed on every run
+- [x] `P1.12` Recompute per-condition graphs. — per-condition graphs are recomputed on every run
 - [x] `P1.13` Recompute lesion and rescue. Everything that follows should be driven by this new evidence rather than by the obsolete graph. — lesion and rescue are recomputed on every run, with the recovery fraction per measure
 
 ## Phase 2 — Complete the causal graph
@@ -298,7 +298,7 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 
 - [x] `P10.1` At least 40% of live dimensions contribute effectively. — the criterion is two-sided: many effective dimensions, no component holding half the variance, and the ratio below the bar rather than above it — the one-sided reading is passed by the least mind-like nulls and reported beside it on every run
 - [x] `P10.2` Do not achieve this through independent noise. — independent noise scores at the top of the one-sided reading and is what the two-sided one excludes; the independent null measures it
-- [ ] `P10.3` Do not add filler state variables just to inflate dimension. — a column that never moves is named and excluded from the live width, so a filler variable cannot inflate the dimension
+- [x] `P10.3` Do not add filler state variables just to inflate dimension. — a column that never moves is named and excluded from the live width, so a filler variable cannot inflate the dimension
 - [ ] `P10.4` Increase genuinely distinct cognitive modes.
 - [ ] `P10.5` Increase content-sensitive variation in P/M/W/S.
 - [ ] `P10.6` Let different conditions recruit meaningfully different configurations.
@@ -306,7 +306,7 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 - [x] `P10.8` Remove invalid or truly redundant measurement columns only when scientifically justified. — columns are removed for failing the schema's own rule — nothing reads them, or they are another domain's column under this one's name — and the reason is written beside each removal
 - [ ] `P10.9` Do not remove correlated columns simply because they hurt the score. Resolve the known specification problem The current project already found that the formal D_eff/D >= 0.4 bar can reward degenerate controls while a healthy recurrent reference scores much lower. Strong integration naturally shares variance, which can reduce participation ratio. Therefore there are two honest options: If the goal is a literal ISC-v1 24/24:
 - [ ] `P10.10` Aura must genuinely reach >= 0.40 anyway. If the goal is the best scientific criterion:
-- [ ] `P10.11` Keep ISC-v1 recorded as failed. — every run is kept with its own campaign fingerprint and its criteria, and the generated table in the document lists them all
+- [x] `P10.11` Keep ISC-v1 recorded as failed. — every run is kept with its own campaign fingerprint and its criteria, and the generated table in the document lists them all
 - [x] `P10.12` Preregister ISC-v2. — ISC-v2 changes three lines, each with v1's question, why a test built around its positive reference cannot keep asking it, v2's question and the known-answer check that must pass first; every v1 threshold and line stays and is reported
 - [x] `P10.13` Use a better differentiation measure. — `distinguishable_states` in `core/subject/differentiation.py`, reported beside the participation ratio rather than instead of it. Each live column is quantised at its own pooled within-condition spread and the configurations are counted with their occupancy entropy, so the resolution comes from her own variation and the ceiling from how many frames were recorded. The preregistered criterion is close to maximised by destroying every coupling (P10.9); the bar is not moved, and both readings are reported
 - [x] `P10.14` Never retroactively change v1’s threshold. Do not add noise until the number turns green. — the thresholds are hashed into the fingerprint, so moving one starts a different campaign and the scorecard refuses to read across them
@@ -911,7 +911,7 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 - [x] `P47.32` per-condition graphs. — the exact command that regenerates the report
 - [x] `P47.33` SHA-256 artifact manifest. — a SHA-256 for every file the run wrote
 - [x] `P47.34` exact command that regenerates the report. — the command that produced the run, recorded with it
-- [ ] `P47.35` Documentation generated from artifacts rather than hand-edited summaries. — the evidence table in the document is written from the reports, and a gate fails when it drifts
+- [x] `P47.35` Documentation generated from artifacts rather than hand-edited summaries. — the evidence table in the document is written from the reports, and a gate fails when it drifts
 
 ## Phase 48 — Protect the evaluation commit
 
