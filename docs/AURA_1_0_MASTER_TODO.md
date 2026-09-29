@@ -1269,6 +1269,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Fit-matched v7 residual](evidence/G03_V7_FIT_MATCHED_RESIDUAL_2026-09-29.md)
+  independently replays a newly measured source-only scale of 0.5: exact
+  teacher paths 51 to 112 out of 185 and positive graph rankings 160 to 183,
+  with zero baseline losses and zero implementation drift. The full fit's
+  selected checkpoint remains unfitted. The frozen residual micro pipeline
+  is running; generated success, full development, and G03 closure are unproved.
   [Current linear promotion path](G_SEMANTIC_REFINEMENT_WORKPLAN.md#current-promotion-path-2026-09-28)
   separates fit, three-case unseen-construction, nine relation-control, and
   six-case source-held probes, full development, fresh transfer, live
