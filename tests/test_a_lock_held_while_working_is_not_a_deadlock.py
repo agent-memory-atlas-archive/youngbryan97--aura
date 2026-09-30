@@ -91,7 +91,9 @@ def _one_pass_over_a_long_hold(monkeypatch, *, working: bool) -> dict:
     def force_release() -> None:
         seen["released"] += 1
 
-    watchdog = lw.LockWatchdog(check_interval=0.01, threshold=180.0)
+    # Its own watchdog: the process one keeps whatever interval it was first
+    # built with, and at ten seconds its loop never looked inside this wait.
+    watchdog = lw.LockWatchdog.__wrapped__(check_interval=0.01, threshold=180.0)
     watchdog.report_acquire_start("b78f35cc", "AuraKernel.StateLock", on_stall=force_release)
     watchdog._active_locks["b78f35cc"].start_time = time.monotonic() - 400.0
 

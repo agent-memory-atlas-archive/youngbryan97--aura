@@ -3408,6 +3408,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   past 400 lines.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-09-30: chunk 4 of the full run at 308d623df, three failures in
+  `test_a_lock_held_while_working_is_not_a_deadlock`, passing alone.
+  `LockWatchdog` is decorated `@singleton`, which hands every caller the
+  first instance whatever arguments it passes, so the test's
+  `check_interval=0.01` met an earlier test's ten-second watchdog and its
+  loop never looked inside the five-second wait. The decorator now exposes
+  `__wrapped__` and `reset_for_test`; that test builds its own watchdog, and
+  `test_governance_under_stress`, which needs the process watchdog to carry
+  its settings because `RobustLock` reports there, clears it before and
+  after. With the singleton primed first, the old test fails the same three
+  and the new one passes.
   2026-09-29, night: three more, one class. Four telemetry groups
   (conation, morphogenesis, ontogeny, phenomena) remember that they declared
   with a flag. A second `declare()` returned `[]`, so a second

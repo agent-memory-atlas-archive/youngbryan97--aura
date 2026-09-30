@@ -36,6 +36,12 @@ def singleton[T](cls: type[T]) -> Callable[..., T]:
             instances[cls] = cls(*args, **kwargs)
         return instances[cls]
 
+    # Arguments reach the class only on the first call; every later call gets
+    # that instance whatever it asks for. A caller that needs its own settings
+    # builds from `__wrapped__`, and a test that needs the shared instance to
+    # carry its settings clears it first.
+    get_instance.__wrapped__ = cls  # type: ignore[attr-defined]
+    get_instance.reset_for_test = instances.clear  # type: ignore[attr-defined]
     return get_instance
 
 
