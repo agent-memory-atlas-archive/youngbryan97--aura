@@ -105,7 +105,7 @@ def test_the_engine_asks_the_store_which_order_it_can_use():
     from core.goals.goal_engine import GoalEngine
 
     source = inspect.getsource(GoalEngine._fetch_records)
-    assert "self._serving_order()" in source
+    assert "serving_order(self._conn, self._has_serving_rank)" in source
     assert "CASE WHEN status" not in source
 
 

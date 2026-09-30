@@ -304,8 +304,9 @@ class TestARepairMustDeliverWhatItPredicted:
         """The retry knows what it is for; it must say so."""
         from pathlib import Path
 
-        route = (
-            Path(__file__).resolve().parent.parent / "interface" / "routes" / "chat.py"
-        )
-        body = route.read_text(encoding="utf-8")
-        assert "targeted=(failure_reason,)" in body
+        routes = Path(__file__).resolve().parent.parent / "interface" / "routes"
+        # The retry is made in the chat turn's steps, which the route imports.
+        route = (routes / "chat.py").read_text(encoding="utf-8")
+        steps = (routes / "chat_turn_steps.py").read_text(encoding="utf-8")
+        assert "from .chat_turn_steps import" in route
+        assert "targeted=(failure_reason,)" in steps
