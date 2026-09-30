@@ -1811,6 +1811,13 @@
         "name": "tests/test_a_repeating_fault_is_one_standing_fact.py",
         "why": "Decides the failure-spam clause as it reaches her state: forty repeats of one fault do not saturate her the way forty distinct faults would, the first occurrence lands in full, and what is repeating stays reportable. None of the three decides identity or name drift, repeated retry requests, lost context or model-control receipt loss."
       }
+    ],
+    "CTX2-MEM-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_intentional_retrieval.py",
+        "why": "Decides query planning, source ranking, time scoping and deduplication across stores: the plan picks stores by task (failures and tools to debug, social to converse, semantic to recall a fact) and says why, a present horizon weights world state and a long one the semantic and project stores, a higher-weighted store outranks a lower one at equal score, only registered stores are asked, a broken store does not sink retrieval, and results are deduplicated keeping the strongest. It does not decide identity scoping, contradiction surfacing, confidence, freshness, explicit misses, or that the live reply consumed the result."
+      }
     ]
   }
 }
