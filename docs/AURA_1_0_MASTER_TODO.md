@@ -1409,6 +1409,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  The [bounded native pilot](evidence/G03_BOUNDED_NATIVE_FIT_2026-09-30.md)
+  reuses recurrent-SFT sampling across construction/depth strata and independently
+  verifies source-bank partitions. A real-tokenizer metadata rehearsal covers
+  all 36 fit strata in 303 updates, with operation, reference and termination
+  contrasts. Its partial epoch is explicit; no new fit or generated gain follows.
   The [fit-only termination contrast](evidence/G03_FIT_ONLY_TERMINATION_CONTRAST_2026-09-29.md)
   adds witnessed stop/continue peers to all 1,296 selected source pairs and
   requires the complete cohort before acquisition. Active-tokenizer span

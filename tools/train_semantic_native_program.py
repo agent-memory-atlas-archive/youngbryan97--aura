@@ -456,6 +456,9 @@ def main():
     parser.add_argument("--source-pair-policy", choices=("shared_lineage_v1", "typed_choice_complete_v1"),
                         default="shared_lineage_v1",
                         help="fit-only source contrasts for each available grammar decision kind")
+    parser.add_argument("--schedule-policy", choices=("shuffled_epoch_v1", "construction_depth_balanced_v1"),
+                        default="shuffled_epoch_v1",
+                        help="opt-in bounded pilot covering each fit construction/depth stratum")
     parser.add_argument("--reuse-annotation-sources", type=Path,
                         help="hash-bound archived source for annotation-only frozen implementation changes")
     parser.add_argument("--plan-only", action="store_true")
@@ -503,6 +506,9 @@ def main():
     typed_pairs = args.source_pair_policy == "typed_choice_complete_v1"
     if typed_pairs and (not args.path_objective or args.objective != "grammar_source_pairs"):
         parser.error("typed source contrasts require the paired-source path objective")
+    bounded_schedule = args.schedule_policy == "construction_depth_balanced_v1"
+    if bounded_schedule and not typed_pairs:
+        parser.error("bounded native pilots require typed source contrasts")
 
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
@@ -541,12 +547,24 @@ def main():
                                     per_construction=args.held_per_construction)
     calibration_ids = construction_subset(examples, outer["calibration_ids"],
                                            per_construction=args.calibration_per_construction)
+    if bounded_schedule:
+        from core.learning.semantic_native_fit_sampling import native_depth_calibration_subset
+
+        calibration_ids = native_depth_calibration_subset(examples, outer["calibration_ids"],
+            per_stratum=args.calibration_per_construction)
     complete_held_subset, complete_calibration_subset = len(held_ids), len(calibration_ids)
     if args.held_source_limit is not None:
         held_ids = tuple(sorted(held_ids)[:args.held_source_limit])
     if args.calibration_source_limit is not None:
         calibration_ids = tuple(sorted(calibration_ids)[:args.calibration_source_limit])
-    schedule = native_training_schedule(outer["fit_ids"], steps=args.steps, seed=20260925)
+    sampling_receipt = None
+    if bounded_schedule:
+        from core.learning.semantic_native_fit_sampling import bounded_native_fit_schedule
+
+        schedule, sampling_receipt = bounded_native_fit_schedule(
+            fit, outer["fit_ids"], steps=args.steps, seed=20260925)
+    else:
+        schedule = native_training_schedule(outer["fit_ids"], steps=args.steps, seed=20260925)
     grammar_pairs = {}
     if args.objective == "grammar_source_pairs":
         from core.learning.semantic_native_source_pairs import native_source_pair_plan
@@ -560,6 +578,10 @@ def main():
             pair_planner = native_typed_source_pair_plan
         grammar_pairs = pair_planner(fit, outer["fit_ids"],
             register_encoding=args.register_encoding)
+        if bounded_schedule:
+            from core.learning.semantic_native_fit_sampling import scheduled_native_source_pairs
+
+            grammar_pairs = scheduled_native_source_pairs(grammar_pairs, schedule, outer["fit_ids"])
         if not grammar_pairs or not set(grammar_pairs) <= set(schedule):
             raise ValueError("paired-source objective lacks scheduled witnessed contrasts")
     relational_partners = (cross_construction_relation_partners(tuple(fit))
@@ -631,6 +653,12 @@ def main():
         path = ROOT / "core/learning/semantic_native_typed_source_pairs.py"
         implementation_paths.append(path)
         implementation[str(path.relative_to(ROOT))] = hashlib.sha256(path.read_bytes()).hexdigest()
+    if bounded_schedule:
+        for name in ("core/learning/semantic_native_fit_sampling.py",
+                     "core/learning/recurrent_sft_sampling.py"):
+            path = ROOT / name
+            implementation_paths.append(path)
+            implementation[name] = hashlib.sha256(path.read_bytes()).hexdigest()
     plan = {"schema": "aura.semantic_native_fit_plan.v1", "steps": args.steps,
             "save_every": args.save_every, "rank": args.rank, "suffix_layers": args.layers,
             "prefix_batch_size": args.prefix_batch_size,
@@ -735,6 +763,12 @@ def main():
         path_objective=args.path_objective, typed_pairs=typed_pairs,
         joint_graph_contrasts=args.joint_graph_contrasts)
     plan["schema"] = f"aura.semantic_native_fit_plan.v{schema_version}"
+    if sampling_receipt is not None:
+        plan["fit_sampling_contract"] = sampling_receipt
+        plan["calibration_sampling_contract"] = {
+            "policy": "construction_depth_lowest_source_sha256_v1",
+            "per_stratum": args.calibration_per_construction,
+            "source_limit": args.calibration_source_limit}
     plan = {**plan, "plan_sha256": _digest(plan)}
     if args.reuse_annotation_sources is not None:
         from tools.evaluate_semantic_native_checkpoint import verified_document

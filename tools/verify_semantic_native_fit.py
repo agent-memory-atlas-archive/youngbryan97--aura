@@ -446,6 +446,60 @@ def persisted_source_pairs(pairs):
     return json.loads(json.dumps(pairs, sort_keys=True, allow_nan=False))
 
 
+def verify_native_source_partition(plan, bank_plan):
+    """Bind native fit, calibration and held sources to the independent bank."""
+    bank_sets, selected_sets = {}, {}
+    for key in ("fit_ids", "calibration_ids", "held_ids"):
+        bank_ids, selected_ids = bank_plan[key], plan[key]
+        bank_sets[key], selected_sets[key] = set(bank_ids), set(selected_ids)
+        if (not bank_ids or not selected_ids or len(bank_ids) != len(bank_sets[key])
+                or len(selected_ids) != len(selected_sets[key])
+                or not selected_sets[key] <= bank_sets[key]):
+            raise ValueError("native source partition differs from its independent bank")
+    if (selected_sets["fit_ids"] != bank_sets["fit_ids"]
+            or bank_sets["fit_ids"] & (bank_sets["calibration_ids"] | bank_sets["held_ids"])
+            or bank_sets["calibration_ids"] & bank_sets["held_ids"]):
+        raise ValueError("native source partition differs from its independent bank")
+    captured, scheduled = plan["captured_fit_ids"], plan["scheduled_fit_ids"]
+    if (not captured or not scheduled or len(captured) != len(set(captured))
+            or not set(scheduled) <= set(captured) <= bank_sets["fit_ids"]):
+        raise ValueError("native captured or scheduled sources cross the bank fit partition")
+
+
+def verify_fit_sampling(plan, items, bank_plan=None):
+    """Replay the optional bounded pilot from fit metadata and source identities."""
+    contract = plan.get("fit_sampling_contract")
+    if contract is None:
+        if "calibration_sampling_contract" in plan:
+            raise ValueError("native calibration sampling lacks its bounded fit contract")
+        return None
+    from core.learning.semantic_native_fit_sampling import (
+        bounded_native_fit_schedule,
+        native_depth_calibration_subset,
+    )
+
+    schedule, expected = bounded_native_fit_schedule(
+        tuple(items[identity] for identity in plan["fit_ids"]), plan["fit_ids"],
+        steps=plan["steps"], seed=plan["seed"])
+    if expected != contract or list(schedule) != plan["scheduled_fit_ids"]:
+        raise ValueError("native bounded fit schedule differs from independent replay")
+    if "calibration_sampling_contract" in plan:
+        calibration = plan["calibration_sampling_contract"]
+        if (bank_plan is None or set(calibration) != {"policy", "per_stratum", "source_limit"}
+                or calibration["policy"] != "construction_depth_lowest_source_sha256_v1"):
+            raise ValueError("native depth calibration sampling lacks its declared source bank")
+        selected = native_depth_calibration_subset(tuple(items.values()),
+            bank_plan["calibration_ids"], per_stratum=calibration["per_stratum"])
+        limit = calibration["source_limit"]
+        if limit is not None:
+            if type(limit) is not int or limit < 1:
+                raise ValueError("native depth calibration source limit is invalid")
+            selected = tuple(sorted(selected)[:limit])
+        if list(selected) != plan["calibration_ids"]:
+            raise ValueError("native depth calibration differs from independent replay")
+    return expected
+
+
 def verify_fit(directory, bank_directory, items, *, tokenizer=None):
     from core.learning.semantic_native_source_control import source_control_mode_from_plan
     from tools.evaluate_semantic_candidate_ranker import _read_bank
@@ -474,9 +528,10 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
     if (report.get("schema") != expected_schema
             or any(report.get(key) is not False for key in ("serving_authority", "qualification_evidence", "held_labels_used_for_fit_or_selection"))
             or plan["bank_plan_sha256"] != bank_plan["plan_sha256"]
-            or plan["bank_receipt_sha256"] != bank_report["receipt_sha256"]
-            or not set(plan["held_ids"]) <= set(bank_plan["held_ids"])):
+            or plan["bank_receipt_sha256"] != bank_report["receipt_sha256"]):
         raise ValueError("native fit and source bank authority differ")
+    verify_native_source_partition(plan, bank_plan)
+    sampling = verify_fit_sampling(plan, items, bank_plan)
     history = report["history"]
     if (len(history) != plan["steps"]
             or any(row["step"] != index or not math.isfinite(row["loss"]) for index, row in enumerate(history, 1))):
@@ -497,6 +552,10 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
         pairs = pair_planner(
             tuple(items[identity] for identity in plan["fit_ids"]), plan["fit_ids"],
             register_encoding=plan["register_encoding"])
+        if sampling is not None:
+            from core.learning.semantic_native_fit_sampling import scheduled_native_source_pairs
+
+            pairs = scheduled_native_source_pairs(pairs, plan["scheduled_fit_ids"], plan["fit_ids"])
         if (persisted_source_pairs(pairs) != plan["grammar_source_pair_fit_partners"]
                 or plan["grammar_source_pair_updates"] != sum(
                     identity in pairs for identity in plan["scheduled_fit_ids"])):
@@ -539,13 +598,16 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
     totals = verify_native_totals(report, rows)
     differences = sorted(name for name, sha in plan["implementation"].items()
                          if not (ROOT / name).is_file() or hashlib.sha256((ROOT / name).read_bytes()).hexdigest() != sha)
-    return {"training_plan_sha256": plan["plan_sha256"], "training_receipt_sha256": report["receipt_sha256"],
+    result = {"training_plan_sha256": plan["plan_sha256"], "training_receipt_sha256": report["receipt_sha256"],
             "selected_checkpoint_receipt_sha256": selected["receipt_sha256"], "selected_step": selected["step"],
             "totals": totals, "semantic_status_counts": dict(statuses),
             "training_source_evidence": source_control,
             "frozen_state_storage": storage,
             "current_implementation_drift": differences, "artifacts_verified": True,
             "general_transfer_proven": False, "broad_gain_proven": False, "serving_authority": False}
+    if sampling is not None:
+        result["fit_sampling_contract"] = sampling
+    return result
 
 
 def main():

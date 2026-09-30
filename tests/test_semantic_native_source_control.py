@@ -155,7 +155,7 @@ def typed_plan():
         typed_source_pair_inventory,
     )
 
-    pairs = {"a": [{"kind": "reference", "partner": "b"}]}
+    pairs = {"a": [{"kind": "reference", "partner": "b", "decision_index": 1}]}
     schedule = ["a", "b"]
     return {"schema": "aura.semantic_native_fit_plan.v6",
             "objective": "grammar_source_pairs", "loss_scope": "semantic_decisions",

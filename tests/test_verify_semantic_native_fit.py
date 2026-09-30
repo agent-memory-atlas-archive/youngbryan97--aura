@@ -9,8 +9,38 @@ from tools.verify_semantic_native_fit import (
     persisted_source_pairs,
     regrade_bank,
     verify_native_totals,
+    verify_native_source_partition,
     verify_source_control_supervision,
 )
+
+
+@pytest.mark.parametrize("defect", [None, "held_fit", "missing_fit", "duplicate",
+    "bank_overlap", "foreign_calibration", "foreign_held", "foreign_donor", "uncaptured"])
+def test_native_partition_is_bound_to_the_independent_bank(defect):
+    bank = {"fit_ids": ["a", "b"], "calibration_ids": ["c", "d"], "held_ids": ["e", "f"]}
+    plan = {"fit_ids": ["a", "b"], "calibration_ids": ["c"], "held_ids": ["e"],
+        "captured_fit_ids": ["a", "b"], "scheduled_fit_ids": ["a", "a"]}
+    if defect is None:
+        verify_native_source_partition(plan, bank)
+        return
+    if defect == "held_fit":
+        plan["fit_ids"] = ["a", "e"]
+    elif defect == "missing_fit":
+        plan["fit_ids"].pop()
+    elif defect == "duplicate":
+        plan["calibration_ids"].append("c")
+    elif defect == "bank_overlap":
+        bank["held_ids"].append("a")
+    elif defect == "foreign_calibration":
+        plan["calibration_ids"] = ["e"]
+    elif defect == "foreign_held":
+        plan["held_ids"] = ["c"]
+    elif defect == "foreign_donor":
+        plan["captured_fit_ids"].append("e")
+    else:
+        plan["captured_fit_ids"] = ["b"]
+    with pytest.raises(ValueError, match="partition|independent bank"):
+        verify_native_source_partition(plan, bank)
 
 
 def test_source_pair_witness_compares_persisted_sequence_inputs():
