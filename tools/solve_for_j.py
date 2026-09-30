@@ -38,9 +38,28 @@ def latest(root: Path, name: str) -> Path | None:
     return reports[-1] if reports else None
 
 
+#: What each kind of run writes, so a run's directory can stand for its report.
+REPORT_NAMES: tuple[str, ...] = (
+    CARRIER_REPORT,
+    CONTENT_REPORT,
+    "subject_core_report.json",
+    "report_grounding.json",
+)
+
+
 def load(path: Path | None) -> dict[str, Any] | None:
+    """A report, given its file or the run directory that holds it.
+
+    The decisive runs pass run directories, as the campaign does; read as a
+    file, a directory raised at the last step of a day-long run.
+    """
     if path is None or not path.exists():
         return None
+    if path.is_dir():
+        found = [path / name for name in REPORT_NAMES if (path / name).is_file()]
+        if len(found) != 1:
+            return None
+        path = found[0]
     return json.loads(path.read_text(encoding="utf-8"))
 
 
