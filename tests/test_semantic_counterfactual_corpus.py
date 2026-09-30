@@ -137,12 +137,12 @@ def test_fork_join_counterfactual_corpus_is_training_only_and_feature_callable()
         'counterfactual-bound-v2:')} == {item.source_text for item in origins.values()
                                             if item.topology_id in fit_topologies}
     assert all(any(clause in item.source_text for item in corpus) for clause in (
-        'To obtain ', 'Record ', 'Define ', 'Compute: '))
+        'To obtain ', 'Record ', 'Define ', 'Let '))
 
 
 @pytest.mark.parametrize('style,prefix', [
     ('obtain', 'To obtain '), ('record', 'Record '), ('define', 'Define '),
-    ('name_after', 'Compute: '),
+    ('name_after', 'Let '),
 ])
 def test_render_styles_preserve_annotated_roles_and_exact_execution(style, prefix):
     item = source()
@@ -154,6 +154,8 @@ def test_render_styles_preserve_annotated_roles_and_exact_execution(style, prefi
     if style == 'name_after':
         assert rendered.instructions[0].operation_span.start < (
             rendered.register_definition_spans[3].start)
+        assert ' be named ' in rendered.source_text
+        assert 'Compute:' not in rendered.source_text
     for annotation in rendered.instructions:
         assert rendered.source_text[annotation.operation_span.start:annotation.operation_span.end]
         for register, span in zip(annotation.instruction.args, annotation.argument_spans, strict=True):

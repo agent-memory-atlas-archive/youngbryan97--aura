@@ -109,7 +109,7 @@ def render_bound_program(
     for ordinal in clause_order:
         ins = program.instructions[ordinal]
         if render_style == 'name_after':
-            text.append('Compute: ')
+            text.append('Let ')
         else:
             text.append({
                 'obtain': 'To obtain ',
@@ -137,7 +137,7 @@ def render_bound_program(
             _append_natural_binary_operation(text, op=ins.op, ordinal=ordinal,
                 left_text=left, left_label=labels[0], right_text=right, right_label=labels[1])
         if render_style == 'name_after':
-            text.append('; name that value ')
+            text.append(' be named ')
             text.append(names[count + ordinal], label=f'definition:{count + ordinal}')
         text.append('. ')
         annotations[ordinal] = SemanticInstructionAnnotation(ins, text.span(f'natural:operation:{ordinal}'),
