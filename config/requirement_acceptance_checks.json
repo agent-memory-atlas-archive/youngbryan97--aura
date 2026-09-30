@@ -1619,6 +1619,13 @@
         "name": "tests/test_immune_repair_verification.py",
         "why": "Decides that a repair is verified when the recovery held: two samples no longer verify, a decaying spike or an insufficient rise does not, a failed actuation or missing readings never does, recovery is measured against the pre-repair reading, and an unverified outcome does not report zero recurrence risk. None of the three decides diagnosis and hypothesis ranking, multi-file implementation, independent adversarial review, canary, or rollback as one repair workspace."
       }
+    ],
+    "COMPATIBILITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_migration_ledger_is_checked.py",
+        "why": "Decides explicit migrations and fail-closed incompatibility for the migrated stores: a fresh database and one from an earlier release both reach current, an edited migration is refused rather than skipped, a database ahead of the binary is named as such, an interrupted apply is visible on the next boot, intent is recorded before the DDL, and an earlier build's checksum still verifies. It does not decide versioned APIs, WebSocket events, receipts or settings precedence, deprecation telemetry, unknown-field tolerance, or golden cross-version fixtures."
+      }
     ]
   }
 }
