@@ -1,8 +1,5 @@
 """Response Generation Phase for Aura's Cognitive Pipeline."""
 
-from .response_generation_cached import (  # noqa: F401  (re-exported: they were defined here)
-    _serve_the_cached_generation,
-)
 import asyncio
 import json
 import logging
@@ -62,6 +59,9 @@ from ..state.aura_state import (  # noqa: F401  (read at call time by the lifted
     CognitiveMode,
 )
 from . import BasePhase
+from .response_generation_cached import (  # noqa: F401  (re-exported: they were defined here)
+    _serve_the_cached_generation,
+)
 from .response_generation_drafts import (  # noqa: F401  (re-exported: they were defined here)
     _keep_a_repairable_draft_or_reject_it,
     _repair_the_instruction_shape_after_voice,
