@@ -1948,8 +1948,13 @@
       },
       {
         "kind": "test",
+        "name": "tests/test_nonparametric_worker.py",
+        "why": "Carries CTX2-ONESHOT-002's check into this addendum. Decides capture from the normal cached forward, used without recompute and failing open."
+      },
+      {
+        "kind": "test",
         "name": "tests/test_nonparametric_recall_admission.py",
-        "why": "Carries CTX2-ONESHOT-003's check into this addendum. Decides the datastore-integrity half of the feature condition: the live store shape that served meaning-free replies is refused, before and after it decodes, a mostly empty store is refused even when dense, a sparse one is declined but never quarantined, an unreadable one does not raise, and a neighbour may inform the next token but not choose it. Of this addendum's parts, CTX2-ONESHOT-002, CTX2-ONESHOT-004 have no check yet."
+        "why": "Carries CTX2-ONESHOT-003's check into this addendum. Decides the datastore-integrity half of the feature condition: the live store shape that served meaning-free replies is refused, before and after it decodes, a mostly empty store is refused even when dense, a sparse one is declined but never quarantined, an unreadable one does not raise, and a neighbour may inform the next token but not choose it. Of this addendum's parts, CTX2-ONESHOT-004 has no check yet."
       }
     ],
     "ADDENDUM-28": [
@@ -2025,6 +2030,18 @@
         "kind": "test",
         "name": "tests/test_audit_chain.py",
         "why": "Decides that receipt-chain gaps are detected: a modified or deleted entry, a broken link and a missing body each fail verification, and the chain survives restart. Neither decides redaction of secret values in the operator trace, or gaps, unknown owners and stale nodes surfacing as failures in proof and readiness."
+      }
+    ],
+    "CTX2-ONESHOT-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_worker.py",
+        "why": "Decides capture from the normal cached forward: the tap records the last hidden state and restores the model, installs on a hybrid text backbone, the processor uses the tapped state without recomputing it, generation stays linear with the cache, and an empty tap or an unswappable model fails open to baseline generation."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_ingest.py",
+        "why": "Decides alignment on the way in: a tokenizer whose encoding is not a prefix falls back instead of misaligning, one full-sequence forward keys every answer position, and malformed keys and token ids are rejected. Neither file decides tied and untied heads, batch dimensions or first-token state explicitly."
       }
     ]
   }
