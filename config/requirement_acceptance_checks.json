@@ -1818,6 +1818,18 @@
         "name": "tests/test_intentional_retrieval.py",
         "why": "Decides query planning, source ranking, time scoping and deduplication across stores: the plan picks stores by task (failures and tools to debug, social to converse, semantic to recall a fact) and says why, a present horizon weights world state and a long one the semantic and project stores, a higher-weighted store outranks a lower one at equal score, only registered stores are asked, a broken store does not sink retrieval, and results are deduplicated keeping the strongest. It does not decide identity scoping, contradiction surfacing, confidence, freshness, explicit misses, or that the live reply consumed the result."
       }
+    ],
+    "CTX2-ID-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_belief_consistency.py",
+        "why": "Decides contradiction detection in the belief ledger: a belief and its negation conflict, so does a contradiction reached by chained modus ponens, the engine demotes the weaker side rather than deleting it, and governance records the inconsistency."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_belief_revision_hardening.py",
+        "why": "Decides the corrupted-memory clause: a corrupt belief store is quarantined and reseeded rather than read, and a new claim updates the belief it bears on with clamped confidence. Neither suite decides the provenance classes the requirement names (prior belief, observation, external claim, inference, correction) or supersession kept instead of rewritten."
+      }
     ]
   }
 }
