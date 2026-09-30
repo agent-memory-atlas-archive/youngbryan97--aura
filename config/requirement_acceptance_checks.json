@@ -1830,6 +1830,18 @@
         "name": "tests/test_belief_revision_hardening.py",
         "why": "Decides the corrupted-memory clause: a corrupt belief store is quarantined and reseeded rather than read, and a new claim updates the belief it bears on with clamped confidence. Neither suite decides the provenance classes the requirement names (prior belief, observation, external claim, inference, correction) or supersession kept instead of rewritten."
       }
+    ],
+    "CARRYOVER-06": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_person_outranks_her_own_errand_at_the_executive.py",
+        "why": "Decides the foreground-protection bound on background work: a lane serving a person counts as the person's, her own loop stays hers while somebody waits, and a turn nobody waits on does not promote itself, so background work yields without being switched off."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_veto_is_a_decision_not_a_failure.py",
+        "why": "Decides the repair-storm clause: a completed governance disposition does not trip the repair circuit breaker, real failures stay failures, and repair produces evidence before it is disposed of. Neither suite decides that curiosity, journaling, research and learning are active in a normal full launch, or that repair updates memory and the self-model."
+      }
     ]
   }
 }
