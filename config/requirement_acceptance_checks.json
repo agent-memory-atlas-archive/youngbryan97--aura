@@ -1739,6 +1739,30 @@
         "name": "tests/test_her_own_act_is_not_reattributed.py",
         "why": "Decides recognition of her own action receipt: her own web search is not handed to the person by her honesty repair, and no act of hers is reattributed. Neither suite decides own-looking decoys, another agent's paraphrase of her output, forged provenance or recognition that is spontaneous rather than prompted."
       }
+    ],
+    "MQ-13": [
+      {
+        "kind": "test",
+        "name": "tests/test_belief_consistency.py",
+        "why": "Decides coherence and corrigibility among her beliefs: a belief and its negation are found to conflict, so is a contradiction reached by chained modus ponens, low-confidence beliefs are left out, the belief engine demotes the weaker side of a conflict, and governance records the inconsistency."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_identity_consistency.py",
+        "why": "Decides conclusions checked against her canonical self without censoring them: a persona displacement and a forbidden intention are violations that lower the conclusion's broadcast priority by a bounded penalty, a consistent conclusion is untouched, and a missing self is a caution rather than a crash. Neither suite decides delayed cross-domain probes, another language or modality, or a model swap."
+      }
+    ],
+    "SM-08-WORLDVIEW": [
+      {
+        "kind": "test",
+        "name": "tests/test_belief_consistency.py",
+        "why": "Decides coherence and corrigibility among her beliefs: a belief and its negation are found to conflict, so is a contradiction reached by chained modus ponens, low-confidence beliefs are left out, the belief engine demotes the weaker side of a conflict, and governance records the inconsistency."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_identity_consistency.py",
+        "why": "Decides conclusions checked against her canonical self without censoring them: a persona displacement and a forbidden intention are violations that lower the conclusion's broadcast priority by a bounded penalty, a consistent conclusion is untouched, and a missing self is a caution rather than a crash. Neither suite decides that beliefs, values and embodiment compose across modalities, or that no topic keeps a self of its own."
+      }
     ]
   }
 }
