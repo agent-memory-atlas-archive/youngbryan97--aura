@@ -1626,6 +1626,13 @@
         "name": "tests/test_migration_ledger_is_checked.py",
         "why": "Decides explicit migrations and fail-closed incompatibility for the migrated stores: a fresh database and one from an earlier release both reach current, an edited migration is refused rather than skipped, a database ahead of the binary is named as such, an interrupted apply is visible on the next boot, intent is recorded before the DDL, and an earlier build's checksum still verifies. It does not decide versioned APIs, WebSocket events, receipts or settings precedence, deprecation telemetry, unknown-field tolerance, or golden cross-version fixtures."
       }
+    ],
+    "SEMANTIC-REVIEW-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_closeout_audit.py",
+        "why": "Decides the review ledger's bookkeeping: every text line is hashed, a review is current or stale against the exact hash, a re-reviewed stale receipt and a moved review are superseded, a deleted file's receipts are kept without blocking the current tree, reviewed spans merge, a review record needs an explicit scope, and an evidence artifact is never replaced. It decides that a review is bound to the bytes it read, not that every span has been read, recorded and independently reviewed a second time."
+      }
     ]
   }
 }
