@@ -579,73 +579,99 @@ class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
             return []
         now = self._now()
         quarantined: list[str] = []
+        # Read before the lock is taken. Finding, reading and compiling three
+        # modules inside a critical section makes every reader of the goals table
+        # wait on a disk, and each of the eight stalls in the 36 hours to
+        # 29 September 04:33 was the loop waiting on this same lock inside
+        # `_fetch_records`. They stay inside the function so a test patching them
+        # is still seen.
+        from core.goals.objective_lifecycle import has_explicit_durable_binding
+        from core.goals.standing_objective import (
+            standing_objective_rejection_for_bound_work,
+            standing_objective_rejection_reason,
+        )
+
+        # The rows under the lock, the diagnosis outside it, the writes under it
+        # again. Six of the eight stalls in the 36 hours to 29 September 04:33
+        # were the event loop at `_fetch_records`' own `with self._lock:` — waiting
+        # for this lock, not running a query — and this held it across a
+        # `_row_to_record`, a `to_dict` and two standing-objective diagnoses for
+        # every active goal, then an UPDATE for each one it condemned.
         with self._lock:
             rows = self._conn.execute(
                 "SELECT * FROM goals WHERE status IN ('queued', 'in_progress', 'blocked', 'paused')"
             ).fetchall()
-            from core.goals.objective_lifecycle import has_explicit_durable_binding
-            from core.goals.standing_objective import (
-                standing_objective_rejection_for_bound_work,
-                standing_objective_rejection_reason,
+
+        condemned: list[tuple[str, str, str, str]] = []
+        for row in rows:
+            record = self._row_to_record(row)
+            payload = record.to_dict()
+            transient = is_transient_foreground_projection(payload)
+            # The transient-projection diagnosis is more specific, so it
+            # names the quarantine when both apply. Explicitly-bound rows
+            # only fall to STRUCTURAL standing rejections (renders,
+            # contract scaffolds) — a dispatched task may track chat text.
+            standing_rejection = (
+                standing_objective_rejection_for_bound_work(
+                    record.objective or record.name
+                )
+                if has_explicit_durable_binding(payload)
+                else standing_objective_rejection_reason(
+                    record.objective or record.name
+                )
+            )
+            if transient:
+                standing_rejection = ""
+            if not transient and not standing_rejection:
+                continue
+            quarantine_reason = (
+                f"standing_objective_invalid:{standing_rejection}"
+                if standing_rejection
+                else "transient_foreground_projection"
+            )
+            metadata = dict(record.metadata or {})
+            metadata["quarantine"] = {
+                "reason": quarantine_reason,
+                "prior_status": record.status,
+                "quarantined_at": now,
+            }
+            summary = (
+                "Quarantined after provenance repair: text that may not be a "
+                f"standing objective ({standing_rejection}) was promoted into "
+                "autonomous work."
+                if standing_rejection
+                else "Quarantined after provenance repair: a completed foreground "
+                "conversation turn was incorrectly promoted into autonomous work."
+            )
+            condemned.append(
+                (record.id, record.status, summary, json.dumps(metadata, sort_keys=True))
             )
 
-            for row in rows:
-                record = self._row_to_record(row)
-                payload = record.to_dict()
-                transient = is_transient_foreground_projection(payload)
-                # The transient-projection diagnosis is more specific, so it
-                # names the quarantine when both apply. Explicitly-bound rows
-                # only fall to STRUCTURAL standing rejections (renders,
-                # contract scaffolds) — a dispatched task may track chat text.
-                standing_rejection = (
-                    standing_objective_rejection_for_bound_work(
-                        record.objective or record.name
-                    )
-                    if has_explicit_durable_binding(payload)
-                    else standing_objective_rejection_reason(
-                        record.objective or record.name
-                    )
-                )
-                if transient:
-                    standing_rejection = ""
-                if not transient and not standing_rejection:
-                    continue
-                quarantine_reason = (
-                    f"standing_objective_invalid:{standing_rejection}"
-                    if standing_rejection
-                    else "transient_foreground_projection"
-                )
-                metadata = dict(record.metadata or {})
-                metadata["quarantine"] = {
-                    "reason": quarantine_reason,
-                    "prior_status": record.status,
-                    "quarantined_at": now,
-                }
-                summary = (
-                    "Quarantined after provenance repair: text that may not be a "
-                    f"standing objective ({standing_rejection}) was promoted into "
-                    "autonomous work."
-                    if standing_rejection
-                    else "Quarantined after provenance repair: a completed foreground "
-                    "conversation turn was incorrectly promoted into autonomous work."
-                )
-                self._conn.execute(
+        with self._lock:
+            for goal_id, diagnosed_from, summary, metadata_json in condemned:
+                # `AND status = ?` is the guard the single critical section did
+                # not need. A row whose status moved while it was being diagnosed
+                # was diagnosed from a state it is no longer in, so it is left
+                # alone rather than abandoned on stale evidence.
+                changed = self._conn.execute(
                     """
                     UPDATE goals
                     SET status = ?, summary = ?, metadata_json = ?,
                         updated_at = ?, completed_at = ?
-                    WHERE id = ?
+                    WHERE id = ? AND status = ?
                     """,
                     (
                         GoalStatus.ABANDONED.value,
                         summary,
-                        json.dumps(metadata, sort_keys=True),
+                        metadata_json,
                         now,
                         now,
-                        record.id,
+                        goal_id,
+                        diagnosed_from,
                     ),
-                )
-                quarantined.append(record.id)
+                ).rowcount
+                if changed:
+                    quarantined.append(goal_id)
             if quarantined:
                 self._conn.commit()
         if quarantined:
@@ -837,6 +863,43 @@ class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
     def _write_record(self, record: GoalRecord) -> GoalRecord:
         if self._conn is None:
             return record
+        # Built before the lock is taken. Four `json.dumps` of her evidence and
+        # metadata used to run inside it, and a read of the goals table waits on the
+        # same lock: every one of the eight stalls recorded in the 36 hours to
+        # 29 September 04:33 was the loop inside `_fetch_records`, 5.4s to 8.1s.
+        # The lock is for the write, not for preparing what to write.
+        written = {
+            "id": record.id,
+            "name": record.name,
+            "objective": record.objective,
+            "status": record.status,
+            "horizon": record.horizon,
+            "source": record.source,
+            "priority": float(record.priority or 0.0),
+            "progress": float(record.progress or 0.0),
+            "quick_win": 1 if record.quick_win else 0,
+            "attention_policy": record.attention_policy,
+            "steps_done": int(record.steps_done or 0),
+            "steps_total": int(record.steps_total or 0),
+            "success_criteria": record.success_criteria,
+            "summary": record.summary,
+            "error": record.error,
+            "required_tools_json": json.dumps(record.required_tools),
+            "required_skills_json": json.dumps(record.required_skills),
+            "evidence_json": json.dumps(record.evidence),
+            "metadata_json": json.dumps(record.metadata),
+            "project_id": record.project_id,
+            "parent_goal_id": record.parent_goal_id,
+            "plan_id": record.plan_id,
+            "task_id": record.task_id,
+            "intention_id": record.intention_id,
+            "commitment_id": record.commitment_id,
+            "created_at": float(record.created_at or self._now()),
+            "updated_at": float(record.updated_at or self._now()),
+            "started_at": record.started_at,
+            "completed_at": record.completed_at,
+            "last_progress_at": record.last_progress_at,
+        }
         with self._lock:
             self._conn.execute(
                 """
@@ -885,38 +948,7 @@ class GoalEngine(_GoalProjectionMixin, _GoalReconciliationMixin):
                     completed_at=excluded.completed_at,
                     last_progress_at=excluded.last_progress_at
                 """,
-                {
-                    "id": record.id,
-                    "name": record.name,
-                    "objective": record.objective,
-                    "status": record.status,
-                    "horizon": record.horizon,
-                    "source": record.source,
-                    "priority": float(record.priority or 0.0),
-                    "progress": float(record.progress or 0.0),
-                    "quick_win": 1 if record.quick_win else 0,
-                    "attention_policy": record.attention_policy,
-                    "steps_done": int(record.steps_done or 0),
-                    "steps_total": int(record.steps_total or 0),
-                    "success_criteria": record.success_criteria,
-                    "summary": record.summary,
-                    "error": record.error,
-                    "required_tools_json": json.dumps(record.required_tools),
-                    "required_skills_json": json.dumps(record.required_skills),
-                    "evidence_json": json.dumps(record.evidence),
-                    "metadata_json": json.dumps(record.metadata),
-                    "project_id": record.project_id,
-                    "parent_goal_id": record.parent_goal_id,
-                    "plan_id": record.plan_id,
-                    "task_id": record.task_id,
-                    "intention_id": record.intention_id,
-                    "commitment_id": record.commitment_id,
-                    "created_at": float(record.created_at or self._now()),
-                    "updated_at": float(record.updated_at or self._now()),
-                    "started_at": record.started_at,
-                    "completed_at": record.completed_at,
-                    "last_progress_at": record.last_progress_at,
-                },
+                written,
             )
             self._conn.commit()
         # Goal mutations must be visible on the very next turn: expire the
