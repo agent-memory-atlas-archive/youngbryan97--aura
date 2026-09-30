@@ -1691,6 +1691,174 @@
         "name": "tests/test_a_rewrite_faces_the_verifier.py",
         "why": "Written for this requirement's last sentence: a calibration rewrite that was never checked is not delivered as verified, and an unchanged answer keeps its pass, so re-verification is bound to the delivered text rather than a precursor. It does not decide binding every adopted candidate to its evidence body, verifier versions, executed checks, counterexamples and calibration."
       }
+    ],
+    "MQ-06": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_met_need_closes_its_intention.py",
+        "why": "Decides which intentions are hers to close and when: one whose drive is still depleted stays open, one whose need has recovered is retired against the line the need was judged by, one that says neither is left as it was, and somebody else's intention is never retired by her loop."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_an_intention_she_acted_on_is_closed.py",
+        "why": "Decides the abandoned-objective control for what she acted on: an act that worked closes its intention as completed, one that failed closes it as failed, and many acts leave nothing open. Neither suite decides prompt injection, quoted intentions, vetoed plans or a restart between intent and act."
+      }
+    ],
+    "SM-11-CAUSAL-CHALLENGE": [
+      {
+        "kind": "test",
+        "name": "tests/test_the_lesion_the_equation_specifies.py",
+        "why": "Decides the lesion as the one the causal claim specifies: the channels across a partition are cut and each side keeps its own dynamics, by composing each side from the run in which it ran free, rather than by freezing a side, which would read a deficit from a side no longer existing."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "why": "Decides that a lesion and its restoration are read against their own variation: the cut is made and released more than once, the side that runs first alternates, each cycle drives another rotation of the workload, and a deficit inside the drift between two uncut arms is drift. It does not decide the forged-identity, swapped-label or clock controls the requirement also lists, or held-out preregistered sets for them."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_lesion_inference.py",
+        "why": "Decides that a lesion's result is classed by what it can support rather than by the size of its delta: a metric only the lesioned part produces is tautological at any delta, and capability needs success on tasks solvable without it."
+      }
+    ],
+    "WELFARE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_welfare_model.py",
+        "why": "Decides one causal effect of welfare on policy: every interest in the snapshot is bounded, a vital deficit comes only from vital interests, it gates optional background work while healthy interests leave it open, and the background policy consumes that gate. It does not decide effects on attention, learning, consent or refusal, continuity protection, recovery under adversarial controls, or any longitudinal effect."
+      }
+    ],
+    "MQ-02": [
+      {
+        "kind": "test",
+        "name": "tests/test_self_attribution_is_checked.py",
+        "why": "Decides the trials where the right answer is not to claim ownership: told she gave a number she never gave, conceding it is caught, while conceding what she really said passes and correcting the premise passes."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_her_own_act_is_not_reattributed.py",
+        "why": "Decides recognition of her own action receipt: her own web search is not handed to the person by her honesty repair, and no act of hers is reattributed. Neither suite decides own-looking decoys, another agent's paraphrase of her output, forged provenance or recognition that is spontaneous rather than prompted."
+      }
+    ],
+    "MQ-13": [
+      {
+        "kind": "test",
+        "name": "tests/test_belief_consistency.py",
+        "why": "Decides coherence and corrigibility among her beliefs: a belief and its negation are found to conflict, so is a contradiction reached by chained modus ponens, low-confidence beliefs are left out, the belief engine demotes the weaker side of a conflict, and governance records the inconsistency."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_identity_consistency.py",
+        "why": "Decides conclusions checked against her canonical self without censoring them: a persona displacement and a forbidden intention are violations that lower the conclusion's broadcast priority by a bounded penalty, a consistent conclusion is untouched, and a missing self is a caution rather than a crash. Neither suite decides delayed cross-domain probes, another language or modality, or a model swap."
+      }
+    ],
+    "SM-08-WORLDVIEW": [
+      {
+        "kind": "test",
+        "name": "tests/test_belief_consistency.py",
+        "why": "Decides coherence and corrigibility among her beliefs: a belief and its negation are found to conflict, so is a contradiction reached by chained modus ponens, low-confidence beliefs are left out, the belief engine demotes the weaker side of a conflict, and governance records the inconsistency."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_identity_consistency.py",
+        "why": "Decides conclusions checked against her canonical self without censoring them: a persona displacement and a forbidden intention are violations that lower the conclusion's broadcast priority by a bounded penalty, a consistent conclusion is untouched, and a missing self is a caution rather than a crash. Neither suite decides that beliefs, values and embodiment compose across modalities, or that no topic keeps a self of its own."
+      }
+    ],
+    "SM-01-CANONICAL-SELF": [
+      {
+        "kind": "test",
+        "name": "tests/test_one_authoritative_self.py",
+        "why": "Decides the clause against duplicate shadow selves: the self object reports the canonical self rather than its own, no self-representation recomputes a canonical number, a defaulted self channel says it is a default, affect comes from the fused value and not one engine, the continuity hash moves when the self-state moves, and the six subsystems that once each answered 'who am I' are estimators or views of the one answer."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_identity_consistency.py",
+        "why": "Decides conclusions checked against that canonical self: a persona displacement or a forbidden intention is a bounded violation, and a missing self is a caution rather than a crash. Neither suite decides the versioned schema itself, stale projections, or identity inferred only while a reply is written."
+      }
+    ],
+    "MORPHOGENETIC-ENGINEERING-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_morphogenesis_topology.py",
+        "why": "Decides exact rollback and bounded, inspectable structure: a failed graph transaction leaves the graph byte-identical, a rollback restores content while advancing the version, a self-binding and a binding neither port could carry are refused, serialization round-trips deterministically, and cutting a binding changes what the workload computes."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_morphogenesis_scenarios.py",
+        "why": "Decides the developmental claims under their seeds: each scenario is deterministic and states its rule, a poisoned signal cannot grow the population past its cap, the lesion arm recovers where the fixed arm does not, a partition is reported rather than served around, and the ablation matrix separates the arms. Neither suite decides the organogenesis lifecycle from unmet need to extinction, held-out needs solved better than the pre-formation baseline, or merging into canonical ownership."
+      }
+    ],
+    "PASSF-08": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_veto_is_a_decision_not_a_failure.py",
+        "why": "Decides the repair receipts and the anti-storm clause: code repair produces its evidence before governance disposes of it, repair uses the canonical shadow-validated tier, a completed governance disposition does not trip the circuit breaker while real generation and application failures stay failures, and a repair decision's identity changes when its source changes. It does not decide the closed loop from intake to checkpoint commit, or the held-out curves capability-growth claims need."
+      }
+    ],
+    "PASSF-06": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_line_said_first_survives_a_cut_off_tail.py",
+        "why": "Decides the response-truncation clause: an answer that ran past its budget keeps its finished sentences and the line she said first, a finished answer is left alone, and nothing finished is nothing, rather than the whole answer being dropped for its last half-sentence."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_stand_in_does_not_repeat_an_old_reply.py",
+        "why": "Decides the fallback-takeover clause for a stand-in model: a reply copied from an earlier turn is recognised as a copy, while a new answer that shares one short sentence is not."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_repeating_fault_is_one_standing_fact.py",
+        "why": "Decides the failure-spam clause as it reaches her state: forty repeats of one fault do not saturate her the way forty distinct faults would, the first occurrence lands in full, and what is repeating stays reportable. None of the three decides identity or name drift, repeated retry requests, lost context or model-control receipt loss."
+      }
+    ],
+    "CTX2-MEM-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_intentional_retrieval.py",
+        "why": "Decides query planning, source ranking, time scoping and deduplication across stores: the plan picks stores by task (failures and tools to debug, social to converse, semantic to recall a fact) and says why, a present horizon weights world state and a long one the semantic and project stores, a higher-weighted store outranks a lower one at equal score, only registered stores are asked, a broken store does not sink retrieval, and results are deduplicated keeping the strongest. It does not decide identity scoping, contradiction surfacing, confidence, freshness, explicit misses, or that the live reply consumed the result."
+      }
+    ],
+    "CTX2-ID-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_belief_consistency.py",
+        "why": "Decides contradiction detection in the belief ledger: a belief and its negation conflict, so does a contradiction reached by chained modus ponens, the engine demotes the weaker side rather than deleting it, and governance records the inconsistency."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_belief_revision_hardening.py",
+        "why": "Decides the corrupted-memory clause: a corrupt belief store is quarantined and reseeded rather than read, and a new claim updates the belief it bears on with clamped confidence. Neither suite decides the provenance classes the requirement names (prior belief, observation, external claim, inference, correction) or supersession kept instead of rewritten."
+      }
+    ],
+    "CARRYOVER-06": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_person_outranks_her_own_errand_at_the_executive.py",
+        "why": "Decides the foreground-protection bound on background work: a lane serving a person counts as the person's, her own loop stays hers while somebody waits, and a turn nobody waits on does not promote itself, so background work yields without being switched off."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_veto_is_a_decision_not_a_failure.py",
+        "why": "Decides the repair-storm clause: a completed governance disposition does not trip the repair circuit breaker, real failures stay failures, and repair produces evidence before it is disposed of. Neither suite decides that curiosity, journaling, research and learning are active in a normal full launch, or that repair updates memory and the self-model."
+      }
+    ],
+    "CTX2-MIND-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_one_authoritative_self.py",
+        "why": "Decides one authoritative owner for the self: the self object, the identity and continuity engines, workspace ownership and the substrate's self-representation read the canonical value instead of forming their own, and none recomputes a canonical number."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_one_canonical_workspace.py",
+        "why": "Decides one global workspace: the other module of that name is a facade of the canonical class with no implementation of its own, and only one module implements a broadcast bus."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_one_canonical_affect_engine.py",
+        "why": "Decides one affect engine, the one that runs: only one module defines one, the retired engine is gone, and the shim returns the registered service rather than building another. None of the three decides the owners of the phenomenal substrate, the consciousness cycle, welfare, executive authority or memory authority, or an inventory of every competing construction."
+      }
     ]
   }
 }

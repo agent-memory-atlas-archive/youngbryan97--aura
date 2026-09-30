@@ -1652,6 +1652,19 @@ snapshot carries, and the fork carries the source's budget
 its budget are unchanged. A campaign read before this commit had noise in S
 that no seed could replay.
 
+### The substrate's chaos is declared and carried
+
+The controlled chaos engine perturbs the liquid substrate on every step. Its
+somatic noise was a SHA-512 hash of the machine's uptime, its own process's
+thread count and memory, and the CPU's temperature, seeded from the process id
+and its start time, so every process drove C with different noise. The
+engine is also made after the fork is calibrated, so its residuals, last poll
+and last chemistry were carried by nothing. The declared host now declares its
+signals from the run's clock and the host reading each turn prepares, seeds
+every engine from the run's seed, and the fork carries each engine's history.
+A turn after a turn in another condition still differs in the field organ by
+about 0.02 of its spread; that source is not traced.
+
 ### What is left after a turn
 
 With the network declared and the generators seeded as the rig seeds them,
@@ -1699,3 +1712,50 @@ bank. The merge marks a shard whose anchors are not exchangeable with the
 coordinator's, and the authority gate then refuses the sweep, which is what
 refused every sharded sweep so far; shards that fork from the bank hold the
 coordinator's anchors exactly.
+
+## Addendum, 29 September 2026, late: seed 23's carrier runs sharded
+
+Named before any run reads it. It replaces "Seed 23's decisive sweep runs in one
+process" in the evening addendum, on the condition that addendum set: the two
+workspace columns now agree between processes.
+
+At 26bfee6e0, with the network, the managed entropy and the substrate's chaos
+declared by the run, `tools/probe_anchor_travel.py` restores four anchors
+written by one process in another built with a longer baseline. As restored,
+0 of 438 columns differ at every anchor. After one turn, 2 to 15 columns differ,
+all in C's substrate and one in A: the substrate's minimum by 0.176 of its spread
+on the seed-7 recording, every other column by less than 0.024, the median by
+0.005. The workspace's coherence and fragmentation, 0.37 and 0.18 of their
+spreads before, no longer differ: the chaos engine's noise was seeded from each
+process's id and start time. Probe 11 at the evening's commit read 89 columns.
+
+What is left is the same uncarried drift in the substrate that a late cut meets
+inside one process, where each anchor's untouched forks are rolled with its
+first cut. The late-fork control reads it in every shard, and a merged sweep
+counts its late fork as decided if any shard's was.
+
+So seed 23's carrier runs as a coordinator and three workers forking from the
+coordinator's anchor bank (`run_subject_core_v25_sharded.py --workers 3`, with
+`--share-anchors` and `--grain-claims` on). The workers take grain rows after
+their cuts. The grain is about 26,600 rollouts, a day and a half in one process,
+and is the reason this matters. Nothing else in the design moves.
+
+## Addendum, 29 September 2026, late: how the arms choose seed 23's switches
+
+Named before any arm's report is read; the four arms are still in their lesion
+stage at 0675c4217. The arms addendum of 28 September credits a criterion that
+moves in an arm and not in the control to that arm's mechanism. This says what
+seed 23 then runs with.
+
+- An arm qualifies if, on its seed-7 campaign, it passes at least one of the 24
+  criteria the control fails and fails none the control passes. The three v3
+  lines are counted with the 24 as the battery reports them. The two v5
+  partition lines are not, because no arm ran a sweep.
+- Seed 23 runs with the switches of the qualifying arm that passes the most
+  criteria. A tie goes to the arm with fewer switches (relay and carried have
+  one, joined two), and a tie between those to the control.
+- No two arms are combined. No combination has been run, and a combination is a
+  new organism that nothing here has measured.
+- If no arm qualifies, seed 23 runs with every switch off, as the control did.
+
+The switches go to `decisive_hold.sh` through its go file, which names them.

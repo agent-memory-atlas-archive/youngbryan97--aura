@@ -130,3 +130,19 @@ def test_the_newest_of_several_state_logs_is_the_one_read_and_all_are_listed(too
     assert sources["state_log"] == str(new)
     assert [entry["path"] for entry in sources["state_logs_surveyed"]] == [str(old), str(new), str(tmp_path / "gone.db")]
     assert sources["state_logs_surveyed"][2]["exists"] is False
+
+
+def test_a_run_directory_stands_for_the_report_it_holds(tool: Any, tmp_path: Path) -> None:
+    """The decisive run passes run directories; read as files they raised on its last step."""
+    carrier, content = _reports(tmp_path)
+    carrier_run = tmp_path / "carrier_run"
+    carrier_run.mkdir()
+    (carrier_run / tool.CARRIER_REPORT).write_text(carrier.read_text())
+    content_run = tmp_path / "content_run"
+    content_run.mkdir()
+    (content_run / tool.CONTENT_REPORT).write_text(content.read_text())
+    assert tool.load(carrier_run) == tool.load(carrier)
+    assert tool.load(content_run)["verdict"] == "ONE_STRUCTURE"
+    empty = tmp_path / "nothing_here"
+    empty.mkdir()
+    assert tool.load(empty) is None

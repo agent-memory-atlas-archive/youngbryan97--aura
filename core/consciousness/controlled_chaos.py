@@ -40,7 +40,7 @@ import os
 import struct
 import time
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
 import numpy as np
 
@@ -134,8 +134,9 @@ class ChaosEngine:
             "dream": 0.0, "somatic": 0.0, "neurochemical": 0.0, "total": 0.0,
         }
 
-        # Deterministic but unique seed from process start
-        self._seed_bytes = hashlib.sha256(
+        # Deterministic but unique seed from process start, unless a run has
+        # declared one (see `declare_the_machine`).
+        self._seed_bytes = _DECLARED_SEED or hashlib.sha256(
             f"{os.getpid()}-{time.time_ns()}".encode()
         ).digest()
 
@@ -321,17 +322,8 @@ class ChaosEngine:
 
         return rotated
 
-    def _poll_hardware_state(self, dim: int) -> np.ndarray:
-        """Read real hardware signals and hash them into a vector.
-
-        Signals used (best-effort, graceful fallback):
-          - CPU temperature (macOS: via psutil or subprocess)
-          - Memory pressure (percent used)
-          - System uptime
-          - Wall-clock time (hour, minute, second fractions)
-          - Process RSS memory
-          - Thread count
-        """
+    def _machine_signals(self) -> List[float]:
+        """The machine's own readings, the default somatic source."""
         signals: List[float] = []
 
         # Wall clock components (always available)
@@ -395,6 +387,21 @@ class ChaosEngine:
             signals.append(cpu / 100.0)
         except (ImportError, AttributeError, RuntimeError):
             signals.append(0.5)
+        return signals
+
+    def _poll_hardware_state(self, dim: int) -> np.ndarray:
+        """Read real hardware signals and hash them into a vector.
+
+        Signals used (best-effort, graceful fallback):
+          - CPU temperature (macOS: via psutil or subprocess)
+          - Memory pressure (percent used)
+          - System uptime
+          - Wall-clock time (hour, minute, second fractions)
+          - Process RSS memory
+          - Thread count
+        """
+        declared = _DECLARED_SIGNALS
+        signals = [float(v) for v in declared()] if declared is not None else self._machine_signals()
 
         # Hash all signals into a deterministic but high-entropy vector.
         # This ensures the output has proper dimensionality regardless
@@ -518,6 +525,74 @@ class ChaosEngine:
 
 _instance: Optional[ChaosEngine] = None
 _instances_by_dim: Dict[int, ChaosEngine] = {}
+
+#: Set while an experiment declares the machine the engine reads (the subject
+#: core's declared host): the somatic signals come from the run rather than
+#: from the host's uptime, thread count and temperature, and the seed from the
+#: run rather than from this process's pid and start time. Unset in the live
+#: runtime, which reads its own machine as it always has.
+_DECLARED_SIGNALS: Optional[Callable[[], List[float]]] = None
+_DECLARED_SEED: Optional[bytes] = None
+
+
+def declare_the_machine(signals: Optional[Callable[[], List[float]]], seed: Optional[bytes]) -> None:
+    """Declare what every engine reads for its somatic noise, and seed them from it.
+
+    Engines made before the declaration are reseeded with it; `None` for both
+    gives the machine back, though an engine keeps the seed it was given.
+    """
+    global _DECLARED_SIGNALS, _DECLARED_SEED
+    _DECLARED_SIGNALS = signals
+    _DECLARED_SEED = seed
+    if seed is None:
+        return
+    for engine in _engines():
+        engine._seed_bytes = seed
+        engine._last_somatic_poll = 0.0
+
+
+def _engines() -> List[ChaosEngine]:
+    found: Dict[int, ChaosEngine] = {id(e): e for e in _instances_by_dim.values()}
+    if _instance is not None:
+        found[id(_instance)] = _instance
+    return list(found.values())
+
+
+#: What an engine carries from one step to the next, beside the references it
+#: holds. A fork of the organism carries these and nothing else of it.
+HISTORY_FIELDS: tuple[str, ...] = (
+    "_dream_residuals",
+    "_somatic_vector",
+    "_last_somatic_poll",
+    "_prev_chem_levels",
+    "_complexity_pressure",
+    "_tick_count",
+    "_last_perturbation",
+    "_component_magnitudes",
+)
+
+
+def history() -> Dict[int, Dict[str, Any]]:
+    """Every engine's history, by its state dimension, as copies."""
+    import copy
+
+    return {
+        engine.config.state_dim: {name: copy.deepcopy(getattr(engine, name)) for name in HISTORY_FIELDS}
+        for engine in _engines()
+    }
+
+
+def restore_history(saved: Dict[int, Dict[str, Any]]) -> None:
+    """Put each engine's history back; an engine the saved history does not name is left alone."""
+    import copy
+
+    for engine in _engines():
+        fields = saved.get(engine.config.state_dim)
+        if not fields:
+            continue
+        for name, value in fields.items():
+            if name in HISTORY_FIELDS:
+                setattr(engine, name, copy.deepcopy(value))
 
 
 def get_chaos_engine(config: ChaosConfig | None = None) -> ChaosEngine:

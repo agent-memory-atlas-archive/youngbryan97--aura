@@ -158,6 +158,32 @@ does not), structure fails on moves-together, reports not measured (0 of 24
 anchors readable in every arm), markers and lineage hold. The bridge reads
 BELOW_PARITY on those inputs.
 
+### Night: the structure ground holds on seed 7
+
+The content run at `409628b9b` (seed 7, 24 anchors, class samples kept)
+finished at 22:25 with moves-together rho 0.381, p 0.001, against a sham
+floor of -0.051: verdict ONE_STRUCTURE. The same run design at `c093fcfb7`
+read -0.157. The displacement moved the internal geometry 0.058 against a
+sham of 0.002 and the recall geometry 0.022 against 0.0004. Agreement is
+0.354 and design recovery 0.677.
+
+`tools/solve_for_j.py` on it, with the plumbing sweep, a 370-round campaign
+and the seed-7 reports ground: structure IDENTIFIED, 20 orbits over 20
+classes; the bridge reads UNRESOLVED rather than BELOW_PARITY, with markers,
+structure and lineage holding. The two grounds left are the carrier, which
+needs a sweep that learns its grain, and the reports, which needs her
+cortex. Both are stages of the decisive run queued for seed 23.
+
+**Two more sources the machine lent her.** The controlled chaos engine that
+perturbs the substrate every step hashed the host's uptime, its own thread
+count and the CPU temperature, and seeded itself from the process id and its
+start time (`26bfee6e0` declares and carries it). With it declared, two
+processes restored from one anchor differ after a turn in 2 to 15 columns of
+C's substrate, the largest by 0.176 of its spread, where they differed in 89;
+the workspace columns that held seed 23 in one process are gone. The carrier
+runs sharded (late addendum, `308d623df`), which is what the grain's 26,600
+rollouts needed.
+
 ## 28 September
 
 ### The floor under every paired arm was the estimator, and the fork

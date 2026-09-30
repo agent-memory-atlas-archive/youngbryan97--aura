@@ -1281,6 +1281,23 @@ def _singleton_state() -> dict[str, dict[str, Any]]:
     return out
 
 
+def _chaos_history() -> dict[int, dict[str, Any]]:
+    try:
+        from core.consciousness.controlled_chaos import history
+    except (ImportError, AttributeError):
+        # not a failure: no chaos engine, no history to carry.
+        return {}
+    return history()
+
+
+def _restore_chaos(saved: Mapping[int, dict[str, Any]] | None) -> None:
+    if not saved:
+        return
+    from core.consciousness.controlled_chaos import restore_history
+
+    restore_history(dict(saved))
+
+
 def _restore_singletons(saved: Mapping[str, dict[str, Any]]) -> None:
     if not saved:
         return
@@ -1860,6 +1877,12 @@ class Snapshot:
     #: Module-level singletons the container does not hold. See
     #: `_MODULE_SINGLETONS`.
     singletons: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: Each controlled-chaos engine's history, by state dimension. The engines
+    #: perturb the substrate every step from their residuals, their last
+    #: somatic poll and the chemistry they last saw, and they are made after
+    #: the fork is calibrated, so nothing else carried them: a turn after one
+    #: in another condition differed in the substrate's field for it.
+    chaos: dict[int, dict[str, Any]] = field(default_factory=dict)
     #: What the organism keeps at module scope outside any container or phase,
     #: by `module:name`: the object and a copy of what it held.
     module_state: dict[str, tuple[Any, Any]] = field(default_factory=dict)
