@@ -79,3 +79,24 @@ def test_both_grain_stages_are_watched():
 
 if __name__ == "__main__":  # pragma: no cover
     pytest.main([__file__])
+
+
+def test_the_claimed_row_path_reports_too():
+    """With `--grain-claims` the work goes one anchor at a time through
+    `_one_grain_row`, so `signature_matrix` only ever sees 1 of 1. Reporting
+    there would print "1/1 anchors" 128 times and say nothing; the loop that
+    claims the rows is what knows how many there are."""
+    import tools.run_subject_core_v25 as runner
+
+    body = inspect.getsource(runner._work_grain_rows)
+    assert "_says_how_far_along(" in body
+    assert "far_along(index + 1, len(anchors))" in body
+
+
+def test_it_counts_the_anchors_and_not_the_rows_it_happened_to_claim():
+    """A sibling process may have taken rows, so `done` runs behind the anchor
+    index. What a reader wants is how far through the bank this process is."""
+    import tools.run_subject_core_v25 as runner
+
+    body = inspect.getsource(runner._work_grain_rows)
+    assert "far_along(done" not in body

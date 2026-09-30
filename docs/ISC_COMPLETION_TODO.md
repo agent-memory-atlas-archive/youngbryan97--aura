@@ -535,7 +535,7 @@ Newest run with a report: `run_032` — 21/24 criteria, commit `27dc1dda95e1`.
 - [x] `P24.3` Record exact tokenizer. — and which tokenizer files sit beside the weights
 - [x] `P24.4` Record exact chat template. — and the chat template, hashed, from either place a model can carry one
 - [x] `P24.5` Use greedy deterministic decode, or fully fixed sampling RNG. — a free sampler is a blocker rather than a note: the resident weights ship temperature 1.0, top_p 0.95 and top_k 20, which is larger than any displacement
-- [ ] `P24.6` Keep prompts identical except for causal state differences under test.
+- [x] `P24.6` Keep prompts identical except for causal state differences under test. — every arm is asked one frozen question, built once outside the loop over arms, and an arm carries a dose and a domain name rather than words: what separates raised from lowered is a number and which domain it lands on. The displacement writes emotions and perturbs a domain and its organs, and writes no text anywhere
 - [x] `P24.7` Restore KV/cache state between matched arms. — the fork carries the module singletons, the built services and the phase accumulators, which is what a recurrent state restore needs
 - [x] `P24.8` No fallback model during the run. — a fallback lane serving one arm while the real cortex serves the other is a blocker
 - [x] `P24.9` No 9B serving one arm while 27B serves another. — which is the same check: the external lane is what would serve a second model
