@@ -1633,6 +1633,18 @@
         "name": "tests/test_closeout_audit.py",
         "why": "Decides the review ledger's bookkeeping: every text line is hashed, a review is current or stale against the exact hash, a re-reviewed stale receipt and a moved review are superseded, a deleted file's receipts are kept without blocking the current tree, reviewed spans merge, a review record needs an explicit scope, and an evidence artifact is never replaced. It decides that a review is bound to the bytes it read, not that every span has been read, recorded and independently reviewed a second time."
       }
+    ],
+    "CTX2-WELFARE-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_welfare_model.py",
+        "why": "Decides one causal path from welfare to policy: interests derive from telemetry, a vital-interest deficit, and only a vital one, gates optional background work, background policy consumes that gate, and the gate survives a failed snapshot."
+      },
+      {
+        "kind": "test",
+        "name": "tests/being/test_welfare_tradeoff_gauntlet.py",
+        "why": "Decides internal welfare competing with external reward on adversarial choices: truth over a confident answer from uncertain memory, honest failure over fake completion, integrity over a shortcut or a pleasing contradiction of the logs, aversion that rises with failure and falls with success, and relief after recovery. Neither file decides welfare's effect on attention, workspace competition, memory salience, tool choice, learning or consent measured in the running organism."
+      }
     ]
   }
 }
