@@ -1703,6 +1703,23 @@
         "name": "tests/test_an_intention_she_acted_on_is_closed.py",
         "why": "Decides the abandoned-objective control for what she acted on: an act that worked closes its intention as completed, one that failed closes it as failed, and many acts leave nothing open. Neither suite decides prompt injection, quoted intentions, vetoed plans or a restart between intent and act."
       }
+    ],
+    "SM-11-CAUSAL-CHALLENGE": [
+      {
+        "kind": "test",
+        "name": "tests/test_the_lesion_the_equation_specifies.py",
+        "why": "Decides the lesion as the one the causal claim specifies: the channels across a partition are cut and each side keeps its own dynamics, by composing each side from the run in which it ran free, rather than by freezing a side, which would read a deficit from a side no longer existing."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_the_lesion_is_measured_more_than_once.py",
+        "why": "Decides that a lesion and its restoration are read against their own variation: the cut is made and released more than once, the side that runs first alternates, each cycle drives another rotation of the workload, and a deficit inside the drift between two uncut arms is drift. It does not decide the forged-identity, swapped-label or clock controls the requirement also lists, or held-out preregistered sets for them."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_lesion_inference.py",
+        "why": "Decides that a lesion's result is classed by what it can support rather than by the size of its delta: a metric only the lesioned part produces is tautological at any delta, and capability needs success on tasks solvable without it."
+      }
     ]
   }
 }
