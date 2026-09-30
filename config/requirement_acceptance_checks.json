@@ -1775,6 +1775,18 @@
         "name": "tests/test_identity_consistency.py",
         "why": "Decides conclusions checked against that canonical self: a persona displacement or a forbidden intention is a bounded violation, and a missing self is a caution rather than a crash. Neither suite decides the versioned schema itself, stale projections, or identity inferred only while a reply is written."
       }
+    ],
+    "MORPHOGENETIC-ENGINEERING-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_morphogenesis_topology.py",
+        "why": "Decides exact rollback and bounded, inspectable structure: a failed graph transaction leaves the graph byte-identical, a rollback restores content while advancing the version, a self-binding and a binding neither port could carry are refused, serialization round-trips deterministically, and cutting a binding changes what the workload computes."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_morphogenesis_scenarios.py",
+        "why": "Decides the developmental claims under their seeds: each scenario is deterministic and states its rule, a poisoned signal cannot grow the population past its cap, the lesion arm recovers where the fixed arm does not, a partition is reported rather than served around, and the ablation matrix separates the arms. Neither suite decides the organogenesis lifecycle from unmet need to extinction, held-out needs solved better than the pre-formation baseline, or merging into canonical ownership."
+      }
     ]
   }
 }
