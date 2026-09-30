@@ -31,6 +31,7 @@ docs/DOC_STATUS.md for which document is which.
 from __future__ import annotations
 
 import argparse
+import builtins
 import json
 import re
 import subprocess
@@ -136,11 +137,10 @@ SYMBOL = re.compile(r"^(?:[A-Z][a-z0-9]+){2,}$")
 
 #: Names that are real and are not defined here: Python builtins a runbook
 #: quotes from a traceback, and libraries named in their own voice.
-FOREIGN_SYMBOLS = frozenset({
-    "RuntimeError", "TimeoutError", "ValueError", "TypeError", "KeyError",
-    "AttributeError", "ImportError", "OSError", "ConnectionError",
-    "IndexError", "NotImplementedError", "StopIteration", "MemoryError",
+FOREIGN_SYMBOLS = frozenset(dir(builtins)) | frozenset({
     "PortAudio", "PyAudio", "OpenSSL", "PyTorch", "NumPy", "SwigPyObject",
+    # launchd.plist(5) keys, not Aura classes.
+    "RunAtLoad", "KeepAlive",
 })
 
 #: An HTTP route a document tells a reader to call. Routes carry two prefixes

@@ -149,6 +149,21 @@ def test_the_full_anchor_resolves(scan):
     assert scan(body) == set()
 
 
+@pytest.mark.parametrize("name", ["SyntaxError", "ZeroDivisionError", "FileNotFoundError"])
+def test_python_builtin_names_are_not_missing_aura_classes(scan, name):
+    assert scan(f"The runtime can raise `{name}`.") == set()
+
+
+@pytest.mark.parametrize("name", ["RunAtLoad", "KeepAlive"])
+def test_launchd_property_keys_are_not_missing_aura_classes(scan, name):
+    assert scan(f"The launchd property list names `{name}`.") == set()
+
+
+@pytest.mark.parametrize("name", ["SyntaxErrorHandler", "RunAtLoadManager", "KeepAliveService"])
+def test_external_names_do_not_exempt_similarly_named_aura_classes(scan, name):
+    assert "symbol_not_defined" in scan(f"Use `{name}`.")
+
+
 # ---- make ----------------------------------------------------------------
 
 

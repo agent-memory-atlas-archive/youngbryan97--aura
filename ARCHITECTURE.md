@@ -4,7 +4,7 @@ This is the technical spec. It explains the math, files, and algorithms. For a s
 
 **Evidence boundary.** This document describes functional systems, not philosophical claims about consciousness or legal personhood. We only credit claims after strict testing.
 
-**Currency.** Last updated August 2026. Sections 1–17 cover up to July 2026; [§18](#18-the-reality-boundary-physical-claims-self-knowledge-and-untrusted-code) covers newer additions. Generated files like [docs/ARCHITECTURE_MAP.md](docs/ARCHITECTURE_MAP.md), [docs/RUNTIME_CONTRACT.md](docs/RUNTIME_CONTRACT.md), and [docs/FMEA.md](docs/FMEA.md) are made via code commands; do not edit them by hand.
+**Currency.** Last updated August 2026. Sections 1–17 cover up to July 2026; [§18](#18-the-reality-boundary) covers newer additions. Generated files like [docs/ARCHITECTURE_MAP.md](docs/ARCHITECTURE_MAP.md), [docs/RUNTIME_CONTRACT.md](docs/RUNTIME_CONTRACT.md), and [docs/FMEA.md](docs/FMEA.md) are made via code commands; do not edit them by hand.
 
 **Recent hardening.** Since the original spec, the system added reasoning, a self-model, and resilience features. These are detailed in [§15](#15-the-reasoning-self-model-and-resilience-layer).
 
@@ -20,7 +20,7 @@ For proof of autonomy or behavior, see [docs/BEHAVIORAL_PROOF_STANDARD.md](docs/
 3. [Integrated information (IIT 4.0)](#3-integrated-information-iit-40)
 4. [Affective modulation pipeline](#4-affective-modulation)
 5. [Activation steering (CAA)](#5-activation-steering)
-6. [Persistent emotional network](#6-persistent-emotional-network-formerly-liquid-substrate)
+6. [Persistent emotional network](#6-persistent-emotional-network)
 7. [STDP online learning](#7-stdp-online-learning)
 8. [Memory architecture](#8-memory-architecture-116-modules)
 9. [The consciousness stack](#9-the-consciousness-stack)
@@ -28,11 +28,11 @@ For proof of autonomy or behavior, see [docs/BEHAVIORAL_PROOF_STANDARD.md](docs/
 11. [Quantization and emergence](#11-quantization-and-emergence)
 12. [Limitations and mitigations](#12-limitations-and-mitigations)
 13. [Open research program](#13-open-research-program)
-14. [Null hypothesis defeat: empirical evidence](#14-null-hypothesis-defeat-empirical-evidence-for-causal-architecture)
+14. [Null hypothesis defeat: empirical evidence](#14-null-hypothesis-defeat)
 15. [The reasoning, self-model, and resilience layer (June–July 2026)](#15-the-reasoning-self-model-and-resilience-layer)
-16. [The triad fusions: kernel-checked proof, economic knowledge, declared runtime](#16-the-triad-fusions-kernel-checked-proof-economic-knowledge-declared-runtime)
+16. [The triad fusions: kernel-checked proof, economic knowledge, declared runtime](#16-the-triad-fusions)
 17. [The engineering spine: ten adoptions](#17-the-engineering-spine-ten-adoptions)
-18. [The reality boundary: physical claims, self-knowledge, and untrusted code](#18-the-reality-boundary-physical-claims-self-knowledge-and-untrusted-code)
+18. [The reality boundary: physical claims, self-knowledge, and untrusted code](#18-the-reality-boundary)
 
 ---
 
