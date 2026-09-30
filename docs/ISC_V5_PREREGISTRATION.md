@@ -1739,3 +1739,23 @@ coordinator's anchor bank (`run_subject_core_v25_sharded.py --workers 3`, with
 `--share-anchors` and `--grain-claims` on). The workers take grain rows after
 their cuts. The grain is about 26,600 rollouts, a day and a half in one process,
 and is the reason this matters. Nothing else in the design moves.
+
+## Addendum, 29 September 2026, late: how the arms choose seed 23's switches
+
+Named before any arm's report is read; the four arms are still in their lesion
+stage at 0675c4217. The arms addendum of 28 September credits a criterion that
+moves in an arm and not in the control to that arm's mechanism. This says what
+seed 23 then runs with.
+
+- An arm qualifies if, on its seed-7 campaign, it passes at least one of the 24
+  criteria the control fails and fails none the control passes. The three v3
+  lines are counted with the 24 as the battery reports them. The two v5
+  partition lines are not, because no arm ran a sweep.
+- Seed 23 runs with the switches of the qualifying arm that passes the most
+  criteria. A tie goes to the arm with fewer switches (relay and carried have
+  one, joined two), and a tie between those to the control.
+- No two arms are combined. No combination has been run, and a combination is a
+  new organism that nothing here has measured.
+- If no arm qualifies, seed 23 runs with every switch off, as the control did.
+
+The switches go to `decisive_hold.sh` through its go file, which names them.
