@@ -2086,6 +2086,76 @@
         "name": "tests/test_reality_observation_router.py",
         "why": "Decides the publishing half: the router delivers bounded claims to perception and cognition, quality and order evidence reach both cognitive sinks, a rejected sink receipt prevents a false delivery, a durable outbox restores delivery after a restart, and required-sink health keeps a degraded boot unready. It does not decide observations reaching the world model, twins, science, memory, belief revision, planning and Q&A, or outcomes fed into agency, immunity and repair."
       }
+    ],
+    "MIND-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_one_authoritative_self.py",
+        "why": "Decides one owner for the self: the identity and continuity engines, workspace ownership and the substrate's self-representation resolve to one authority."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_one_canonical_workspace.py",
+        "why": "Decides one global workspace, with the other module of that name a facade of the canonical class."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_there_is_one_substrate.py",
+        "why": "Decides one substrate, adopted rather than built twice and published under every name. None of the three runs on the exact live path, or covers welfare, the consciousness cycle, executive authority and memory authority with boot-scoped identity."
+      }
+    ],
+    "RLC-MECHANICS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_recurrence.py",
+        "why": "Decides controlled recurrence and adaptive halt and revert: finite guards, exact cache rewind, convergence, overthinking revert, and budget preflight."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_schedules_branches.py",
+        "why": "Decides programmable schedules and tied-weight virtual width with exchange: canonical schedule hashes, bounded compute receipts, distinct branch roles, and all-or-none rounds under budget."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_opt_fastweights.py",
+        "why": "Decides gradient optimisation over thoughts and episode-scoped fast weights: matched-magnitude controls, verifier-gated acceptance, transactional attach and a byte-identical erase."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_slot_ingress.py",
+        "why": "Decides the writable latent workspace: identifiable causal slots, each ablatable alone, with seeding that moves the answer distribution. Each mechanism is decided on its own; their composition together on supported architectures is not."
+      }
+    ],
+    "VALIDATE-001": [
+      {
+        "kind": "make",
+        "name": "release-preflight",
+        "why": "Runs the fast rungs of the ladder in order, fail-fast, with one receipt: compile, lint, smoke, governance, security scan, enterprise and production gates, crash triage and the reqproof structural gate. The operational-label, frontier, fault-injection, GUI, bounded-live and clean-machine rungs are not in it."
+      }
+    ],
+    "FND-03-CONTRACTS": [
+      {
+        "kind": "make",
+        "name": "typed-surface",
+        "why": "Fails when a module outside the grandfathered baseline leaves a parameter or return unannotated, or a baselined module gains an unannotated definition. It decides typed signatures, the least of what the requirement asks; versioned errors, freshness, units, provenance, cancellation, idempotency and degraded semantics at every boundary are not decided."
+      }
+    ],
+    "CAPABILITY-CERT-001": [
+      {
+        "kind": "make",
+        "name": "skill-catalog-audit",
+        "why": "Fails when skill discovery, quarantine and the live registry disagree, so an advertised capability is one the runtime can actually find."
+      },
+      {
+        "kind": "make",
+        "name": "skill-readiness-audit",
+        "why": "Fails when a skill's canonical readiness does not reach the production API and the UI bootstrap."
+      },
+      {
+        "kind": "make",
+        "name": "skill-runtime-route-audit",
+        "why": "Fails when the production skill API, router, engine and authority path do not form one route. None of the three is a per-capability dossier: boundary and adversarial cases, partial failure, cancellation, restart, observed effect, compensation and signed-app evidence for each capability are not decided."
+      }
     ]
   }
 }
