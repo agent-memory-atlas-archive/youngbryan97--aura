@@ -1472,6 +1472,35 @@
         "name": "tests/test_latent_cortex_receipt_envelope.py",
         "why": "Decides complete-receipt validation: every conversion failure and a receipt that explodes on access become a contract error, and oversized, deeply nested or overwide receipts are refused before the validator runs. Neither file decides default-on routing of depth-worthy CognitiveEngine work through the installed-app resident model, or the live product verdict the requirement revoked and still asks for."
       }
+    ],
+    "ADAPTATION-STATE-AUTHORITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_curiosity_explorer_transactional.py",
+        "why": "Decides the owning curiosity transaction around the heuristic store: a tick is atomic, deduplicated and rate-limited, concurrent runners claim an item once, failed work is neither completed nor recorded as a finding, the run lane does not hold the state lock across effects, and only verified multi-source findings reach the heuristic store."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_internal_writes_carry_governed_scope.py",
+        "why": "Decides that an internal maintenance write declares its governed scope at the call site and survives production governance. Neither file decides the typed persistence transaction for every adaptive cell, schema and provenance validation, compensation of a partial update, or one terminal receipt."
+      }
+    ],
+    "VALUES-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_value_levels.py",
+        "why": "Decides constitutionally bounded formation: levels no learner can climb, commitments that move only by a deliberate revision stating its cost, and every refusal recorded."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_ulysses_covenant.py",
+        "why": "Decides corrigible self-binding: tightening is cheap, loosening takes a reflection, a cooling-off and calm, and a hard release needs the owner."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_injection_canary.py",
+        "why": "Decides one manipulation channel, instructions planted in untrusted text. None of the three decides strategic modelling, longitudinal stability, or rollback evidence."
+      }
     ]
   }
 }
