@@ -16,6 +16,7 @@ class SemanticComputationOutcome:
     selection: object
     retrieved: tuple
     receipt: dict
+    candidate_union: object = None
 
     @property
     def result(self):
@@ -154,3 +155,38 @@ async def run_semantic_computation_loop(*, portfolio, formulation, context,
             "general_transfer_proven": False, "serving_authority": False}
     return SemanticComputationOutcome(updated, calculated, selection, retrieved,
                                       {**body, "receipt_sha256": _sha(body)})
+
+
+async def run_grounded_semantic_computation_loop(*, candidates, public_inputs,
+        incumbent_origin, formulation, context, fuel=2_000_000, providers=None,
+        gateway=None, result_unit="count", selection_output=None,
+        observation_providers=None, memory_retriever=None):
+    """Connect the mixed candidate union to the same scoped computation loop.
+
+    Callers supply source-grounded proposals and a proposed equation mapping,
+    never expected answers. All distinct programs execute in common input
+    coordinates. Equal programs retain every origin but receive no voting bonus.
+    Neither this entry point nor its evidence grants live serving authority.
+    """
+    from core.learning.semantic_candidate_union import SemanticCandidateUnion
+    from core.runtime.executors import off_the_loop
+
+    if not isinstance(candidates, SemanticCandidateUnion) or candidates.source_sha256 != context.scope:
+        raise ValueError("mixed computations need a candidate union for the same problem")
+    portfolio = await off_the_loop(candidates.to_portfolio, public_inputs=public_inputs,
+                                  incumbent_origin=incumbent_origin, fuel=fuel)
+    outcome = await run_semantic_computation_loop(portfolio=portfolio,
+        formulation=formulation, context=context, providers=providers, gateway=gateway,
+        result_unit=result_unit, selection_output=selection_output,
+        observation_providers=observation_providers, memory_retriever=memory_retriever)
+    body = {key: value for key, value in outcome.receipt.items() if key != "receipt_sha256"}
+    body.update(schema="aura.semantic_computation_loop.v3",
+        candidate_union_receipt_sha256=candidates.receipt["receipt_sha256"],
+        candidate_origins={row.program.sha(): row.origins for row in candidates.candidates},
+        incumbent_origin=incumbent_origin,
+        incumbent_program_sha256=next(row.program.sha() for row in candidates.candidates
+                                      if incumbent_origin in row.origins),
+        initial_selected_program_sha256=portfolio.selected_program.sha() if portfolio.selected_program else None,
+        method_agreement_used_as_correctness=False)
+    return replace(outcome, candidate_union=candidates,
+                   receipt={**body, "receipt_sha256": _sha(body)})

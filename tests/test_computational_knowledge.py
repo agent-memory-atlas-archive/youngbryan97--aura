@@ -34,8 +34,9 @@ def test_scoped_computation_claim_has_an_executable_observation_and_limited_scop
     suite = ValidationSuite()
     install_computational_knowledge_claims(suite)
     model = RuntimeModel().declare("scoped_computational_knowledge")
-    assert suite.tests()[0].run(model).score.outcome is Outcome.PASS
-    claim = suite.claims()[0]
+    test = next(item for item in suite.tests() if item.name == "scoped_computation_keeps_estimates_conditional")
+    assert test.run(model).score.outcome is Outcome.PASS
+    claim = next(item for item in suite.claims() if item.test == test.name)
     assert claim.evidence is Evidence.MEASURED_SYNTHETIC
     assert "no autonomous source grounding" in claim.evidence_note
 

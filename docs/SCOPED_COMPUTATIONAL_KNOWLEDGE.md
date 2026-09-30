@@ -35,6 +35,14 @@ That mapping remains an upstream proposal which needs evidence.
    semantic definition. Restoration verifies those hashes. New observations
    require a new calculation; retained recipes contain no cached answers.
 
+`run_grounded_semantic_computation_loop` also accepts the existing
+`SemanticCandidateUnion`. It checks the source identity and union receipt,
+executes every distinct program in the common source-input coordinates, then
+uses this same graph, observation, retrieval and selection path. Equal programs
+retain all method origins without receiving a correctness vote. The named
+incumbent must identify exactly one program. The v3 receipt distinguishes that
+original incumbent from an executable fallback selected after a real failure.
+
 A formulation with several outputs must name its `selection_output`. Distinct
 quantities such as pressure and energy cannot silently constrain the same answer.
 An unresolved cell leaves the original portfolio selection untouched.
@@ -92,6 +100,9 @@ The executable API and portfolio connection are tested. The tests include a
 three-cell fluid/mechanical graph, premise ablation, changed observations,
 counterevidence, invalid units, provider failure, observation-driven recomputation,
 real local-corpus retrieval and state-gateway restoration.
+Mixed-entry tests use actual candidate-bank receipts and actual floor execution;
+they check complementary methods, missing premises, observation-driven revision,
+complete refutation, changed public inputs and a failing incumbent.
 They establish conditional computation and integration on those fixtures.
 
 The autonomous language-to-equation mapper is not supplied by this catalog.
@@ -110,3 +121,4 @@ G03 remains open.
 - `core/learning/semantic_computation_loop.py`: the connected async path.
 - `tests/test_computational_knowledge.py` and
   `tests/test_semantic_computed_constraints.py`: executable checks.
+- `tests/test_semantic_mixed_computation_loop.py`: mixed-entry checks.

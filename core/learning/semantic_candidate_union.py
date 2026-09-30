@@ -14,6 +14,7 @@ from core.learning.semantic_program_composition import (
     compose_semantic_programs,
 )
 from core.learning.semantic_program_ir import TokenSpan
+from core.verify.invariants import invariant
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,28 @@ class SemanticCandidateUnion:
                     for row in self.candidates
                 ]):
             raise ValueError("mixed candidate receipt differs from retained programs")
+
+    def to_portfolio(self, *, public_inputs: tuple, incumbent_origin: str,
+                     fuel: int = 2_000_000):
+        """Execute all aligned proposals without using method agreement as truth."""
+        from core.learning.semantic_program_portfolio import select_semantic_program_portfolio
+
+        self.validate()
+        if not isinstance(public_inputs, tuple) or len(public_inputs) != len(self.input_spans):
+            raise ValueError("mixed portfolio inputs differ from common source grounding")
+        incumbents = [row.program.sha() for row in self.candidates
+                      if incumbent_origin in row.origins]
+        if len(incumbents) != 1:
+            raise ValueError("mixed portfolio needs one retained incumbent origin")
+        return select_semantic_program_portfolio(
+            proposals={row.program.sha(): row.program for row in self.candidates},
+            provenance={row.program.sha(): _sha({
+                "union_receipt_sha256": self.receipt["receipt_sha256"],
+                "program_sha256": row.program.sha(), "origins": row.origins,
+            }) for row in self.candidates},
+            public_inputs=public_inputs, observation_sha256=self.source_sha256,
+            incumbent=incumbents[0], fuel=fuel,
+        )
 
 
 class UnalignableProposalError(ValueError):
@@ -151,3 +174,25 @@ def unify_semantic_candidates(
                                     {**body, "receipt_sha256": _sha(body)})
     result.validate()
     return result
+
+
+@invariant("learning.mixed_candidate_agreement_is_not_truth", scope="learning",
+           owner="core/learning/semantic_candidate_union.py", observational=False)
+def _mixed_agreement_keeps_incumbent() -> dict:
+    from core.learning.procedure_induction import Instruction
+
+    baseline = Program(2, (Instruction("sub", (0, 1)),))
+    alternative = Program(2, (Instruction("add", (0, 1)),))
+    rows = (UnifiedCandidate(baseline, ("baseline",)),
+            UnifiedCandidate(alternative, ("method_a", "method_b")))
+    spans = (TokenSpan(0, 1), TokenSpan(2, 3))
+    body = {"source_sha256": "a" * 64, "input_spans": [span.to_dict() for span in spans],
+            "candidates": [{"program": row.program.to_dict(), "origins": row.origins}
+                           for row in rows]}
+    union = SemanticCandidateUnion("a" * 64, spans, rows, None,
+                                    {**body, "receipt_sha256": _sha(body)})
+    portfolio = union.to_portfolio(public_inputs=(7, 3), incumbent_origin="baseline")
+    assert portfolio.selected_program == baseline
+    assert len(portfolio.executions) == 2
+    return {"selected": portfolio.selected_program.sha(), "incumbent": baseline.sha(),
+            "agreement_origins": rows[1].origins, "serving_authority": False}

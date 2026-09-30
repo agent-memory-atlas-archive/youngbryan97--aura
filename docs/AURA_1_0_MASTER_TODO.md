@@ -1455,6 +1455,14 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Mixed computation entry](evidence/G03_MIXED_COMPUTATION_ENTRY_2026-09-30.md)
+  connects source-grounded method proposals to one executed portfolio and the
+  scoped calculation/observation loop. Method agreement is not correctness;
+  caller-supplied interpretation and live/native promotion remain unproved.
+  [Completed stop-source reacquisition](evidence/G03_STOP_SOURCE_REACQUISITION_2026-09-30.md)
+  independently verifies all 3,708 records and their shared representation.
+  The fresh fit has 2,708 training examples; the original 500 validation
+  identities remain unchanged. Acquisition does not certify a new candidate.
   [Bounded source-head fitting](evidence/G03_BOUNDED_SOURCE_HEAD_FIT_2026-09-30.md)
   retains the complete weighted binary objective while materializing relation
   features by batch. Gradient, coefficient and source-campaign checks pass;
