@@ -1467,6 +1467,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Source-fit handoff](evidence/G03_SOURCE_FIT_HANDOFF_2026-09-30.md)
+  checks saved optimizer vectors against every model head, then uses the
+  detached broker for frozen folds and disjoint source-bank fitting. Source
+  preparation grants no native accuracy, promotion, or G03 closure.
   [Binary iterate preservation](evidence/G03_BINARY_ITERATE_RESUME_2026-09-30.md)
   repairs the source fitter's iteration-cap failure without changing its
   objective or convergence tolerances. Numerical archives require fresh
