@@ -21,7 +21,8 @@ from tools.evaluate_semantic_native_checkpoint import digest, verified_document 
 def stage_jobs(*, training_directory, fit_verification, directory, source_report, bundles,
                training_plan_sha256, python, candidate_weight_mode="fitted",
                residual_calibration=None, max_seconds=3600.,
-               decision_score_execution="individual", prefix_strategy="full", search_nodes=256):
+               decision_score_execution="individual", prefix_strategy="full", search_nodes=256,
+               fitted_rejection_policy="complete_controls"):
     """Freeze commands and budgets before any arm can observe an outcome."""
     if ((candidate_weight_mode not in {"fitted", "residual"})
             or (residual_calibration is None) != (candidate_weight_mode == "fitted")):
@@ -36,6 +37,8 @@ def stage_jobs(*, training_directory, fit_verification, directory, source_report
         raise ValueError("native micro cached prefix needs causal groups")
     if type(search_nodes) is not int or not 1 <= search_nodes <= 256:
         raise ValueError("native micro search node bound differs")
+    if fitted_rejection_policy not in {"complete_controls", "reject_after_verified_fitted_v1"}:
+        raise ValueError("native micro fitted rejection policy differs")
     common = [python, str(ROOT / "tools/evaluate_semantic_native_grammar.py"),
               "--training-directory", str(training_directory), "--max-steps", "8",
               "--search-completions", "4", "--search-nodes", str(search_nodes),
@@ -83,7 +86,9 @@ def stage_jobs(*, training_directory, fit_verification, directory, source_report
             adjudicate += ["--residual-calibration", str(residual_calibration)]
         stages.append({"stage": stage, "arms": arm_jobs, "progress_path": str(progress_path),
                        "adjudicate": job(cohort + "-adjudicate", adjudicate, directory, timeout=1800.)})
-    return {"plans": plans, "stages": stages}
+    return {"plans": plans, "stages": stages,
+            **({"fitted_rejection_policy": fitted_rejection_policy}
+               if fitted_rejection_policy != "complete_controls" else {})}
 
 
 def job(name, command, directory, *, timeout):
@@ -170,9 +175,26 @@ def require_learned_checkpoint(checkpoint):
         raise ValueError("native micro decode requires a selected learned checkpoint")
 
 
+def fitted_stage_blockers(verification, *, population):
+    """A completed fitted failure cannot be repaired by running comparison arms."""
+    totals = verification.get("totals")
+    if (verification.get("artifacts_verified") is not True
+            or verification.get("current_implementation_drift") != []
+            or not isinstance(totals, dict) or totals.get("population") != population
+            or any(type(totals.get(key)) is not int or not 0 <= totals[key] <= population
+                   for key in ("answer_correct", "program_equivalent", "bound_forced_completion"))):
+        raise ValueError("native fitted screen needs independently verified complete totals")
+    return [{"metric": key, "observed": totals[key], "required": required}
+            for key, required in (("answer_correct", population), ("program_equivalent", population),
+                                  ("bound_forced_completion", 0)) if totals[key] != required]
+
+
 def run_stages(jobs, *, training, checkpoint, invoke, baseline_checkpoint=None,
                residual_report_receipt_sha256=None):
     """Reuse completed decodes; a failed acceptance never starts the next stage."""
+    rejection_policy = jobs.get("fitted_rejection_policy", "complete_controls")
+    if rejection_policy not in {"complete_controls", "reject_after_verified_fitted_v1"}:
+        raise ValueError("native micro fitted rejection policy differs")
     for plan_job in jobs["plans"]:
         command = plan_job["command"]
         path = Path(command[command.index("--directory") + 1]) / "plan.json"
@@ -181,6 +203,7 @@ def run_stages(jobs, *, training, checkpoint, invoke, baseline_checkpoint=None,
         check_existing_plan(path, training=training, checkpoint=checkpoint, command=command,
             baseline_checkpoint=baseline_checkpoint,
             residual_report_receipt_sha256=residual_report_receipt_sha256)
+    last_progress = None
     for stage in jobs["stages"]:
         for arm in stage["arms"]:
             output = Path(arm["directory"])
@@ -194,6 +217,34 @@ def run_stages(jobs, *, training, checkpoint, invoke, baseline_checkpoint=None,
             if (verification.get("artifacts_verified") is not True
                     or verification.get("current_implementation_drift") != []):
                 raise ValueError("native micro arm lacks current independent verification")
+            if (rejection_policy == "reject_after_verified_fitted_v1"
+                    and stage["stage"] in {"reference_requests", "retained_requests"}
+                    and "-fitted-" in arm["decode"]["name"]):
+                population = 3 if stage["stage"] == "reference_requests" else 6
+                blockers = fitted_stage_blockers(verification, population=population)
+                if blockers:
+                    from tools.probe_semantic_proposer_crossfit import _save_if_absent
+                    previous = {} if last_progress is None else {
+                        row["stage"]: row["status"] for row in last_progress["stages"]}
+                    body = {"schema": "aura.native_micro_fitted_rejection.v1",
+                            "training_plan_sha256": training["plan_sha256"],
+                            "checkpoint_receipt_sha256": checkpoint["receipt_sha256"],
+                            "fitted_verification_receipt_sha256": verification["receipt_sha256"],
+                            "previous_progress_receipt_sha256": None if last_progress is None
+                                else last_progress["receipt_sha256"],
+                            "stages": [{"stage": row["stage"], "status": "failed"
+                                if row["stage"] == stage["stage"] else previous.get(row["stage"], "not_run")}
+                                for row in jobs["stages"]],
+                            "blockers": blockers, "current_stage": stage["stage"],
+                            "full_development_ready": False, "comparison_arms_skipped": True,
+                            "source_attribution_measured": False, "general_transfer_proven": False,
+                            "broad_gain_proven": False, "serving_authority": False,
+                            "passed_stages_redecoded": False}
+                    result = {**body, "receipt_sha256": digest(body)}
+                    _save_if_absent(Path(stage["progress_path"]), result)
+                    print(json.dumps({"stage": stage["stage"], "status": "rejected_after_fitted",
+                                      "blockers": blockers}), flush=True)
+                    return result
         invoke(stage["adjudicate"])
         progress = verified_document(Path(stage["progress_path"]))
         measured = next(item for item in progress["stages"] if item["stage"] == stage["stage"])
@@ -201,6 +252,7 @@ def run_stages(jobs, *, training, checkpoint, invoke, baseline_checkpoint=None,
                           "progress_receipt_sha256": progress["receipt_sha256"]}), flush=True)
         if measured["status"] != "passed":
             return progress
+        last_progress = progress
     return progress
 
 
@@ -222,6 +274,8 @@ def main():
     parser.add_argument("--decision-score-execution", choices=("individual", "causal_groups"),
                         default="individual")
     parser.add_argument("--prefix-strategy", choices=("full", "trie"), default="full")
+    parser.add_argument("--fitted-rejection-policy", choices=("complete_controls", "reject_after_verified_fitted_v1"),
+                        default="complete_controls")
     args = parser.parse_args()
     if ((args.wait_fit_supervisor is None) != (args.fit_bank is None)
             or (args.wait_fit_supervisor is None) != (args.fit_parent is None)
@@ -241,7 +295,7 @@ def main():
         candidate_weight_mode=args.candidate_weight_mode,
         residual_calibration=args.residual_calibration, max_seconds=args.max_seconds,
         decision_score_execution=args.decision_score_execution,
-        prefix_strategy=args.prefix_strategy)
+        prefix_strategy=args.prefix_strategy, fitted_rejection_policy=args.fitted_rejection_policy)
     if args.wait_fit_supervisor is not None:
         command = [sys.executable, str(ROOT / "tools/verify_semantic_native_fit.py"),
                    "--directory", str(args.training_directory), "--bank", str(args.fit_bank),

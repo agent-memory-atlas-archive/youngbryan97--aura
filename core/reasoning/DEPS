@@ -17,11 +17,14 @@ include_rules = [
     "+core.cognition",
     "+core.container",
     "+core.event_bus",
+    # Shared SI dimensions only; computation does not depend on design or prose.
+    "+core.engineering.units",
     "+core.governance",
     "+core.observability",
     "+core.planning",
     "+core.runtime",
     "+core.utils",
+    "+core.verify.invariants",
     "+core.will",
 
     # Everything else.

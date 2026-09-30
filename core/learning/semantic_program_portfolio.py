@@ -50,6 +50,16 @@ class SemanticProgramPortfolio:
     def selected_program(self) -> Program | None:
         return dict(self.proposals)[self.decision.selected]
 
+    def reconcile_computed_constraints(self, consequences, *, now, result_unit="count"):
+        """Use scoped model computations in the same retained candidate decision."""
+        from core.learning.semantic_computed_constraints import select_computed_semantic_portfolio
+        return select_computed_semantic_portfolio(self, consequences, now=now, result_unit=result_unit)
+
+    async def reconcile_computed_constraints_async(self, consequences, *, now, result_unit="count"):
+        from core.runtime.executors import off_the_loop
+        return await off_the_loop(self.reconcile_computed_constraints, tuple(consequences),
+                                  now=now, result_unit=result_unit)
+
     def plan_inquiries(self, *, fuel: int = 100_000) -> tuple["ProgramInquiry", ...]:
         """Use retained disagreement witnesses to plan actual observations."""
         from core.learning.semantic_program_inquiry import plan_program_inquiries

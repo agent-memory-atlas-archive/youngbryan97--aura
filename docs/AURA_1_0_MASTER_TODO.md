@@ -1455,6 +1455,12 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Computed constraints and native rejection](evidence/G03_COMPUTED_CONSTRAINTS_AND_NATIVE_REJECTION_2026-09-30.md)
+  connect equation graphs, scoped evidence and executable portfolios, with
+  durable recipe restoration and causal ablation checks. The completed v7
+  micro run scored 4/6 answers and 3/6 equivalent programs; it is rejected.
+  A source-only score audit isolates binding deficits. The next nine-cohort
+  acquisition includes early and late stop contrasts; no new fit is certified.
   The [bounded native pilot](evidence/G03_BOUNDED_NATIVE_FIT_2026-09-30.md)
   reuses recurrent-SFT sampling across construction/depth strata and independently
   verifies source-bank partitions. A real-tokenizer metadata rehearsal covers

@@ -806,6 +806,7 @@ def install_runtime_validation() -> dict[str, Any]:
         "standing_directives",
         "fact_custody",
         "decision_provenance",
+        "scoped_computational_knowledge",
     )
     suite.add_model(model)
 
@@ -833,6 +834,9 @@ def install_runtime_validation() -> dict[str, Any]:
     _install_typed_workflow_claims(suite)
     _install_search_and_delivery_claims(suite)
     _install_effect_and_fact_claims(suite)
+
+    from core.organism.claims_computational_knowledge import install_computational_knowledge_claims
+    install_computational_knowledge_claims(suite)
 
     return {
         "model": model.name,

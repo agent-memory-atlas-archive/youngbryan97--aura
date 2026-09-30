@@ -8,7 +8,11 @@ import pytest
 
 from core.learning import semantic_program_feature_materialization as features
 from tests.test_semantic_program_feature_materialization import (
-    _CharacterTokenizer, _FeatureClient, _lane_receipt, _sha, _tokenizer_identity,
+    _CharacterTokenizer,
+    _FeatureClient,
+    _lane_receipt,
+    _sha,
+    _tokenizer_identity,
 )
 from tools import materialize_semantic_program_features as cli
 
@@ -170,3 +174,81 @@ def test_worker_failure_preserves_primary_error_and_closes_once():
         asyncio.run(cli._acquire_jobs(client, model=None, tokenizer=None, tokenizer_identity=None, jobs=[]))
     assert any("close failed" in note for note in caught.value.__notes__)
     client.aclose.assert_awaited_once()
+
+
+def test_v2_plan_combines_frozen_existing_cohorts_and_explicit_new_config(acquired, tmp_path):
+    _model, source, _config, _corpus = acquired
+    config = features.SemanticFeatureConfig(schema=features.FAMILY_FEATURE_CONFIG_SCHEMA,
+        corpus_kind=features.COUNTERFACTUAL_FORK_JOIN_STOP_V2_CORPUS_KIND,
+        seed=41, max_examples=1944, representation="lexical_mid_final_v1", idle_wait_s=0.)
+    args = _plan(tmp_path, [{"name": "existing", "source_manifest": str(source / "manifest.json")},
+                            {"name": "stop", "config": config.to_dict()}])
+    body = json.loads(args.plan.read_text())
+    body["schema"] = "aura.semantic_feature_reacquisition_plan.v2"
+    args.plan.write_text(json.dumps(body))
+    jobs = cli._configured_jobs(args)
+    assert jobs[0][4] is not None and jobs[1][4] is None
+    assert len(jobs[1][3]) == 1944
+    assert {item.split for item in jobs[1][3]} == {"train"}
+    body["jobs"][1]["config"].pop("idle_poll_s")
+    args.plan.write_text(json.dumps(body))
+    with pytest.raises(ValueError, match="explicit and canonical"):
+        cli._configured_jobs(args)
+
+
+@pytest.mark.parametrize("rejection", [None, "projection", "predecessor", "incomplete_wait"])
+def test_standalone_cli_preflights_and_verifies_predecessor_before_acquiring(
+        acquired, tmp_path, monkeypatch, rejection):
+    from mlx_lm import utils
+
+    from core.runtime import desktop_boot_safety
+    from tools import semantic_feature_standalone as standalone
+
+    model, source, _config, _corpus = acquired
+    args = _plan(tmp_path, [{"name": "cohort", "source_manifest": str(source / "manifest.json")}])
+    args.model = model
+    args.execution_mode = "standalone_no_fork_v1"
+    args.wait_owner_supervisor = tmp_path / "predecessor"
+    args.owner_plan_sha256 = "f" * 64
+    args.owner_wait_seconds = 100.
+    steps = []
+    monkeypatch.setattr(desktop_boot_safety, "configure_mlx_process_device",
+        lambda *_a, **_k: {"verified": True, "device": "cpu"})
+    monkeypatch.setattr(utils, "load_tokenizer", lambda _model: _CharacterTokenizer())
+    monkeypatch.setattr(features, "tokenizer_checkpoint_identity", _tokenizer_identity)
+    monkeypatch.setattr(features, "offset_tokenizer_for_worker", lambda tokenizer: tokenizer)
+
+    def preflight(jobs, tokenizer):
+        steps.append("projection")
+        if rejection == "projection":
+            raise ValueError("projection rejected")
+        assert len(jobs) == 1 and isinstance(tokenizer, _CharacterTokenizer)
+
+    def wait(path, *, plan_sha256, timeout):
+        steps.append("predecessor")
+        assert path == args.wait_owner_supervisor and plan_sha256 == "f" * 64 and timeout == 100.
+        if rejection == "predecessor":
+            raise ValueError("predecessor rejected")
+        return {"receipt_sha256": "e" * 64}
+
+    def acquire(**kwargs):
+        steps.append("acquire")
+        assert kwargs["model"] == model and len(kwargs["jobs"]) == 1
+        return [{"name": "cohort", "complete": True, "completed_examples": 36,
+                 "total_examples": 36, "manifest_sha256": "d" * 64, "reason": "complete"}]
+
+    monkeypatch.setattr(cli, "_preflight_projections", preflight)
+    monkeypatch.setattr(standalone, "wait_for_lane_release", wait)
+    monkeypatch.setattr(standalone, "acquire_standalone_jobs", acquire)
+    if rejection == "incomplete_wait":
+        args.owner_plan_sha256 = None
+    if rejection is not None:
+        with pytest.raises(ValueError):
+            asyncio.run(cli._run(args))
+        assert "acquire" not in steps
+    else:
+        result = asyncio.run(cli._run(args))
+        assert steps == ["projection", "predecessor", "acquire"]
+        assert result["complete"] and result["completed_examples"] == 36
+        assert result["preflight_mlx_device"] == "cpu" and result["parent_mlx_device"] == "metal"
+        assert result["predecessor_receipt_sha256"] == "e" * 64

@@ -44,13 +44,20 @@ def _arguments() -> argparse.Namespace:
     )
     parser.add_argument("--hidden-timeout-s", type=float, default=120.0)
     parser.add_argument("--idle-wait-s", type=float, default=0.0)
+    parser.add_argument("--execution-mode", choices=("worker", "standalone_no_fork_v1"), default="worker")
+    parser.add_argument("--wait-owner-supervisor", type=Path)
+    parser.add_argument("--owner-plan-sha256")
+    parser.add_argument("--owner-wait-seconds", type=float, default=14400.)
     return parser.parse_args()
 
 
 def _configured_jobs(args: argparse.Namespace):
     from core.learning.semantic_program_feature_materialization import (
-        FAMILY_FEATURE_CONFIG_SCHEMA, FEATURE_CONFIG_SCHEMA, SemanticFeatureConfig,
-        build_semantic_program_corpus_for_config, rebuild_semantic_feature_selection,
+        FAMILY_FEATURE_CONFIG_SCHEMA,
+        FEATURE_CONFIG_SCHEMA,
+        SemanticFeatureConfig,
+        build_semantic_program_corpus_for_config,
+        rebuild_semantic_feature_selection,
         select_bounded_semantic_examples,
     )
 
@@ -69,12 +76,14 @@ def _configured_jobs(args: argparse.Namespace):
         return [("single", output, config, corpus, None)]
     plan = json.loads(plan_path.read_text("ascii"))
     if (not isinstance(plan, dict) or set(plan) != {"schema", "jobs"}
-            or plan["schema"] != "aura.semantic_feature_reacquisition_plan.v1"
+            or plan["schema"] not in {"aura.semantic_feature_reacquisition_plan.v1",
+                                      "aura.semantic_feature_reacquisition_plan.v2"}
             or not isinstance(plan["jobs"], list) or not plan["jobs"]):
         raise ValueError("invalid feature reacquisition plan")
     jobs, names = [], set()
     for job in plan["jobs"]:
-        if not isinstance(job, dict) or set(job) != {"name", "source_manifest"}:
+        if (not isinstance(job, dict) or set(job) not in ({"name", "source_manifest"}, {"name", "config"})
+                or "config" in job and plan["schema"] != "aura.semantic_feature_reacquisition_plan.v2"):
             raise ValueError("invalid feature reacquisition job")
         name = job["name"]
         if (not isinstance(name, str) or not name or name in {".", ".."}
@@ -82,13 +91,26 @@ def _configured_jobs(args: argparse.Namespace):
                 or name in names):
             raise ValueError("invalid or duplicate feature reacquisition name")
         names.add(name)
-        source = Path(job["source_manifest"]).expanduser().resolve(strict=True)
         target = (output / name).resolve(strict=False)
-        if not target.is_relative_to(output) or source.is_relative_to(target):
+        if not target.is_relative_to(output):
             raise ValueError("feature reacquisition would overwrite its source")
-        manifest = json.loads(source.read_text("ascii"))
-        config, corpus = rebuild_semantic_feature_selection(manifest)
-        jobs.append((name, target, config, corpus, manifest["manifest_sha256"]))
+        if "source_manifest" in job:
+            source = Path(job["source_manifest"]).expanduser().resolve(strict=True)
+            if source.is_relative_to(target):
+                raise ValueError("feature reacquisition would overwrite its source")
+            manifest = json.loads(source.read_text("ascii"))
+            config, corpus = rebuild_semantic_feature_selection(manifest)
+            source_sha = manifest["manifest_sha256"]
+        else:
+            if not isinstance(job["config"], dict):
+                raise ValueError("feature acquisition config must be an object")
+            config = SemanticFeatureConfig(**job["config"])
+            if config.to_dict() != job["config"]:
+                raise ValueError("feature acquisition config must be explicit and canonical")
+            corpus = build_semantic_program_corpus_for_config(config)
+            select_bounded_semantic_examples(corpus, max_examples=config.max_examples)
+            source_sha = None
+        jobs.append((name, target, config, corpus, source_sha))
     return jobs
 
 
@@ -118,7 +140,9 @@ def _preflight_projections(jobs, tokenizer) -> None:
 
 
 async def _acquire_jobs(client, *, model, tokenizer, tokenizer_identity, jobs):
-    from core.learning.semantic_program_feature_materialization import materialize_semantic_program_features
+    from core.learning.semantic_program_feature_materialization import (
+        materialize_semantic_program_features,
+    )
 
     results = []
     primary_error: BaseException | None = None
@@ -173,7 +197,6 @@ async def _run(args: argparse.Namespace) -> dict[str, object]:
 
     from mlx_lm.utils import load_tokenizer
 
-    from core.brain.llm.mlx_client import get_mlx_client
     from core.learning.semantic_program_feature_materialization import (
         offset_tokenizer_for_worker,
         tokenizer_checkpoint_identity,
@@ -187,9 +210,25 @@ async def _run(args: argparse.Namespace) -> dict[str, object]:
     tokenizer_wrapper = await asyncio.to_thread(load_tokenizer, model)
     offset_tokenizer = offset_tokenizer_for_worker(tokenizer_wrapper)
     await asyncio.to_thread(_preflight_projections, jobs, offset_tokenizer)
-    client = get_mlx_client(str(model))
-    results = await _acquire_jobs(client, model=model, tokenizer=offset_tokenizer,
-        tokenizer_identity=tokenizer_identity, jobs=jobs)
+    predecessor = None
+    if (getattr(args, "wait_owner_supervisor", None) is None) != (getattr(args, "owner_plan_sha256", None) is None):
+        raise ValueError("model-lane wait requires both its supervisor and frozen plan hash")
+    if getattr(args, "wait_owner_supervisor", None) is not None:
+        from tools.semantic_feature_standalone import wait_for_lane_release
+        predecessor = await asyncio.to_thread(wait_for_lane_release, args.wait_owner_supervisor,
+            plan_sha256=args.owner_plan_sha256, timeout=args.owner_wait_seconds)
+    execution_mode = getattr(args, "execution_mode", "worker")
+    if execution_mode == "standalone_no_fork_v1":
+        from tools.semantic_feature_standalone import acquire_standalone_jobs
+        results = await asyncio.to_thread(acquire_standalone_jobs, model=model,
+            tokenizer=offset_tokenizer, tokenizer_identity=tokenizer_identity, jobs=jobs)
+    elif execution_mode == "worker":
+        from core.brain.llm.mlx_client import get_mlx_client
+        client = get_mlx_client(str(model))
+        results = await _acquire_jobs(client, model=model, tokenizer=offset_tokenizer,
+            tokenizer_identity=tokenizer_identity, jobs=jobs)
+    else:
+        raise ValueError("unsupported feature execution mode")
     return {
         "schema": "aura.semantic_program_feature_materialization_run.v1",
         "complete": len(results) == len(jobs) and all(item["complete"] for item in results),
@@ -201,7 +240,10 @@ async def _run(args: argparse.Namespace) -> dict[str, object]:
         "cohorts": results,
         "model_path": str(model),
         "campaign_pid": os.getpid(),
-        "parent_mlx_device": parent_device["device"],
+        "parent_mlx_device": "metal" if execution_mode == "standalone_no_fork_v1" else parent_device["device"],
+        "preflight_mlx_device": parent_device["device"],
+        "execution_mode": execution_mode,
+        "predecessor_receipt_sha256": None if predecessor is None else predecessor["receipt_sha256"],
     }
 
 

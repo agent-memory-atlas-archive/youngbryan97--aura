@@ -11,6 +11,7 @@ from tools.run_semantic_native_micro_stages import (
     ROOT,
     broker_policy,
     check_existing_plan,
+    fitted_stage_blockers,
     require_learned_checkpoint,
     run_stages,
     stage_jobs,
@@ -89,6 +90,69 @@ def test_every_arm_has_the_same_frozen_budget_and_broker_invocation_bound(tmp_pa
                 assert command.count("--bundle") == 2
             else:
                 assert command[command.index("--seed") + 1] == str(int("ffffffff", 16))
+
+
+def test_early_fitted_rejection_skips_expensive_controls_and_preserves_evidence(tmp_path):
+    jobs, training, checkpoint = fixture(tmp_path)
+    jobs["fitted_rejection_policy"] = "reject_after_verified_fitted_v1"
+    original, calls = executor(jobs, training, checkpoint)
+    def invoke(item):
+        original(item)
+        if item["name"].endswith("-verify"):
+            output = Path(item["command"][item["command"].index("--output") + 1])
+            save(output, {"artifacts_verified": True, "current_implementation_drift": [],
+                "totals": {"population": 3, "answer_correct": 2, "program_equivalent": 1,
+                           "bound_forced_completion": 0}})
+    result = run_stages(jobs, training=training, checkpoint=checkpoint, invoke=invoke)
+    assert result["stages"] == [{"stage": "reference_requests", "status": "failed"},
+        {"stage": "relation_controls", "status": "not_run"},
+        {"stage": "retained_requests", "status": "not_run"}]
+    assert result["comparison_arms_skipped"] is True
+    assert result["source_attribution_measured"] is False and result["full_development_ready"] is False
+    assert not any(name.endswith("-decode") and "fitted" not in name for name in calls)
+    assert [row["metric"] for row in result["blockers"]] == ["answer_correct", "program_equivalent"]
+    before = list(calls)
+    replay = run_stages(jobs, training=training, checkpoint=checkpoint, invoke=invoke)
+    assert replay == result and calls[len(before):] == ["reference-fitted-verify"]
+
+
+def test_perfect_fitted_arm_cannot_skip_baseline_or_erasure(tmp_path):
+    jobs, training, checkpoint = fixture(tmp_path)
+    jobs["fitted_rejection_policy"] = "reject_after_verified_fitted_v1"
+    original, calls = executor(jobs, training, checkpoint)
+    def invoke(item):
+        original(item)
+        if item["name"].endswith("-verify") and "-fitted-" in item["name"]:
+            population = 3 if item["name"].startswith("reference") else 6
+            output = Path(item["command"][item["command"].index("--output") + 1])
+            save(output, {"artifacts_verified": True, "current_implementation_drift": [],
+                "totals": {"population": population, "answer_correct": population,
+                           "program_equivalent": population, "bound_forced_completion": 0}})
+    result = run_stages(jobs, training=training, checkpoint=checkpoint, invoke=invoke)
+    assert result["full_development_ready"] is True
+    assert "retained-base-decode" in calls and "retained-erasure-decode" in calls
+
+
+@pytest.mark.parametrize("defect", ["partial", "unverified", "drift", "boolean", "overflow", "missing"])
+def test_fitted_screen_refuses_unmeasured_or_invalid_successes(defect):
+    verification = {"artifacts_verified": True, "current_implementation_drift": [],
+        "totals": {"population": 6, "answer_correct": 6, "program_equivalent": 6,
+                   "bound_forced_completion": 0}}
+    assert fitted_stage_blockers(verification, population=6) == []
+    if defect == "partial":
+        verification["totals"]["population"] = 5
+    elif defect == "unverified":
+        verification["artifacts_verified"] = False
+    elif defect == "drift":
+        verification["current_implementation_drift"] = ["changed"]
+    elif defect == "boolean":
+        verification["totals"]["answer_correct"] = True
+    elif defect == "overflow":
+        verification["totals"]["answer_correct"] = 7
+    else:
+        verification["totals"].pop("program_equivalent")
+    with pytest.raises(ValueError, match="verified complete totals"):
+        fitted_stage_blockers(verification, population=6)
 
 
 def test_micro_policy_freezes_explicit_longer_bound_into_every_arm(tmp_path):

@@ -274,6 +274,11 @@ learned semantic machine whose terminal state conditioned the model's answer;
 it did not isolate a gain from repeated middle-layer passes in the resident
 model.
 
+The [scoped computation layer](docs/SCOPED_COMPUTATIONAL_KNOWLEDGE.md) connects
+unit-checked equation graphs, logical consequences, candidate constraints and
+retained recipes. Its calculations remain conditional on supplied premises;
+autonomous source grounding and general-transfer gains are still unproved.
+
 The [frozen RLC baseline](docs/evidence/G01_RLC_BASELINE_2026-09-08.md)
 records the evidence available on 2026-09-08 and its limitations.
 The fresh v16 natural-language replication reached **26/96** exact answers,

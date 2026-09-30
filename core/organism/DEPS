@@ -15,6 +15,8 @@ description = "core.organism: may import only what it already imports; every new
 include_rules = [
     # The registered knowledge-revision canary exercises the canonical store.
     "+core.knowledge.revision_validation",
+    # The scoped-calculation canary checks interval arithmetic and premise taint.
+    "+core.reasoning.computational_knowledge",
     "+core.organism",
 
     # What this package reaches for today.
