@@ -37,3 +37,20 @@ layering, writing and doc-drift passed at their existing baselines.
 The source fit has completed eight of eleven heads;
 the source bank, native preparation, native fit, and generated validation
 have not completed at this observation. G03 remains open.
+
+## Detached continuation launch
+
+The continuation was launched from a clean detached checkout at `6c683c98e6`:
+`.claude/worktrees/codex-g03-native-fit-handoff-frozen`. Its evidence directory
+is `/Users/bryan/.aura/rlc-evidence/semantic-native-fit-handoff-v1-20260930`.
+The native output remains `semantic-native-stop-source-v1-20260930`.
+
+Independent status inspection found supervisor PID 74759 alive with parent
+PID 1, child PID 74762 alive, a moving heartbeat and wait log, and sleep
+inhibitor PID 74787 bound to the child. The supervised plan hash is
+`9a5d112021e227f98943825fb43176a197b935c77716aa87fad2412e242541fc`;
+the command hash is
+`1b9ee91e8df2a5801b642797dc870870932be4a41034bd1335154711bd97a13a`.
+The supervisor owns a 70,000-second outer bound, two exact broker commands,
+and no automatic restart or resume contract. It was waiting for preparation
+at this observation; model training and verification have not run.
