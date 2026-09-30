@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from math import ceil
+from collections.abc import Callable
 from typing import Any, Mapping, Sequence
 
 import numpy as np
@@ -118,8 +119,19 @@ async def signature_matrix(
     baseline_scale: np.ndarray,
     live_mask: np.ndarray,
     frequencies: np.ndarray,
+    progress: Callable[[int, int], None] | None = None,
 ) -> np.ndarray:
-    """One characteristic-function interventional signature per anchor."""
+    """One characteristic-function interventional signature per anchor.
+
+     is called after each anchor with how many are done and how many
+    there are. This stage is anchors x conditions x actions rollouts and says
+    nothing while it runs: the grain probe of 29 September spent 113 minutes
+    between its one log line and its alarm, on three domains, and left no way
+    to tell whether it was halfway or stuck. On ten domains it is 11,264
+    rollouts for the training matrix and 15,360 for the attack, which is six
+    times the whole 511-cut sweep, so it is the longest unwatched stretch of a
+    decisive run.
+    """
     if not anchors:
         raise ValueError("no anchors")
     max_lag = max(int(x) for x in lags)
@@ -148,4 +160,6 @@ async def signature_matrix(
                     sample_sets.append(standardized.reshape(1, -1))
                     freq_sets.append(frequencies)
         rows.append(characteristic_signature(sample_sets, freq_sets))
+        if progress is not None:
+            progress(len(rows), len(anchors))
     return np.vstack(rows)

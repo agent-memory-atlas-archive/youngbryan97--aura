@@ -55,7 +55,7 @@ import math
 import os
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -238,6 +238,39 @@ async def _dose_matched(
 # ── stage 2: the grain ────────────────────────────────────────────────────
 
 
+def _says_how_far_along(stage: str) -> Callable[[int, int], None]:
+    """Report a long stage's progress, with the time left at the rate measured so far.
+
+    The grain said nothing between its one line and its end. On 29 September a
+    probe on three domains spent 113 minutes there and hit its alarm, and the log
+    could not say whether it was halfway or stuck. On ten domains the stage is
+    11,264 rollouts for the training matrix and 15,360 for the attack, six times
+    the whole 511-cut sweep, so it is the longest unwatched stretch of a decisive
+    run.
+
+    The estimate is the elapsed time over the anchors done, so it is a
+    measurement of this run rather than a figure carried from another one. It
+    reports every tenth of the way and on the last anchor, so a stage of any
+    length writes about eleven lines.
+    """
+    started = time.monotonic()
+    reported = [-1]
+
+    def far_along(done: int, total: int) -> None:
+        tenth = (done * 10) // max(1, total)
+        if tenth == reported[0] and done != total:
+            return
+        reported[0] = tenth
+        spent = time.monotonic() - started
+        left = spent / done * (total - done) if done else 0.0
+        _log(
+            f"  {stage}: {done}/{total} anchors, {spent / 60:.1f} min spent"
+            + (f", about {left / 60:.1f} min left at this rate" if done < total else "")
+        )
+
+    return far_along
+
+
 async def _learn_grain(
     runtime: Any,
     anchors: Sequence[Any],
@@ -278,11 +311,17 @@ async def _learn_grain(
     if claims is None:
         from core.subject.v25_grain import signature_matrix
 
-        train = await signature_matrix(runtime, anchors, conditions, train_actions, **signature)
+        train = await signature_matrix(
+            runtime, anchors, conditions, train_actions,
+            progress=_says_how_far_along("grain, training"), **signature,
+        )
         # The attack. Negative doses and preregistered pairs, none of which the
         # rank was fitted on. If raw history still predicts these once the grain
         # is known, the grain merged two states that are not the same state.
-        heldout = await signature_matrix(runtime, anchors, conditions, test_actions, **signature)
+        heldout = await signature_matrix(
+            runtime, anchors, conditions, test_actions,
+            progress=_says_how_far_along("grain, the attack"), **signature,
+        )
     else:
         gathered = await _gather_grain_rows(
             runtime, anchors, conditions, plan, signature,
