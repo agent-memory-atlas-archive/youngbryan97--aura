@@ -1167,42 +1167,45 @@ def test_full_profile_accepts_launchd_owned_controller_with_exact_caffeinate_chi
         "_launchd_job",
         lambda _label: {"target": "gui/501/test", "job_pid": 4242},
     )
-    monkeypatch.setattr(controller.os, "getpid", lambda: 4242)
-    monkeypatch.setattr(controller.os, "getppid", lambda: 1)
-    monkeypatch.setattr(controller.sys, "executable", "/venv/bin/python")
-    monkeypatch.setattr(
-        controller.sys,
-        "argv",
-        [
-            str(controller.Path(controller.__file__).resolve()),
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(controller.os, "getpid", lambda: 4242)
+        scoped.setattr(controller.os, "getppid", lambda: 1)
+        scoped.setattr(controller.sys, "executable", "/venv/bin/python")
+        scoped.setattr(
+            controller.sys,
+            "argv",
+            [
+                str(controller.Path(controller.__file__).resolve()),
+                "run",
+                "--config",
+                "/repo/controller-config.json",
+                "--launchd-supervised",
+            ],
+        )
+        expected = (
+            "/usr/bin/caffeinate -i /venv/bin/python "
+            f"{controller.Path(controller.__file__).resolve()} run --config "
+            "/repo/controller-config.json --launchd-supervised\n"
+        )
+        scoped.setattr(
+            controller.subprocess,
             "run",
-            "--config",
-            "/repo/controller-config.json",
-            "--launchd-supervised",
-        ],
-    )
-    expected = (
-        "/usr/bin/caffeinate -i /venv/bin/python "
-        f"{controller.Path(controller.__file__).resolve()} run --config "
-        "/repo/controller-config.json --launchd-supervised\n"
-    )
-    monkeypatch.setattr(
-        controller.subprocess,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            args=[],
-            returncode=0,
-            stdout=f"4243 4242 {expected}",
-            stderr="",
-        ),
-    )
+            lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout=f"4243 4242 {expected}",
+                stderr="",
+            ),
+        )
 
-    supervision = controller._verify_execution_supervision(config, launchd_supervised=True)
+        supervision = controller._verify_execution_supervision(config, launchd_supervised=True)
 
-    assert supervision["mode"] == "launchd_caffeinate"
-    assert supervision["launchd_pid"] == 4242
-    assert supervision["controller_pid"] == 4242
-    assert supervision["caffeinate_pid"] == 4243
+        assert supervision["mode"] == "launchd_caffeinate"
+        assert supervision["launchd_pid"] == 4242
+        assert supervision["controller_pid"] == 4242
+        assert supervision["caffeinate_pid"] == 4243
 
 
 def test_full_profile_rejects_launchd_pid_that_is_not_controller(
@@ -1215,13 +1218,16 @@ def test_full_profile_rejects_launchd_pid_that_is_not_controller(
         "_launchd_job",
         lambda _label: {"target": "gui/501/test", "job_pid": 4242},
     )
-    monkeypatch.setattr(controller.os, "getpid", lambda: 4343)
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(controller.os, "getpid", lambda: 4343)
 
-    with pytest.raises(
-        controller.ResidentSFTCampaignControllerError,
-        match="launchd_parent_mismatch",
-    ):
-        controller._verify_execution_supervision(config, launchd_supervised=True)
+        with pytest.raises(
+            controller.ResidentSFTCampaignControllerError,
+            match="launchd_parent_mismatch",
+        ):
+            controller._verify_execution_supervision(config, launchd_supervised=True)
 
 
 def test_full_profile_rejects_missing_exact_caffeinate_child(
@@ -1234,23 +1240,26 @@ def test_full_profile_rejects_missing_exact_caffeinate_child(
         "_launchd_job",
         lambda _label: {"target": "gui/501/test", "job_pid": 4242},
     )
-    monkeypatch.setattr(controller.os, "getpid", lambda: 4242)
-    monkeypatch.setattr(
-        controller.subprocess,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            args=[],
-            returncode=0,
-            stdout="4243 4242 /usr/bin/caffeinate -t 60\n",
-            stderr="",
-        ),
-    )
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(controller.os, "getpid", lambda: 4242)
+        scoped.setattr(
+            controller.subprocess,
+            "run",
+            lambda *_args, **_kwargs: subprocess.CompletedProcess(
+                args=[],
+                returncode=0,
+                stdout="4243 4242 /usr/bin/caffeinate -t 60\n",
+                stderr="",
+            ),
+        )
 
-    with pytest.raises(
-        controller.ResidentSFTCampaignControllerError,
-        match="caffeinate_parent_missing",
-    ):
-        controller._verify_execution_supervision(config, launchd_supervised=True)
+        with pytest.raises(
+            controller.ResidentSFTCampaignControllerError,
+            match="caffeinate_parent_missing",
+        ):
+            controller._verify_execution_supervision(config, launchd_supervised=True)
 
 
 def test_recovered_active_attempt_reattaches_from_partial_checkpoint(

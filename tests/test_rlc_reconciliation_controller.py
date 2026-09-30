@@ -491,18 +491,21 @@ def test_lineage_requires_launchd_controller_and_exact_caffeinate_child(
         f"{source / 'tools/run_rlc_reconciliation_controller.py'} run "
         f"--config {config_path} --launchd-supervised"
     )
-    monkeypatch.setattr(os, "getpid", lambda: 41)
-    monkeypatch.setattr(controller, "_process_record", lambda _pid: (1, controller_command))
-    monkeypatch.setattr(
-        controller,
-        "_process_table",
-        lambda: [(42, 41, caffeinate_command)],
-    )
-    assert controller._verify_launchd_lineage(config) == {
-        "launchd_pid": 1,
-        "caffeinate_pid": 42,
-        "controller_pid": 41,
-    }
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(os, "getpid", lambda: 41)
+        scoped.setattr(controller, "_process_record", lambda _pid: (1, controller_command))
+        scoped.setattr(
+            controller,
+            "_process_table",
+            lambda: [(42, 41, caffeinate_command)],
+        )
+        assert controller._verify_launchd_lineage(config) == {
+            "launchd_pid": 1,
+            "caffeinate_pid": 42,
+            "controller_pid": 41,
+        }
 
 
 def test_lineage_rejects_caffeinate_owned_by_another_process(
@@ -518,11 +521,14 @@ def test_lineage_rejects_caffeinate_owned_by_another_process(
         f"{source / 'tools/run_rlc_reconciliation_controller.py'} run "
         f"--config {config_path} --launchd-supervised"
     )
-    monkeypatch.setattr(os, "getpid", lambda: 41)
-    monkeypatch.setattr(controller, "_process_record", lambda _pid: (1, controller_command))
-    monkeypatch.setattr(controller, "_process_table", lambda: [(42, 99, caffeinate_command)])
-    with pytest.raises(controller.ControllerError, match="lineage_invalid"):
-        controller._verify_launchd_lineage(config, caffeinate_wait_s=0.0)
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(os, "getpid", lambda: 41)
+        scoped.setattr(controller, "_process_record", lambda _pid: (1, controller_command))
+        scoped.setattr(controller, "_process_table", lambda: [(42, 99, caffeinate_command)])
+        with pytest.raises(controller.ControllerError, match="lineage_invalid"):
+            controller._verify_launchd_lineage(config, caffeinate_wait_s=0.0)
 
 
 def test_lineage_rejects_controller_not_owned_by_launchd(
@@ -533,11 +539,14 @@ def test_lineage_rejects_controller_not_owned_by_launchd(
         f"{config['python']} {source / 'tools/run_rlc_reconciliation_controller.py'} run "
         f"--config {config_path} --launchd-supervised"
     )
-    monkeypatch.setattr(os, "getpid", lambda: 42)
-    monkeypatch.setattr(controller, "_process_record", lambda _pid: (99, controller_command))
-    monkeypatch.setattr(controller, "_process_table", lambda: [])
-    with pytest.raises(controller.ControllerError, match="lineage_invalid"):
-        controller._verify_launchd_lineage(config)
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(os, "getpid", lambda: 42)
+        scoped.setattr(controller, "_process_record", lambda _pid: (99, controller_command))
+        scoped.setattr(controller, "_process_table", lambda: [])
+        with pytest.raises(controller.ControllerError, match="lineage_invalid"):
+            controller._verify_launchd_lineage(config)
 
 
 def test_lineage_waits_for_caffeinate_startup_race(
@@ -554,15 +563,18 @@ def test_lineage_waits_for_caffeinate_startup_race(
         f"--config {config_path} --launchd-supervised"
     )
     observations = iter([[], [], [(42, 41, caffeinate_command)]])
-    monkeypatch.setattr(os, "getpid", lambda: 41)
-    monkeypatch.setattr(controller, "_process_record", lambda _pid: (1, controller_command))
-    monkeypatch.setattr(controller, "_process_table", lambda: next(observations))
-    patch_module_clock(monkeypatch, controller, sleep=lambda _seconds: None)
-    assert controller._verify_launchd_lineage(config) == {
-        "launchd_pid": 1,
-        "caffeinate_pid": 42,
-        "controller_pid": 41,
-    }
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(os, "getpid", lambda: 41)
+        scoped.setattr(controller, "_process_record", lambda _pid: (1, controller_command))
+        scoped.setattr(controller, "_process_table", lambda: next(observations))
+        patch_module_clock(monkeypatch, controller, sleep=lambda _seconds: None)
+        assert controller._verify_launchd_lineage(config) == {
+            "launchd_pid": 1,
+            "caffeinate_pid": 42,
+            "controller_pid": 41,
+        }
 
 
 def test_lineage_accepts_mac_resolved_python_executable_name(
@@ -580,14 +592,17 @@ def test_lineage_accepts_mac_resolved_python_executable_name(
         f"{source / 'tools/run_rlc_reconciliation_controller.py'} run "
         f"--config {config_path} --launchd-supervised"
     )
-    monkeypatch.setattr(os, "getpid", lambda: 41)
-    monkeypatch.setattr(controller, "_process_record", lambda _pid: (1, controller_command))
-    monkeypatch.setattr(
-        controller,
-        "_process_table",
-        lambda: [(42, 41, caffeinate_command)],
-    )
-    assert controller._verify_launchd_lineage(config)["caffeinate_pid"] == 42
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(os, "getpid", lambda: 41)
+        scoped.setattr(controller, "_process_record", lambda _pid: (1, controller_command))
+        scoped.setattr(
+            controller,
+            "_process_table",
+            lambda: [(42, 41, caffeinate_command)],
+        )
+        assert controller._verify_launchd_lineage(config)["caffeinate_pid"] == 42
 
 
 def plistlib_loads(payload: bytes):

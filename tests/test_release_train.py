@@ -47,7 +47,10 @@ class FakeGit:
         if argv[0] != "git":
             # compile / pytest sanity steps
             return FakeResult(stdout="ok")
-        args = argv[3:]  # skip git -C <root>
+        # git -c core.fsmonitor=false -C <root>: read-only git skips the
+        # fsmonitor daemon since 20 September.
+        assert argv[1:4] == ["-c", "core.fsmonitor=false", "-C"], argv
+        args = argv[5:]
         if args[:2] == ["rev-parse", "HEAD"]:
             return FakeResult(stdout=self.state["head"] + "\n")
         if args[:2] == ["rev-parse", "origin/main"]:
