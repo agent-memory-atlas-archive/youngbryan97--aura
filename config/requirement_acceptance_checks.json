@@ -2043,6 +2043,49 @@
         "name": "tests/test_nonparametric_ingest.py",
         "why": "Decides alignment on the way in: a tokenizer whose encoding is not a prefix falls back instead of misaligning, one full-sequence forward keys every answer position, and malformed keys and token ids are rejected. Neither file decides tied and untied heads, batch dimensions or first-token state explicitly."
       }
+    ],
+    "DESKTOP-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_os_automation_effects.py",
+        "why": "Decides the observe step: a window, text, search, calculator, quit or named interaction each needs its own visible readback before it counts, an unbounded interaction is declared unverifiable, closing a window is not reported as ending a process, and a supported prefix cannot hide an unverified destructive suffix."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_stalled_pursuit_tries_something_different.py",
+        "why": "Decides the repair step: after a stall the next plan comes from a different approach, a replan that matches the failed plan is refused, a planner that cannot route around the failure is not retried blindly, and when nothing different is left it says so. Neither decides the loop across browser, files, documents, dialogs, focus, permissions and changed layouts end to end, or multi-application workflows."
+      }
+    ],
+    "PASSF-07": [
+      {
+        "kind": "test",
+        "name": "tests/test_os_automation_effects.py",
+        "why": "Decides the observe step: a window, text, search, calculator, quit or named interaction each needs its own visible readback before it counts, an unbounded interaction is declared unverifiable, closing a window is not reported as ending a process, and a supported prefix cannot hide an unverified destructive suffix."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_stalled_pursuit_tries_something_different.py",
+        "why": "Decides the repair step: after a stall the next plan comes from a different approach, a replan that matches the failed plan is refused, a planner that cannot route around the failure is not retried blindly, and when nothing different is left it says so. Neither decides receipts and source preservation for browser research and document work, or the visible twenty-turn interlocutor proof the requirement holds open."
+      }
+    ],
+    "CARRYOVER-04": [
+      {
+        "kind": "test",
+        "name": "tests/test_os_automation_effects.py",
+        "why": "Decides the observe step: a window, text, search, calculator, quit or named interaction each needs its own visible readback before it counts, an unbounded interaction is declared unverifiable, closing a window is not reported as ending a process, and a supported prefix cannot hide an unverified destructive suffix."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_stalled_pursuit_tries_something_different.py",
+        "why": "Decides the repair step: after a stall the next plan comes from a different approach, a replan that matches the failed plan is refused, a planner that cannot route around the failure is not retried blindly, and when nothing different is left it says so. Neither decides the named tasks produced end to end, or a failure explained in Aura's voice rather than a canned line."
+      }
+    ],
+    "RR-11": [
+      {
+        "kind": "test",
+        "name": "tests/test_reality_observation_router.py",
+        "why": "Decides the publishing half: the router delivers bounded claims to perception and cognition, quality and order evidence reach both cognitive sinks, a rejected sink receipt prevents a false delivery, a durable outbox restores delivery after a restart, and required-sink health keeps a degraded boot unready. It does not decide observations reaching the world model, twins, science, memory, belief revision, planning and Q&A, or outcomes fed into agency, immunity and repair."
+      }
     ]
   }
 }
