@@ -1455,6 +1455,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Bounded source-head fitting](evidence/G03_BOUNDED_SOURCE_HEAD_FIT_2026-09-30.md)
+  retains the complete weighted binary objective while materializing relation
+  features by batch. Gradient, coefficient and source-campaign checks pass;
+  full-cohort convergence, peak memory and generated gain remain unmeasured.
   [Observation-driven recomputation](evidence/G03_OBSERVATION_RECOMPUTATION_2026-09-30.md)
   fills declared inputs through scoped observation ports, recalculates dependent
   equations, and reuses intentional-memory retrieval without treating passages

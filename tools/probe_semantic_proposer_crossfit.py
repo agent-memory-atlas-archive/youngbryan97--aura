@@ -306,6 +306,8 @@ def main() -> None:
                         help="source-identity-sorted held rows per construction")
     parser.add_argument("--reuse-candidate", type=Path,
                         help="reuse a signed candidate fit from the same fold and calibration")
+    parser.add_argument("--binary-solver", choices=("liblinear", "blocked_lbfgs"), default="liblinear",
+                        help="opt-in bounded-memory fitting of the same binary head objective")
     parser.add_argument("--bank-partition", choices=("held", "source_calibration"),
                         default="held", help="collect separate source-only selector calibration evidence")
     parser.add_argument("--held-source-id", action="append", default=[],
@@ -411,6 +413,9 @@ def main() -> None:
         plan_body["signature_max_table_entries"] = args.signature_max_table_entries
     if args.bank_seconds is not None:
         plan_body["bank_seconds"] = args.bank_seconds
+    if args.binary_solver == "blocked_lbfgs":
+        from core.learning.semantic_bounded_binary_fit import BOUNDED_BINARY_FIT_CONTRACT
+        plan_body["binary_head_fit_execution"] = dict(BOUNDED_BINARY_FIT_CONTRACT)
     if args.bank_partition == "source_calibration":
         plan_body.update({
             "schema": "aura.semantic_proposer_source_calibration_plan.v1",
@@ -441,7 +446,8 @@ def main() -> None:
         candidate = fit_compositional_semantic_program_transducer(
             [*(replace(item, split="train") for item in fit),
              *(replace(item, split="validation") for item in calibration)],
-            input_grounding=parent.input_grounding)
+            input_grounding=parent.input_grounding, binary_solver=args.binary_solver,
+            binary_fit_progress=lambda row: print(json.dumps(row, sort_keys=True), flush=True))
         candidate = (candidate.with_global_constraint_arguments()
                      .with_conditional_argument_scores()
                      .with_overlap_complete_mentions()
@@ -460,6 +466,8 @@ def main() -> None:
                 max_table_entries=args.signature_max_table_entries)
         _save_if_absent(candidate_path, candidate.to_dict())
     if (candidate.model_basis_sha256 != parent.model_basis_sha256
+            or candidate.training_receipt.get("binary_head_fit_execution")
+            != plan.get("binary_head_fit_execution")
             or candidate.input_grounding != parent.input_grounding
             or candidate.training_receipt.get("input_order_policy") != input_order_policy
             or candidate.training_receipt["training_example_ids_sha256"] != _sha(plan["fit_ids"])

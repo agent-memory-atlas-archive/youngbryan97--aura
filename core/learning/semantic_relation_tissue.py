@@ -223,12 +223,14 @@ def _fit_directional_relation_head(
     item_weights: Mapping[int, float],
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
+    binary_solver: str = "liblinear",
+    binary_fit_progress: Any = None,
 ) -> tuple[np.ndarray, float]:
     from core.learning.semantic_program_transducer_fitting import (
         _register_definition_spans,
     )
 
-    features: list[np.ndarray] = []
+    features = DirectionalFeatureRows() if binary_solver == "blocked_lbfgs" else []
     labels: list[int] = []
     weights: list[float] = []
     for item in training:
@@ -253,15 +255,20 @@ def _fit_directional_relation_head(
                         hidden_channels=hidden_channels,
                         hidden_channel_widths=hidden_channel_widths,
                     )
-                    features.append(_directional_relation_feature(reference, definition))
+                    if binary_solver == "blocked_lbfgs":
+                        features.append(reference, definition)
+                    else:
+                        features.append(_directional_relation_feature(reference, definition))
                     labels.append(int(candidate_register == register))
                     weights.append(item_weights[id(item)] / len(available))
     return _fit_binary_head(
-        np.stack(features),
+        features if binary_solver == "blocked_lbfgs" else np.stack(features),
         np.asarray(labels, dtype=np.int8),
         sample_weight=_normalized_weights(weights),
         max_iter=400,
         tolerance=1e-5,
+        solver=binary_solver,
+        progress=binary_fit_progress,
     )
 
 

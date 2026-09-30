@@ -67,6 +67,32 @@ def test_source_order_fit_binds_policy_to_model_identity(source_bundles):
     assert result.report["transducer_receipt_sha256"] == result.model.receipt_sha256
 
 
+def test_bounded_source_fit_uses_the_complete_cohort_and_binds_its_execution_contract(source_bundles):
+    from core.learning.semantic_bounded_binary_fit import BOUNDED_BINARY_FIT_CONTRACT
+    from core.learning.semantic_program_compositional_transducer import (
+        compositional_semantic_program_transducer_from_dict,
+    )
+    progress = []
+    result = campaign.fit_compositional_source_campaign(source_bundles,
+        input_grounding=_grounding(), source_order_inputs=True,
+        binary_solver="blocked_lbfgs", progress=progress.append)
+    assert result.model.training_receipt["binary_head_fit_execution"] == BOUNDED_BINARY_FIT_CONTRACT
+    assert result.report["binary_head_fit_execution"] == BOUNDED_BINARY_FIT_CONTRACT
+    assert result.report["fit_complete"] is True and result.report["evaluation_complete"] is False
+    assert result.report["training_example_count"] == 17 and result.report["validation_example_count"] == 4
+    assert result.report["test_examples_available_to_fit"] == 0
+    assert sum(row["stage"] == "binary_fit_start" for row in progress) == 11
+    assert sum(row["stage"] == "binary_fit_complete" for row in progress) == 11
+    restored = compositional_semantic_program_transducer_from_dict(result.model.to_dict())
+    assert restored.receipt_sha256 == result.model.receipt_sha256
+
+
+def test_unknown_compositional_solver_cannot_silently_fall_back(source_bundles):
+    with pytest.raises(ValueError, match="unsupported compositional binary fit"):
+        campaign.fit_compositional_source_campaign(source_bundles,
+            input_grounding=_grounding(), binary_solver="unmeasured")
+
+
 def test_source_order_identity_binder_is_shared_by_source_and_crossfit(source_bundles):
     plain = campaign.fit_compositional_source_campaign(
         source_bundles, input_grounding=_grounding()).model

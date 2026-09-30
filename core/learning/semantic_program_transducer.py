@@ -1306,13 +1306,18 @@ def _fit_binary_head(
     max_iter: int = 1000,
     tolerance: float = 1e-4,
     solver: str = "liblinear",
+    progress: Any = None,
 ) -> tuple[np.ndarray, float]:
     from sklearn.linear_model import LogisticRegression
 
     if set(np.unique(labels).tolist()) != {0, 1}:
         raise ValueError("semantic pointer supervision lacks a positive or negative class")
-    if solver not in {"liblinear", "lbfgs"}:
+    if solver not in {"liblinear", "lbfgs", "blocked_lbfgs"}:
         raise ValueError("unsupported semantic binary solver")
+    if solver == "blocked_lbfgs":
+        from core.learning.semantic_bounded_binary_fit import fit_bounded_binary_head
+        return fit_bounded_binary_head(features, labels, sample_weight=sample_weight,
+            max_iter=max_iter, tolerance=tolerance, progress=progress)
     if solver == "lbfgs":
         # liblinear regularizes its synthetic bias feature. Keep that objective
         # when using dense BLAS instead of liblinear's sparse row traversal.

@@ -280,7 +280,10 @@ def _fit_shared_pointer(
     training: Sequence[SemanticTransducerTrainingExample],
     *,
     spans: Callable[[SemanticTransducerTrainingExample], Sequence[TokenSpan]],
+    binary_solver: str = "liblinear",
+    binary_fit_progress: Any = None,
 ) -> LinearPointerHead:
+    from core.learning.semantic_bounded_binary_fit import BinaryFeatureRows
     parameters: list[tuple[np.ndarray, float]] = []
     geometry_counts = Counter(_geometry(item) for item in training)
     for end in (False, True):
@@ -310,11 +313,13 @@ def _fit_shared_pointer(
             raise ValueError("compositional pointer has no training support")
         parameters.append(
             _fit_binary_head(
-                np.stack(features),
+                BinaryFeatureRows(features) if binary_solver == "blocked_lbfgs" else np.stack(features),
                 np.asarray(labels, dtype=np.int8),
                 sample_weight=_normalized_weights(weights),
                 max_iter=250,
                 tolerance=1e-3,
+                solver=binary_solver,
+                progress=binary_fit_progress,
             )
         )
     return LinearPointerHead(
@@ -761,11 +766,14 @@ def _fit_argument_role_heads(
     max_arity: int,
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
+    binary_solver: str = "liblinear",
+    binary_fit_progress: Any = None,
 ) -> tuple[LinearArgumentRoleHead, ...]:
+    from core.learning.semantic_relation_tissue import DirectionalFeatureRows
     heads: list[LinearArgumentRoleHead] = []
     geometry_counts = Counter(_geometry(item) for item in training)
     for position in range(max_arity):
-        features: list[np.ndarray] = []
+        features = DirectionalFeatureRows() if binary_solver == "blocked_lbfgs" else []
         labels: list[int] = []
         weights: list[float] = []
         for item in training:
@@ -794,29 +802,26 @@ def _fit_argument_role_heads(
                     hidden_channels=hidden_channels,
                     hidden_channel_widths=hidden_channel_widths,
                 )
-                features.extend(
-                    _directional_relation_feature(
-                        _relation_span_vector(
-                            item.hidden_states,
-                            span,
-                            hidden_channels=hidden_channels,
-                            hidden_channel_widths=hidden_channel_widths,
-                        ),
-                        operation,
-                    )
-                    for span in spans
-                )
+                for span in spans:
+                    reference = _relation_span_vector(item.hidden_states, span,
+                        hidden_channels=hidden_channels, hidden_channel_widths=hidden_channel_widths)
+                    if binary_solver == "blocked_lbfgs":
+                        features.append(reference, operation)
+                    else:
+                        features.append(_directional_relation_feature(reference, operation))
                 labels.extend((1, *(0 for _ in negatives)))
                 decision_weight = 1.0 / geometry_counts[_geometry(item)] / len(spans)
                 weights.extend([decision_weight] * len(spans))
-        if not features:
+        if (features.shape[0] == 0 if binary_solver == "blocked_lbfgs" else not features):
             raise ValueError(f"compositional argument slot has no support: {position}")
         weight, bias = _fit_binary_head(
-            np.stack(features),
+            features if binary_solver == "blocked_lbfgs" else np.stack(features),
             np.asarray(labels, dtype=np.int8),
             sample_weight=_normalized_weights(weights),
             max_iter=400,
             tolerance=1e-5,
+            solver=binary_solver,
+            progress=binary_fit_progress,
         )
         heads.append(LinearArgumentRoleHead(weight, bias))
     return tuple(heads)
@@ -963,6 +968,8 @@ def _fit_argument_proposal_heads(
     max_argument_span_tokens_by_type: Mapping[str, int],
     hidden_channels: Sequence[str],
     hidden_channel_widths: Sequence[int],
+    binary_solver: str = "liblinear",
+    binary_fit_progress: Any = None,
 ) -> tuple[tuple[LinearArgumentRoleHead, ...], dict[str, int]]:
     """Fit slot evidence on the spans the pointer can actually propose at runtime."""
 
@@ -978,6 +985,7 @@ def _fit_argument_proposal_heads(
             max_argument_span_tokens_by_type=max_argument_span_tokens_by_type,
             hidden_channels=hidden_channels,
             hidden_channel_widths=hidden_channel_widths,
+            factorized_features=binary_solver == "blocked_lbfgs",
         )
         weight, bias = _fit_binary_head(
             features,
@@ -985,6 +993,8 @@ def _fit_argument_proposal_heads(
             sample_weight=weights,
             max_iter=400,
             tolerance=1e-5,
+            solver=binary_solver,
+            progress=binary_fit_progress,
         )
         heads.append(LinearArgumentRoleHead(weight, bias))
         positive_rows += positives
@@ -1913,5 +1923,4 @@ def _operation_order(
     if required != set(range(count)):
         return None
     return tuple(order)
-
 

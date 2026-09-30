@@ -21,6 +21,8 @@ def main():
     parser.add_argument("--expected-validation-receipt", type=Path)
     parser.add_argument("--source-order-inputs", action="store_true",
                         help="rebind every supervised input and IR register to source order")
+    parser.add_argument("--binary-solver", choices=("liblinear", "blocked_lbfgs"), default="liblinear",
+                        help="opt-in exact objective fitting without an expanded dense feature matrix")
     args = parser.parse_args()
     output, report_output = args.output.resolve(), args.report_output.resolve()
     if output == report_output or output.exists() or report_output.exists():
@@ -51,6 +53,7 @@ def main():
         del _examples
     result = fit_compositional_source_campaign(bundles, input_grounding=grounding,
         source_order_inputs=args.source_order_inputs,
+        binary_solver=args.binary_solver,
         progress=lambda row: print(json.dumps(row, sort_keys=True), flush=True))
     for path, value in ((output, result.model.to_dict()), (report_output, result.report)):
         payload = (json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode("ascii")

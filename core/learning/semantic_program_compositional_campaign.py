@@ -237,6 +237,7 @@ def fit_compositional_source_campaign(
     input_grounding: Any,
     progress: Any=None,
     source_order_inputs: bool = False,
+    binary_solver: str = "liblinear",
 ) -> Any:
     """Fit new coefficients on a measured representation, never relabel an older head."""
     examples, report = prepare_compositional_source_training(
@@ -244,7 +245,8 @@ def fit_compositional_source_campaign(
     if progress:
         progress({"stage": "source_fit_start", "training_examples": report["training_example_count"],
                   "validation_examples": report["validation_example_count"]})
-    model = fit_compositional_semantic_program_transducer(examples, input_grounding=input_grounding)
+    model = fit_compositional_semantic_program_transducer(examples, input_grounding=input_grounding,
+        binary_solver=binary_solver, binary_fit_progress=progress)
     model = (model.with_global_constraint_arguments().with_conditional_argument_scores()
              .with_overlap_complete_mentions().with_atomic_literal_arguments()
              .with_feasible_operation_charts().with_order_invariant_argument_graph()
@@ -256,6 +258,8 @@ def fit_compositional_source_campaign(
                 transducer_receipt_sha256=model.receipt_sha256,
                 decoder_recipe="global_joint_categorical_atomic_v1", inherited_coefficients=False,
                 fit_complete=True, evaluation_complete=False)
+    if binary_solver == "blocked_lbfgs":
+        body["binary_head_fit_execution"] = model.training_receipt["binary_head_fit_execution"]
     return CompositionalLeaveFamilyOutResult(model, {**body, "report_sha256": _sha(body)})
 
 

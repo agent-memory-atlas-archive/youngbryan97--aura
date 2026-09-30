@@ -1163,8 +1163,13 @@ def fit_compositional_semantic_program_transducer(
     examples: Sequence[SemanticTransducerTrainingExample],
     *,
     input_grounding: SemanticInputGroundingContract,
+    binary_solver: str = "liblinear",
+    binary_fit_progress: Any = None,
 ) -> CompositionalSemanticProgramTransducer:
     """Fit local atom heads and calibrate only the source-side operation chart."""
+
+    if binary_solver not in {"liblinear", "blocked_lbfgs"}:
+        raise ValueError("unsupported compositional binary fit execution")
 
     training = tuple(item for item in examples if item.split == "train")
     validation = tuple(item for item in examples if item.split == "validation")
@@ -1217,12 +1222,14 @@ def fit_compositional_semantic_program_transducer(
                 )
     operation_pointer = _fit_shared_pointer(
         training,
+        binary_solver=binary_solver, binary_fit_progress=binary_fit_progress,
         spans=lambda item: tuple(
             instruction.operation_span for instruction in item.ir.instructions
         ),
     )
     argument_pointer = _fit_shared_pointer(
         training,
+        binary_solver=binary_solver, binary_fit_progress=binary_fit_progress,
         spans=lambda item: tuple(
             span for instruction in item.ir.instructions for span in instruction.argument_spans
         ),
@@ -1237,6 +1244,7 @@ def fit_compositional_semantic_program_transducer(
         identity_validation = validation
     definition_pointer = _fit_shared_pointer(
         identity_training,
+        binary_solver=binary_solver, binary_fit_progress=binary_fit_progress,
         spans=_register_definition_spans,
     )
     register_use_contract = _fit_register_use_contract(training)
@@ -1268,12 +1276,14 @@ def fit_compositional_semantic_program_transducer(
     )
     argument_role_heads = _fit_argument_role_heads(
         training,
+        binary_solver=binary_solver, binary_fit_progress=binary_fit_progress,
         max_arity=max_arity,
         hidden_channels=hidden_channels,
         hidden_channel_widths=hidden_channel_widths,
     )
     argument_proposal_heads, argument_proposal_fit = _fit_argument_proposal_heads(
         training,
+        binary_solver=binary_solver, binary_fit_progress=binary_fit_progress,
         argument_pointer=argument_pointer,
         max_arity=max_arity,
         max_span_tokens=max_span_tokens,
@@ -1297,6 +1307,7 @@ def fit_compositional_semantic_program_transducer(
     }
     relation_weight, relation_bias = _fit_directional_relation_head(
         identity_training,
+        binary_solver=binary_solver, binary_fit_progress=binary_fit_progress,
         item_weights=item_weights,
         hidden_channels=hidden_channels,
         hidden_channel_widths=hidden_channel_widths,
@@ -1426,6 +1437,9 @@ def fit_compositional_semantic_program_transducer(
         "correctness_authority": False,
         "coefficient_sha256": _sha(coefficient_body),
     }
+    if binary_solver == "blocked_lbfgs":
+        from core.learning.semantic_bounded_binary_fit import BOUNDED_BINARY_FIT_CONTRACT
+        body["binary_head_fit_execution"] = dict(BOUNDED_BINARY_FIT_CONTRACT)
     return CompositionalSemanticProgramTransducer(
         hidden_size=hidden_size,
         model_basis_sha256=next(iter(bases)),
