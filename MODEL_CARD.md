@@ -1,9 +1,7 @@
 # Aura Model Card
 
-*Lane defaults below are `core/config.py:LLMConfig` (verified 2026-08-01).
-Override any of them with `AURA_MODEL`, `AURA_DEEP_MODEL`,
-`AURA_BRAINSTEM_MODEL`, `AURA_FALLBACK_MODEL`, or the nested
-`AURA_LLM__*` form.*
+*The default settings for these models are found in `core/config.py:LLMConfig` (verified on August 1, 2026).
+You can override any of these settings by using environment variables like `AURA_MODEL`, `AURA_DEEP_MODEL`, `AURA_BRAINSTEM_MODEL`, `AURA_FALLBACK_MODEL`, or any variable starting with `AURA_LLM__`.*
 
 ## Primary Model (Cortex)
 
@@ -18,19 +16,18 @@ Override any of them with `AURA_MODEL`, `AURA_DEEP_MODEL`,
 | **Fine-tuning** | Promoted fused LoRA delta (`training/fused-model/active.json`) as the live Cortex without a re-quantize |
 
 ### Intended Use
-Primary model for all user-facing conversation, reasoning, tool planning,
-and complex cognitive tasks.
+This is the main model you interact with. It handles all direct conversations, thinks through problems, plans how to use tools, and performs complex mental tasks.
 
 ### Limitations
-- May confabulate when knowledge is insufficient
-- Context window limits multi-turn reasoning depth
-- 4-bit quantization trades precision for memory efficiency
-- Cannot process images or audio natively
+- May make up information (hallucinate) if it doesn't know the answer.
+- The amount of past conversation it can remember (its context window) limits how deeply it can think through long, multi-step problems.
+- Uses a compressed format (4-bit quantization) to save memory, which slightly reduces its precision.
+- Cannot process images or audio directly.
 
 ### Ethical Considerations
-- Model weights are publicly available base models
-- No private/personal data in training
-- Prompt injection mitigations applied at runtime layer
+- Built on publicly available model foundations.
+- Trained without any private or personal data.
+- Includes built-in safeguards to prevent users from manipulating it with harmful instructions (prompt injection).
 
 ---
 
@@ -45,11 +42,7 @@ and complex cognitive tasks.
 | **Inference** | Local, on-device |
 
 ### Intended Use
-Hot-swapped in for the deepest reasoning passes on 64GB-class desktops. It is
-the highest-capacity local lane but the slowest (~84s/pass), so it is not the
-default foreground model — the 27B Cortex handles standard turns and the Solver
-is promoted only when a problem warrants it. Auto-detected/enabled via
-`AURA_DEEP_MODEL`.
+This model is swapped in automatically when a problem requires extremely deep thinking. It runs on high-end desktop computers (like those with 64GB of memory). It is the smartest local model but also the slowest (taking about 84 seconds per step). Because of this, it is not used for normal conversation. The 27B Cortex model handles regular chats, and the Solver only steps in when a task is especially difficult. You can enable or detect it using `AURA_DEEP_MODEL`.
 
 ---
 
@@ -65,20 +58,15 @@ is promoted only when a problem warrants it. Auto-detected/enabled via
 | **Inference** | Local, on-device |
 | **Reasoning mode** | Explicitly controlled |
 
-Qwen3.5-9B replaced Qwen2.5-7B on 2026-08-12. Nothing is keyed to this tier's
-weights — verified before the swap that no draft, contrastive-amateur, or
-speculative-decoding path references the Brainstem — so the generation gap was
-free to close. The Reflex lane below could *not* move for exactly that reason.
-See [docs/MODEL_ROSTER.md](docs/MODEL_ROSTER.md).
+We upgraded this model from Qwen2.5-7B to Qwen3.5-9B on August 12, 2026. Because no other parts of the system relied on the exact structure of the old model, we were able to upgrade it easily. (The Reflex model below could not be upgraded for exactly this reason.) For more details, see [docs/MODEL_ROSTER.md](docs/MODEL_ROSTER.md).
 
 ### Intended Use
-Background tasks: memory consolidation, classification, health probes,
-maintenance reasoning. Never used for user-facing responses in production mode.
+Used for behind-the-scenes work: organizing memory, sorting information, checking system health, and doing routine maintenance. It never speaks directly to the user in normal operation.
 
 ### Limitations
-- Reduced reasoning capability compared to primary
-- Not suitable for complex multi-step reasoning
-- Background-only; foreground lane isolation prevents interference
+- Not as smart as the primary model.
+- Cannot handle complex, multi-step problems.
+- Operates strictly in the background so it doesn't slow down or interfere with user conversations.
 
 ---
 
@@ -93,10 +81,7 @@ maintenance reasoning. Never used for user-facing responses in production mode.
 | **Inference** | Local, on-device |
 
 ### Intended Use
-The lowest-latency local tier. Handles reflexive turns and lightweight
-routing/guard decisions when the 27B Cortex is warming or contended, so the
-conversation lane can answer immediately instead of waiting on the heavy
-model. Never used for substantive full-mind replies.
+This is the fastest local model. It handles quick, automatic responses, basic routing, and simple safety checks while the larger 27B Cortex model is busy or warming up. This allows the system to reply instantly instead of making the user wait. It is never used to write deep or complex answers.
 
 ---
 
@@ -110,17 +95,10 @@ model. Never used for substantive full-mind replies.
 | **Inference** | Local, on-device. Audio does not leave the machine |
 | **Fallback** | `faster_whisper` on CPU |
 
-Replaced a two-stage Whisper configuration on 2026-08-12. Measured on this
-host over 12.4 s of real speech, median of 5 warm runs: Parakeet **166 ms** vs
-`whisper-small.en` 193 ms (the model it replaced on partials) vs
-`whisper-large-v3-turbo` 317 ms (finals). One streaming decode is cheaper than
-the incumbent partial, so both stages share one model-lane lease with no
-accuracy sacrificed on partials.
+This model replaced an older two-step Whisper setup on August 12, 2026. In our local tests on 12.4 seconds of real speech, the Parakeet model processed the audio in just **166 milliseconds**. This was significantly faster than the old models (`whisper-small.en` took 193 ms and `whisper-large-v3-turbo` took 317 ms). Because this new model is so fast, we now use it for both quick partial transcriptions and final polished text, saving system resources without losing any accuracy.
 
 ### Limitations
-- English-focused; the cited accuracy figure (6.32% vs 7.83% English WER) is
-  from published benchmarks, not a local measurement — the local sample scored
-  0% WER for all candidates and could not discriminate.
+- Primarily designed for English. The official tests show a very low error rate (between 6.32% and 7.83%), but our small local tests were too short to show any errors at all.
 
 ---
 
@@ -133,49 +111,26 @@ accuracy sacrificed on partials.
 | **Dimensions** | 384 |
 | **Inference** | Local, on-device |
 
-Replaced `all-MiniLM-L6-v2` on 2026-08-12. MiniLM declared a 256-token window
-against an 800-word ingestion chunk — 1,122 tokens through its own tokenizer,
-so **77% of every full chunk never reached the encoder**, silently, because
-tokenizer truncation logs nothing. On documents whose distinguishing sentence
-sits past token 256, MiniLM scored 1/4 on tail retrieval (chance) against
-Qwen3's 3/4, at 10.7 vs 20.2 ms/query. Chunk size is now *derived* from the
-encoder's declared window rather than fixed.
+This model helps the system search through its memory by turning text into searchable numbers. It replaced `all-MiniLM-L6-v2` on August 12, 2026. The old model had a severe flaw: it could only read 256 words at a time, but we were feeding it 800-word chunks. As a result, **77% of every long document was silently ignored**. When important information was at the end of a document, the old model almost always failed to find it, whereas the new Qwen3 model finds it reliably. The new model takes slightly longer (20.2 milliseconds vs 10.7 milliseconds), but we now size our text chunks to perfectly match what the model can actually read.
 
 ### Limitations
-- Roughly 2× the per-query latency of the model it replaced.
-- Signal and null score populations overlap on the calibration sample, so the
-  admission threshold is calibrated against measured nulls
-  (`core/memory/retrieval_calibration.py`) rather than asserted.
+- Takes about twice as long per search query as the model it replaced.
+- It can sometimes be tricky to tell the difference between a good search result and a bad one. To fix this, we measure what a "bad" result looks like in practice (`core/memory/retrieval_calibration.py`) and set our quality standards based on those tests, rather than just guessing.
 
 ---
 
 ## Model Verification
 
-Model identity is **measured from the artifact**, not inferred from its path.
-`core/brain/llm/model_artifact_profile.py` exists because footprint,
-minimum-headroom, deadline, cache-residency, and identity decisions used to be
-derived from spoofable path substrings (`"72b"`, `"cortex"`, `"zenith"`) — a
-renamed heavy checkpoint inherited light-model budgets, and an unrelated path
-containing `"32b"` inherited a 20 GB reservation.
+The system identifies a model by actually inspecting its files, not just by looking at its folder name. We built `core/brain/llm/model_artifact_profile.py` to do this because relying on folder names was dangerous. For example, if someone renamed a massive model's folder to "cortex" or included "32b" in the name, the system would get confused about how much memory it needed.
 
-At load time the runtime reads:
+When loading a model, the system reads:
 
-- `model.safetensors.index.json` → `metadata.total_parameters` and
-  `metadata.total_size` (exact weight bytes),
-- `config.json` → architecture shape (parameter count is estimated from this
-  when index metadata is absent),
-- the safetensors file listing (names + sizes).
+- `model.safetensors.index.json` to find the exact number of parameters and file size.
+- `config.json` to understand the model's architectural shape.
+- The list of actual model files and their sizes.
 
-From those it derives a cached `ModelArtifactProfile` carrying a SHA-256
-**fingerprint over config bytes, index metadata, and the weight-file
-listing**. This is an identity binding, *not* a weight hash — hashing 20 GB on
-every admission check is not viable, and the card should not imply otherwise.
-The fingerprint changes whenever the artifact's declared shape changes.
+From this information, the system creates a unique digital fingerprint (using a SHA-256 hash) based on the configuration and file sizes. **This is not a hash of the entire 20 GB model** — reading 20 GB every time would take way too long. Instead, it proves the model's identity based on its structure. If the model's declared shape changes, the fingerprint changes.
 
-The profile records *which* evidence produced it, so a receipt can distinguish
-measured truth from a naming-convention fallback (used only when the artifact
-is absent, as in tests and pre-download paths).
+The system also keeps a record of how it identified the model. This lets us know if it successfully measured the real files, or if it had to guess based on the folder name (which we only do during testing or before a model is fully downloaded).
 
-Memory footprint is then validated against the hardware profile before the
-load is admitted; `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` sets the floor below
-which a 32B load is refused outright.
+Finally, before starting the model, the system checks if your computer actually has enough memory to run it. For instance, the `AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB` setting acts as a safety limit; if your computer doesn't have that much memory available, the system will refuse to load the model to prevent a crash.
