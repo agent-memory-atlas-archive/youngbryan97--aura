@@ -246,12 +246,14 @@ from core.subject.snapshot import (  # noqa: E402
     _restore_moments,
     _restore_organ,
     _restore_services,
+    _restore_chaos,
     _restore_singletons,
     _restore_stores,
     _restore_torch_random,
     _restore_world,
     _service_state,
     _singleton_state,
+    _chaos_history,
     _store_state,
     _torch_random_state,
     _world_state,
@@ -301,6 +303,8 @@ class SubjectRuntime(_HeldHost):
     #: The ontogeny service that owns the reservoir. Its accumulators live
     #: outside the reservoir and are carried across the fork with it.
     ontogeny_service: Any = None
+    #: The seed the run was built from, for what the run declares from it.
+    seed: int = 0
     turn: int = 0
     retriever: Any = None
     failures: dict[str, int] = field(default_factory=dict)
@@ -546,6 +550,7 @@ class SubjectRuntime(_HeldHost):
             lifetime_last=_lifetime_last(),
             phases=self._phase_state(self.forked_phases),
             singletons=_singleton_state(),
+            chaos=_chaos_history(),
             module_state=_module_state(self._module_keys(), self._fork_skip()),
             empty_module_slots=self._empty_slots(),
             services=_service_state(self.forked_services, skip=carried, organs=_organ_ids(self)),
@@ -603,6 +608,7 @@ class SubjectRuntime(_HeldHost):
         _restore_torch_random(snapshot.torch_random)
         self._restore_phases(snapshot.phases)
         _restore_singletons(snapshot.singletons)
+        _restore_chaos(snapshot.chaos)
         _restore_module_state(snapshot.module_state)
         _empty_again(snapshot.empty_module_slots)
         _restore_services(snapshot.services)
@@ -1687,6 +1693,7 @@ def build_runtime(
         rng=random.Random(seed),
         ontogeny_service=ontogeny_service,
         whole=whole,
+        seed=int(seed),
     )
     runtime.organs = Organs.live()
     # `replace`, never a fresh `Organs(...)` listing the fields by hand. A

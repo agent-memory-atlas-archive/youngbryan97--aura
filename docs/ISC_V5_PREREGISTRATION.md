@@ -1652,6 +1652,19 @@ snapshot carries, and the fork carries the source's budget
 its budget are unchanged. A campaign read before this commit had noise in S
 that no seed could replay.
 
+### The substrate's chaos is declared and carried
+
+The controlled chaos engine perturbs the liquid substrate on every step. Its
+somatic noise was a SHA-512 hash of the machine's uptime, its own process's
+thread count and memory, and the CPU's temperature, seeded from the process id
+and its start time, so every process drove C with different noise. The
+engine is also made after the fork is calibrated, so its residuals, last poll
+and last chemistry were carried by nothing. The declared host now declares its
+signals from the run's clock and the host reading each turn prepares, seeds
+every engine from the run's seed, and the fork carries each engine's history.
+A turn after a turn in another condition still differs in the field organ by
+about 0.02 of its spread; that source is not traced.
+
 ### What is left after a turn
 
 With the network declared and the generators seeded as the rig seeds them,
