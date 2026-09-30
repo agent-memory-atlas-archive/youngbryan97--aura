@@ -11,6 +11,36 @@ from core.runtime.errors import record_degradation
 
 logger = logging.getLogger("Aura.Providers.Memory")
 
+def _warm_the_orm_off_the_loop() -> None:
+    """Read SQLAlchemy's ORM in a thread, so the first caller does not read it on the loop.
+
+    `create_persistent_state` is a lazily-built singleton, so whoever asks for
+    `persistent_state` first pays for importing `core.db.orm` — and that pulls in
+    SQLAlchemy's ORM, which is hundreds of modules to find, read and compile. Four
+    of the 120 newest stall dumps caught the event loop doing exactly that, inside
+    `sqlalchemy.orm`'s own module bodies.
+
+    An import is idempotent and `sys.modules` is shared, so doing it here in a
+    thread leaves the factory unchanged and its first call finds the work done.
+    The import stays inside the factory: hoisting it to module scope would stop a
+    test patching `core.db.orm.PersistentState` from being seen.
+
+    A failure is not raised. SQLAlchemy may be absent, and the factory already
+    answers that by falling back to the stdlib audit log.
+    """
+    import threading
+
+    def read_it() -> None:
+        try:
+            import core.db.orm  # noqa: F401
+        # not a failure: an absent or broken SQLAlchemy is what the factory's
+        # own ImportError path is for, and it will meet it there.
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("SQLAlchemy ORM not warmed: %s: %s", type(exc).__name__, exc)
+
+    threading.Thread(target=read_it, name="warm-orm-import", daemon=True).start()
+
+
 def register_memory_services(container):
     # 7. Memory (Base Store)
     def create_memory():
@@ -46,6 +76,7 @@ def register_memory_services(container):
         lifetime=SERVICE_LIFETIME_SINGLETON,
         required=False,
     )
+    _warm_the_orm_off_the_loop()
 
     # 8. Memory Manager
     def create_memory_manager():
