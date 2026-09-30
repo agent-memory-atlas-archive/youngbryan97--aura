@@ -1667,6 +1667,23 @@
         "name": "tests/test_effect_ownership_tiers.py",
         "why": "Decides that ungoverned effect sites only decrease. None of the four decides preconditions, observed postconditions, compensation or rollback for every effect, or the proof that no plugin, adapter, synthesised code, UI route, background policy or self-modification bypasses the boundary."
       }
+    ],
+    "FND-06-DATA": [
+      {
+        "kind": "test",
+        "name": "tests/test_migration_ledger_is_checked.py",
+        "why": "Decides migration for the migrated stores: an edited migration is refused, a database ahead of the binary is named, and an interrupted apply is visible on the next boot."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_restore_drill_that_can_fail.py",
+        "why": "Decides backup and restore: the drill damages a copy, restores it, and proves the repair, with data put back where the runtime reads it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_relational_memory_authority.py",
+        "why": "Decides encryption, export and deletion and exact-agent isolation for the relational store: no plaintext identity in the envelope, a wrong key that locks without overwriting, receipted export and delete, and one namespace's delete leaving the others. None of the three decides key rotation, retention and compaction, disk-full and power-loss behaviour, or rollback symmetry across every store."
+      }
     ]
   }
 }
