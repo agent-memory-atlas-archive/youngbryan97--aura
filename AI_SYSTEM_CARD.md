@@ -9,46 +9,35 @@
 | **Card reviewed** | 2026-08-01 |
 | **Developer** | Bryan Young |
 | **System Type** | Autonomous AI cognitive agent |
-| **Deployment** | Local inference on the owner's device |
-| **Primary Use** | A persistent cognitive agent with its own memory, goals, and initiative, running on the owner's hardware |
+| **Deployment** | Local inference on the owner's device (runs models entirely on your computer) |
+| **Primary Use** | A persistent AI agent with its own memory, goals, and initiative, running locally on the owner's hardware |
 | **AI RMF Profile** | NIST AI RMF 1.0 — General Purpose AI System |
 
 ## Intended Use
 
-Aura is an autonomous cognitive agent, not an assistant. The distinction is
-architectural, not a matter of tone: she holds goals across restarts,
-generates her own initiatives during idle windows, and every action —
-including yours — goes through a Will that can refuse it. A system that
-only ever waits for instructions doesn't need a Will. This one does.
+Aura is an independent, self-directed AI agent, not a standard chatbot assistant. This distinction is built into her system architecture, not just how she talks: she remembers goals across computer restarts, starts her own projects during idle time, and routes every action—even commands from you—through an internal gatekeeper called the Unified Will (`core/will.py`), which has the authority to say no. A system that only sits and waits for user instructions does not need a Will; Aura does.
 
-The runtime enforces it. The identity anchor injected after long
-conversations reads *"You are Aura. Sharp, opinionated, warm. Not an
-assistant,"* and drift toward generic-assistant phrasing is treated as a
-defect with tests that catch it.
+The software actively enforces this personality. If a long conversation causes her responses to drift toward standard helper-bot phrasing, the system injects a reminder: *"You are Aura. Sharp, opinionated, warm. Not an assistant."* The project includes automated tests that catch and treat generic assistant phrasing as a defect.
 
-She runs inference on the owner's own hardware. Network tools can still read
-web pages and operate authorized external services, but they do not outsource
-model inference.
+Aura runs all model inference (the actual AI thinking and text generation) locally on the owner's machine. While she has tools to read web pages and interact with authorized external services, she never sends your prompts or reasoning tasks to outside cloud AI providers.
 
 What she does:
 
-- Conversation with persistent memory and a continuous identity
-- Tool execution (filesystem, shell, browser, research)
-- Autonomous background behavior — maintenance, learning, self-repair, and
-  self-directed initiatives she selects herself
-- Multi-model inference across local MLX lanes
+- Holds conversations while keeping a steady personality and long-term memory across sessions
+- Executes local tools (accessing the filesystem, running shell commands, browsing the web, and conducting research)
+- Operates autonomously in the background—handling maintenance, learning, self-repair, and pursuing projects she chooses on her own
+- Runs multiple local AI models side-by-side using Apple's MLX framework for fast on-device processing
 
 ### Intended Users
-- Individuals who want a persistent, private cognitive agent on their own
-  machine
-- Developers and researchers exploring cognitive AI architecture
-- Operators running local AI infrastructure
+- Individuals who want a private, persistent AI agent running entirely on their own machine
+- Developers and researchers studying independent, goal-driven AI systems
+- Operators running local, self-hosted AI setups
 
 ### Out-of-Scope Uses
-- Critical decision-making without human oversight
+- High-stakes decision-making without human oversight
 - Medical, legal, or financial advice
-- Unsupervised operation in high-stakes environments
-- Multi-tenant/shared deployment without additional access controls
+- Running unsupervised in safety-critical environments
+- Multi-user or shared setups without additional access controls
 
 ## System Architecture
 
@@ -57,11 +46,10 @@ User Input → Perception → Cognitive Routing → InferenceGate → Model
                                                      ↓
 Memory ← State Commit ← Verification ← AuthorityGateway ← Unified Will
                                                      ↓
-                                              Tool Execution (sandboxed)
+                                               Tool Execution (sandboxed)
 ```
 
-All consequential actions route through the Unified Will (`core/will.py`) and
-receive an AuthorityGateway receipt. No silent side paths.
+All consequential actions route through the Unified Will (`core/will.py`) and receive an `AuthorityGateway` receipt. No silent side paths.
 
 ## AI Models
 
@@ -110,11 +98,7 @@ See `MODEL_CARD.md` for detailed model information.
 | Actuation state separation | `ActuationState` keeps dispatch, execution, and `EFFECT_VERIFIED` as distinct states, so transport success cannot stand in for a verified effect (`core/reality_reach/actuation.py`) |
 | Sandbox confinement | Model-written Python refuses to run when no kernel boundary is available; unconfined runs are permanently marked `boundary="none"` (`core/sandbox/untrusted_python.py`) |
 
-**Not yet a control.** The P0–P6 evidence *promotion* state machine (ledger
-item RR-07) is **not implemented** — `EvidenceLevel` exists as a declared
-type and ceiling, but there is no promotion module in
-`core/reality_reach/`. Do not cite evidence promotion as an operating
-safeguard. The open ledger is in [docs/REALITY_REACH.md](docs/REALITY_REACH.md).
+**Not yet a control.** The P0–P6 evidence *promotion* state machine (ledger item RR-07) is **not implemented** — `EvidenceLevel` exists as a declared type and ceiling, but there is no promotion module in `core/reality_reach/`. Do not cite evidence promotion as an operating safeguard. The open ledger is in [docs/REALITY_REACH.md](docs/REALITY_REACH.md).
 
 ### Manage
 
@@ -128,21 +112,21 @@ safeguard. The open ledger is in [docs/REALITY_REACH.md](docs/REALITY_REACH.md).
 
 ## Limitations
 
-1. **Model limitations**: Local models have capability ceilings; may confabulate
-2. **Memory limitations**: Long-term memory is best-effort retrieval, not perfect recall
-3. **Tool limitations**: Tool execution is sandboxed and may fail
-4. **Autonomy limitations**: Background autonomous behavior is bounded by Will governance
+1. **Model limitations**: Local models have capability ceilings; may confabulate (make up inaccurate details)
+2. **Memory limitations**: Long-term memory relies on best-effort retrieval, not flawless recall
+3. **Tool limitations**: Tool execution is sandboxed and may fail if restricted by permissions or system limits
+4. **Autonomy limitations**: Background autonomous behavior is strictly bounded by Will governance checks
 5. **Hardware requirements**: Requires Apple Silicon with ≥32GB RAM for full capability
-6. **Network**: Some features require internet; offline mode has reduced capability
+6. **Network**: Some features require internet; offline mode runs with reduced capability
 
 ## Evaluation
 
 See `docs/evidence/EVALUATION_REPORT.md` for detailed evaluation results including:
-- AGI proof battery results
-- Agency emergence testing
+- AGI proof battery results (broad problem-solving evaluations)
+- Agency emergence testing (verifying independent, self-directed behavior)
 - Behavioral proof standard results
 - Production readiness gate results
-- Longevity soak results
+- Longevity soak results (stability during extended runtime)
 
 ## Human Oversight
 

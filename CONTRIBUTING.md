@@ -22,84 +22,50 @@ make lint
 
 ## Architecture rules
 
-1. **One authority.** Every consequential action goes through
-   `UnifiedWill.decide()` in `core/governance/will.py` (`core/will.py` facade). Don't add a parallel gate.
-   Add an advisor to the Will. This repo already lived through six gates
-   that each thought they were in charge, and the cost of that was not
-   being able to prove anything had been gated at all.
-2. **One owner per concern.** [OWNERSHIP.md](OWNERSHIP.md) is the map. A
-   new governance check attaches to the existing owner rather than
-   starting a second one.
-3. **No monkey-patching.** Event-bus hooks, provider registries, typed
-   extension points. Not `setattr` on a live object.
-4. **Immutable messages.** Subsystems talk through the frozen dataclasses
-   in `core/bus/events.py` (`Event`, `DeliveryReceipt`). An actor must not be
-   able to mutate a message another actor is reading.
-   Prose in this repo follows [docs/WRITING_RULES.md](docs/WRITING_RULES.md);
-   `make writing` is the gate.
-5. **Lifecycle tracking.** Subsystems report state through
-   `core/runtime/service_state.py:ServiceState`.
-6. **Locks are checked.** Use `checked_lock` / `checked_async_lock` from
-   `core/runtime/lockdep.py`, not raw `threading.Lock` or `asyncio.Lock`.
-   Lockdep catches ABBA deadlocks without the deadlock happening — but it
-   only sees locks it wraps, so an unwrapped lock is a blind spot rather
-   than a safe one. Adopt an existing lock with `instrument(name)`.
+1. **One decision maker.** Every consequential action goes through `UnifiedWill.decide()` in `core/governance/will.py` (accessible via the `core/will.py` facade). Never add a separate gate running in parallel. Instead, add an advisor to the Will. In the past, this repository had six competing systems that all tried to manage decisions, which made it impossible to verify whether any action was actually properly checked.
+2. **One owner per area.** [OWNERSHIP.md](OWNERSHIP.md) maps out who owns each part of the system. Attach new governance checks to the existing owner rather than introducing a second one.
+3. **No monkey-patching.** Never dynamically modify running objects using `setattr`. Instead, use event bus hooks, provider registries, and typed extension points.
+4. **Immutable messages.** Subsystems communicate using frozen (unchangeable) data classes in `core/bus/events.py` (`Event`, `DeliveryReceipt`). One component must never be able to change a message that another component is reading. Written text in this repository follows [docs/WRITING_RULES.md](docs/WRITING_RULES.md); verify your writing with `make writing`.
+5. **Lifecycle tracking.** Subsystems report their operating state through `core/runtime/service_state.py:ServiceState`.
+6. **Locks are checked.** Always use `checked_lock` or `checked_async_lock` from `core/runtime/lockdep.py`, instead of Python's raw `threading.Lock` or `asyncio.Lock`. Lockdep detects potential deadlocks (where operations wait on each other forever and freeze) before they actually happen. Because Lockdep only monitors locks it manages, an unwrapped lock creates an unchecked blind spot. Wrap existing locks using `instrument(name)`.
 
 ## Adding a consciousness module
 
-1. Drop the module in `core/consciousness/`.
-2. Register it in `core/container.py` during boot.
-3. If it needs periodic updates, wire it into the consciousness bridge
-   tick cycle.
-4. **Write an ablation test.** At least one, showing what actually breaks
-   when the module is removed. This is the step people skip, and it's the
-   only one that distinguishes a module that does something from a module
-   that runs. If nothing measurable changes when you delete it, that is
-   the finding — report it rather than shipping around it.
-5. Add an entry to [OWNERSHIP.md](OWNERSHIP.md) under the right domain.
-6. If it makes falsifiable predictions, register it in
-   `core/consciousness/theory_arbitration.py`.
+1. Place the module in `core/consciousness/`.
+2. Register it in `core/container.py` during system startup.
+3. If it requires regular updates, connect it to the consciousness bridge tick cycle.
+4. **Write an ablation test (a removal test).** Write at least one test demonstrating what fails when the module is turned off or removed. Skipping this step makes it impossible to know whether a module genuinely does useful work or simply executes without effect. If removing the module causes no measurable difference, treat that as a meaningful result: report it rather than shipping unused code.
+5. Add an entry in [OWNERSHIP.md](OWNERSHIP.md) under the appropriate domain.
+6. If the module makes testable (falsifiable) scientific predictions, register it in `core/consciousness/theory_arbitration.py`.
 
-A note that applies past this checklist: a claim without a test is a
-document, not a fact. New invariants go next to what they protect via
-`@invariant(...)` in `core/verify/`, and claims about Aura's own runtime
-have to be registered with the test that validates them
-(`core/organism/model_validation.py`). A claim with no test cannot be
-registered at all.
+A general rule across this project: any claim without an automated test is just documentation, not a fact. Place new rules that must always hold true next to the code they protect using `@invariant(...)` in `core/verify/`. Any claims about how Aura operates at runtime must be linked to a validating test in `core/organism/model_validation.py`. A claim cannot be registered without a corresponding test.
 
 ## Test markers
 
 | Marker | Meaning | When to run |
 |--------|---------|-------------|
-| (default) | Unit + fast integration | Every commit |
-| `@pytest.mark.slow` | Long-running | Nightly CI |
-| `@pytest.mark.integration` | Full pipeline | Before merge |
-| `@pytest.mark.stress` | Load / fault injection | Weekly |
+| (default) | Unit and fast integration tests | Every commit |
+| `@pytest.mark.slow` | Long-running tests | Nightly CI |
+| `@pytest.mark.integration` | Full pipeline tests | Before merge |
+| `@pytest.mark.stress` | Load and fault-injection tests | Weekly |
 
 ## CP checkpoints
 
-Two commit formats coexist here, both legitimate.
+Two commit formats are supported in this project:
 
-Conventional commits cover ordinary work: `fix(scope):`, `feat(scope):`,
-`chore(scope):`, `docs(scope):`, `test(scope):`, `perf(scope):`.
+Conventional commits handle everyday development: `fix(scope):`, `feat(scope):`, `chore(scope):`, `docs(scope):`, `test(scope):`, and `perf(scope):`.
 
-**CP-numbered checkpoints** cover tracked units of a long-running programme:
+**CP-numbered checkpoints** track specific work packages within our long-running research and engineering program:
 
     CP799 <subject>
 
-A CP is a numbered checkpoint. The sequence is monotonic and currently near
-800. The number is referenced from closeout artifacts under
-`artifacts/closeout/` and from the programme ledgers in `docs/`, so it works
-as a key — don't invent one out of sequence, and never reuse one. Both
-formats appear together when a checkpoint is also a fix:
+A CP is a numbered checkpoint in a strictly increasing sequence (currently near 800). Closeout documents in `artifacts/closeout/` and tracking logs in `docs/` reference these numbers as lookup keys. Never make up a number out of order, and never reuse an existing number. You can combine both formats when a checkpoint resolves a bug:
 
     fix(inference_gate): CP126 — a viability block that later modifiers undid
 
 ## How a change lands
 
-`main` is protected. A direct push is rejected, including from an admin, and
-including from whoever wrote the change. Every commit arrives through a pull
-request whose required checks have passed.
+The `main` branch is protected. Direct pushes are rejected for everyone, including repository administrators and whoever wrote the change. Every commit must arrive through a pull request where all required automated checks pass.
 
 ```bash
 git switch -c the-thing-you-are-fixing
@@ -110,28 +76,20 @@ gh pr checks --watch      # sixteen required jobs
 gh pr merge --squash      # only once they are green
 ```
 
-What the branch refuses, and why each one is there:
+What the branch rejects, and why:
 
 | Refused | Because |
 | --- | --- |
-| a direct push to `main` | every landing has a diff somebody can read |
-| a merge with a failing or missing required check | a gate nothing requires is a notification |
-| a force push or a branch deletion | history is evidence |
-| a merge commit | `git log` on a linear history is a record, not a puzzle |
-| a merge with an unresolved conversation | a comment nobody answered is not review |
+| A direct push to `main` | Every change needs a visible diff that anyone can inspect. |
+| A merge with a failing or missing required check | A safety check that isn't strictly enforced is just a suggestion. |
+| A force push or branch deletion | Git history serves as an permanent audit trail. |
+| A merge commit | A clean linear history keeps `git log` straightforward to read and trace. |
+| A merge with an unresolved conversation | Every question or feedback comment deserves an answer before landing. |
 
-The exact settings live in `config/branch_protection_policy.json`;
-`make branch-protection` compares them with what GitHub actually has, and
-`make branch-protection-policy` checks the policy against the workflows
-without needing the network.
+The exact branch protection settings are defined in `config/branch_protection_policy.json`. Run `make branch-protection` to compare these rules against GitHub's live settings, or run `make branch-protection-policy` to validate the policy against workflow files without needing internet access.
 
-**No approving review is required, and that is a limitation rather than a
-choice.** GitHub does not let the author of a pull request approve it, so with
-one maintainer and `enforce_admins` on, requiring an approval means nothing
-can ever merge. The checks are what hold the branch today. The count goes to
-one, with code-owner review on, the day a second person can approve;
-[.github/CODEOWNERS](.github/CODEOWNERS) already names who that would be for
-each path.
+**Why pull request approvals are not currently required:**
+GitHub prevents PR authors from approving their own pull requests. Because this repository currently has a single maintainer and `enforce_admins` is turned on, requiring approval would permanently block all merges. Automated tests protect the branch for now. As soon as a second maintainer is available to review code, requiring one approval will be enabled. The file [.github/CODEOWNERS](.github/CODEOWNERS) already specifies code owners for each directory.
 
 ## Commits
 

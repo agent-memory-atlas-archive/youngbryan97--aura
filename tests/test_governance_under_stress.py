@@ -27,6 +27,9 @@ class TestGovernanceUnderStress(unittest.IsolatedAsyncioTestCase):
     async def test_lock_watchdog_does_not_force_release_on_progressing_waiter(self):
         """test_lock_watchdog_does_not_force_release_on_progressing_waiter"""
         # Create a fast watchdog but slow enough to be pulsed by the 1.0s loop
+        # RobustLock reports to the process watchdog, so that is the one that
+        # has to carry these settings; an earlier one would keep its own.
+        LockWatchdog.reset_for_test()
         watchdog = LockWatchdog(check_interval=0.5, threshold=1.5)
         watchdog.start()
         try:
@@ -59,6 +62,7 @@ class TestGovernanceUnderStress(unittest.IsolatedAsyncioTestCase):
             await task
         finally:
             await watchdog.stop()
+            LockWatchdog.reset_for_test()
 
     async def test_value_graph_blocks_before_tool_execution(self):
         """test_value_graph_blocks_before_tool_execution"""

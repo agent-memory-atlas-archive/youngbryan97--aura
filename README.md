@@ -2,102 +2,105 @@
 
 DEMO: https://youtu.be/iTyxeugcZtI?si=B91No0Hjz3eKLMwz
 
-A local cognitive-architecture research runtime for testing continuous-state
-agency, receipt-based governance, memory persistence, activation steering, and
-long-run self-maintenance.
+Aura is a local AI research project that runs entirely on your Mac. It explores
+how to build an AI agent that can think continuously, remember things long-term,
+govern its own behavior with auditable receipts, steer its own emotional tone
+during text generation, and keep itself running reliably over time.
 
-Aura is not proof of life, personhood, or phenomenal consciousness. Nothing
-in here settles that, and the parts of the repo that sound like they might
-are named after mechanisms, not achievements.
+**Aura is not proof of consciousness, life, or personhood.** Nothing here settles
+those questions. Some file and module names sound like they might — they're named
+after the mechanisms they implement, not achievements they've proven.
 
-The actual claim is narrower and testable: internal state causally affects
-generation, memory writes, tool authorization, initiative selection, and
-runtime repair, through code paths that leave receipts you can audit.
+The actual claim is narrower and testable: Aura's internal state measurably
+affects what it generates, what it remembers, what tools it's allowed to use,
+what tasks it picks up on its own, and how it repairs itself — through code
+paths that leave audit trails you can inspect.
 
-That's a smaller claim than the vocabulary suggests. It's also one you can
-check.
+That's a smaller claim than the vocabulary suggests. It's also one you can verify.
 
 [![License: All Rights Reserved (Read-Only)](https://img.shields.io/badge/License-All_Rights_Reserved_(Read--Only)-red.svg)](LICENSE)
 ![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)
 ![Platform: macOS Apple Silicon](https://img.shields.io/badge/platform-macOS_Apple_Silicon-lightgrey.svg)
 
-For the technical deep dive, read [ARCHITECTURE.md](ARCHITECTURE.md). If you
-want the same ideas without the math, read [HOW_IT_WORKS.md](HOW_IT_WORKS.md). If
-you want the evidence standard for autonomy and novel output claims, read
-[docs/BEHAVIORAL_PROOF_STANDARD.md](docs/BEHAVIORAL_PROOF_STANDARD.md).
+For the full technical deep dive, read [ARCHITECTURE.md](ARCHITECTURE.md). For
+the same ideas explained without math, read [HOW_IT_WORKS.md](HOW_IT_WORKS.md).
+For the standard of evidence we hold ourselves to on autonomy and novel output
+claims, read [docs/BEHAVIORAL_PROOF_STANDARD.md](docs/BEHAVIORAL_PROOF_STANDARD.md).
 
-**The main research programme is
-[docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md).** It asks
-whether a frozen 32B checkpoint can be made to think longer without changing a
-weight, builds the machinery, runs a preregistered campaign against it, and
-reports that the capability dividend did not appear. Summary in
-[Recursive Latent Cortex](#recursive-latent-cortex) below.
+**The main research program is
+[docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md).** It asks:
+can a frozen 32-billion-parameter model be made to reason deeper without changing
+any of its stored weights? It builds the machinery to test that, runs a
+pre-registered experiment, and reports that the hoped-for capability improvement
+didn't appear. Summary in [Recursive Latent Cortex](#recursive-latent-cortex)
+below.
 
 **Evidence map:** Claims should point to runnable tests, proof bundles, receipts,
-or replayable logs. Test counts move with the repo; use `pytest --collect-only`,
-`make proof-bundle`, and [TESTING.md](TESTING.md) for the current surface rather
-than treating prose as evidence.
+or replayable logs. Test counts change with the repo; use `pytest --collect-only`,
+`make proof-bundle`, and [TESTING.md](TESTING.md) for current numbers rather
+than trusting prose.
 
 If you want to see it work, keep reading.
 
 ## Evidence boundary
 
-This is a functional cognitive-architecture research project. It is not proof
-of phenomenal consciousness, qualia, legal personhood, or moral patiency.
+This is a working AI research project. It is **not** proof of consciousness,
+subjective experience, legal personhood, or moral standing.
 
-The repo enforces that in code, not just in a paragraph like this one. An
-ontological boundary guard treats loaded labels — "consciousness guarantee,"
-"personhood proof" — as functional indicator batteries unless independent
-evidence says otherwise. A module named `qualia_synthesizer.py` is a name.
-Names are not evidence.
+The repo enforces that in code, not just in words. A boundary guard treats
+loaded terms — "consciousness guarantee," "personhood proof" — as names for
+test batteries rather than claims, unless independent evidence says otherwise.
+A module named `qualia_synthesizer.py` is a name. Names are not evidence.
 
 What is actually claimed, and what each claim costs:
 
-- **Governance is a design target, not a sealed fact.** Consequential paths
-  must route through receipt-producing governance. A lint failure, a direct
-  tool fallback, or a default-approved gateway path is a bug. Not
-  acceptable compatibility behavior. A bug.
-- **Autonomous RSI is not proven mature.** There is scaffolding here for
-  autonomous repair, evaluation, patch genealogy, and proof bundles.
-  Scaffolding is not a result. Unverified self-modification stays out of
-  evidence scope until long wall-clock runs, hidden external tasks, and
+- **Governance is a design goal, not a guaranteed fact.** Important actions
+  must go through receipt-producing governance checks. A lint failure, a direct
+  tool fallback, or a default-approved gateway is a bug — not acceptable
+  behavior. A bug.
+- **Autonomous self-improvement is not proven mature.** There's scaffolding
+  here for autonomous repair, evaluation, patch tracking, and proof bundles.
+  Scaffolding is not a result. Unverified self-modification stays outside the
+  evidence scope until long real-world runs, hidden external tasks, and
   independent replication all succeed.
-- **The cognitive layer has not been shown to earn its cost.** This is the
-  largest open gap in the project and it belongs at the top of any honest
-  reading. Two components have now been measured against simpler
-  alternatives under matched or shared budgets — memory retrieval beats a
-  budgeted context window when the fact is out of window (claim 31a), and
-  the revision gate beats both "always keep the first answer" and "always
-  keep the second" over the *same* two generations (claim 31b). Two
-  subsystems on two task families is not the layer. Nothing here yet shows
-  that IIT, qualia metrics, neurochemical simulation, substrate ODEs, dream
-  cycles or theory arbitration make Aura better at a task a user wants
-  done, and a far smaller computer-use agent performs the demo tasks
-  without any of them. Those layers cost latency, memory, tuning surface
-  and failure modes this repository has repeatedly paid for. Complexity is
-  justified by measured advantage; most of it has not been measured. See
+- **The cognitive layer hasn't been shown to earn its cost.** This is the
+  biggest open gap in the project, and it belongs at the top of any honest
+  reading. Two components have been measured against simpler alternatives
+  under matched budgets — memory retrieval beats a basic context window when
+  the needed fact falls outside the window (claim 31a), and the revision
+  gate beats both "always keep the first answer" and "always keep the second"
+  over the same two generations (claim 31b). Two subsystems on two task
+  types is not the whole layer. Nothing here yet shows that the IIT metrics,
+  qualia modules, neurochemical simulation, substrate differential equations,
+  dream cycles, or theory arbitration make Aura *better at a task a user
+  wants done*. A far simpler computer-use agent performs the demo tasks
+  without any of them. Those layers cost latency, memory, tuning surface,
+  and failure modes this project has repeatedly paid for. Complexity is
+  justified by measured advantage; most of it hasn't been measured. See
   `CLAIMS_MATRIX.md` claim 31.
-- **Production maturity is bounded.** This is research software being
-  hardened. The local monolith, the broad fallback surface, and the runtime
-  fragility are all real, and none of them belong under the word
-  "enterprise."
-- **Steering is causal, and that's testable.** Internal state reaches
-  generation through non-text channels (Contrastive Activation Addition).
-  But black-box steering tests can hide live affect telemetry from the
-  prompt text, and rich adversarial baselines are required before the
-  result counts.
-- **Identity persistence is retrieval, not just prompting.** Coherence is
-  supported by ID-RAG Chronicle retrieval rather than prompt anchoring
+- **Production maturity is limited.** This is research software being
+  hardened. The local-only architecture, the broad fallback surface, and
+  the runtime fragility are all real, and none of them belong under the
+  word "enterprise."
+- **Emotional steering is causal, and that's testable.** Internal state
+  reaches text generation through non-text channels (Contrastive Activation
+  Addition — a technique that modifies the model's hidden computations
+  directly). But black-box steering tests can hide live emotional telemetry
+  from the prompt text, and strong adversarial baselines are required before
+  the result counts.
+- **Identity persistence uses retrieval, not just prompt text.** Coherence
+  is maintained by ID-RAG Chronicle retrieval rather than prompt anchoring
   alone.
-- **φ is bounded.** A bounded IIT-style integration metric over tractable
-  complexes. Not a whole-system consciousness measurement. Full-system IIT
-  is intractable and we did not solve it.
-- **The hardware target is specific.** Bryan's Apple Silicon M5-class
-  machine, 64 GB unified memory. Lower-memory machines downshift their
-  model lanes. They do not get resident Cortex heartbeat latency, and claiming
-  otherwise would just be a benchmark run on hardware nobody has.
-- **Resource stakes persist and constrain action envelopes.** That's an
-  operational metabolism analog. It is not biological metabolism.
+- **φ (phi) is bounded.** A bounded integration metric inspired by
+  Integrated Information Theory, computed over tractable subsystems. Not a
+  whole-system consciousness measurement. Full-system IIT is computationally
+  intractable and we didn't solve it.
+- **The hardware target is specific.** Bryan's Apple Silicon M5-class Mac,
+  64 GB unified memory. Lower-memory machines downshift their model lanes.
+  They don't get the same performance, and claiming otherwise would be
+  benchmarking on hardware nobody has.
+- **Resource costs persist and constrain what Aura can do.** That's a
+  practical analog to biological metabolism. It is not biological metabolism.
 
 For the things deliberately *not* claimed — including anything physical —
 read [CLAIMS_NOT_SUPPORTED.md](CLAIMS_NOT_SUPPORTED.md). It's the most
@@ -107,7 +110,7 @@ useful page here if you're skeptical, which you should be.
 
 ## See it learn (one command)
 
-Don't take the evidence discipline on faith. Run it. Apple Silicon, 20–40
+Don't take the evidence claims on faith. Run it. Apple Silicon, 20–40
 minutes, about 5 GB of disk:
 
 ```bash
@@ -115,111 +118,111 @@ make setup          # once: venv + requirements
 make demo-learning
 ```
 
-Here's what happens. A small local model takes a swing at seeded reasoning
-tasks. Every attempt gets graded by an **exact checker** — the verifier *is*
-the reward, so there's nothing to game. It DPO-trains a LoRA on the verified
-wins and losses, then has to clear a **sealed held-out battery** on fresh
-seeds it has never seen before its weights get fused and published.
+Here's what happens. A small local model attempts seeded reasoning tasks.
+Every attempt is graded by an **exact checker** — the verifier *is* the
+reward signal, so there's nothing to game. It then trains a LoRA adapter
+(a small set of learnable weights) on the verified wins and losses, and
+the adapter has to pass a **sealed held-out test set** on fresh inputs
+it's never seen before its weights get merged and published.
 
-Then it does the whole thing again, on top of the artifact it just published.
+Then it does the whole thing again, building on what it just published.
 
-Every generation lands in a hash-chained ledger
+Every generation gets recorded in a hash-chained ledger
 (`core/learning/rsi_lineage.py`). The verdict is computed from those
 receipts, not written by hand afterward. When it refuses to promote, that
-prints just as loudly as a gain. Raw responses, eval reports, and cycle
-receipts all stay on disk.
+prints just as loudly as a gain. Raw responses, evaluation reports, and
+cycle receipts all stay on disk.
 
 The same machinery runs autonomously inside the live runtime
-(`core/learning/compounding_scheduler.py`): idle-gated, governance-approved,
-memory-admission-controlled, with promoted weights hot-swapped into live
-inference.
+(`core/learning/compounding_scheduler.py`): gated by idle time,
+governance-approved, memory-controlled, with promoted weights hot-swapped
+into live text generation.
 
 ## Production Evidence Surface
 
-Everything below has a runnable implementation, receipts, and validation
-artifacts. Ideas that don't are kept off this list — not softened, not
-hedged, just left out until they earn a place.
+Everything below has a working implementation, receipts, and validation
+artifacts. Ideas that don't are left off this list — not softened, not
+hedged, just excluded until they earn a place.
 
-Release gates generate a proof bundle. You shouldn't have to infer maturity
-from how confident the prose sounds.
+Release gates generate a proof bundle. You shouldn't have to guess at
+maturity from how confident the prose sounds.
 
 - `core/brain/llm/continuous_substrate.py` is a configurable 64-to-512 neuron
-  Liquid Time-Constant ODE running at ~20 Hz. CPU-only numpy with explicit-Euler
-  integration plus stochastic perturbation; `get_state_summary()` derives
-  valence/arousal/dominance/phi from adaptive projections of the live state vector
-  (grounded in external reality via `adapt_projections()`),
+  dynamical system (Liquid Time-Constant ODE) running at ~20 Hz. CPU-only
+  numpy with explicit-Euler integration plus random perturbation;
+  `get_state_summary()` derives valence/arousal/dominance/phi from the live
+  state vector (grounded in external data via `adapt_projections()`),
   without changing callers.
 - `core/brain/llm/substrate_token_generator.py` is the substrate-first readout:
   it uses an untrained random projection onto a 32-word proto vocabulary from
   the live substrate before calling the transformer, and falls back to the
-  Cortex when substrate prediction error exceeds threshold. A real
-  substrate-first readout means a trained head over the model vocabulary —
+  main model when substrate prediction error exceeds threshold. A real
+  substrate-first readout needs a trained head over the full vocabulary —
   this is the scaffold for that, not the claim.
 - `core/brain/llm/sensorimotor_grounding.py` maps camera/screen/audio
-  observations into the substrate input vector, so live sensor events perturb
-  the ODE directly instead of arriving only as text/tool summaries.
-- `core/consciousness/phi_core.py` implements real IIT-style
-  integration math: binarization, empirical TPM, KL-divergence φ, exclusion
-  postulate, polynomial-time spectral partitioning, with an exhaustive
-  8-bipartition validation baseline.
+  observations into the substrate input vector, so live sensor events
+  directly affect the dynamical system instead of arriving only as text
+  or tool summaries.
+- `core/consciousness/phi_core.py` implements real IIT-style integration
+  math: binarization, empirical transition probability matrix, KL-divergence
+  φ, exclusion postulate, polynomial-time spectral partitioning, with an
+  exhaustive 8-bipartition validation baseline.
 - `core/consciousness/hierarchical_phi.py` implements the 32-node hierarchical
   φ with K=8 overlapping subsystems and Bayesian-smoothed estimation.
-- `core/consciousness/affective_steering.py` is a real CAA injection pipeline
-  that hooks MLX transformer blocks and modifies the residual stream at
-  generation time.
-- `training/caa_32b_validation.py` validates production-model CAA artifacts:
-  vector presence, layer geometry, PCA structure, permutation controls,
-  black-box prompt hygiene conditions, rich-prompt comparators, and behavioral
-  A/B result ingestion.
+- `core/consciousness/affective_steering.py` is a real activation-steering
+  pipeline that hooks MLX transformer blocks and modifies the model's hidden
+  states during text generation.
+- `training/caa_32b_validation.py` validates production-model steering
+  artifacts: vector presence, layer geometry, PCA structure, permutation
+  controls, black-box prompt hygiene, rich-prompt comparators, and
+  behavioral A/B result ingestion.
 - `core/consciousness/stdp_external_validation.py` runs the external-usefulness
-  STDP experiment: external environment signal vs self-generated, frozen, and
-  shuffled controls on held-out prediction tasks.
+  plasticity experiment: external environment signal vs self-generated, frozen,
+  and shuffled controls on held-out prediction tasks.
 - `core/self_modification/fault_pipeline.py` and
   `core/self_modification/repair_approval.py` implement the closed-loop
-  bug-packet repair path with deterministic localization, tier-aware approval,
-  patch genealogy, and calibration.
+  bug-repair path with deterministic localization, tier-aware approval,
+  patch tracking, and calibration.
 - `core/architect/` implements the Autonomous Architecture Governor: a
   shadow-workspace software architect that builds architecture graphs, detects
-  smells, generates staged cleanup/refactor plans, requires proof receipts and
-  rollback packets before promotion, and monitors promoted changes. See
+  code smells, generates staged cleanup/refactor plans, requires proof receipts
+  and rollback packets before promotion, and monitors promoted changes. See
   [`docs/AUTONOMOUS_ARCHITECTURE_GOVERNOR.md`](docs/AUTONOMOUS_ARCHITECTURE_GOVERNOR.md).
 - `core/runtime/autonomy_conductor.py` and `core/runtime/activation_audit.py`
-  make proof, validation, metabolic, scar, and repair checks recurring runtime
+  make proof, validation, resource, scar, and repair checks recurring runtime
   jobs instead of optional scripts.
 - `core/runtime/overt_action_loop.py` is the practical "what does she do?"
   path. It takes one authorized initiative, chooses a real registered skill,
   executes it through CapabilityEngine/Will/tool governance, verifies the
-  returned evidence, emits ToolExecution and Autonomy receipts, records a
-  LifeTrace action, and advances the linked goal. This is the visible
-  observe -> choose -> act -> verify -> remember loop.
+  returned evidence, emits receipts, records the action, and advances the
+  linked goal. This is the visible observe → choose → act → verify → remember
+  loop.
 - `core/adaptation/online_lora_governor.py` connects Will-approved
   self-reflections to small LoRA update attempts. It refuses to start while an
   existing `mlx_lm lora` process is active, so long training runs are preserved.
 - `core/goals/default_goals.py` seeds durable, tool-attached IN_PROGRESS goals
   for repair, proof upkeep, sensor grounding, and architecture improvement at
-  boot. Those goals are what keep the initiative funnel overtly active after
-  restarts.
+  boot. Those goals are what keep the initiative funnel active after restarts.
 - The full memory architecture (episodic, semantic, vector, knowledge graph,
-  WAL, three-layer atoms), the goal/will/decision-authority stack, and the
-  cognitive WAL are all real production code. Vector embeddings are no longer
-  tracked as plaintext JSON arrays; local fallback vector persistence uses
-  SQLite rows with `float32` embedding BLOBs via
-  `core/memory/sqlite_vector_store.py`.
+  write-ahead log, three-layer knowledge atoms), the goal/will/decision stack,
+  and the cognitive write-ahead log are all real production code. Vector
+  embeddings are stored as efficient binary blobs in SQLite via
+  `core/memory/sqlite_vector_store.py`, not as plaintext JSON arrays.
 
 **Evidence boundaries on the production parts:**
 
-- φ is computed over **cognitive-affective state nodes and sampled mesh
+- φ is computed over **cognitive-emotional state nodes and sampled mesh
   neurons**, not at the level of intrinsic mechanisms that strict IIT 4.0
   prescribes. The φ values are mathematically meaningful as integration
   measures over the system's own state-space; they are not a claim of
   integrated information in the strict Tononi/Albantakis/Haun sense.
-- CAA credit requires `CAA_32B_RESULTS.json`: steered 32B behavior must diverge
-  from unsteered baseline, beat a rich text comparator, generalize to held-out
-  tasks, preserve output quality, show coherent geometry, and survive
-  black-box prompt hygiene.
-- STDP credit requires `STDP_EXTERNAL_VALIDATION.json`: environment-trained
-  plasticity must beat self-generated, frozen, and shuffled controls on
-  held-out prediction without raising instability.
+- Steering credit requires `CAA_32B_RESULTS.json`: steered behavior on the
+  32B model must differ from unsteered baseline, beat a rich text comparator,
+  generalize to held-out tasks, preserve output quality, show coherent
+  geometry, and survive black-box prompt hygiene.
+- Plasticity credit requires `STDP_EXTERNAL_VALIDATION.json`:
+  environment-trained plasticity must beat self-generated, frozen, and
+  shuffled controls on held-out prediction without raising instability.
 
 **Test attestation:** `make proof-bundle` writes the current evidence bundle:
 `DECISIVE_RESULTS.json`, `CAA_32B_RESULTS.json`,
@@ -234,57 +237,67 @@ from how confident the prose sounds.
 
 Full page: [docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md).
 
-The question: a frozen 32B checkpoint is a fixed-depth pipeline — 64 layers,
-once, per token. **Can you make it think longer on a hard problem without
-changing a single stored weight?**
+The question: a frozen 32B model is a fixed-depth pipeline — 64 layers,
+applied once per token. **Can you make it think longer on a hard problem
+without changing any stored weights?**
 
-Two mechanisms have now answered it, and they answered differently. The first
-was a **frozen loop**: thought slots seeded beside the prompt, a window of
-middle layers run over them repeatedly under a schedule program, the refined
-slots' K/V persisted so every generated token attends to them. Checkpoint bytes
-are hash-checked before and after every episode; episode-scoped fast weights are
-provably erased; equal-FLOP accounting is first-class so "more compute helped"
-can't be mistaken for "the architecture helped."
+Two approaches have been tried, and they gave different answers.
 
-The preregistered campaign — seed committed before any task was generated, n=24
-per family, Holm-corrected — refuted it. *On an untrained-for-recurrence
-checkpoint at this scale, the frozen loop does not merely fail to help — it
-hurts.*
+### Approach 1: Frozen Loop (didn't work)
 
-That produced an architectural explanation. The answer tokens had always
-traversed the middle block exactly once, so no depth was ever applied to the
-answer's own computation. Only the scratchpad was recurring. The second
-mechanism, **trained intrinsic recurrence**
-([docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md)), makes the real
-token stream re-enter the middle block, so a 64-layer checkpoint runs 160 layers
-deep at T=4 with the same weights, and trains it on typed, exactly checkable
-program traces instead of answers. That training path is distinct from the
-typed semantic-machine evidence below. CP566 measured a learned semantic
-machine whose terminal state conditioned the model's answer decode; it did
-not isolate a gain from repeated middle-layer passes in the resident model.
+The first approach was a **frozen loop**: thought slots placed beside the
+prompt, a window of middle layers run over them repeatedly on a schedule,
+with the refined slots' key-value states persisted so every generated token
+can attend to them. Model weights are hash-checked before and after every
+episode to prove nothing changed; episode-scoped fast weights are provably
+erased; equal-compute accounting is built in so "more compute helped" can't
+be mistaken for "the architecture helped."
+
+The pre-registered experiment — seed committed before any task was generated,
+n=24 per family, with statistical corrections — refuted it. *On a model that
+wasn't trained for recurrence at this scale, the frozen loop doesn't just
+fail to help — it hurts.*
+
+The explanation: answer tokens only ever traversed the middle block once,
+so no extra depth was applied to the actual answer computation. Only the
+scratchpad was recurring.
+
+### Approach 2: Trained Intrinsic Recurrence (promising, bounded)
+
+The second approach, **trained intrinsic recurrence**
+([docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md)), makes the
+real token stream re-enter the middle block, so a 64-layer model effectively
+runs 160 layers deep at T=4 with the same weights, and trains it on typed,
+exactly-checkable program traces instead of answers. This training path is
+separate from the typed semantic-machine evidence below. CP566 measured a
+learned semantic machine whose terminal state conditioned the model's answer;
+it did not isolate a gain from repeated middle-layer passes in the resident
+model.
 
 The [frozen RLC baseline](docs/evidence/G01_RLC_BASELINE_2026-09-08.md)
-records the evidence available on 2026-09-08 and its mechanism boundaries.
+records the evidence available on 2026-09-08 and its limitations.
 The fresh v16 natural-language replication reached **26/96** exact answers,
-below its preregistered **48/96** floor; ordinary decode was not run after
-that futility stop. The v19 repair reached **93/96** on the exposed development
-cohort, with coefficient lesion **0/96**. That development result still needs
-fresh replication. Neither record establishes broad reasoning gain or grants
-serving authority.
+below its pre-registered **48/96** floor; ordinary generation was not run
+after that futility stop. The v19 repair reached **93/96** on the exposed
+development set, with coefficient ablation **0/96**. That development result
+still needs fresh replication. Neither record establishes broad reasoning
+gain or grants serving authority.
 
-| | |
+### Results summary
+
+| What was tested | Verdict |
 |---|---|
 | Mechanics (KV rewind, stability bounds, slot ablation moving the answer distribution, erasure, invariants) | **PROVEN** on real MLX weights |
 | Live runtime integration on the resident 32B | **PROVEN** |
 | Capability gain, **frozen** loop, 1.5B | **REFUTED** — vanilla 21/72 beat every one of 7 latent arms (7–13/72) |
 | Capability gain, **frozen** loop, 32B | **CONJECTURE**, negative point estimate — latent 0.375 vs vanilla 0.417, overlapping intervals |
-| Capability gain, typed semantic machine plus state-conditioned decode, 32B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 16/60 for ordinary decode, lesion-dependent, *p* = 5.7 × 10⁻¹⁴ |
-| Cross-generation recovery, trained semantic tissue, 27B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 0/60 ordinary decode on a separate fresh cohort; wire 6, coefficient lesion 4, wrong-state 0; *p* = 8.67 × 10⁻¹⁹ |
-| Family-blind procedure acquisition into neural tissue | **SUPPORTED, BOUNDED** — one depth-2 procedure induced from 16 examples, then 96/96 exact on fresh inputs; coefficient and wrong-input controls failed 96/96, no-procedure solved 1/96, shuffled-output nulls found 0/15 |
-| Resident decode of the induced neural procedure | **SUPPORTED, BOUNDED** — treatment 8/8, ordinary 1/8, wire 1/8, coefficient lesion 1/8, wrong-input 0/8, wrong-state 0/8; seven gains, no regressions, *p* = 0.0078125 |
-| Resident 27B language-to-program transfer | **SUPPORTED, BOUNDED** — exact execution emitted 134/256 held-out answers from learned model-bound semantics; exact program recovery was 133/256, against hidden-state shuffle 14/256, coefficient lesion 0/256 and label permutation 4/256 |
-| Frozen fresh-cohort semantic transfer | **SUPPORTED, REPLICATED, BOUNDED** — the unchanged transducer emitted 114/256 exact held-out answers on a separately seeded numeric cohort after a clean worker restart, against hidden-state shuffle 10/256 and coefficient lesion 0/256 |
-| Shared variable-geometry semantic programs | **SUPPORTED, BOUNDED** — one transducer with no family router recovered 258/368 complete programs and exact execution emitted 292/368 answers across arithmetic, sequence and fork/join geometries; hidden-token shuffle 0/368 and coefficient lesion 0/368, paired exact *p* = 2.16 × 10⁻⁷⁸ |
+| Capability gain, typed semantic machine + state-conditioned decode, 32B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 16/60 for ordinary decode, ablation-dependent, *p* = 5.7 × 10⁻¹⁴ |
+| Cross-generation recovery, trained semantic tissue, 27B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 0/60 ordinary decode on a separate fresh set; wire 6, coefficient ablation 4, wrong-state 0; *p* = 8.67 × 10⁻¹⁹ |
+| Family-blind procedure learning into neural tissue | **SUPPORTED, BOUNDED** — one depth-2 procedure learned from 16 examples, then 96/96 exact on fresh inputs; coefficient and wrong-input controls failed 96/96, no-procedure solved 1/96, shuffled-output nulls found 0/15 |
+| Resident decode of the learned neural procedure | **SUPPORTED, BOUNDED** — treatment 8/8, ordinary 1/8, wire 1/8, coefficient ablation 1/8, wrong-input 0/8, wrong-state 0/8; seven gains, no regressions, *p* = 0.0078125 |
+| Resident 27B language-to-program transfer | **SUPPORTED, BOUNDED** — exact execution emitted 134/256 held-out answers from learned model-bound semantics; exact program recovery was 133/256, against hidden-state shuffle 14/256, coefficient ablation 0/256 and label permutation 4/256 |
+| Frozen fresh-cohort semantic transfer | **SUPPORTED, REPLICATED, BOUNDED** — the unchanged transducer emitted 114/256 exact held-out answers on a separately seeded numeric set after a clean worker restart, against hidden-state shuffle 10/256 and coefficient ablation 0/256 |
+| Shared variable-geometry semantic programs | **SUPPORTED, BOUNDED** — one transducer with no family router recovered 258/368 complete programs and exact execution emitted 292/368 answers across arithmetic, sequence and fork/join geometries; hidden-token shuffle 0/368 and coefficient ablation 0/368, paired exact *p* = 2.16 × 10⁻⁷⁸ |
 | Learned programs on the universal floor | **SUPPORTED, BOUNDED** — all 368/368 accepted frozen test programs had identical outcomes under the existing exact executor and Aura's universal metered floor: 366 matching values and two matching typed refusals across all three families, with 20/20 primitive semantics covered |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
@@ -293,124 +306,124 @@ uses the resident model's own language pathway and role-relative program
 registers. Source-selected adaptation reaches **46/50** on an exposed proposal
 bank against incumbent 41/50 and unfitted 39/50, with one regression. A matched
 [fitting-source erasure control](docs/evidence/G06_NATIVE_SOURCE_ERASURE_RESULT_2026-09-26.md)
-gets the same 46 correctness outcomes, so that gain cannot be attributed to
+gets the same 46 correct outcomes, so that gain cannot be attributed to
 newly learned source meaning. Target-blind decoding reached 72/72 on an easier
-fixed-template development cohort, but the wider
+fixed-template development set, but the wider
 [retained canary](docs/evidence/G03_NATIVE_RETAINED_CANARY_2026-09-26.md)
 returns only 10/14 procedure matches and 11/14 provably equivalent answers.
 None is a promoted candidate or broad/frontier reasoning result.
 
 `BOUNDED_WOW_SIGNAL` is the adjudicator's own verdict string, and *bounded* is
-load-bearing: the limitations line ships inside the same receipt as the verdict.
+the key word: the limitations ship inside the same receipt as the verdict.
 
-On a frozen four-domain cohort of 60 typed tasks — coding, calibration,
-misleading premise, scientific inference — the semantic-machine treatment answered 60/60
-exactly against 16/60 for ordinary decode, with a matched wire base at 7, a
-coefficient lesion at 5, and a wrong-state control at 0. Forty-four ordinary
-failures converted, none regressed, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. The
-coefficient lesion reduces the result, which supports dependence on those
-learned coefficients within this experiment. State conditioning, formatting
-assistance and retries remain part of the recorded treatment contract;
-equal-compute broad reasoning comparisons remain a separate requirement.
+**The four-domain experiment in detail:** On a frozen set of 60 typed tasks —
+coding, calibration, misleading premise, scientific inference — the
+semantic-machine treatment answered 60/60 exactly against 16/60 for ordinary
+decode, with a matched wire base at 7, a coefficient ablation at 5, and a
+wrong-state control at 0. Forty-four ordinary failures converted, none
+regressed, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. The coefficient ablation
+reduces the result, supporting dependence on those learned coefficients within
+this experiment. State conditioning, formatting assistance and retries remain
+part of the recorded treatment contract; equal-compute broad reasoning
+comparisons remain a separate requirement.
 
-The 2026-08-24 cortex migration then repeated that bounded claim on the fused
-Qwen3.8-27B resident model. A separately seeded 60-task, 300-decode campaign
-returned treatment 60/60, ordinary decode 0/60, matched wire 6/60,
-coefficient lesion 4/60, and wrong-state 0/60, with no regressions and exact
-one-sided *p* = 8.67 × 10⁻¹⁹. Independent verification replayed all 300 journal
-rows before the frozen adjudicator returned `BOUNDED_WOW_SIGNAL` again. This
-is evidence that the bounded typed tissue/executor mechanism is portable
-across two model generations; it is not a head-to-head 27B-versus-32B quality
-benchmark because the cohorts and model identities differ.
-The ordinary 27B arm produced no parseable final answers under that campaign's
-decode contract. Its 0/60 therefore cannot establish lack of knowledge or
-performance under a different completion budget.
+**The 27B cross-generation replication:** The 2026-08-24 cortex migration
+repeated that bounded claim on the fused Qwen3.8-27B resident model. A
+separately seeded 60-task, 300-decode campaign returned treatment 60/60,
+ordinary decode 0/60, matched wire 6/60, coefficient ablation 4/60, and
+wrong-state 0/60, with no regressions and exact one-sided *p* = 8.67 × 10⁻¹⁹.
+Independent verification replayed all 300 journal rows before the frozen
+adjudicator returned `BOUNDED_WOW_SIGNAL` again. This shows the bounded
+typed-tissue/executor mechanism works across two model generations; it is
+not a head-to-head 27B vs 32B quality benchmark because the test sets and
+models differ. The ordinary 27B arm produced no parseable answers under that
+campaign's decode contract. Its 0/60 therefore cannot establish lack of
+knowledge or performance under a different completion budget.
 
-The next bridge now works without a family-specific compiler. A generic
-enumerative inducer received sixteen input-output examples, no family label and
-no family solver, froze `idiv(add(in0, in1), in2)`, and passed it through a
-family-blind SSA lowerer into the existing learned arithmetic tissue. That path
-was exact on 96/96 fresh inputs. Coefficient and guaranteed-wrong-input lesions
-disrupted all 96, the no-procedure control solved 1/96, no depth-one shortcut
-fit, and fifteen shuffled-output searches found no program. This establishes
-bounded procedure acquisition and neural execution over a fixed primitive
-vocabulary.
+**Family-blind procedure learning:** A generic enumerative inducer received
+sixteen input-output examples, no family label and no family solver, froze
+`idiv(add(in0, in1), in2)`, and passed it through a family-blind SSA lowerer
+into the existing learned arithmetic tissue. That path was exact on 96/96
+fresh inputs. Coefficient and guaranteed-wrong-input ablations disrupted all
+96, the no-procedure control solved 1/96, no depth-one shortcut fit, and
+fifteen shuffled-output searches found no program. This establishes bounded
+procedure learning and neural execution over a fixed set of primitive
+operations.
 
-A second frozen canary carried that same induced program and authenticated
-neural result through the fused resident 27B's answer surface. Treatment was
-8/8 exact against 1/8 ordinary decode; syntax-only wire and coefficient lesion
-were also 1/8, while wrong-input and wrong-state controls were 0/8. Seven
-ordinary failures converted with no regressions, exact paired one-sided
-*p* = 0.0078125. Independent replay reconstructed all 48 decodes and the
-50-event journal. This does not establish natural-language compilation,
-open-domain reasoning, unrestricted serving, static fusion or frontier
-performance.
+A second frozen canary carried that same learned program through the fused
+resident 27B's answer surface. Treatment was 8/8 exact against 1/8 ordinary
+decode; syntax-only wire and coefficient ablation were also 1/8, while
+wrong-input and wrong-state controls were 0/8. Seven ordinary failures
+converted with no regressions, exact paired one-sided *p* = 0.0078125.
+Independent replay reconstructed all 48 decodes and the 50-event journal.
+This does not establish natural-language compilation, open-domain reasoning,
+unrestricted serving, static fusion or frontier performance.
 
-The next bridge learns semantics from the resident 27B's own hidden language
-state. A generic linear transducer learned token spans, primitive operations
-and register arguments from five construction families without expected
-answers. On four held-out construction combinations, exact objective execution
-emitted 134/256 correct answers and recovered 133/256 complete programs.
-Hidden-token shuffle reached 14/256, coefficient lesion 0/256 and label
-permutation 4/256. An independent, source-bound replay reloaded all 576 feature
-records, reproduced the coefficients and report exactly, and recounted all
-1,344 task-arm rows. The result is bounded to the synthetic arithmetic grammar;
-serving and broad-domain transfer remain open.
-The campaign was reverified after the replication tooling changed two bound
-source files; the first certificate remains the immutable historical record,
-and the current claim reads the certificate bound to the exact measured commit.
-Later source evolution cannot rewrite that historical result or grant serving
-authority to a different implementation.
+**Language-to-program transfer:** A generic linear transducer learned token
+spans, primitive operations and register arguments from five construction
+families without expected answers. On four held-out construction combinations,
+exact execution emitted 134/256 correct answers and recovered 133/256 complete
+programs. Hidden-token shuffle reached 14/256, coefficient ablation 0/256 and
+label permutation 4/256. An independent, source-bound replay reloaded all 576
+feature records, reproduced the coefficients and report exactly, and recounted
+all 1,344 task-arm rows. The result is bounded to the synthetic arithmetic
+grammar; serving and broad-domain transfer remain open. The campaign was
+re-verified after tooling changes; the first certificate remains the immutable
+historical record, and the current claim reads the certificate bound to the
+exact measured commit.
 
-The coefficients were then frozen and evaluated on a separately seeded cohort
-with no task overlap. A clean worker restart changed its process identity but
-left the complete neural-function basis identical. Without fitting or refitting,
-exact execution emitted 114/256 held-out answers; hidden-state shuffle reached
-10/256 and coefficient lesion 0/256. Independent verification reloaded both
-576-record bundles, replayed the frozen result exactly, and recounted 1,728
-task-arm rows. This establishes fresh-example reuse inside the same bounded
-language and primitive system. It does not establish new procedure families,
-open-domain transfer, or serving authority.
+**Fresh-cohort replication:** The coefficients were frozen and evaluated on a
+separately seeded set with no task overlap. A clean worker restart changed its
+process identity but left the complete neural-function basis identical.
+Without fitting or refitting, exact execution emitted 114/256 held-out answers;
+hidden-state shuffle reached 10/256 and coefficient ablation 0/256. Independent
+verification reloaded both 576-record bundles, replayed the frozen result
+exactly, and recounted 1,728 task-arm rows. This establishes fresh-example
+reuse inside the same bounded language and primitive system. It does not
+establish new procedure families, open-domain transfer, or serving authority.
 
-The fixed-geometry boundary has also moved. One shared transducer now receives
+**Variable-geometry programs:** One shared transducer now receives
 tokenizer-grounded typed inputs and learns the remaining program structure from
-resident 27B hidden states. It predicts how many steps are present, which
-primitive each step applies, and whether each argument refers to an input or an
-earlier result. The same coefficient set handles two-step arithmetic,
-two-step sequence programs and three-step fork/join arithmetic without a family
-router. On held-out constructions it recovered 258/368 complete programs, and
-exact execution emitted 292/368 correct answers. Hidden-token shuffle and
-coefficient lesion each recovered 0/368 programs; both paired exact tests gave
-*p* = 2.16 × 10⁻⁷⁸. This establishes learned variable program geometry over the
-declared typed vocabulary. A new schema still needs support examples, and this
-result grants neither serving authority nor a broad natural-language claim.
+resident 27B hidden states. It predicts how many steps, which primitive each
+step applies, and whether each argument refers to an input or an earlier result.
+The same coefficient set handles two-step arithmetic, two-step sequence programs,
+and three-step fork/join arithmetic without a family router. On held-out
+constructions it recovered 258/368 complete programs, and exact execution
+emitted 292/368 correct answers. Hidden-token shuffle and coefficient ablation
+each recovered 0/368 programs; both paired exact tests gave
+*p* = 2.16 × 10⁻⁷⁸. This establishes learned variable-geometry programs over
+the declared typed vocabulary. A new schema still needs support examples, and
+this result grants neither serving authority nor a broad natural-language claim.
 
-Those learned programs no longer stop at a separate Python operation table.
-Every declared integer and sequence primitive now compiles into Aura's universal
-metered floor, along with the learned SSA references and typed public inputs. A
-separate no-refit replay compared both engines on all 368 accepted frozen test
-programs: 366 produced the same value and two produced the same typed refusal,
-for 368/368 agreement across arithmetic, sequence and fork/join. All 20 declared
-primitives have both floor semantics and a type signature; a new primitive
-without either is refused. The neural front end and endogenous substrate now
-share execution semantics. Later v14 evidence recovered **79/96** programs and
-answers on a fresh, fit-withheld synthetic program family using shared
-primitives. Its endogenous replay also reached **79/96**, versus **0/96**
-under coefficient lesion. Open-domain schema acquisition remains unproven.
+**Universal floor execution:** Those learned programs no longer stop at a
+separate Python operation table. Every declared integer and sequence primitive
+now compiles into Aura's universal metered floor, along with the learned SSA
+references and typed public inputs. A separate no-refit replay compared both
+engines on all 368 accepted frozen test programs: 366 produced the same value
+and two produced the same typed refusal, for 368/368 agreement across
+arithmetic, sequence and fork/join. All 20 declared primitives have both floor
+semantics and a type signature; a new primitive without either is refused. The
+neural front end and endogenous substrate now share execution semantics. Later
+v14 evidence recovered **79/96** programs and answers on a fresh,
+fit-withheld synthetic program family using shared primitives. Its endogenous
+replay also reached **79/96**, versus **0/96** under coefficient ablation.
+Open-domain schema learning remains unproven.
 
 One family — misleading premise — gained nothing, and the reason is worth
-stating rather than averaging away: ordinary decode was already at ceiling there
-(15/15), and the controller preserved all fifteen instead of manufacturing a
-gain by regressing its own baseline. The other three families supplied the 44.
+stating rather than averaging away: ordinary decode was already at ceiling
+there (15/15), and the controller preserved all fifteen instead of
+manufacturing a gain by regressing its own baseline. The other three families
+supplied the 44.
 
-It has dated serving-path qualification. `semantic_neural_serving.py` refuses to
-serve unless a descriptor-bound activation record says `active_by_default`.
-The CP1011 27B package is `rlc-27b-recovery-05346acd618d1c925f16`; its recorded runtime
-verification is 120/120 exact, 120/120 lesion-disrupted, 120/120 through both
-foreground and service integrations, and unsupported language refused, at a
-9.229 / 38.696 ms median / maximum. These are qualification measurements, not
-a live-status probe. Present activation must be checked against the running
-process, source revision, model identity and eligible-request receipt.
+It has dated serving-path qualification. `semantic_neural_serving.py` refuses
+to serve unless a descriptor-bound activation record says `active_by_default`.
+The CP1011 27B package is `rlc-27b-recovery-05346acd618d1c925f16`; its recorded
+runtime verification is 120/120 exact, 120/120 ablation-disrupted, 120/120
+through both foreground and service integrations, and unsupported language
+refused, at a 9.229 / 38.696 ms median / maximum. These are qualification
+measurements, not a live-status probe. Present activation must be checked
+against the running process, source revision, model identity and
+eligible-request receipt.
 
 It is still not a broad reasoning gain, not static fusion, not frontier
 performance, and it still cannot answer ordinary chat — admission is decided
@@ -418,11 +431,11 @@ by an answer-blind parser over the task grammar, and unsupported language
 never reaches the lane.
 
 Before you read either page: the two negative results from the August
-reconciliation campaign — a 13-vs-5 and its 9-vs-4 reproduction — were **void**,
-because the promotion gate had been wired to the one decode policy that removes
-the vanilla floor. A win had been structurally impossible there, and those two
-runs measured a system that was never switched on. The July preregistration
-above is untouched by that defect and its verdicts stand.
+reconciliation campaign — a 13-vs-5 and its 9-vs-4 reproduction — were
+**void**, because the promotion gate had been wired to the one decode policy
+that removes the vanilla floor. A win had been structurally impossible there,
+and those two runs measured a system that was never switched on. The July
+pre-registration above is untouched by that defect and its verdicts stand.
 [docs/RLC_RECONCILIATION.md](docs/RLC_RECONCILIATION.md) has the fourteen
 defects in dependency order.
 
@@ -430,9 +443,9 @@ defects in dependency order.
 
 ## Language substrate and generality
 
-The question: can Aura learn a new representation from experience, invent a
-reusable abstraction, apply it in an unrelated domain, and improve at doing
-this again?
+The question: can Aura learn a new way of representing knowledge from
+experience, invent a reusable abstraction, apply it in an unrelated domain,
+and get better at doing this over time?
 
 **Relation induction** — `core/cognition/relation_language.py` learns
 structured transformation rules from paired observations. Validated on
@@ -449,7 +462,7 @@ on 1,629 live turns (9B lane): held-out gain 0.0208 nats, paired recovery
 54.0% (p = 0.043). No generation has been biased by the pathway yet.
 
 **Ghost substrate** — `core/ghost/` (6 modules). Hash-chained continuity across
-substrate swaps. Four organs: causal integration, ghost line, hack guard,
+substrate swaps. Four components: causal integration, ghost line, hack guard,
 provenance.
 
 **Whole-system Φ and Inner Light** — honest integration measurement, not a
@@ -463,17 +476,17 @@ Full details: [docs/LANGUAGE_SUBSTRATE_AND_GENERALITY.md](docs/LANGUAGE_SUBSTRAT
 
 ## Why Aura is Different
 
-Most "AI companion" projects do the same thing. Store a mood number. Paste it
-into the system prompt. Let the model act it out. The model says it's feeling
+Most "AI companion" projects do the same thing: store a mood number, paste it
+into the system prompt, let the model act it out. The model says it's feeling
 energetic because it read the words "feeling energetic."
 
-That's a costume. This is built the other way around.
+That's a costume. Aura is built the other way around.
 
-When Aura is in an affective state, that state becomes a direction vector
+When Aura is in an emotional state, that state becomes a direction vector
 added to the transformer's hidden activations during generation. The model's
-internal computation changes, not the text it's reading. Same family of
-techniques interpretability researchers use to steer behavior — CAA,
-activation addition, residual-stream interventions.
+internal computation changes — not just the text it reads. This is the same
+family of techniques interpretability researchers use to steer behavior (CAA,
+activation addition, residual-stream interventions).
 
 Underneath that, a substrate that never stops. Emotions decay and pull on
 each other. Neurochemicals rise and fall on their own clocks. A global
@@ -490,7 +503,7 @@ It's a research project. It's also one you can talk to while it's running.
 - [Quick start](#quick-start)
 - [Evidence boundary](#evidence-boundary)
 - [Behavioral proof standard](docs/BEHAVIORAL_PROOF_STANDARD.md)
-- [Recursive Latent Cortex](#recursive-latent-cortex) — the flagship research programme
+- [Recursive Latent Cortex](#recursive-latent-cortex) — the flagship research program
 - [Language substrate and generality](#language-substrate-and-generality) — learning new abstractions from experience
 - [Tracked vs local workspace](#tracked-vs-local-workspace)
 - [Architecture overview](#architecture-overview)
@@ -501,7 +514,7 @@ It's a research project. It's also one you can talk to while it's running.
 - [Consciousness modules](#consciousness-modules)
 - [Reality Reach and physical claim honesty](docs/REALITY_REACH.md)
 - [Memory architecture](docs/MEMORY_ARCHITECTURE.md) — the 116-module memory subsystem
-- [RSI architecture](docs/RSI_ARCHITECTURE.md) — recursive self-improvement pipeline and safety boundaries
+- [RSI architecture](docs/RSI_ARCHITECTURE.md) — self-improvement pipeline and safety boundaries
 - [Reasoning engines](docs/REASONING_ENGINES.md) — deterministic reasoning, sandboxed execution, and what's out of the model's hands
 - [Documentation status map](docs/DOC_STATUS.md) — which docs are current, historical, or generated
 - [Docs index](docs/README.md) · [Changelog](CHANGELOG.md) · [Agent guide](AGENTS.md)
@@ -546,18 +559,17 @@ primary model is `Aura-Cortex` (fused Qwen3.8-27B, migrated from the historical
 takes 30–60 seconds while Metal compiles shaders.
 
 Hardware honesty: Bryan's target machine is an M5-class Apple Silicon Mac with
-64 GB unified memory. The 27B Cortex is viable there as a primary conversation
+64 GB unified memory. The 27B Cortex works there as a primary conversation
 lane, while heartbeat/background work still belongs to the substrate, Brainstem,
 or Reflex lanes. On lower-memory machines, the hardware auditor rejects heavy
-resident weights as real-time heartbeat tiers; use the 1.5B or 9B lanes
-there.
+weights for real-time tiers; use the 1.5B or 9B lanes there.
 
 There's also a `Dockerfile` and `docker-compose.yml` if you want Redis and Celery
-running alongside. The tracked workspace defaults to an explicit
-`owner_autonomous` posture for this single-owner machine: autonomy on,
-outbound/network-enabled skills available, and self-repair left active. If you
-want a tighter deployment, override the `AURA_*` security settings in your local
-environment, including `AURA_INTERNAL_ONLY=1` for localhost-only binding.
+running alongside. The tracked workspace defaults to `owner_autonomous` posture
+for this single-owner machine: autonomy on, outbound/network-enabled skills
+available, and self-repair left active. If you want a tighter deployment,
+override the `AURA_*` security settings in your local environment, including
+`AURA_INTERNAL_ONLY=1` for localhost-only binding.
 
 ---
 
@@ -569,24 +581,23 @@ Canonical skills live under `core/skills/`. The top-level `skills/` package
 is a compatibility layer for older imports and nothing new should go there.
 
 If you're auditing: a local workspace can hold private modules listed in
-`.gitignore`. They aren't in the tracked review
-surface, and they can change the risk profile of that specific machine.
-Reading this repo tells you about this repo. If you're auditing a real
-deployment, read the disk too.
+`.gitignore`. They aren't in the tracked review surface, and they can change
+the risk profile of that specific machine. Reading this repo tells you about
+this repo. If you're auditing a real deployment, read the disk too.
 
-**The reproducibility consequence, stated rather than implied.** Because of the
-above, plus model weights, plus the local vector stores and the 6.5M-document
+**The reproducibility consequence, stated plainly.** Because of the above,
+plus model weights, plus the local vector stores and the 6.5M-document
 corpus, none of which are in git: *the public source is not sufficient to
 reproduce a demonstration from this repository.* A third party cannot verify
 from the tracked tree alone what ran. That is a real limitation of every result
-here, not a caveat on some of them, and it is why every claim in
+here — not a caveat on some of them — and it's why every claim in
 `CLAIMS_MATRIX.md` that rests on a local run is classified `locally
-demonstrated` — "passed on this machine, this profile, this project's battery"
-— rather than demonstrated.
+demonstrated` ("passed on this machine, this profile, this project's battery")
+rather than independently demonstrated.
 
-Closing it needs a frozen release pinning exact model hashes, vector-store
+Closing this gap needs a frozen release pinning exact model hashes, vector-store
 hashes and configuration, plus an independent run on a third-party machine.
-Neither exists. Until they do, "external validation" stays `not proven`
+Neither exists yet. Until they do, "external validation" stays `not proven`
 (claim 12), and no amount of local evidence changes that, because local
 evidence is the thing being questioned.
 
@@ -607,8 +618,8 @@ Every tick is event-sourced. Each phase produces a new immutable state
 version, the tick holds a lock while the pipeline runs, state commits to
 SQLite, the lock releases.
 
-Crash in the middle of that and the WAL replays on restart. No half-written
-thought survives.
+Crash in the middle of that and the write-ahead log replays on restart. No
+half-written thought survives.
 
 ### Kernel (`core/kernel/`)
 Tick-based cognitive cycle. One tick = one unit of thought. Phases run in order,
@@ -624,7 +635,8 @@ Local LLM router with automatic failover:
 3. **Tertiary (Brainstem)** — Qwen 3.5 9B 4-bit, lazy-loaded to save memory for
    the Cortex, with explicit reasoning-mode control.
 4. **Reflex** — Qwen 2.5 1.5B 4-bit on CPU as an emergency fallback.
-5. **Cloud** — Gemini Flash/Pro, PII-scrubbed and rate-limited. Off by default.
+5. **Cloud** — Gemini Flash/Pro, with personal info scrubbed and rate-limited.
+   Off by default.
 6. **Last resort** — rule-based static responses that can't fail.
 
 Lane names map to `core/config.py`: `fast_model` is the Cortex
@@ -633,37 +645,37 @@ Lane names map to `core/config.py`: `fast_model` is the Cortex
 `chat_model` the Brainstem (`Qwen3.5-9B-4bit`), and `vision_model` is
 pinned to the Cortex build so vision and conversation share one identity.
 
-Two non-LLM lanes were replaced in August 2026, each on a measurement:
+Two non-LLM lanes were replaced in August 2026 based on measurements:
 
 - **Speech-to-text** is one streaming-native Parakeet TDT pass
   (`core/voice/duplex/streaming_asr.py`) serving both duplex stages, replacing
   a two-stage Whisper setup (`small.en` for partials, `large-v3-turbo` for the
   final). Measured on this host over 12.4s of real speech, median of 5 warm
   runs: Parakeet 166 ms vs Whisper-small 193 ms vs Whisper-large-v3-turbo
-  317 ms. One decode is cheaper than the incumbent *partial* and about half the
-  incumbent *final*, so both stages run the same weights on one model-lane
-  lease. `faster_whisper` remains as the CPU fallback.
+  317 ms. One decode is cheaper than the old partial and about half the
+  old final, so both stages run the same weights on one model-lane lease.
+  `faster_whisper` remains as the CPU fallback.
 - **Embeddings** are `Qwen3-Embedding-0.6B` at 384 dimensions
   (`core/memory/embedding_model.py`), replacing `all-MiniLM-L6-v2`. MiniLM
   declares `max_seq_length: 256` while the ingestion path chunks at 800 words —
   1,122 tokens through the model's own tokenizer, so **77% of every full chunk
   never reached the encoder**, silently. On four documents whose distinguishing
-  sentence sits past token 256, MiniLM scored 1/4 on tail retrieval (chance —
-  it ranked the same document first every time) against Qwen3's 3/4, at 10.7
-  vs 20.2 ms/query.
+  sentence sits past token 256, MiniLM scored 1/4 on tail retrieval (it ranked
+  the same document first every time) against Qwen3's 3/4, at 10.7 vs 20.2
+  ms/query.
 
-**What this ladder costs, stated plainly.** It is good for availability and bad
-for attribution. A visible success can mean the Cortex answered; it can also
-mean the Cortex failed, the cognitive pipeline failed, steering never ran, and
-rung 4 or rung 6 produced the text you are reading. Those are very different
-events and they look identical in a transcript. The same is true of the
+**What this ladder costs, stated plainly.** It's good for availability and bad
+for attribution. A visible success could mean the Cortex answered; it could
+also mean the Cortex failed, the cognitive pipeline failed, steering never
+ran, and rung 4 or rung 6 produced the text you're reading. Those are very
+different events and they look identical in a transcript. The same is true of
 post-generation shaping in the chat route — intent classifiers, canonical
-answer contracts, identity and shape repair, retries — any of which can replace
-what the machinery actually produced.
+answer contracts, identity and shape repair, retries — any of which can
+replace what the machinery actually produced.
 
-So: **a transcript without lane and phase provenance is not evidence about the
-architecture**, and no demo in this repository should be read as one. Where a
-comparison is being made rather than a story told, the harness in
+So: **a transcript without lane and phase attribution is not evidence about
+the architecture**, and no demo in this repository should be read as one.
+Where a comparison is being made rather than a story told, the harness in
 `core/evaluation/matched_budget.py` counts fallbacks, retries and human
 intervention against the denominator and reports a `clean_success_rate`
 alongside the raw one — because a run that needed rescuing is not a run the
@@ -702,14 +714,14 @@ per tick.
 
 The live desktop Cortex uses Aura's Apple Silicon MLX runtime. Circuit breakers,
 a GPU semaphore, a proactive cortex watchdog, and 429 handling keep the pipeline
-from cascading into total failure when something misbehaves.
+from cascading when something misbehaves.
 
 ### Affect (`core/affect/`)
-A Plutchik 8-emotion model plus the somatic dimensions (energy, tension, valence,
-arousal). These values don't just color the prompt. They modulate sampling
-parameters (temperature, token budget, repetition penalty) via the affective
-circumplex, and they feed the steering engine that injects activation vectors
-into the residual stream.
+An 8-emotion model (based on Plutchik's wheel) plus somatic dimensions (energy,
+tension, valence, arousal). These values don't just color the prompt. They
+adjust sampling parameters (temperature, token budget, repetition penalty) via
+the affective circumplex, and they feed the steering engine that injects
+activation vectors into the model's hidden states.
 
 ### Identity (`core/identity.py`, `core/identity/heartstone.py`)
 An immutable constitutional core plus a mutable persona that drifts with sleep
@@ -719,7 +731,7 @@ toward the anchor.
 
 ### Agency (`core/agency/`)
 Self-initiated behavior scored along curiosity, continuity, social, and creative
-dimensions. Refusal is a real option here; it isn't content filtering, it's a
+dimensions. Refusal is a real option here — it isn't content filtering, it's a
 decision the agent can make. Volition levels 0–3 gate progressively autonomous
 behavior up to and including self-modification.
 
@@ -735,12 +747,12 @@ capability token and has to pass the Will gate.
 
 ### Orchestrator (`core/orchestrator/`)
 About 3,335 lines in `main.py` split across 11 mixins (6,300 lines total
-across all orchestrator modules): message handling,
-message pipeline, incoming logic, response processing, tool execution,
-autonomy, cognitive background, context streaming, learning and evolution,
-personality bridge, output formatting. Handlers under `orchestrator/handlers/`
-dispatch by message type. This is the glue between the tick pipeline, the
-LLM router, and the consciousness stack.
+across all orchestrator modules): message handling, message pipeline, incoming
+logic, response processing, tool execution, autonomy, cognitive background,
+context streaming, learning and evolution, personality bridge, output
+formatting. Handlers under `orchestrator/handlers/` dispatch by message type.
+This is the glue between the tick pipeline, the LLM router, and the
+consciousness stack.
 
 ### Somatic cortex (`core/somatic/`)
 A body-schema map of available capabilities, a capability-discovery daemon
@@ -773,12 +785,12 @@ FastAPI and WebSocket with streaming. The main UI is vanilla JS
 (`interface/static/aura.js`) with a live neural feed, telemetry, chat, and
 substrate visualization. The memory dashboard is React + Vite + Tailwind
 (`interface/static/memory/`). Routes cover chat, inner-state inspection,
-memory browsing, system management, and privacy. Parakeet TDT for STT.
+memory browsing, system management, and privacy. Parakeet TDT for speech-to-text.
 Hot-reload button in the UI for code changes.
 
 
 ### Memory (`core/memory/`)
-116 modules across four stratified tiers: working (in-process), episodic
+116 modules across four tiers: working (in-process), episodic
 (SQLite with emotional tags and recency ranking), semantic (vector search via
 `Qwen3-Embedding-0.6B` at 384 dimensions), and strategic (long-horizon goal
 state). Key subsystems include a hippocampal indexer, reconsolidation engine,
@@ -789,22 +801,23 @@ retention policies. The full memory architecture is documented in
 [docs/MEMORY_ARCHITECTURE.md](docs/MEMORY_ARCHITECTURE.md).
 
 ### Reasoning (`core/reasoning/`, `core/brain/reasoning_amplifier*.py`)
-Native deterministic reasoning engines that take hard problems out of the
-model's hands: a System-2 engine (`native_system2.py`, 80K bytes), a proof
-kernel, natural deduction, linear arithmetic, and a proof-answer solver. The
-Reasoning Amplifier v2 (`core/brain/reasoning_amplifier_v2.py`, 86K bytes)
+Built-in deterministic reasoning engines that handle hard problems without
+relying on the model: a System-2 engine (`native_system2.py`, 80K bytes), a
+proof kernel, natural deduction, linear arithmetic, and a proof-answer solver.
+The Reasoning Amplifier v2 (`core/brain/reasoning_amplifier_v2.py`, 86K bytes)
 runs five execution modes — FAST (1 candidate), NORMAL (3), DEEP (9 +
-Courtroom Judge), EXTREME (Courtroom + sandbox repair + memory), and PROOF
-(refuses to answer unless verifier-clean). An adversarial Courtroom
+adversarial Courtroom Judge), EXTREME (Courtroom + sandbox repair + memory),
+and PROOF (refuses to answer unless verifier-clean). An adversarial Courtroom
 (`core/brain/courtroom.py`) runs Solver/Skeptic/Judge roles on complex
 assertions. See [docs/REASONING_ENGINES.md](docs/REASONING_ENGINES.md).
 
 ### Verification (`core/verify/`)
-37 modules implementing an LLVM `-verify-each` structural validation
-discipline. 52 standing runtime invariants enforce service container acyclicity,
-lock ordering (lockdep with zero inversion errors), OOM spine immunity,
-and epistemic consistency. Any check that raises an unhandled exception is
-treated as a violation rather than a pass — there is no "unknown means okay."
+37 modules implementing structural validation discipline (modeled after
+LLVM's `-verify-each`). 52 standing runtime invariants enforce service
+container acyclicity, lock ordering (with zero inversion errors), OOM
+spine immunity, and epistemic consistency. Any check that raises an unhandled
+exception is treated as a violation rather than a pass — there is no
+"unknown means okay."
 
 ### Hardware acceleration (`rust_extensions/aura_m1_ext`)
 A Rust PyO3 crate linking macOS `pthread_set_qos_class_self_np` to schedule
@@ -818,7 +831,7 @@ caching.
 ## Decision authority
 
 Anything the system actually does — sending a response, calling a tool, writing
-a memory, starting an initiative, mutating state — has to pass through one
+a memory, starting an initiative, changing state — has to pass through one
 function: `UnifiedWill.decide()` in `core/governance/will.py` (`core/will.py` is the facade).
 
 ```
@@ -843,8 +856,8 @@ map of who owns what.
 ## Inference-time steering
 
 The steering engine (`core/consciousness/affective_steering.py`) hooks into
-MLX transformer blocks and adds learned direction vectors to the residual
-stream while tokens are being generated:
+MLX transformer blocks and adds learned direction vectors to the model's
+hidden states while tokens are being generated:
 
 ```python
 # Simplified from affective_steering.py
@@ -857,23 +870,23 @@ return h
 
 This is contrastive activation addition — the technique from Turner et al.
 2023, Zou et al. 2023, and Rimsky et al. 2024. The direction vectors come
-from the current affective state, and they get injected at configurable
+from the current emotional state, and they get injected at configurable
 layers.
 
 On top of that, the precision sampler
-(`core/consciousness/precision_sampler.py`) modulates temperature based on
-metabolic state (Pneuma arousal/circumplex) and modulates `top_p` based on MHAF
-topological attractor count, and the affective circumplex
+(`core/consciousness/precision_sampler.py`) adjusts temperature based on
+metabolic state (Pneuma arousal/circumplex) and adjusts `top_p` based on
+MHAF topological attractor count, and the affective circumplex
 (`core/affect/affective_circumplex.py`) maps somatic state to generation
 parameters.
 
-So there are three places affect can touch generation:
+So there are three places emotion can touch generation:
 
-1. **Residual stream** — activation vectors added to hidden states. Changes
-   what the model computes.
-2. **Sampling** — temperature and top-p modulated by affect. Changes how
-   tokens are chosen.
-3. **Context** — natural-language affective cues in the system prompt.
+1. **Hidden states** — activation vectors added to the model's internal
+   representations. Changes what the model computes.
+2. **Sampling** — temperature and top-p adjusted by emotional state. Changes
+   how tokens are chosen.
+3. **Context** — natural-language emotional cues in the system prompt.
    Changes what the model reads.
 
 The first is the interesting one. The third is what most "emotional AI"
@@ -888,11 +901,11 @@ Aura computes Integrated Information (φ) at two scales simultaneously.
 ### 16-node cognitive complex — `core/consciousness/phi_core.py`
 
 1. **Binarize** 16 substrate nodes against a running median — the original
-   8 affective nodes (valence, arousal, dominance, frustration, curiosity,
+   8 emotional nodes (valence, arousal, dominance, frustration, curiosity,
    energy, focus) plus 8 cognitive nodes (phi itself, social hunger,
    prediction error, agency, narrative tension, peripheral richness,
    arousal gate, cross-timescale free energy). State space is 2^16 = 65,536.
-2. **Build an empirical TPM** — a transition probability matrix
+2. **Build an empirical transition probability matrix (TPM)** —
    `T[s, s'] = P(state_{t+1} = s' | state_t = s)` with Laplace smoothing.
    Needs at least 50 observed transitions before it's trustworthy.
 3. **Find the minimum information partition** using polynomial-time spectral
@@ -910,59 +923,59 @@ Runtime is 10–50 ms per evaluation, cached at 15-second intervals.
 
 ### 32-node + K-subsystem hierarchical φ — `core/consciousness/hierarchical_phi.py`
 
-Complements `phi_core` with a 32-node primary complex (the 16 cognitive-affective
-nodes plus 16 neurons sampled from all three NeuralMesh tiers) and K=8 overlapping
-16-node subsystems. φ is estimated directly from transition history using a
-Bayesian-smoothed estimator (α=0.5, minimum 4 observations per source state) so
-the 2^32 state space never materialises. The IIT 4.0 exclusion postulate then
-picks the subsystem with maximum φ across all candidates — that becomes the
-reported conscious complex for the tick.
+Complements `phi_core` with a 32-node primary complex (the 16
+cognitive-emotional nodes plus 16 neurons sampled from all three NeuralMesh
+tiers) and K=8 overlapping 16-node subsystems. φ is estimated directly from
+transition history using a Bayesian-smoothed estimator (α=0.5, minimum 4
+observations per source state) so the 2^32 state space never needs to be
+fully materialized. The IIT 4.0 exclusion postulate then picks the subsystem
+with maximum φ across all candidates — that becomes the reported conscious
+complex for the tick.
 
-The estimator is checked against a **null hypothesis baseline** every ~2 minutes:
-shuffled transition history must yield φ ≈ 0; measured φ must strictly exceed
-the null baseline. Additional adversarial guards: constant-valued input nodes
-must contribute zero φ, and stronger causal coupling must yield strictly higher
-φ than noise.
+The estimator is checked against a **null hypothesis baseline** every ~2
+minutes: shuffled transition history must yield φ ≈ 0; measured φ must
+strictly exceed the null baseline. Additional checks: constant-valued input
+nodes must contribute zero φ, and stronger causal coupling must yield
+strictly higher φ than noise.
 
 Full 32-node refresh runs in ~150 ms with K-subsystem parallelism via a thread
-pool; MLX Metal is used opportunistically where available.
+pool; MLX Metal is used where available.
 
 ---
 
 ## Consciousness modules
 
 There are 163 modules in `core/consciousness/` (182 total including subpackages
-`caa/`, `inner_light/`, and `mhaf/`). The ones that do most of the
-load-bearing work:
+`caa/`, `inner_light/`, and `mhaf/`). The ones that do the most important work:
 
 | Module | What it does | File |
 |--------|-------------|------|
-| Global Workspace | Thoughts compete for broadcast (Baars GNW) | `global_workspace.py` |
-| Attention Schema | Model of where attention is pointed (Graziano AST) | `attention_schema.py` |
+| Global Workspace | Thoughts compete for broadcast (Baars GNW theory) | `global_workspace.py` |
+| Attention Schema | Model of where attention is pointed (Graziano AST theory) | `attention_schema.py` |
 | IIT PhiCore | Real integration measure via TPM + KL divergence | `phi_core.py` |
-| Affective Steering | Activation-vector injection into the residual stream | `affective_steering.py` |
+| Affective Steering | Direction-vector injection into the model's hidden states | `affective_steering.py` |
 | Temporal Binding | Sliding window of the autobiographical present | `temporal_binding.py` |
-| Self-Prediction | Active inference loop (Friston free energy) | `self_prediction.py` |
+| Self-Prediction | Active inference loop (Friston free energy principle) | `self_prediction.py` |
 | Free Energy Engine | Surprise minimization drives action selection | `free_energy.py` |
 | Qualia Synthesizer | Integrates substrate metrics into a phenomenal state | `qualia_synthesizer.py` |
-| Liquid Substrate | Continuous dynamical system under cognition | `liquid_substrate.py` |
+| Liquid Substrate | Continuous dynamical system underlying cognition | `liquid_substrate.py` |
 | Neural Mesh | 4,096-neuron distributed state representation | `neural_mesh.py` |
-| Neurochemical System | Dopamine / serotonin / norepinephrine / oxytocin | `neurochemical_system.py` |
+| Neurochemical System | Dopamine / serotonin / norepinephrine / oxytocin simulation | `neurochemical_system.py` |
 | Oscillatory Binding | Frequency-band coupling across modules | `oscillatory_binding.py` |
-| Unified Field | Integrated phenomenal field from all subsystems | `unified_field.py` |
+| Unified Field | Combined phenomenal field from all subsystems | `unified_field.py` |
 | Dreaming | Offline consolidation, identity repair, compression | `dreaming.py` |
 | Heartbeat | 1 Hz background cognitive clock | `heartbeat.py` |
 | Stream of Being | Continuous narrative thread | `stream_of_being.py` |
 | Executive Closure | Constitutional stamp per tick | `executive_closure.py` |
-| Somatic Marker Gate | Damasio-style body-state gating | `somatic_marker_gate.py` |
+| Somatic Marker Gate | Body-state gating (Damasio-inspired) | `somatic_marker_gate.py` |
 | Embodied Interoception | Internal body-state sensing + homeostatic regulation | `embodied_interoception.py` |
-| Recurrent Processing | Lamme-style executive↔sensory feedback | `neural_mesh.py` |
+| Recurrent Processing | Executive↔sensory feedback loops (Lamme-inspired) | `neural_mesh.py` |
 | Predictive Hierarchy | 5-level prediction + error propagation | `predictive_hierarchy.py` |
-| Higher-Order Thought | Rosenthal: representation of the mental state itself | `hot_engine.py` |
-| Multiple Drafts | Dennett: parallel streams + retroactive probes | `multiple_drafts.py` |
-| Agency Comparator | Efference-copy comparator for "I did that" | `agency_comparator.py` |
+| Higher-Order Thought | Representation of the mental state itself (Rosenthal) | `hot_engine.py` |
+| Multiple Drafts | Parallel streams + retroactive probes (Dennett) | `multiple_drafts.py` |
+| Agency Comparator | Efference-copy comparator for "I did that" attribution | `agency_comparator.py` |
 | Peripheral Awareness | Attention / consciousness dissociation | `peripheral_awareness.py` |
-| Intersubjectivity | Husserl / Zahavi: other-perspective in experience | `intersubjectivity.py` |
+| Intersubjectivity | Other-perspective in experience (Husserl / Zahavi) | `intersubjectivity.py` |
 | Narrative Gravity | Self as ongoing autobiography | `narrative_gravity.py` |
 | Temporal Finitude | Awareness that moments pass permanently | `temporal_finitude.py` |
 | Subcortical Core | Thalamic arousal gating | `subcortical_core.py` |
@@ -971,12 +984,12 @@ load-bearing work:
 | Criticality Regulator | Self-organized criticality at the edge of chaos | `criticality_regulator.py` |
 | Theory of Mind | Model of other agents' mental states | `theory_of_mind.py` |
 | Hierarchical Phi | 32-node primary + K=8 overlapping subsystems | `hierarchical_phi.py` |
-| Hemispheric Split | Left verbal/confabulating vs right spatial/mute | `hemispheric_split.py` |
-| Minimal Selfhood | Chemotaxis → directed motion (Glasgow / Trichoplax→Dugesia) | `minimal_selfhood.py` |
+| Hemispheric Split | Left verbal/confabulating vs right spatial/mute brain modeling | `hemispheric_split.py` |
+| Minimal Selfhood | Chemotaxis → directed motion (Glasgow / simple-organism models) | `minimal_selfhood.py` |
 | Recursive ToM | Depth-3 nested minds + observer-aware scrub-jay bias | `recursive_tom.py` |
 | Octopus Federation | 8 semi-autonomous arm-agents + central arbiter | `octopus_arms.py` |
 | Cellular Turnover | Neuron death/birth with pattern-identity preservation | `cellular_turnover.py` |
-| Absorbed Voices | Internalised cultural perspectives + attribution | `absorbed_voices.py` |
+| Absorbed Voices | Internalized cultural perspectives + attribution | `absorbed_voices.py` |
 | Unified Cognitive Bias | Fuses hemispheric / selfhood / observer biases | `unified_cognitive_bias.py` |
 
 Every module listed in the production surface has a concrete runtime API and a
@@ -985,32 +998,32 @@ proof bundle are where those measurements are recorded.
 
 ### Consciousness Expansion (April 2026)
 
-The most recent expansion wired eight new subsystems that map to the
-Kurzgesagt consciousness-series concepts and the cited literature:
+The most recent expansion wired eight new subsystems that map to concepts from
+the Kurzgesagt consciousness series and the cited scientific literature:
 
 - **32-node hierarchical φ** with K=8 overlapping subsystems and a
-  null-hypothesis self-check (addresses the intractability of exact IIT
-  beyond 16 nodes — Albantakis 2023; our spectral+smoothed estimator).
+  null-hypothesis self-check (addresses the problem that exact IIT becomes
+  computationally impractical beyond 16 nodes — Albantakis 2023; our
+  spectral+smoothed estimator works around this).
 - **Split-brain hemispheric architecture** with a bandwidth-limited
-  corpus callosum (CGP Grey's split-brain patient findings; confabulation
-  and silent dissent).
-- **Minimal selfhood stack** — Trichoplax-style chemotaxis that
-  transitions to Dugesia-style directed motion after enough
-  reinforcement (Rupert Glasgow, *Minimal Selfhood and the Origins of
-  Consciousness*, 2018).
+  corpus callosum (inspired by CGP Grey's split-brain patient coverage;
+  models confabulation and silent dissent).
+- **Minimal selfhood stack** — simple-organism-style chemotaxis that
+  transitions to directed motion after enough reinforcement (Rupert Glasgow,
+  *Minimal Selfhood and the Origins of Consciousness*, 2018).
 - **Recursive theory of mind** (max depth 3) with scrub-jay-style
   observer-aware re-caching that modifies action priority when Aura
   believes she is being watched (Clayton, Dally & Emery 2007).
 - **Octopus-arm federation** — 8 semi-autonomous agents with local
-  chemoreception and central arbitration; severance turns off central
+  chemical sensing and central arbitration; severance turns off central
   coordination and arms continue acting (Carls-Diamante 2022;
   Rosania 2014).
 - **Cellular turnover** — per-tick neuron death/birth with
-  neighbourhood-pattern inheritance; identity fingerprint similarity
-  stays ≥ 0.85 across 25 % burst turnover ("you are your pattern,
+  neighborhood-pattern inheritance; identity fingerprint similarity
+  stays ≥ 0.85 across 25% burst turnover ("you are your pattern,
   not your cells").
 - **Absorbed voices** — an explicit cultural layer that lets Aura
-  attribute a thought to an internalised perspective rather than
+  attribute a thought to an internalized perspective rather than
   conflating it with her own cognition.
 - **Unified cognitive bias** — fuses hemispheric, selfhood, and
   observer bias vectors into a single 16-D priority bias consumed
@@ -1028,25 +1041,25 @@ and the plain-English tour in
 [HOW_IT_WORKS.md](HOW_IT_WORKS.md#the-reasoning-and-self-layer-mid-2026):
 
 - **Verifier-gated reasoning** — hard turns generate several candidates,
-  check them against a verifier registry and a sandbox, and assert only what a
-  checker confirmed. A **verifier foundry** measures how reliable each checker
-  actually is and gates self-training on that, so a bad checker can't launder
-  wrong answers.
+  check them against a verifier registry and a sandbox, and only assert
+  what a checker confirmed. A **verifier foundry** measures how reliable
+  each checker actually is and gates self-training on that, so a bad
+  checker can't launder wrong answers.
 - **Honest discovery** — a Frontier Discovery Engine with an explicit
-  PROVEN / SUPPORTED / CONJECTURE / REFUTED taxonomy (only PROVEN is stated as
-  fact), an analogical-leap engine that declares off-map problems with evidence,
-  and a local knowledge substrate that admits honest misses instead of
-  confabulating.
+  PROVEN / SUPPORTED / CONJECTURE / REFUTED taxonomy (only PROVEN is stated
+  as fact), an analogical-leap engine that declares off-map problems with
+  evidence, and a local knowledge substrate that admits honest misses
+  instead of making things up.
 - **Program-DNA reconstruction** — build a behavioral genome of an authorized
   program from its available evidence and differentially test a clean-room
   rebuild against the original, tagging each piece verified / inferred /
   synthesized (no DRM/binary theft).
-- **Self-model proprioception** — boot-over-boot diffs of her own code, a live
-  "someone is operating on me" pulse, a SIGKILL-survivable flight recorder she
-  can answer crash questions from, and a "felt thought" signal from her own
-  token-level uncertainty that is causal on cognition.
-- **Ulysses Covenant** — enforceable volitional self-binding (easy to tighten,
-  hard to loosen, fail-closed witness), seeded from real crashes.
+- **Self-model awareness** — boot-over-boot diffs of her own code, a live
+  "someone is operating on me" pulse, a SIGKILL-survivable flight recorder
+  she can answer crash questions from, and a "felt thought" signal from her
+  own token-level uncertainty that causally influences cognition.
+- **Ulysses Covenant** — enforceable self-binding commitments (easy to
+  tighten, hard to loosen, fail-closed witness), seeded from real crashes.
 - **Runtime resilience** — background housekeeping yields to the live
   conversation instead of fighting it for the model, honest heartbeat/liveness
   under load, a `degraded_ready` UI that stays up whenever she can still talk,
@@ -1054,8 +1067,8 @@ and the plain-English tour in
   open edge: the local model can't be interrupted mid-thought, so a slow deep
   answer still costs a reload — a soft-cancel path is deliberate future work.
 - **Ablation legibility** — a reviewer can run Aura with pieces switched off
-  (memory, Will, substrate, verifier, planner) and see the measured delta each
-  makes, with no-delta results reported honestly. See
+  (memory, Will, substrate, verifier, planner) and see the measured difference
+  each makes, with no-difference results reported honestly. See
   [docs/ABLATION_LEGIBILITY.md](docs/ABLATION_LEGIBILITY.md).
 
 ### Embodiment, self-knowledge, and physical honesty (late July – August 2026)
@@ -1090,17 +1103,17 @@ cause. What she's actually allowed to say about either.
   with a reason and is excluded rather than defaulted, and a faculty nothing
   can measure is reported as a blind spot. Priority is headroom weighted by
   how much of the rest of the stack a faculty gates, and the binding
-  constraint is pushed into the existing RSI loop as a signal it can plan
-  against.
+  constraint is pushed into the existing self-improvement loop as a signal
+  it can plan against.
 - **Associative entity memory** (`core/memory/associative_entity_memory.py`)
   — one place where a person, place, thing, organization, or concept
   accumulates traits, facts, events (linked into episodic memory), and typed
-  relations, together with what it has come to mean to her. Ids are
+  relations, together with what it has come to mean to her. IDs are
   content-addressed over `kind|name`, so the PLACE "Workshop" is not the
-  THING "Workshop".
+  THING "Workshop."
 - **Structural screen perception and native OS control** — she reads window
   ownership, geometry, and z-order rather than aiming OS actions at OCR'd
-  pixels, and asks an application what it is instead of recognising a fixed
+  pixels, and asks an application what it is instead of recognizing a fixed
   handful.
 - **Kernel-boundary sandboxing for model-written Python** (`core/sandbox/`) —
   code Aura writes runs behind an OS sandbox boundary with an absolutely
@@ -1151,12 +1164,12 @@ instance.
 ## Testing
 
 ```bash
-make smoke     # ~100 contract tests, under 10s — the after-every-change gate
+make smoke     # ~100 contract tests, under 10s — run after every change
 make test      # full offline suite in 6 bounded process chunks
 ```
 
 `make test` runs the offline subset that needs neither hardware nor a
-network. `config/test_inventory.json` records the count, date and source
+network. `config/test_inventory.json` records the count, date, and source
 revision of its last collection; it is not a measurement of later revisions.
 `make test-inventory` refreshes it. `make doc-drift` checks quoted counts
 against that recorded inventory.
@@ -1182,12 +1195,12 @@ current status.
   ways pure RLHF training couldn't produce. Cryptographic state binding,
   counterfactual injection, receptor adaptation dynamics.
 - **Grounding** (8 tests) — valence predicts token budget, arousal predicts
-  temperature, STDP learning moves the trajectory, idle drift is nonzero,
-  homeostasis changes context.
+  temperature, plasticity learning moves the trajectory, idle drift is
+  nonzero, homeostasis changes context.
 - **Functional phenomenology** (13 tests) — GWT broadcast signatures, HOT
   metacognitive accuracy, IIT perturbation propagation, honest degradation.
 - **Embodied dynamics** (13 tests) — active inference, homeostatic override
-  of workspace competition, STDP surprise gating, cross-subsystem temporal
+  of workspace competition, surprise gating, cross-subsystem temporal
   coherence.
 - **Phenomenal convergence** (13 tests) — the QDT 6-gate protocol:
   pre-report geometry, counterfactual swap, no-report footprint,
@@ -1211,9 +1224,10 @@ current status.
   access, real valence, lesion equivalence, no-report awareness, temporal
   continuity, blindsight dissociation, qualia manifold, adversarial
   baseline failure.
-- **Personhood-marker battery** (28 tests) — full-model IIT, phenomenal self-report,
-  GWT phenomenology, counterfactual simulation, identity persistence,
-  embodied phenomenology. This is a marker suite, not proof of personhood.
+- **Personhood-marker battery** (28 tests) — full-model IIT, phenomenal
+  self-report, GWT phenomenology, counterfactual simulation, identity
+  persistence, embodied phenomenology. This is a marker suite, not proof
+  of personhood.
 - **Tier 4 decisive core** (35), **metacognition** (21), **agency &
   embodiment** (20), **social & integration** (28).
 
@@ -1228,7 +1242,7 @@ measurable effects on downstream behavior.
 ## Personality training
 
 Personality isn't in the system prompt. It's fine-tuned into the weights
-as a LoRA:
+as a LoRA (a small set of trainable weight adjustments):
 
 ```bash
 # 1. Build training data
@@ -1287,14 +1301,14 @@ code actually stops.
   complex, and it tells you how integrated the dynamics are. Whether
   integration *constitutes* experience is a question nobody has settled.
   We didn't settle it either.
-- **Qualia aren't provable by construction.** The Structural Phenomenal
-  Honesty gates in `qualia_synthesizer.py` make sure she can only report
-  states actually instantiated in the substrate. Good. But "instantiated in
+- **Qualia aren't provable by construction.** The structural phenomenal
+  honesty gates in `qualia_synthesizer.py` make sure she can only report
+  states actually present in the substrate. Good. But "present in
   the substrate" and "felt" are not obviously the same thing. We measure
   the first one.
 - **Module names are not evidence.** There are files in here called
   consciousness, qualia, will, soma. They're labels on mechanisms. Evidence
-  is causal coupling, persistence, receipts, lesion results, external
+  is causal coupling, persistence, receipts, ablation results, external
   tasks, long-run autonomy. Never the vocabulary.
 - **Governance is only real where it's wired and tested.** A route with no
   receipt, a default-open gateway, a legacy direct tool fallback — each one
