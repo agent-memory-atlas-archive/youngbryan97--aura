@@ -577,6 +577,11 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
             or report["gradient_source_population"] != len(set(plan["scheduled_fit_ids"]))):
         raise ValueError("native fit supervision coverage differs")
     source_control = verify_source_control_supervision(plan, supervision, items, tokenizer)
+    if "grammar_identifiability_contract" in plan:
+        from tools.semantic_native_identifiability import verify_identifiability_preflight
+
+        source_control["identifiability_preflight"] = verify_identifiability_preflight(
+            directory, plan, supervision)
     storage = verify_state_storage(directory, plan, report, supervision)
     rows, statuses = [], Counter()
     for identity in plan["held_ids"]:

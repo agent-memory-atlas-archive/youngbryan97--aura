@@ -1467,6 +1467,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Pre-load identifiability](evidence/G03_NATIVE_IDENTIFIABILITY_PREFLIGHT_2026-09-30.md)
+  audits exact-path scoring conflicts before native model allocation. The
+  requirement is opt-in and independently rechecked; it proves no learned gain.
   [Source-fit handoff](evidence/G03_SOURCE_FIT_HANDOFF_2026-09-30.md)
   checks saved optimizer vectors against every model head, then uses the
   detached broker for frozen folds and disjoint source-bank fitting. Source

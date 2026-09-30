@@ -464,6 +464,8 @@ def main():
     parser.add_argument("--plan-only", action="store_true")
     parser.add_argument("--supervision-only", action="store_true",
                         help="tokenize and audit the declared objective without loading model weights")
+    parser.add_argument("--require-identifiable-supervision", action="store_true",
+                        help="reject conflicting exact-path targets before loading model weights")
     args = parser.parse_args()
     from tools.semantic_native_execution import (
         EXECUTION_PATHS,
@@ -495,6 +497,8 @@ def main():
         parser.error("supervision inventory and source-hash canary bounds need explicit independent modes")
     if args.objective == "grammar_source_pairs" and args.source_evidence != "source_text":
         parser.error("paired-source training needs intact source evidence")
+    if args.require_identifiable_supervision and args.objective not in {"grammar_choices", "grammar_source_pairs"}:
+        parser.error("exact-path identifiability requires grammar supervision")
     if args.path_objective and (args.objective not in {"grammar_choices", "grammar_source_pairs"}
                                or args.source_evidence != "source_text"):
         parser.error("path-risk training needs intact source grammar supervision")
@@ -758,6 +762,12 @@ def main():
 
         plan.update(grammar_source_pair_contract=dict(TYPED_SOURCE_PAIR_CONTRACT),
                     grammar_source_pair_inventory=typed_source_pair_inventory(grammar_pairs, schedule))
+    if args.require_identifiable_supervision:
+        from tools.semantic_native_identifiability import IDENTIFIABILITY_CONTRACT
+
+        plan["grammar_identifiability_contract"] = dict(IDENTIFIABILITY_CONTRACT)
+        for name in ("tools/semantic_native_identifiability.py", "tools/verify_semantic_native_fit.py"):
+            plan["implementation"][name] = hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
     schema_version = native_fit_schema_version(
         objective=args.objective, source_evidence=args.source_evidence,
         path_objective=args.path_objective, typed_pairs=typed_pairs,
@@ -827,6 +837,13 @@ def main():
         reused_states = open_reused_prefix(plan["reused_prefix_contract"], plan, supervision)
         del reused_states
     _save_if_absent(args.directory / "supervision.json", supervision)
+    if args.require_identifiable_supervision:
+        from tools.semantic_native_identifiability import save_identifiability_preflight
+
+        proof = save_identifiability_preflight(args.directory, plan, supervision)
+        print(json.dumps({"stage": "identifiability_preflight", "receipt_sha256": proof["receipt_sha256"],
+                          "exact_targets_identifiable": proof["exact_targets_identifiable"],
+                          "model_weights_loaded": False}), flush=True)
     preparation_seconds = time.monotonic() - started
     if args.supervision_only:
         from collections import Counter
