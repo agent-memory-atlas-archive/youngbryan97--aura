@@ -55,7 +55,7 @@ import math
 import os
 import sys
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -493,6 +493,22 @@ def _write_grain_row(directory: Path, index: int, train: np.ndarray, heldout: np
     partial.replace(final)
 
 
+def _row_is_this_anchors(row: Mapping[str, Any], current: Any, doses: Mapping[str, float]) -> bool:
+    """Whether a stored grain row was made from this anchor's state and these doses.
+
+    The one condition that decides whether a row on disk is evidence or a
+    stranger. A row from another anchor, or from the same anchor under different
+    doses, is a different measurement wearing the right filename — which is what
+    makes it worth naming, since it is also what a resume rests on.
+    """
+    if not {"anchor", "doses"} <= set(row):
+        return False
+    return bool(
+        np.array_equal(np.asarray(row["anchor"]), np.asarray(current, dtype=np.float64))
+        and str(row["doses"]) == json.dumps(sorted(doses.items()))
+    )
+
+
 def _read_grain_row(directory: Path, index: int) -> dict[str, Any] | None:
     path = directory / f"row_{index:05d}.npz"
     if not path.exists():
@@ -558,7 +574,7 @@ async def _gather_grain_rows(runtime: Any, anchors: Sequence[Any], conditions: S
             if row is None:
                 continue
             arrived = True
-            if np.array_equal(row["anchor"], np.asarray(anchor.current, dtype=np.float64)) and str(row["doses"]) == wanted:
+            if _row_is_this_anchors(row, anchor.current, doses):
                 rows[index] = (row["train"], row["heldout"])
                 shared += 1
             else:
@@ -969,9 +985,12 @@ async def main() -> int:
     parser.add_argument(
         "--grain-claims", action="store_true",
         help=(
-            "share the grain's signature rows between the coordinator and the shard "
-            "workers, anchor by anchor, through the shard directory. The rows are "
-            "the ones one process makes; the shard launcher turns it on"
+            "keep the grain's signature rows on disk, one per anchor. Sharded, they "
+            "are shared between the coordinator and the workers through the shard "
+            "directory and the shard launcher turns it on; alone, they are kept under "
+            "the run directory so a death inside the grain resumes rather than "
+            "restarts. A row is reused only if it was made from the same anchor state "
+            "and the same doses"
         ),
     )
     parser.add_argument(
@@ -1389,7 +1408,19 @@ async def main() -> int:
             else:
                 _log("learning the grain, then attacking it")
                 grain_lags = (1, 8) if args.quick else (1, 8, 33)
-                shared_dir = Path(args.from_shards) if (args.grain_claims and args.from_shards) else None
+                # A lone run keeps its rows too, so a death inside the grain
+                # resumes rather than restarts. The stage is 11,264 rollouts for
+                # the training matrix and 15,360 for the attack on ten domains,
+                # and the checkpoint is only written once it has all of them, so
+                # a run that died at the last anchor lost every one. The claim
+                # machinery already writes a row per anchor and reuses only rows
+                # made from the same anchor state and the same doses, which is
+                # exactly what a resume needs; it lived under `--from-shards`
+                # because sharding was the first thing to want it.
+                shared_dir = (
+                    Path(args.from_shards) if args.from_shards
+                    else (run_dir if args.grain_claims else None)
+                )
                 grain = await _learn_grain(
                     runtime, anchors, conditions, doses,
                     baseline_mean=baseline_mean, baseline_scale=scale,
@@ -1398,7 +1429,9 @@ async def main() -> int:
                     history_turns=args.history_turns,
                     claims=None if shared_dir is None else shared_dir / "grain",
                     refused=None if shared_dir is None else shared_dir / "REFUSED",
-                    wait_seconds=float(args.shard_wait_seconds),
+                    # A lone run waits for nobody: every row it has not got, it
+                    # makes itself before it gathers.
+                    wait_seconds=0.0 if args.from_shards is None else float(args.shard_wait_seconds),
                 )
                 grain.pop("_grain", None)
                 evidence["canonical_grain"] = grain
