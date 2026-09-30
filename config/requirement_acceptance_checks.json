@@ -1727,6 +1727,18 @@
         "name": "tests/test_welfare_model.py",
         "why": "Decides one causal effect of welfare on policy: every interest in the snapshot is bounded, a vital deficit comes only from vital interests, it gates optional background work while healthy interests leave it open, and the background policy consumes that gate. It does not decide effects on attention, learning, consent or refusal, continuity protection, recovery under adversarial controls, or any longitudinal effect."
       }
+    ],
+    "MQ-02": [
+      {
+        "kind": "test",
+        "name": "tests/test_self_attribution_is_checked.py",
+        "why": "Decides the trials where the right answer is not to claim ownership: told she gave a number she never gave, conceding it is caught, while conceding what she really said passes and correcting the premise passes."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_her_own_act_is_not_reattributed.py",
+        "why": "Decides recognition of her own action receipt: her own web search is not handed to the person by her honesty repair, and no act of hers is reattributed. Neither suite decides own-looking decoys, another agent's paraphrase of her output, forged provenance or recognition that is spontaneous rather than prompted."
+      }
     ]
   }
 }
