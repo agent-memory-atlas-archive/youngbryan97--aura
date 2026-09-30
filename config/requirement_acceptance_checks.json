@@ -1787,6 +1787,13 @@
         "name": "tests/test_morphogenesis_scenarios.py",
         "why": "Decides the developmental claims under their seeds: each scenario is deterministic and states its rule, a poisoned signal cannot grow the population past its cap, the lesion arm recovers where the fixed arm does not, a partition is reported rather than served around, and the ablation matrix separates the arms. Neither suite decides the organogenesis lifecycle from unmet need to extinction, held-out needs solved better than the pre-formation baseline, or merging into canonical ownership."
       }
+    ],
+    "PASSF-08": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_veto_is_a_decision_not_a_failure.py",
+        "why": "Decides the repair receipts and the anti-storm clause: code repair produces its evidence before governance disposes of it, repair uses the canonical shadow-validated tier, a completed governance disposition does not trip the circuit breaker while real generation and application failures stay failures, and a repair decision's identity changes when its source changes. It does not decide the closed loop from intake to checkpoint commit, or the held-out curves capability-growth claims need."
+      }
     ]
   }
 }
