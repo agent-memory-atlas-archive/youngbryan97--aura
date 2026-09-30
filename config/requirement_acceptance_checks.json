@@ -1602,6 +1602,23 @@
         "name": "tests/test_mycelium_2026.py",
         "why": "Decides the Checkpoint 91 contract the requirement describes: infrastructure mapping publishes one complete generation, a forced remap keeps the previous generation until an atomic replacement, mapped-file and graph snapshots are detached across every published surface, a failed refresh keeps its generation and clears the running state, shutdown during mapping cannot publish into a retired network or clear its replacement, and discovery and topology snapshots share one lock. It does not decide the exact-app polling run during mapping, vault sync, shutdown and restart."
       }
+    ],
+    "IMMUNE-CODING-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_safe_modification_harness.py",
+        "why": "Decides the validation step of a self-modification: a patch with no related test is rejected, the related tests and any requested scale-out gate run against the candidate's own bytes before it passes, a changed test file counts as coverage, and compile and pytest go through the gateways."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_code_repair_sandbox_validation.py",
+        "why": "Decides that repair validation fails closed: without the type-check guard or with a failing unit-test runner, the repair does not pass."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_immune_repair_verification.py",
+        "why": "Decides that a repair is verified when the recovery held: two samples no longer verify, a decaying spike or an insufficient rise does not, a failed actuation or missing readings never does, recovery is measured against the pre-repair reading, and an unverified outcome does not report zero recurrence risk. None of the three decides diagnosis and hypothesis ranking, multi-file implementation, independent adversarial review, canary, or rollback as one repair workspace."
+      }
     ]
   }
 }
