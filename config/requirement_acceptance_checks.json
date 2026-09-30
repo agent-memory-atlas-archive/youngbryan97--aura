@@ -618,6 +618,18 @@
         "name": "tests/test_belief_revision_hardening.py",
         "why": "Decides the corrupted-store control: a corrupt belief store is quarantined and reseeded rather than read, and a new claim updates the belief it bears on with its confidence clamped. None of the three decides investigation against canonical evidence, recurrence prevention, or rollback after a repair."
       }
+    ],
+    "SELF-STATE-CHAT-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_asking_after_her_is_not_asking_her_instruments.py",
+        "why": "Decides the routing clause: 'are you ok' is hers to answer and does not reach the host's processor and memory readings, a question that names an instrument still reaches the instruments, and what she is doing is read as her activity rather than her machine. It is held apart by whether the question names an instrument, not by example phrasings."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_self_condition_projection.py",
+        "why": "Decides the projection the answer is built from: fresh inner state is taken before host pressure, a stale dimension is disclosed as stale, agency-only evidence does not become wellbeing, and with no inner evidence the answer says it is unavailable. Neither suite decides calibrated uncertainty in the reply or the launched desktop path end to end."
+      }
     ]
   }
 }
