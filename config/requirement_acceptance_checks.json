@@ -1691,6 +1691,18 @@
         "name": "tests/test_a_rewrite_faces_the_verifier.py",
         "why": "Written for this requirement's last sentence: a calibration rewrite that was never checked is not delivered as verified, and an unchanged answer keeps its pass, so re-verification is bound to the delivered text rather than a precursor. It does not decide binding every adopted candidate to its evidence body, verifier versions, executed checks, counterexamples and calibration."
       }
+    ],
+    "MQ-06": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_met_need_closes_its_intention.py",
+        "why": "Decides which intentions are hers to close and when: one whose drive is still depleted stays open, one whose need has recovered is retired against the line the need was judged by, one that says neither is left as it was, and somebody else's intention is never retired by her loop."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_an_intention_she_acted_on_is_closed.py",
+        "why": "Decides the abandoned-objective control for what she acted on: an act that worked closes its intention as completed, one that failed closes it as failed, and many acts leave nothing open. Neither suite decides prompt injection, quoted intentions, vetoed plans or a restart between intent and act."
+      }
     ]
   }
 }
