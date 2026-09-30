@@ -2192,6 +2192,45 @@
         "name": "tests/test_action_depth_honesty.py",
         "why": "Decides the expectation verdict: a shallow result that claimed verification is downgraded and missing evidence is unverified. None of the three decides that generated prose can never become executable authority, substrate feedback and learning from each outcome, or authority kept on the owner loop without blocking it."
       }
+    ],
+    "ADDENDUM-20": [
+      {
+        "kind": "test",
+        "name": "tests/test_who_owns_each_field.py",
+        "why": "Carries CTX2-GRAPH-001's check into this addendum. Decides the canonical-owner column of the catalog: every durable field is found and counted once, a field owned by a phase or written by one module names it, an unowned field says so rather than naming a guess, no owned field becomes unowned, and the unowned count only goes down."
+      },
+      {
+        "kind": "make",
+        "name": "reachability",
+        "why": "Carries CTX2-GRAPH-003's check into this addendum. Decides 'causal edges that exist only in tests' at module level: the gate fails when a module comes to be imported by tests and nothing else, and every such module carries a recorded disposition."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_trace_propagation.py",
+        "why": "Carries CTX2-GRAPH-004's check into this addendum. Decides following a turn across the process boundary: every job through the authorisation chokepoint carries the active trace as a valid W3C traceparent, the far side rebuilds the context from the job alone, a child span keeps the trace id, and an untraced payload fabricates no correlation."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_audit_chain.py",
+        "why": "Carries CTX2-GRAPH-004's check into this addendum. Decides that receipt-chain gaps are detected: a modified or deleted entry, a broken link and a missing body each fail verification, and the chain survives restart. Of this addendum's parts, CTX2-GRAPH-002 has no check yet."
+      }
+    ],
+    "ADDENDUM-27": [
+      {
+        "kind": "test",
+        "name": "tests/test_standing_authority.py",
+        "why": "Carries CTX2-PERSON-003's check into this addendum. Decides that who authorised what is recorded and cannot be forged: each lease is bound to its exact origin and receipted, a child lease rejects origin, argument and effect substitution, and revocation is durable, immediate and owner-authenticated."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_relational_memory_authority.py",
+        "why": "Carries CTX2-PERSON-003's check into this addendum. Decides consent that changes what happens: revocation blocks prompt use at once, an expired record is refused before it mutates anything, and consent is exact-agent and purpose-scoped."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_refused_task_is_not_a_failed_one.py",
+        "why": "Carries CTX2-PERSON-003's check into this addendum. Decides declining as its own act: a refused task never starts and carries why. Of this addendum's parts, CTX2-PERSON-001, CTX2-PERSON-002 have no check yet."
+      }
     ]
   }
 }
