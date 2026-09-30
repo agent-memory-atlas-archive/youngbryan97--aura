@@ -1085,12 +1085,15 @@ def _process_resources() -> tuple[type, ...]:
     import asyncio
     import concurrent.futures
     import functools
+    import io
+    import socket
     import sqlite3
     import threading
     import types
 
     return (
         threading.Thread, concurrent.futures.Executor, asyncio.AbstractEventLoop, sqlite3.Connection,
+        io.IOBase, socket.socket,
         types.FunctionType, types.BuiltinFunctionType, types.MethodType, functools.partial,
         type, types.ModuleType,
     )
@@ -1123,8 +1126,37 @@ def _a_singleton_built_in_a_test_ends_with_it(request):
     resources = _process_resources()
     for namespace, key in empty:
         value = namespace.get(key)
-        if value is not None and not isinstance(value, resources):
+        if value is not None and not _holds_a_resource(value, resources):
             namespace[key] = None
+
+
+def _holds_a_resource(value: object, resources: tuple[type, ...], depth: int = 2) -> bool:
+    """Whether a slot's object is, or keeps inside it, a thread, a handle or a hook.
+
+    The ontogeny experience store keeps its connection and its writer inside
+    it; emptied, both were stranded where the sqlite sweeper could not reach
+    them, and the hermetic guard reported its database open in the next test's
+    teardown. Such a singleton stays for the process, as it did before.
+    """
+    if isinstance(value, resources):
+        return True
+    if depth <= 0:
+        return False
+    held = getattr(value, "__dict__", None)
+    if not isinstance(held, dict):
+        return False
+    # Inside an object only a handle counts: nearly every object keeps a bound
+    # method or a callback, and those are not something an emptied slot strands.
+    import functools
+    import types
+
+    wiring = (types.FunctionType, types.BuiltinFunctionType, types.MethodType, functools.partial, type, types.ModuleType)
+    inner = tuple(r for r in resources if r not in wiring)
+    return any(
+        _holds_a_resource(item, inner, depth - 1)
+        for item in list(held.values())
+        if not isinstance(item, (str, bytes, int, float, bool, type(None)))
+    )
 
 
 @pytest.fixture(autouse=True)
