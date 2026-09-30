@@ -465,6 +465,7 @@ def build_semantic_counterfactual_fork_join_corpus(
 
 def build_semantic_counterfactual_fork_join_stop_corpus(
     *, seed: int=0, examples_per_operation_triple: int=1,
+    include_early_stop: bool=False,
 ) -> Any:
     """Pair complete fit graphs with a witnessed continuation at their stop choice.
 
@@ -474,6 +475,8 @@ def build_semantic_counterfactual_fork_join_stop_corpus(
     """
     from core.learning.procedure_induction import Instruction
 
+    if type(include_early_stop) is not bool:
+        raise ValueError('early-stop contrast policy must be boolean')
     originals = build_semantic_counterfactual_fork_join_corpus(
         seed=seed, examples_per_operation_triple=examples_per_operation_triple)
     cells = {}
@@ -484,6 +487,7 @@ def build_semantic_counterfactual_fork_join_stop_corpus(
             cells[key] = item
     base = tuple(cells[key] for key in sorted(cells))
     extended = []
+    early = []
     observations = ProgramObservationCache(capacity=512)
     for item in base:
         program = item.program
@@ -502,6 +506,18 @@ def build_semantic_counterfactual_fork_join_stop_corpus(
             clause_order=list(range(continuation.depth)), lineage_version=2,
             render_style='name_after')
         extended.append(replace(rendered, contrast_id=item.contrast_id))
-    if len({item.example_id for item in (*base, *extended)}) != 2 * len(base):
+        if include_early_stop:
+            prefix = replace(program, instructions=program.instructions[:1])
+            comparison = compare_program_meanings(program, prefix,
+                counterfactual_inputs(item.inputs), observation_cache=observations)
+            if comparison['status'] != 'different' or comparison.get('witness') is None:
+                raise ValueError('early-stop contrast has no witnessed output change')
+            early_source = render_bound_program(item, program=prefix,
+                names=_names(random.Random(f'{seed}|{item.example_id}|early'),
+                             program.n_inputs + prefix.depth),
+                clause_order=[0], lineage_version=2, render_style='name_after')
+            early.append(replace(early_source, contrast_id=item.contrast_id))
+    result = (*base, *extended, *early)
+    if len({item.example_id for item in result}) != len(result):
         raise ValueError('stop contrast source identities are not unique')
-    return (*base, *extended)
+    return result

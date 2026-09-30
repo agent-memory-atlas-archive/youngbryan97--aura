@@ -96,6 +96,7 @@ COUNTERFACTUAL_SOURCE_CORPUS_KIND: Final = "counterfactual_natural_source_v1"
 COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND: Final = "counterfactual_natural_source_v2"
 COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND: Final = "counterfactual_fork_join_source_v1"
 COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND: Final = "counterfactual_fork_join_stop_source_v1"
+COUNTERFACTUAL_FORK_JOIN_STOP_V2_CORPUS_KIND: Final = "counterfactual_fork_join_stop_source_v2"
 SEMANTIC_CORPUS_KINDS: Final = frozenset(
     {
         CHAIN_CORPUS_KIND,
@@ -115,6 +116,7 @@ SEMANTIC_CORPUS_KINDS: Final = frozenset(
         COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND,
         COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND,
         COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND,
+        COUNTERFACTUAL_FORK_JOIN_STOP_V2_CORPUS_KIND,
         SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
         SEQUENCE_CATAPHORIC_CORPUS_KIND,
         SEQUENCE_RESERVED_ALIAS_CORPUS_KIND,
@@ -258,13 +260,15 @@ def build_semantic_program_corpus_for_config(
         return build_semantic_counterfactual_fork_join_corpus(
             seed=config.seed, examples_per_operation_triple=config.examples_per_operation_pair)
 
-    if config.corpus_kind == COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND:
+    if config.corpus_kind in {COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND,
+                              COUNTERFACTUAL_FORK_JOIN_STOP_V2_CORPUS_KIND}:
         from core.learning.semantic_counterfactual_corpus import (
             build_semantic_counterfactual_fork_join_stop_corpus,
         )
 
         corpus = build_semantic_counterfactual_fork_join_stop_corpus(
-            seed=config.seed, examples_per_operation_triple=config.examples_per_operation_pair)
+            seed=config.seed, examples_per_operation_triple=config.examples_per_operation_pair,
+            include_early_stop=config.corpus_kind == COUNTERFACTUAL_FORK_JOIN_STOP_V2_CORPUS_KIND)
         _require_complete_stop_contrasts(config.max_examples, len(corpus))
         return corpus
 
@@ -1658,6 +1662,7 @@ __all__ = [
     "COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND",
     "COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND",
     "COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND",
+    "COUNTERFACTUAL_FORK_JOIN_STOP_V2_CORPUS_KIND",
     "NATURAL_REPLICATION_CORPUS_KIND",
     "NATURAL_REQUEST_CORPUS_KIND",
     "NATURAL_SOURCE_CORPUS_KIND",

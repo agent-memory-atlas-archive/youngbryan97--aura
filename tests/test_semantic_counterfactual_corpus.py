@@ -200,6 +200,64 @@ def test_fork_join_stop_corpus_witnesses_a_shared_prefix_termination_choice():
                for row in rows)
 
 
+def test_fork_join_stop_v2_also_teaches_the_first_possible_stop_choice():
+    from core.learning.semantic_native_decision_supervision import native_teacher_decisions
+    from core.learning.semantic_native_typed_source_pairs import native_typed_source_pair_plan
+    from core.learning.semantic_program_feature_materialization import (
+        COUNTERFACTUAL_FORK_JOIN_STOP_V2_CORPUS_KIND,
+        FAMILY_FEATURE_CONFIG_SCHEMA,
+        SemanticFeatureConfig,
+        build_semantic_program_corpus_for_config,
+    )
+
+    def build(limit):
+        return build_semantic_program_corpus_for_config(SemanticFeatureConfig(
+            seed=41, corpus_kind=COUNTERFACTUAL_FORK_JOIN_STOP_V2_CORPUS_KIND,
+            schema=FAMILY_FEATURE_CONFIG_SCHEMA, max_examples=limit))
+
+    corpus = build(1944)
+    assert len(corpus) == 1944
+    assert {item.split for item in corpus} == {'train'}
+    assert Counter(item.program.depth for item in corpus) == {1: 648, 3: 648, 4: 648}
+    early_rows = [item for item in corpus if item.program.depth == 1]
+    full_rows = [item for item in corpus if item.program.depth == 3]
+    prefix_key = lambda item, instruction: (item.contrast_id, item.inputs, instruction)
+    assert Counter(prefix_key(item, item.program.instructions[0]) for item in early_rows) == Counter(
+        prefix_key(item, item.program.instructions[0]) for item in full_rows)
+    early_outputs = {prefix_key(item, item.program.instructions[0]): item.program.run(item.inputs)
+                     for item in early_rows}
+    equal_public_answers = sum(early_outputs[prefix_key(item, item.program.instructions[0])]
+                               == item.program.run(item.inputs) for item in full_rows)
+    assert equal_public_answers == 13
+    with pytest.raises(ValueError, match='1944 required'):
+        build(1943)
+    early = early_rows[0]
+    full = next(item for item in full_rows
+                if item.contrast_id == early.contrast_id
+                and item.inputs == early.inputs
+                and item.program.instructions[:1] == early.program.instructions)
+    left = native_teacher_decisions(early.program, ('integer',) * 4,
+                                    register_encoding='absolute_v1')
+    right = native_teacher_decisions(full.program, ('integer',) * 4,
+                                     register_encoding='absolute_v1')
+    assert [(a.kind, a.correct_index, b.correct_index)
+            for a, b in zip(left, right, strict=False) if a.correct_index != b.correct_index] == [
+                ('termination', 0, 1)]
+    assert early.program.run(early.inputs) != full.program.run(full.inputs)
+
+    def training(item):
+        identity = hashlib.sha256(item.source_text.encode()).hexdigest()
+        return SimpleNamespace(ir=SimpleNamespace(source_text_sha256=identity,
+            source_token_ids=tuple(item.source_text.encode()), to_program=lambda: item.program),
+            public_inputs=item.inputs, contrast_id=item.contrast_id, split=item.split)
+
+    rows = (training(early), training(full))
+    pairs = native_typed_source_pair_plan(rows,
+        tuple(row.ir.source_text_sha256 for row in rows), register_encoding='absolute_v1')
+    assert all(any(pair['kind'] == 'termination' and pair['decision_index'] == 3
+                   for pair in pairs[row.ir.source_text_sha256]) for row in rows)
+
+
 @pytest.mark.parametrize('style,prefix', [
     ('obtain', 'To obtain '), ('record', 'Record '), ('define', 'Define '),
     ('name_after', 'Let '),

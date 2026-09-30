@@ -1413,6 +1413,9 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   adds witnessed stop/continue peers to all 1,296 selected source pairs and
   requires the complete cohort before acquisition. Active-tokenizer span
   projection passed; no hidden states or generated gain were measured for it.
+  The [early-stop v2 extension](evidence/G03_EARLY_STOP_CONTRAST_2026-09-29.md)
+  also pairs the first stop decision in a complete 1,944-source fit cohort;
+  this is supervision readiness, not a generated result.
   The [fit-only counterfactual cohort preflight](evidence/G03_COUNTERFACTUAL_ACQUISITION_PREFLIGHT_2026-09-29.md)
   requires at least 648 examples to preserve every declared cell. After the
   [postfix wording repair](evidence/G03_POSTFIX_DEFINITION_WORDING_2026-09-29.md),
