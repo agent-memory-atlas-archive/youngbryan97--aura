@@ -1455,6 +1455,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Binary iterate preservation](evidence/G03_BINARY_ITERATE_RESUME_2026-09-30.md)
+  repairs the source fitter's iteration-cap failure without changing its
+  objective or convergence tolerances. Numerical archives require fresh
+  convergence; neither an archive nor optimizer completion qualifies G03.
   [Mixed computation entry](evidence/G03_MIXED_COMPUTATION_ENTRY_2026-09-30.md)
   connects source-grounded method proposals to one executed portfolio and the
   scoped calculation/observation loop. Method agreement is not correctness;

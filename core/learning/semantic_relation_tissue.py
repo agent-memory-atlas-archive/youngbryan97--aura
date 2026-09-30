@@ -265,7 +265,7 @@ def _fit_directional_relation_head(
         features if binary_solver == "blocked_lbfgs" else np.stack(features),
         np.asarray(labels, dtype=np.int8),
         sample_weight=_normalized_weights(weights),
-        max_iter=400,
+        max_iter=1000 if binary_solver == "blocked_lbfgs" else 400,
         tolerance=1e-5,
         solver=binary_solver,
         progress=binary_fit_progress,

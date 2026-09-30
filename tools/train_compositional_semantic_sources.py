@@ -5,6 +5,7 @@ import argparse
 import json
 import os
 import sys
+from contextlib import nullcontext
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -23,7 +24,11 @@ def main():
                         help="rebind every supervised input and IR register to source order")
     parser.add_argument("--binary-solver", choices=("liblinear", "blocked_lbfgs"), default="liblinear",
                         help="opt-in exact objective fitting without an expanded dense feature matrix")
+    parser.add_argument("--binary-checkpoints", type=Path,
+                        help="accepted iterates for the unchanged objective; each reused head must reconverge")
     args = parser.parse_args()
+    if args.binary_checkpoints is not None and args.binary_solver != "blocked_lbfgs":
+        parser.error("binary checkpoints require the bounded binary solver")
     output, report_output = args.output.resolve(), args.report_output.resolve()
     if output == report_output or output.exists() or report_output.exists():
         raise FileExistsError("source training outputs must be distinct and absent")
@@ -43,18 +48,26 @@ def main():
     bundles = {name: load_standard_semantic_feature_bundle(path)
                for name, path in _bundle_arguments(args.bundle).items()}
     grounding = semantic_input_grounding_contract_from_dict(json.loads(args.grounding.read_text("ascii")))
-    if args.expected_validation_receipt:
-        expected = json.loads(args.expected_validation_receipt.read_text("ascii"))
+    if args.expected_validation_receipt or args.binary_checkpoints:
         _examples, plan = prepare_compositional_source_training(
             bundles, source_order_inputs=args.source_order_inputs)
+        del _examples
+    if args.expected_validation_receipt:
+        expected = json.loads(args.expected_validation_receipt.read_text("ascii"))
         for key in ("validation_example_count", "validation_example_ids_sha256"):
             if plan[key] != expected[key]:
                 raise ValueError("source validation cohort changed during reacquisition")
-        del _examples
-    result = fit_compositional_source_campaign(bundles, input_grounding=grounding,
-        source_order_inputs=args.source_order_inputs,
-        binary_solver=args.binary_solver,
-        progress=lambda row: print(json.dumps(row, sort_keys=True), flush=True))
+    scope = nullcontext()
+    if args.binary_checkpoints is not None:
+        from core.learning.semantic_bounded_binary_fit import binary_fit_checkpoint_scope
+        from core.learning.semantic_fit_checkpoint import fit_identity
+        scope = binary_fit_checkpoint_scope(args.binary_checkpoints, fit_identity({
+            "source_plan": plan["report_sha256"], "grounding": grounding.contract_sha256}))
+    with scope:
+        result = fit_compositional_source_campaign(bundles, input_grounding=grounding,
+            source_order_inputs=args.source_order_inputs,
+            binary_solver=args.binary_solver,
+            progress=lambda row: print(json.dumps(row, sort_keys=True), flush=True))
     for path, value in ((output, result.model.to_dict()), (report_output, result.report)):
         payload = (json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False) + "\n").encode("ascii")
         if not atomic_write_bytes_if_absent(path, payload, mode=0o400):

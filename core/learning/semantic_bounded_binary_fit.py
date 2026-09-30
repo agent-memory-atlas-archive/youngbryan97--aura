@@ -1,6 +1,11 @@
 """Exact weighted binary fitting with bounded feature materialization."""
 
+import hashlib
 import math
+import sys
+from contextlib import contextmanager
+from contextvars import ContextVar
+from pathlib import Path
 
 import numpy as np
 
@@ -14,6 +19,72 @@ BOUNDED_BINARY_FIT_CONTRACT = {
     "feature_approximation": False,
     "convergence_required": True,
 }
+
+_CHECKPOINT_SCOPE = ContextVar("semantic_binary_fit_checkpoint_scope", default=None)
+
+
+@contextmanager
+def binary_fit_checkpoint_scope(directory, context_identity):
+    """Bind reusable iterates to one caller's unchanged source/partition custody."""
+    if (not isinstance(context_identity, str) or len(context_identity) != 64
+            or any(char not in "0123456789abcdef" for char in context_identity)):
+        raise ValueError("binary checkpoint scope requires an immutable context identity")
+    state = {"directory": Path(directory).resolve(), "context_identity": context_identity,
+             "records": [], "paths": {}}
+    token = _CHECKPOINT_SCOPE.set(state)
+    try:
+        yield state
+    finally:
+        _CHECKPOINT_SCOPE.reset(token)
+
+
+def binary_fit_checkpoint_receipt():
+    from core.learning.semantic_fit_checkpoint import fit_identity
+
+    state = _CHECKPOINT_SCOPE.get()
+    if state is None:
+        return None
+    body = {"schema": "aura.semantic_binary_fit_checkpoints.v1",
+            "context_identity": state["context_identity"],
+            "records": [dict(record) for record in state["records"]],
+            "final_archives": {identity: hashlib.sha256(path.read_bytes()).hexdigest()
+                               for identity, path in sorted(state["paths"].items())},
+            "optimizer_resume": "accepted_iterate_with_fresh_lbfgs_history",
+            "cached_convergence_is_authority": False, "serving_authority": False}
+    return {**body, "receipt_sha256": fit_identity(body)}
+
+
+def _objective_checkpoint(features, labels, sample_weight, tolerance):
+    from core.learning.semantic_fit_checkpoint import ObjectiveFitCheckpoint, fit_identity
+
+    state = _CHECKPOINT_SCOPE.get()
+    if state is None:
+        return None
+    import scipy
+    import sklearn
+
+    data_hash = hashlib.sha256()
+    batch_rows = BOUNDED_BINARY_FIT_CONTRACT["batch_rows"]
+    for start in range(0, features.shape[0], batch_rows):
+        stop = min(start + batch_rows, features.shape[0])
+        rows = np.asarray(features[start:stop], dtype="<f8")
+        if rows.shape != (stop - start, features.shape[1]) or not np.all(np.isfinite(rows)):
+            raise ValueError("binary checkpoint feature batch differs")
+        data_hash.update(rows.tobytes(order="C"))
+    identity = fit_identity({"contract": BOUNDED_BINARY_FIT_CONTRACT,
+        "context": state["context_identity"], "shape": features.shape,
+        "features_sha256": data_hash.hexdigest(), "labels": np.asarray(labels, dtype=np.int64),
+        "sample_weight": np.ones(len(labels), dtype=np.float64) if sample_weight is None
+            else np.asarray(sample_weight, dtype=np.float64),
+        "gtol": tolerance, "ftol": 1e-12,
+        "implementation": hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+        "checkpoint_implementation": hashlib.sha256(Path(sys.modules[
+            ObjectiveFitCheckpoint.__module__].__file__).read_bytes()).hexdigest(),
+        "python": sys.version, "numpy": np.__version__,
+        "scipy": scipy.__version__, "sklearn": sklearn.__version__})
+    path = state["directory"] / (identity + ".npz")
+    state["paths"][identity] = path
+    return ObjectiveFitCheckpoint(path, identity, np.zeros(features.shape[1] + 1, dtype=np.float64))
 
 
 class BinaryFeatureRows:
@@ -87,20 +158,44 @@ def fit_bounded_binary_head(features, labels, *, sample_weight=None, max_iter=10
         raise ValueError("bounded binary fit requires a finite convergence contract")
     objective = binary_objective(features, labels, sample_weight,
                                  batch_rows=BOUNDED_BINARY_FIT_CONTRACT["batch_rows"])
+    checkpoint = _objective_checkpoint(features, labels, sample_weight, tolerance)
+    start = np.zeros(features.shape[1] + 1, dtype=np.float64)
+    saved = None if checkpoint is None else checkpoint.load()
+    resumed_iterations = 0
+    if saved is not None:
+        start, resumed_iterations = saved["weight"], saved["iterations"]
     iterations = 0
     if progress is not None:
         progress({"stage": "binary_fit_start", "rows": features.shape[0], "width": features.shape[1],
-                  "solver": "blocked_lbfgs"})
-    def advanced(_parameters):
+                  "solver": "blocked_lbfgs", "max_iter": max_iter, "tolerance": tolerance,
+                  "resumed_iterations": resumed_iterations,
+                  "checkpoint_identity": None if checkpoint is None else checkpoint.identity})
+    def advanced(parameters):
         nonlocal iterations
         iterations += 1
+        if checkpoint is not None and iterations % 25 == 0:
+            checkpoint.save(parameters, resumed_iterations + iterations)
         if progress is not None and iterations % 25 == 0:
-            progress({"stage": "binary_fit_iteration", "iteration": iterations, "solver": "blocked_lbfgs"})
-    result = minimize(objective, np.zeros(features.shape[1] + 1, dtype=np.float64),
+            progress({"stage": "binary_fit_iteration", "iteration": iterations,
+                      "resumed_iterations": resumed_iterations, "solver": "blocked_lbfgs"})
+    result = minimize(objective, start,
                       method="L-BFGS-B", jac=True, callback=advanced,
                       options={"maxiter": max_iter, "gtol": tolerance, "ftol": 1e-12})
-    if not result.success or not np.all(np.isfinite(result.x)) or not math.isfinite(result.fun):
+    finite = (np.asarray(result.x).shape == start.shape and np.all(np.isfinite(result.x))
+              and math.isfinite(result.fun))
+    if checkpoint is not None and finite:
+        checkpoint.save(result.x, resumed_iterations + iterations, converged=bool(result.success))
+    if not result.success or not finite:
         raise ValueError(f"bounded binary fit did not converge: {result.message}")
+    if checkpoint is not None:
+        from core.learning.semantic_fit_checkpoint import fit_identity
+        _CHECKPOINT_SCOPE.get()["records"].append({
+            "objective_identity": checkpoint.identity, "resumed_iterations": resumed_iterations,
+            "iterations": int(result.nit), "max_iter": max_iter, "tolerance": tolerance,
+            "initial_parameters_sha256": fit_identity(start),
+            "final_parameters_sha256": fit_identity(np.asarray(result.x, dtype=np.float64)),
+            "objective": float(result.fun), "converged": True,
+            "convergence_message": str(result.message)})
     if progress is not None:
         progress({"stage": "binary_fit_complete", "iterations": result.nit,
                   "objective": float(result.fun), "solver": "blocked_lbfgs"})

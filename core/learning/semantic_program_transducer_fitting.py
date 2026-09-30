@@ -316,7 +316,7 @@ def _fit_shared_pointer(
                 BinaryFeatureRows(features) if binary_solver == "blocked_lbfgs" else np.stack(features),
                 np.asarray(labels, dtype=np.int8),
                 sample_weight=_normalized_weights(weights),
-                max_iter=250,
+                max_iter=1000 if binary_solver == "blocked_lbfgs" else 250,
                 tolerance=1e-3,
                 solver=binary_solver,
                 progress=binary_fit_progress,
@@ -818,7 +818,7 @@ def _fit_argument_role_heads(
             features if binary_solver == "blocked_lbfgs" else np.stack(features),
             np.asarray(labels, dtype=np.int8),
             sample_weight=_normalized_weights(weights),
-            max_iter=400,
+            max_iter=1000 if binary_solver == "blocked_lbfgs" else 400,
             tolerance=1e-5,
             solver=binary_solver,
             progress=binary_fit_progress,
@@ -991,7 +991,7 @@ def _fit_argument_proposal_heads(
             features,
             labels,
             sample_weight=weights,
-            max_iter=400,
+            max_iter=1000 if binary_solver == "blocked_lbfgs" else 400,
             tolerance=1e-5,
             solver=binary_solver,
             progress=binary_fit_progress,
@@ -1923,4 +1923,3 @@ def _operation_order(
     if required != set(range(count)):
         return None
     return tuple(order)
-

@@ -260,6 +260,8 @@ def fit_compositional_source_campaign(
                 fit_complete=True, evaluation_complete=False)
     if binary_solver == "blocked_lbfgs":
         body["binary_head_fit_execution"] = model.training_receipt["binary_head_fit_execution"]
+        if "binary_head_fit_checkpoints" in model.training_receipt:
+            body["binary_head_fit_checkpoints"] = model.training_receipt["binary_head_fit_checkpoints"]
     return CompositionalLeaveFamilyOutResult(model, {**body, "report_sha256": _sha(body)})
 
 

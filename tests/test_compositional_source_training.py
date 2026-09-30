@@ -93,6 +93,25 @@ def test_unknown_compositional_solver_cannot_silently_fall_back(source_bundles):
             input_grounding=_grounding(), binary_solver="unmeasured")
 
 
+def test_source_fit_attaches_real_head_checkpoints_without_changing_partition_custody(source_bundles, tmp_path):
+    from core.learning.semantic_bounded_binary_fit import binary_fit_checkpoint_scope
+    from core.learning.semantic_program_compositional_transducer import (
+        compositional_semantic_program_transducer_from_dict,
+    )
+    with binary_fit_checkpoint_scope(tmp_path, "a" * 64):
+        result = campaign.fit_compositional_source_campaign(source_bundles,
+            input_grounding=_grounding(), source_order_inputs=True, binary_solver="blocked_lbfgs")
+    receipt = result.report["binary_head_fit_checkpoints"]
+    assert len(receipt["records"]) == 11 and all(row["converged"] for row in receipt["records"])
+    assert {row["max_iter"] for row in receipt["records"]} == {1000}
+    assert result.model.training_receipt["binary_head_fit_checkpoints"] == receipt
+    assert result.report["training_example_count"] == 17 and result.report["validation_example_count"] == 4
+    assert result.report["test_examples_available_to_fit"] == 0
+    assert result.report["fit_complete"] is True and result.report["evaluation_complete"] is False
+    restored = compositional_semantic_program_transducer_from_dict(result.model.to_dict())
+    assert restored.receipt_sha256 == result.model.receipt_sha256
+
+
 def test_source_order_identity_binder_is_shared_by_source_and_crossfit(source_bundles):
     plain = campaign.fit_compositional_source_campaign(
         source_bundles, input_grounding=_grounding()).model

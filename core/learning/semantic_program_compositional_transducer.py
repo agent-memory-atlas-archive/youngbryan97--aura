@@ -1438,8 +1438,14 @@ def fit_compositional_semantic_program_transducer(
         "coefficient_sha256": _sha(coefficient_body),
     }
     if binary_solver == "blocked_lbfgs":
-        from core.learning.semantic_bounded_binary_fit import BOUNDED_BINARY_FIT_CONTRACT
+        from core.learning.semantic_bounded_binary_fit import (
+            BOUNDED_BINARY_FIT_CONTRACT,
+            binary_fit_checkpoint_receipt,
+        )
         body["binary_head_fit_execution"] = dict(BOUNDED_BINARY_FIT_CONTRACT)
+        checkpoint_receipt = binary_fit_checkpoint_receipt()
+        if checkpoint_receipt is not None:
+            body["binary_head_fit_checkpoints"] = checkpoint_receipt
     return CompositionalSemanticProgramTransducer(
         hidden_size=hidden_size,
         model_basis_sha256=next(iter(bases)),

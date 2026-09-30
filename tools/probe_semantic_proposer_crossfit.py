@@ -9,6 +9,7 @@ import json
 import sys
 import time
 from dataclasses import replace
+from contextlib import nullcontext
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -308,6 +309,8 @@ def main() -> None:
                         help="reuse a signed candidate fit from the same fold and calibration")
     parser.add_argument("--binary-solver", choices=("liblinear", "blocked_lbfgs"), default="liblinear",
                         help="opt-in bounded-memory fitting of the same binary head objective")
+    parser.add_argument("--binary-checkpoints", type=Path,
+                        help="resume accepted source-only head iterates and require fresh convergence")
     parser.add_argument("--bank-partition", choices=("held", "source_calibration"),
                         default="held", help="collect separate source-only selector calibration evidence")
     parser.add_argument("--held-source-id", action="append", default=[],
@@ -315,6 +318,9 @@ def main() -> None:
     parser.add_argument("--stop-after", type=int, default=0,
                         help="retain a partial bank after this many rows; zero completes the population")
     args = parser.parse_args()
+    if args.binary_checkpoints is not None and (args.binary_solver != "blocked_lbfgs"
+                                               or args.reuse_candidate is not None):
+        parser.error("binary checkpoints require a fresh bounded source-only fit")
     if args.stop_after < 0:
         parser.error("stop-after must be nonnegative")
     if args.bank_partition == "source_calibration" and (
@@ -443,11 +449,16 @@ def main() -> None:
                 max_table_entries=args.signature_max_table_entries)
         _save_if_absent(candidate_path, candidate.to_dict())
     else:
-        candidate = fit_compositional_semantic_program_transducer(
-            [*(replace(item, split="train") for item in fit),
-             *(replace(item, split="validation") for item in calibration)],
-            input_grounding=parent.input_grounding, binary_solver=args.binary_solver,
-            binary_fit_progress=lambda row: print(json.dumps(row, sort_keys=True), flush=True))
+        scope = nullcontext()
+        if args.binary_checkpoints is not None:
+            from core.learning.semantic_bounded_binary_fit import binary_fit_checkpoint_scope
+            scope = binary_fit_checkpoint_scope(args.binary_checkpoints, plan["plan_sha256"])
+        with scope:
+            candidate = fit_compositional_semantic_program_transducer(
+                [*(replace(item, split="train") for item in fit),
+                 *(replace(item, split="validation") for item in calibration)],
+                input_grounding=parent.input_grounding, binary_solver=args.binary_solver,
+                binary_fit_progress=lambda row: print(json.dumps(row, sort_keys=True), flush=True))
         candidate = (candidate.with_global_constraint_arguments()
                      .with_conditional_argument_scores()
                      .with_overlap_complete_mentions()
