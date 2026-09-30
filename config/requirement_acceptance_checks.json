@@ -1842,6 +1842,23 @@
         "name": "tests/test_a_veto_is_a_decision_not_a_failure.py",
         "why": "Decides the repair-storm clause: a completed governance disposition does not trip the repair circuit breaker, real failures stay failures, and repair produces evidence before it is disposed of. Neither suite decides that curiosity, journaling, research and learning are active in a normal full launch, or that repair updates memory and the self-model."
       }
+    ],
+    "CTX2-MIND-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_one_authoritative_self.py",
+        "why": "Decides one authoritative owner for the self: the self object, the identity and continuity engines, workspace ownership and the substrate's self-representation read the canonical value instead of forming their own, and none recomputes a canonical number."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_one_canonical_workspace.py",
+        "why": "Decides one global workspace: the other module of that name is a facade of the canonical class with no implementation of its own, and only one module implements a broadcast bus."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_one_canonical_affect_engine.py",
+        "why": "Decides one affect engine, the one that runs: only one module defines one, the retired engine is gone, and the shim returns the registered service rather than building another. None of the three decides the owners of the phenomenal substrate, the consciousness cycle, welfare, executive authority or memory authority, or an inventory of every competing construction."
+      }
     ]
   }
 }
