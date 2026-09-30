@@ -1389,6 +1389,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  The [fit-only termination contrast](evidence/G03_FIT_ONLY_TERMINATION_CONTRAST_2026-09-29.md)
+  adds witnessed stop/continue peers to all 1,296 selected source pairs and
+  requires the complete cohort before acquisition. Active-tokenizer span
+  projection passed; no hidden states or generated gain were measured for it.
   The [fit-only counterfactual cohort preflight](evidence/G03_COUNTERFACTUAL_ACQUISITION_PREFLIGHT_2026-09-29.md)
   requires at least 648 examples to preserve every declared cell. After the
   [postfix wording repair](evidence/G03_POSTFIX_DEFINITION_WORDING_2026-09-29.md),

@@ -461,3 +461,47 @@ def build_semantic_counterfactual_fork_join_corpus(
     if any(row['status'] == 'unsupported' for row in receipt['records']):
         raise ValueError('fork/join counterfactual source corpus has unsupported programs')
     return (*sources, *rows)
+
+
+def build_semantic_counterfactual_fork_join_stop_corpus(
+    *, seed: int=0, examples_per_operation_triple: int=1,
+) -> Any:
+    """Pair complete fit graphs with a witnessed continuation at their stop choice.
+
+    The base set is the deterministic first row of each v1 factorial cell. The
+    extra step reuses an existing input, so both graphs consume the same public
+    inputs and share every teacher decision before finish versus continue.
+    """
+    from core.learning.procedure_induction import Instruction
+
+    originals = build_semantic_counterfactual_fork_join_corpus(
+        seed=seed, examples_per_operation_triple=examples_per_operation_triple)
+    cells = {}
+    for item in originals:
+        key = (item.construction_id, item.topology_id,
+               tuple(row.instruction.op for row in item.instructions))
+        if key not in cells or item.example_id < cells[key].example_id:
+            cells[key] = item
+    base = tuple(cells[key] for key in sorted(cells))
+    extended = []
+    observations = ProgramObservationCache(capacity=512)
+    for item in base:
+        program = item.program
+        if (program.n_inputs != 4 or program.depth != 3
+                or any(type(value) is not int for value in item.inputs)):
+            raise ValueError('stop contrast requires a three-step integer fork/join graph')
+        continuation = replace(program, instructions=(*program.instructions,
+            Instruction('add', (program.n_inputs + program.depth - 1, 0))))
+        comparison = compare_program_meanings(program, continuation,
+            counterfactual_inputs(item.inputs), observation_cache=observations)
+        if comparison['status'] != 'different' or comparison.get('witness') is None:
+            raise ValueError('stop contrast has no witnessed output change')
+        rng = random.Random(f'{seed}|{item.example_id}|stop')
+        rendered = render_bound_program(item, program=continuation,
+            names=_names(rng, program.n_inputs + continuation.depth),
+            clause_order=list(range(continuation.depth)), lineage_version=2,
+            render_style='name_after')
+        extended.append(replace(rendered, contrast_id=item.contrast_id))
+    if len({item.example_id for item in (*base, *extended)}) != 2 * len(base):
+        raise ValueError('stop contrast source identities are not unique')
+    return (*base, *extended)

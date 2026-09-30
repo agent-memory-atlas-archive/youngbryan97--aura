@@ -63,6 +63,7 @@ from core.learning.semantic_program_ir import (
 )
 from core.runtime.file_read_gateway import read_stable_bytes
 from core.runtime.file_write_gateway import FileWriteGateway, get_file_write_gateway
+from core.verify.invariants import invariant
 
 LEGACY_FEATURE_RECORD_SCHEMA: Final = "aura.semantic_program_feature_record.v1"
 DEFINITION_FEATURE_RECORD_SCHEMA: Final = "aura.semantic_program_feature_record.v2"
@@ -94,6 +95,7 @@ NATURAL_IDENTITY_SOURCE_CORPUS_KIND: Final = "natural_identity_source_linear_3x2
 COUNTERFACTUAL_SOURCE_CORPUS_KIND: Final = "counterfactual_natural_source_v1"
 COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND: Final = "counterfactual_natural_source_v2"
 COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND: Final = "counterfactual_fork_join_source_v1"
+COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND: Final = "counterfactual_fork_join_stop_source_v1"
 SEMANTIC_CORPUS_KINDS: Final = frozenset(
     {
         CHAIN_CORPUS_KIND,
@@ -112,6 +114,7 @@ SEMANTIC_CORPUS_KINDS: Final = frozenset(
         COUNTERFACTUAL_SOURCE_CORPUS_KIND,
         COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND,
         COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND,
+        COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND,
         SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
         SEQUENCE_CATAPHORIC_CORPUS_KIND,
         SEQUENCE_RESERVED_ALIAS_CORPUS_KIND,
@@ -152,6 +155,25 @@ _LANE_RECEIPT_SCHEMA: Final = "aura.mlx_model_lane_ownership.v1"
 
 class SemanticFeatureMaterializationError(RuntimeError):
     """The acquisition bundle could not establish its declared evidence."""
+
+
+def _require_complete_stop_contrasts(max_examples: int, source_count: int) -> None:
+    if max_examples < source_count:
+        raise ValueError(
+            "stop-contrast corpus requires every paired source "
+            f"({max_examples} requested, {source_count} required)"
+        )
+
+
+@invariant("learning.stop_contrast_selection_keeps_both_sides", scope="learning",
+           owner="core/learning/semantic_program_feature_materialization.py", observational=False)
+def _stop_contrast_selection_boundary() -> dict:
+    _require_complete_stop_contrasts(4, 4)
+    try:
+        _require_complete_stop_contrasts(3, 4)
+    except ValueError:
+        return {"partial_pair_selection_refused": True}
+    raise AssertionError("partial stop-contrast selection acquired training weight")
 
 
 class HiddenSequenceClient(Protocol):
@@ -235,6 +257,16 @@ def build_semantic_program_corpus_for_config(
 
         return build_semantic_counterfactual_fork_join_corpus(
             seed=config.seed, examples_per_operation_triple=config.examples_per_operation_pair)
+
+    if config.corpus_kind == COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND:
+        from core.learning.semantic_counterfactual_corpus import (
+            build_semantic_counterfactual_fork_join_stop_corpus,
+        )
+
+        corpus = build_semantic_counterfactual_fork_join_stop_corpus(
+            seed=config.seed, examples_per_operation_triple=config.examples_per_operation_pair)
+        _require_complete_stop_contrasts(config.max_examples, len(corpus))
+        return corpus
 
     if config.corpus_kind == CHAIN_CORPUS_KIND:
         return build_semantic_program_corpus(
@@ -1625,6 +1657,7 @@ __all__ = [
     "COUNTERFACTUAL_SOURCE_CORPUS_KIND",
     "COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND",
     "COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND",
+    "COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND",
     "NATURAL_REPLICATION_CORPUS_KIND",
     "NATURAL_REQUEST_CORPUS_KIND",
     "NATURAL_SOURCE_CORPUS_KIND",

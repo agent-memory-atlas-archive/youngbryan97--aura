@@ -1,6 +1,7 @@
 """Language contrasts keep register identity, source order and meaning separate."""
 
 import hashlib
+from collections import Counter
 from dataclasses import replace
 from types import SimpleNamespace
 
@@ -138,6 +139,65 @@ def test_fork_join_counterfactual_corpus_is_training_only_and_feature_callable()
                                             if item.topology_id in fit_topologies}
     assert all(any(clause in item.source_text for item in corpus) for clause in (
         'To obtain ', 'Record ', 'Define ', 'Let '))
+
+
+def test_fork_join_stop_corpus_witnesses_a_shared_prefix_termination_choice():
+    from core.learning.semantic_native_decision_supervision import native_teacher_decisions
+    from core.learning.semantic_native_typed_source_pairs import native_typed_source_pair_plan
+    from core.learning.semantic_program_feature_materialization import (
+        COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND,
+        FAMILY_FEATURE_CONFIG_SCHEMA,
+        SemanticFeatureConfig,
+        build_semantic_program_corpus_for_config,
+        select_bounded_semantic_examples,
+    )
+
+    corpus = build_semantic_program_corpus_for_config(SemanticFeatureConfig(
+        seed=41, corpus_kind=COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA, max_examples=1296))
+    assert len(corpus) == 1296
+    assert {item.split for item in corpus} == {'train'}
+    assert {item.program.depth for item in corpus} == {3, 4}
+    assert len(select_bounded_semantic_examples(corpus, max_examples=1296)) == len(corpus)
+    short_rows = [item for item in corpus if item.program.depth == 3]
+    long_rows = [item for item in corpus if item.program.depth == 4]
+    prefix_key = lambda item, instructions: (
+        item.contrast_id, item.inputs, instructions)
+    assert len(short_rows) == len(long_rows) == 648
+    assert Counter(prefix_key(item, item.program.instructions) for item in short_rows) == Counter(
+        prefix_key(item, item.program.instructions[:3]) for item in long_rows)
+    short_outputs = {prefix_key(item, item.program.instructions): item.program.run(item.inputs)
+                     for item in short_rows}
+    assert all(short_outputs[prefix_key(item, item.program.instructions[:3])]
+               != item.program.run(item.inputs) for item in long_rows)
+    with pytest.raises(ValueError, match='1296 required'):
+        build_semantic_program_corpus_for_config(SemanticFeatureConfig(
+            seed=41, corpus_kind=COUNTERFACTUAL_FORK_JOIN_STOP_CORPUS_KIND,
+            schema=FAMILY_FEATURE_CONFIG_SCHEMA, max_examples=1295))
+
+    long = long_rows[0]
+    short = next(item for item in short_rows if prefix_key(item, item.program.instructions)
+                 == prefix_key(long, long.program.instructions[:3]))
+    left = native_teacher_decisions(short.program, ('integer',) * 4,
+                                    register_encoding='absolute_v1')
+    right = native_teacher_decisions(long.program, ('integer',) * 4,
+                                     register_encoding='absolute_v1')
+    differing = [(a, b) for a, b in zip(left, right, strict=False)
+                 if a.correct_index != b.correct_index]
+    assert len(differing) == 1
+    assert differing[0][0].kind == differing[0][1].kind == 'termination'
+
+    def training(item):
+        identity = hashlib.sha256(item.source_text.encode()).hexdigest()
+        return SimpleNamespace(ir=SimpleNamespace(source_text_sha256=identity,
+            source_token_ids=tuple(item.source_text.encode()), to_program=lambda: item.program),
+            public_inputs=item.inputs, contrast_id=item.contrast_id, split=item.split)
+
+    rows = (training(short), training(long))
+    pairs = native_typed_source_pair_plan(rows,
+        tuple(row.ir.source_text_sha256 for row in rows), register_encoding='absolute_v1')
+    assert all(any(pair['kind'] == 'termination' for pair in pairs[row.ir.source_text_sha256])
+               for row in rows)
 
 
 @pytest.mark.parametrize('style,prefix', [
