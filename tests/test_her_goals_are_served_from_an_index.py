@@ -18,8 +18,8 @@ import sqlite3
 
 import pytest
 
-from core.goals.goal_engine import (
-    _SCHEMA,
+from core.goals.goal_engine import _SCHEMA
+from core.goals.goal_serving_order import (
     _SERVING_RANK,
     _add_the_serving_order,
 )
@@ -93,7 +93,7 @@ def test_the_migration_is_safe_to_run_twice(store):
 
 
 def test_a_store_without_the_column_still_reads(store):
-    # What `_serving_order` falls back to when generated columns are absent.
+    # What `serving_order` falls back to when generated columns are absent.
     assert [row["id"] for row in store.execute(BY_EXPRESSION)]
     with pytest.raises(sqlite3.OperationalError):
         store.execute(BY_RANK)

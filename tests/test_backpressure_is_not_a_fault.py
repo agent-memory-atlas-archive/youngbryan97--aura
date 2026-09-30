@@ -149,6 +149,9 @@ def test_a_lane_serving_another_model_is_not_a_steering_fault() -> None:
 def test_the_worker_sends_the_disposition() -> None:
     from pathlib import Path
 
-    worker = Path(__file__).resolve().parents[1] / "core/brain/llm/mlx_worker.py"
-    body = worker.read_text("utf-8")
-    assert '"steering_disposition": _steering_disposition,' in body
+    # The reply is assembled in the worker loop's steps, which the loop calls.
+    llm = Path(__file__).resolve().parents[1] / "core/brain/llm"
+    loop = (llm / "mlx_worker.py").read_text("utf-8")
+    steps = (llm / "mlx_worker_loop_steps.py").read_text("utf-8")
+    assert "from .mlx_worker_loop_steps import" in loop
+    assert '"steering_disposition": _steering_disposition,' in steps
