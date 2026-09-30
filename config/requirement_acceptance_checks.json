@@ -1720,6 +1720,13 @@
         "name": "tests/test_lesion_inference.py",
         "why": "Decides that a lesion's result is classed by what it can support rather than by the size of its delta: a metric only the lesioned part produces is tautological at any delta, and capability needs success on tasks solvable without it."
       }
+    ],
+    "WELFARE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_welfare_model.py",
+        "why": "Decides one causal effect of welfare on policy: every interest in the snapshot is bounded, a vital deficit comes only from vital interests, it gates optional background work while healthy interests leave it open, and the background policy consumes that gate. It does not decide effects on attention, learning, consent or refusal, continuity protection, recovery under adversarial controls, or any longitudinal effect."
+      }
     ]
   }
 }
