@@ -1684,6 +1684,13 @@
         "name": "tests/test_relational_memory_authority.py",
         "why": "Decides encryption, export and deletion and exact-agent isolation for the relational store: no plaintext identity in the envelope, a wrong key that locks without overwriting, receipted export and delete, and one namespace's delete leaving the others. None of the three decides key rotation, retention and compaction, disk-full and power-loss behaviour, or rollback symmetry across every store."
       }
+    ],
+    "CTX2-AMP-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_rewrite_faces_the_verifier.py",
+        "why": "Written for this requirement's last sentence: a calibration rewrite that was never checked is not delivered as verified, and an unchanged answer keeps its pass, so re-verification is bound to the delivered text rather than a precursor. It does not decide binding every adopted candidate to its evidence body, verifier versions, executed checks, counterexamples and calibration."
+      }
     ]
   }
 }
