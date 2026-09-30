@@ -1712,3 +1712,30 @@ bank. The merge marks a shard whose anchors are not exchangeable with the
 coordinator's, and the authority gate then refuses the sweep, which is what
 refused every sharded sweep so far; shards that fork from the bank hold the
 coordinator's anchors exactly.
+
+## Addendum, 29 September 2026, late: seed 23's carrier runs sharded
+
+Named before any run reads it. It replaces "Seed 23's decisive sweep runs in one
+process" in the evening addendum, on the condition that addendum set: the two
+workspace columns now agree between processes.
+
+At 26bfee6e0, with the network, the managed entropy and the substrate's chaos
+declared by the run, `tools/probe_anchor_travel.py` restores four anchors
+written by one process in another built with a longer baseline. As restored,
+0 of 438 columns differ at every anchor. After one turn, 2 to 15 columns differ,
+all in C's substrate and one in A: the substrate's minimum by 0.176 of its spread
+on the seed-7 recording, every other column by less than 0.024, the median by
+0.005. The workspace's coherence and fragmentation, 0.37 and 0.18 of their
+spreads before, no longer differ: the chaos engine's noise was seeded from each
+process's id and start time. Probe 11 at the evening's commit read 89 columns.
+
+What is left is the same uncarried drift in the substrate that a late cut meets
+inside one process, where each anchor's untouched forks are rolled with its
+first cut. The late-fork control reads it in every shard, and a merged sweep
+counts its late fork as decided if any shard's was.
+
+So seed 23's carrier runs as a coordinator and three workers forking from the
+coordinator's anchor bank (`run_subject_core_v25_sharded.py --workers 3`, with
+`--share-anchors` and `--grain-claims` on). The workers take grain rows after
+their cuts. The grain is about 26,600 rollouts, a day and a half in one process,
+and is the reason this matters. Nothing else in the design moves.
