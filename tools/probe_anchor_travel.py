@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import os
 import sys
 from pathlib import Path
@@ -32,12 +33,17 @@ ANCHORS = 4
 
 
 async def _organism(run_dir: Path, seed: int, rounds: int):
-    from core.subject.driver import CONDITIONS, build_runtime, calibrate_clock, quiesce_organism, start_organism
+    from core.subject.driver import (
+        CONDITIONS,
+        build_runtime,
+        calibrate_clock,
+        quiesce_organism,
+        start_organism,
+    )
     from core.subject.isolation import isolate_state
-
     from tools.run_subject_core_v25 import _seed_every_generator
 
-    run_dir.mkdir(parents=True, exist_ok=True)
+    await asyncio.to_thread(run_dir.mkdir, parents=True, exist_ok=True)
     isolate_state(run_dir)
     # As the rig brings a shard up under ONE_CLOCK: the global generators from
     # the seed before the organism exists, so what it draws at boot and never
@@ -61,12 +67,22 @@ async def _one_turn_from_each(runtime, anchors, condition) -> tuple[np.ndarray, 
     not the snapshot.
     """
     restored, turned = [], []
+    facts: list[list[str]] = []
     for anchor in anchors:
         runtime.restore(anchor.snapshot)
         restored.append(np.asarray(runtime.read(condition.name, "restored", {}).vector(), dtype=np.float64))
         frames = await runtime.turn_once(condition)
         turned.append(np.asarray(frames[-1].vector(), dtype=np.float64))
+        world = getattr(getattr(runtime, "state", None), "world", None)
+        held = getattr(world, "facts", None) or {}
+        entries = list(held.items()) if isinstance(held, dict) else list(held)
+        facts.append([repr(entry)[:400] for entry in entries])
+    _last_facts.append(facts)
     return np.vstack(restored), np.vstack(turned)
+
+
+#: What each anchor's turn left in her world facts, for the comparison to name.
+_last_facts: list[list[list[str]]] = []
 
 
 def _compare(what: str, written: np.ndarray, read: np.ndarray) -> bool:
@@ -104,6 +120,7 @@ async def main() -> int:
         restored, vectors = await _one_turn_from_each(runtime, anchors, conditions[0])
         np.save(args.out / "writer_restored.npy", restored)
         np.save(args.out / "writer_turns.npy", vectors)
+        (args.out / "writer_facts.json").write_text(json.dumps(_last_facts[-1], indent=1))
         return 0
     runtime, conditions = await _organism(args.out / "reader", args.seed, rounds=3)
     from dataclasses import replace
@@ -122,6 +139,7 @@ async def main() -> int:
     restored, vectors = await _one_turn_from_each(runtime, anchors, conditions[0])
     np.save(args.out / "reader_restored.npy", restored)
     np.save(args.out / "reader_turns.npy", vectors)
+    (args.out / "reader_facts.json").write_text(json.dumps(_last_facts[-1], indent=1))
     print(f"anchors {len(anchors)}")
     same_restored = _compare("as restored", np.load(args.out / "writer_restored.npy"), restored)
     same_turned = _compare("after one turn", np.load(args.out / "writer_turns.npy"), vectors)

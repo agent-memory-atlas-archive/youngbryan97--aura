@@ -8,12 +8,15 @@ worker processes and merged back:
     python tools/run_subject_core_v25_sharded.py --workers 12 --anchors 32 --rounds 24
 
 Each worker is an ordinary v25 run with `--shard I/N`: its own process, its own
-state root, the same baseline, dose matching and anchor collection as the
-coordinator, and every N-th cut. The coordinator is an ordinary v25 run with
-`--from-shards`: it learns the grain while the workers sweep, waits for every
-shard file, merges them only after checking each shard's anchors are
-exchangeable with its own, and runs everything that comes after the sweep. A
-shard whose anchors are not exchangeable is an authority blocker, not a merge.
+state root, and every N-th cut. Two processes on one seed are two organisms, so
+by default the coordinator writes its anchor bank and every worker forks from
+it (`core/subject/anchor_travel.py`); with `--no-share-anchors` each worker runs
+its own baseline and collects its own anchors, as before 29 September. The
+coordinator is an ordinary v25 run with `--from-shards`: it learns the grain
+while the workers sweep, waits for every shard file, merges them only after
+checking each shard's anchors are exchangeable with its own, and runs
+everything that comes after the sweep. A shard whose anchors are not
+exchangeable is an authority blocker, not a merge.
 
 The launcher writes `launch.json` with every command, pid and log path, and by
 default returns once everything is started.
@@ -44,7 +47,7 @@ SHARED = (
 #: Flags that are on or off, passed the same way. `fail_fast` among them, so a
 #: worker that finds an undecided cut stops its siblings through the shard
 #: directory and a failing carrier run ends in minutes rather than days.
-SHARED_FLAGS = ("allow_degraded", "v5", "fail_fast", "skip_grain", "whiten", "grain_claims")
+SHARED_FLAGS = ("allow_degraded", "v5", "fail_fast", "skip_grain", "whiten", "grain_claims", "share_anchors")
 
 
 def _cores_this_run_has() -> int:
@@ -152,6 +155,10 @@ def main() -> int:
     parser.add_argument("--fail-fast", action="store_true", help="the most lopsided cuts first; every worker stops at the first undecided cut")
     parser.add_argument("--skip-grain", action="store_true", help="take the experimenter's grain rather than learning one")
     parser.add_argument("--whiten", action="store_true", help="count neighbours in Mahalanobis distance")
+    parser.add_argument(
+        "--no-share-anchors", dest="share_anchors", action="store_false",
+        help="let each shard collect its own anchors, as before 29 September",
+    )
     parser.add_argument(
         "--no-grain-claims", dest="grain_claims", action="store_false",
         help="let the coordinator learn the grain alone, as before 29 September",

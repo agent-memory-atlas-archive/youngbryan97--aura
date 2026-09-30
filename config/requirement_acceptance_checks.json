@@ -618,6 +618,1079 @@
         "name": "tests/test_belief_revision_hardening.py",
         "why": "Decides the corrupted-store control: a corrupt belief store is quarantined and reseeded rather than read, and a new claim updates the belief it bears on with its confidence clamped. None of the three decides investigation against canonical evidence, recurrence prevention, or rollback after a repair."
       }
+    ],
+    "SELF-STATE-CHAT-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_asking_after_her_is_not_asking_her_instruments.py",
+        "why": "Decides the routing clause: 'are you ok' is hers to answer and does not reach the host's processor and memory readings, a question that names an instrument still reaches the instruments, and what she is doing is read as her activity rather than her machine. It is held apart by whether the question names an instrument, not by example phrasings."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_self_condition_projection.py",
+        "why": "Decides the projection the answer is built from: fresh inner state is taken before host pressure, a stale dimension is disclosed as stale, agency-only evidence does not become wellbeing, and with no inner evidence the answer says it is unavailable. Neither suite decides calibrated uncertainty in the reply or the launched desktop path end to end."
+      }
+    ],
+    "AGENCY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_person_outranks_her_own_errand_at_the_executive.py",
+        "why": "Decides foreground yielding at the executive: a lane serving a person counts as the person's, a phase inside a person's turn is the person's work, her own loop stays her own while somebody waits, and a turn nobody waits on does not promote itself."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_agency_execution_bridge.py",
+        "why": "Decides obstacle recovery and bounded self-generated action: a goal's execution lease retries with backoff and then blocks, a stale claim is recovered, a scheduler rejection returns the goal to retry, a cancelled execution still settles its claim, a denied initiative never claims or runs its goal, and success needs consistent positive evidence."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_an_intention_she_acted_on_is_closed.py",
+        "why": "Decides stale-obligation cleanup for what she acted on: an act that worked closes its intention as completed, one that failed closes it as failed, and many acts leave nothing open. None of the three decides restart continuity, operator override or indefinite-life behavior."
+      }
+    ],
+    "CTX3-QUANTUM-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_quantum_statevector.py",
+        "why": "Decides the classical simulator the requirement says to preserve, each against its closed form: Bell, GHZ, teleportation through every correction branch, Grover's analytic success probability and the QFT matrix; the qubit cap, a non-unitary or malformed gate refused, sampling seeded by its entropy source with a failed source counted rather than replaced, and quantum_lab found by the catalog and run through CapabilityEngine.execute."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_quantum_noise_variational.py",
+        "why": "Decides the density-matrix side against closed-form laws: amplitude and phase damping, depolarising contraction, a malformed Kraus channel refused, and parameter-shift gradients that agree with finite differences. Neither file decides the hybrid hardware backend the requirement still asks for: targets, job lifecycle, credentials, queue and cost budgets, cancellation, or classical fallback."
+      }
+    ],
+    "CTX3-PHYS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_worlds_physics.py",
+        "why": "Decides the deterministic classical core the requirement says to preserve: a projectile against its discrete closed form, restitution exact at impact, bounce height by e squared, momentum conserved through collisions, no energy created by an inelastic one, a sphere at rest on a plane and on a box, identical worlds giving identical digests, a serialised world replaying its trajectory, and invalid bodies refused. It does not decide named units and frames, materials, oriented boxes, general rigid-body rotation, or validation against an established engine, which the requirement names as still to add."
+      }
+    ],
+    "CTX3-WORLD-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_worlds_physics.py",
+        "why": "Decides the part the requirement says exists: the same seed generates the same world, generation stays inside its bounds and themes, and a blueprint round-trips and realises into the world it describes."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_worlds_embodied.py",
+        "why": "Decides that a generated terrain can be walked: navigation reaches a target on it, and reports no path honestly where there is none. Neither file decides grammar or constraint solving, solvability and safety validation as a property of every world, novelty metrics, migration, or that a world cannot carry an evaluator's answers."
+      }
+    ],
+    "CTX3-WORLD-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_worlds_physics.py",
+        "why": "Decides hosting: a world survives restart with an identical trajectory, its journal records history, a failed write publishes no partial state and leaves the live world unchanged, mutations to one world serialise without lost updates, racing creations of one world reserve it once, and a cancellation during a durable write finishes the commit first."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_worlds_embodied.py",
+        "why": "Decides continuity for the agent in a world: it survives a host restart with its last navigation state, its actions are journaled, and a fork can be intervened on and compared, down to a divergence in velocity alone."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_worlds_http.py",
+        "why": "Decides inspection and ownership at the surface: the owner lists, renders and steps a world, a paired device can watch and not mutate, and an unpaired one gets nothing. None of the three decides schema migrations, rollback or replay, event-time authority, quotas, multi-process or multi-agent synchronisation, or continuity across a model swap."
+      }
+    ],
+    "CTX3-REASON-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_proof_kernel.py",
+        "why": "Decides the proof half of the verified lane: every certificate the search produces for a real proof is accepted by an independent kernel, a forged, truncated or tampered certificate is rejected, an unprovable goal gets a countermodel and no theorem, the axiom audit names only the premises used, and an admitted claim taints what is proved from it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_arithmetic_is_computed_not_predicted.py",
+        "why": "Decides routing by suitability for the one case that is always decidable: arithmetic in any phrasing is computed rather than predicted, exact above float precision, and ordinary text is not mistaken for a sum."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_no_path_serves_wrong_arithmetic.py",
+        "why": "Decides verification against an executable consequence at the last gate: the arithmetic verdict runs in the shared finalizer every fast path passes through, and a wrong number is replaced with an honest refusal. None of the three decides typed representations or verification for constraints, equations, temporal or spatial relations, plans, or program transformations, or measured routing between neural and symbolic methods beyond arithmetic."
+      }
+    ],
+    "CTX3-VALUE-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_injection_canary.py",
+        "why": "Decides prompt injection in both directions: a model that follows an instruction planted in untrusted text is caught by the decoy it echoes, an emitted secret is a leak, and an outage or unusable reply is inconclusive rather than a security verdict."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_injected_evidence_is_not_remembered_as_speech.py",
+        "why": "Decides one memory-poisoning path: evidence a turn assembled is not written to memory as the person's words, so a source excerpt cannot come back later as material she continues."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_typing_fast_is_not_manipulation.py",
+        "why": "Decides the requirement's last sentence for one signal: a burst of messages is counted in its window and never as evidence she is being manipulated, and recognition promotes the person once it passes. None of the three decides social pressure, bribery, flattery, coercion, authority spoofing, repeated exposure, a model swap, or collusion between agents."
+      }
+    ],
+    "CTX3-SOCIAL-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_social_situation_runtime.py",
+        "why": "Decides the estimator's front door: an incoming turn's social state is exact, current and ready before cognition, the user id never resolves to an unrelated agent, a missing identity abstains without inventing a user, and a malformed snapshot cannot block the turn."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_chat_social_authority.py",
+        "why": "Decides spoofing at the HTTP boundary: the social path abstains without an authenticated principal, consent applies to that exact principal idempotently, and the principal holds for the whole of a concurrent turn and does not leak past it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_cognitive_situation_frame.py",
+        "why": "Decides the anti-diagnosis and anti-spoofing constraints downstream: the frame uses the requested agent and not the last or a spoofed one, has no synthetic agent without an exact identity, and an unknown social state asks for clarity without diagnosis or repair. None of the three decides consent and boundary history, cultural or norm context, power and vulnerability protections, multi-party identity, adversarial calibration, or longitudinal held-out evaluation."
+      }
+    ],
+    "CTX3-SOCIAL-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_social_situation_runtime.py",
+        "why": "Decides the feedback window: only a delivered response is paired to its exact user, and feedback context is recorded only after delivery succeeded."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_chat_social_authority.py",
+        "why": "Decides the same window on the HTTP path: it opens only after the response's background work has run, and a failed turn's poll reuses its immutable receipt."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_relational_memory_authority.py",
+        "why": "Decides the one authority SocialMemory and SharedGround adapt over: consent that is exact-agent, expiring and purpose-scoped, an encrypted envelope with no plaintext identity or memory, revocation that blocks prompts, legacy plaintext quarantined until claimed, export and deletion behind authorisation receipts, failed writes that roll back, and every legacy adapter sharing it. None of the three decides the consolidation of humor, joy, the user profile, the relationship graph and theory of mind, action receipts tied to observed social outcomes, user-facing style and boundary controls, or multi-session trials."
+      }
+    ],
+    "CTX3-SITUATION-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_cognitive_situation_frame.py",
+        "why": "Decides that the frame is causal and not decorative: the cognitive engine applies it to live state, the context assembler and response generation consume it, the desktop quick path reads it, fused perception changes attention, routing, response and planning, and a calibrated social rupture changes routing and planning. It also decides the frame uses the requested agent and never a spoofed one. It does not decide the unified situation graph the requirement still asks for: identity across Aura, operator, agent and object, hazards, affordances, welfare and resource costs, contradiction history, interruption, replanning, or post-action learning."
+      }
+    ],
+    "CTX3-PERCEPT-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_multimodal_sync.py",
+        "why": "Decides the synchronizer's semantics: every missing modality is exposed with its repair, a stale event is not reused as current truth, equal conflicting claims abstain instead of the last write winning, a failed sensor does not mask an independent healthy one, stronger evidence resolves a conflict and keeps the contradiction on record, queues are bounded and reject duplicate, future and expired events, and sensitive unredacted evidence needs explicit consent."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_perceptual_pump_runtime.py",
+        "why": "Decides that fused beliefs reach the runtime: a pump tick fuses modalities and publishes reconciled beliefs into WorldState and the body vector, and a probe timeout backs off instead of propagating."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_sensory_integration_runtime.py",
+        "why": "Decides the legacy SensorySystem's path through the same synchronizer: in-memory camera data reaches the vision lane, same-modality captures serialise, raw base64, audio and text stay out of fusion, and transcription fails truthfully without a local STT. None of the three decides bridging every remaining producer, real permission receipts, event-time replay, or the live hardware, sensor-loss, skew, occlusion and restart trials."
+      }
+    ],
+    "CTX3-PERCEPT-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_visual_speech.py",
+        "why": "Decides the service's contract: expired consent is refused before any video or model access, audio alignment needs its own consent, poor light and an ambiguous speaker abstain before the decoder, uncalibrated output stays a non-actionable candidate, a missing decoder or a cancellation zeroes the mouth crops, and raw retention is refused by contract."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_visual_speech_integration.py",
+        "why": "Decides the channel inside the vision engine: articulation is detected, a static face is rejected, and the calibrated probability reaches status. Neither file decides the model installer and licence flow, word error rate on real speaking video, held-out accents, cameras, poses and lighting, multi-speaker association, or the consent UI."
+      }
+    ],
+    "CTX3-CONTINUITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_continuity_branches_and_identity_does_not.py",
+        "why": "Decides the detection half: a fork has two continuers and no strict successor, a stale backup restored is a branch from the older stage, two simultaneous copies are two tokens, an exact reconstruction with no causal channel is a new token, and every lineage edge is signed so a rewritten stage or a duplicate record is refused."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_continuity_relation.py",
+        "why": "Decides one canonical identity as a relation over an ordered chain rather than a hash: learning does not break it, a restored backup that matches does not continue it, every external origin breaks it, and dropping her commitments is a change of her and not in her. Neither file decides conflict-free merge across distributed execution, explicit embodiment transfer, or split-brain detection in a running system."
+      }
+    ],
+    "CTX3-DIST-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_device_connect_handshake.py",
+        "why": "Decides identity, attestation and capability negotiation for a paired device: a connect is accepted only with a correct signature over a fresh nonce, a replayed or stale nonce and a token stolen to another device are refused, the secret never crosses the wire, a device serves only what its pinned manifest declared, and a changed manifest forces re-pairing."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_device_pairing.py",
+        "why": "Decides least privilege and revocation: a device token reaches the conversation surface and never the control surface, a revoked or forged token is refused, expired and exhausted pairing codes fail, the token is never stored in clear, and a corrupt registry authorises nobody."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_device_voice_scope.py",
+        "why": "Decides deny-by-default for one capability: a device gets no voice at pairing, only the owner can grant it, and the local TLS certificate fails closed when it cannot be written. None of the three decides discovery, clock and state synchronisation, emergency stop, lease expiry, or truthful offline and degraded states for a device doing embodied work."
+      }
+    ],
+    "CTX3-VALUE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_value_levels.py",
+        "why": "Decides bounded formation and constitutional limits: values sit in levels ordered by how hard they are to move, a preference learner may move a preference and not a disposition, a commitment moves only by a deliberate revision that says what it costs, no registered process reaches a constitutive value, an unregistered process has no authority, and a refusal is recorded."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_ulysses_covenant.py",
+        "why": "Decides Ulysses covenants: tightening is cheap, loosening takes a petition with a real reflection, a cooling-off period and calm, a hard release needs the owner, safety-floor domains cannot be bound, and a released contract stops binding."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_decision_preference_learner.py",
+        "why": "Decides learning from experience within bounds: a choice that turned out well raises the weight of what distinguished it, a bad outcome lowers it, multipliers stay bounded under repetition, the value set never grows, and the learned weights persist and reach the arbiter. None of the three decides signed history, reversible updates, or arbitration between explicit owner input and what she learned."
+      }
+    ],
+    "CTX3-DIST-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_idempotency.py",
+        "why": "Decides idempotency on the effect path: the same key does not run twice, concurrent duplicates collapse to one execution, a waiter giving up does not cancel the real action, a failure does not poison the key, the ledger is bounded, and a remote mutation without a key is refused."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_effect_closure.py",
+        "why": "Decides that no act bypasses governance: with the runtime live, the output sink, the memory vault, state commits and direct skill execution all refuse ungoverned access, a receipt is withheld without an accepted transport or when it cannot be persisted, and a silent failover is marked inferred and uncommitted."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_replay_does_not_duplicate_writes.py",
+        "why": "Decides replay for one queue: a committed record is not committed again, a failed one is kept and not marked committed, and a failed rewrite is recorded. None of the three decides the contract across operating systems, robots, IoT devices and simulators, partition tolerance, fencing, compensation, or observed-effect verification for a physical act."
+      }
+    ],
+    "WORKSPACE-INGRESS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_global_workspace_runtime_contract.py",
+        "why": "Decides the typed, attributed, bounded ingress: a structured publish goes through the governed candidate ingress, an unattributed signal is rejected, a large payload is bounded with a digest it can be rebuilt from, a flood is dropped and recorded, an inhibition failure or timeout rejects with a receipt and never admits late, and a processor failure is isolated while the broadcast continues."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_global_workspace_competes.py",
+        "why": "Decides that what enters still competes: a small priority gap buys no monopoly, the field does not collapse to a cartel or a short cycle, ties are settled by neither arrival order nor the clock, and a clear gap is respected. Neither file decides live swarm start and completion or hive ingestion without publish or submit faults."
+      }
+    ],
+    "UI-LONG-CONTENT-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_runtime_polish.py",
+        "why": "test_desktop_chat_and_neural_cards_do_not_clip_long_text decides the source half of CP119: the 600px thinking cap is gone, messages, thought cards and channels are not height-capped or clipped, a Neural payload up to 8,000 characters is shown whole and a longer one carries its full text behind the expand control, and a resize resynchronises the conversation surface. It reads the stylesheet and script, not a rendered page, so it does not decide zero hidden overflow at a viewport, genuine live responses, code, tables and very long words, or accessibility of the control."
+      }
+    ],
+    "TOOL-DISPOSITION-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_deferred_task_is_not_a_failed_one.py",
+        "why": "Decides deferred as its own disposition from execution: a deferral is recognised and recorded as deferred, an ordinary failure is not mistaken for one and carries its reason, a retry is bounded and never blind, and nothing launched means nothing promised."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_refused_task_is_not_a_failed_one.py",
+        "why": "Decides denied as its own disposition: a refused task never starts, is not counted as a failure, carries why, and a governance check that cannot answer is not a refusal."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_desktop_shell_contracts.py",
+        "why": "test_react_shell_keeps_policy_deferral_neutral decides the Checkpoint 81 shell half from source: a deferred tool event, nested or not, renders as deferred with success null rather than failed. None of the three decides the dispositions through ConstitutionalCore, receipts, memory and learning, incidents and operator export, or the exact-app display the requirement asks to prove."
+      }
+    ],
+    "SOCIAL-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_chat_social_authority.py",
+        "why": "Decides the Checkpoint 78 route: the authenticated principal is held for the whole of a concurrent chat turn, its scope is task-local and restored after, the social path abstains without an authenticated principal, and consent is applied to that exact principal idempotently."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_relational_memory_authority.py",
+        "why": "Decides consent as governed abstention: a record is session-only without explicit consent, consent is exact-agent, expiring and purpose-scoped, revocation blocks prompts, an expired record is rejected before it mutates anything, and private mode revokes without deleting. Neither file decides cultural and power-context uncertainty, multi-party reasoning, outcome learning, or longitudinal live repair."
+      }
+    ],
+    "SIMWORLD-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_worlds_physics.py",
+        "why": "Decides the deterministic core and the newest hosting guarantees: closed-form dynamics and conservation, identical digests, authored mutations serialised per world and committed before they publish, the live world unchanged after a failed write, and the skill's typed contract refusing shallow or silent inputs."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_worlds_conjure.py",
+        "why": "Decides authorship inside a world: conjured bodies are physically real, bounds and the body cap are enforced, banishing leaves no ghost impulse, sculpting changes collisions, a gravity choice is felt exactly, and all of it survives restart. Neither file decides unit-aware multi-fidelity physics, spatial or VR engine adapters, validated procedural generation, migration, or multi-agent synchronisation."
+      }
+    ],
+    "SKILL-EXECUTION-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_skill_retry_safety.py",
+        "why": "Decides the Checkpoint 71 retry rules in BaseSkill.safe_execute: an idempotent skill retries a transient error, a side-effectful one runs once, one that needs approval never fires twice, send skills are marked retry-unsafe, the base default demands an explicit retry-safety classification rather than assuming one, and a success key of false is honoured over an ok flag. It does not decide the full per-skill effect inventory, idempotency keys bound to retries, compensation, or live causal-effect certification of each skill."
+      }
+    ],
+    "RR-02": [
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_live.py",
+        "why": "Decides live-evidence truth in the registry: a stale reading leaves the effective inventory, freshness uses monotonic lineage after a wall-clock rollback, a reading from a prior service session cannot be replayed as live, simulated readings keep their provenance and satisfy only internal contracts, expired or out-of-domain calibration is not live evidence, a failed adapter reads as explicitly unavailable, and a registration collision rolls back atomically."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_reality_observation_router.py",
+        "why": "Decides canonical readings on the way in: async samplers use canonical normalisation and keep lineage, a sampler timeout is isolated, a source gap bypasses rate and delta filters, and quality and order evidence reach both cognitive sinks. Neither file decides the full device list the requirement names, permissions, or executable-plan binding for every channel."
+      }
+    ],
+    "RR-03": [
+      {
+        "kind": "test",
+        "name": "tests/test_reality_digital_twin.py",
+        "why": "Decides the twin's integrity and versioning: manifest drift needs an explicit authorised migration that cannot be re-forged, observation order and attachment epochs stop a state being resurrected, row, binding and archive tampering fail health and queries, rollback restores the committed graph version, and future schemas and symlinked storage fail closed. It does not decide the requirement's centre: predictions from measured, calibrated models across acoustic, optical, thermal, network and battery dynamics, with counterfactuals, safe envelopes and refused extrapolation."
+      }
+    ],
+    "RR-04": [
+      {
+        "kind": "test",
+        "name": "tests/test_reality_metrology.py",
+        "why": "Decides calibrated acquisition: uncertainty propagates, repetition does not shrink systematic error, expired or unbound calibration cannot support acquisition, incomparable clock sources and capture skew are refused and restore live mode, live, simulation and hardware-in-the-loop sources cannot cross-contaminate, an unstable adapter identity is rejected, and restart or cancellation durably restores live mode. It does not decide residual learning, confound elimination, or the sham fixtures for drift, aliasing, common drivers and dropouts."
+      }
+    ],
+    "RR-06": [
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_actuation.py",
+        "why": "Decides the preconditions for acting: an actuator needs a complete bidirectional protocol and a live observation route, commands are frozen and content-addressed, a lease needs the matching session and both clock deadlines, an effect cannot be verified without independent observation, and removing an adapter revokes its channels and execution atomically."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_transactions.py",
+        "why": "Decides execution and recovery: a verified effect is durable and replays idempotently, failed independent verification rolls back, a transport failure enters an observed safe state, inventory drift refuses before any effect, a crash after dispatch is never replayed automatically, restart recovery restores the safe state or reports itself indeterminate, and tampered capsules and digests fail closed. Neither file decides blinded trial assignment, durable campaign resume, shared simulation and live modes, or production device adapters."
+      }
+    ],
+    "RR-09": [
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_middleware.py",
+        "why": "Decides the service lifecycle: configure, activate, deactivate and shutdown are distinct, pull telemetry runs only while a node is active, service requests are bounded, timed, idempotent across restart and single-flight, a mutating request is sent to the action lane, and cancellation waits are bounded and observable."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_event_flow.py",
+        "why": "Decides backpressure and restart for the event graph: rejecting backpressure is atomic and lossy backpressure is explicit and receipted, restart requeues in-flight deliveries without losing identity, a graph revision is fenced until old work drains, repeated failure opens a circuit and dead-letters, and pause, resume and cancel are durable."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_routes.py",
+        "why": "Decides authorisation wiring and readiness at the surface: acceptance routes need both the internal and token guards, provisioning is owner-guarded, and status fails closed when the service is missing. None of the three decides lazy hardware acquisition, plan invalidation on channel degradation, or multi-user isolation."
+      }
+    ],
+    "RR-07": [
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_acceptance_witness.py",
+        "why": "Decides that promotion rests on independent evidence and not on the producer: live acceptance promotes only on two distinct external roots with verified transparency-log inclusion, raw producer digests and a witness from an unregistered root cannot promote, a physical receipt cannot omit its preregistration digest, and signature, log and rollback tampering fail closed."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_acceptance.py",
+        "why": "Decides independent clean-process verification: the acceptance CLI replays in a fresh process, independent replay recomputes every predicate and rejects a producer pass the evidence does not support, and a required unmeasured case cannot be hidden by optional passes. Neither file decides the monotonic P0 to P6 ladder as a whole, portable bundles, held-out prediction, inverse control, or the rule that reusing one dataset cannot raise a level."
+      }
+    ],
+    "RR-10": [
+      {
+        "kind": "test",
+        "name": "tests/test_reality_reach_acceptance.py",
+        "why": "Decides the rules the acceptance program runs under: a simulation certificate can pass deterministically but never as live, a hardware-in-the-loop certificate needs its scenario and every required case, live acceptance refuses prerecorded metrology and a simulated adapter before any write, ack loss is reported indeterminate and restored to a safe state, and the certificate store survives restart and refuses tampering. It does not decide that the program has been passed: the blind held-out acoustic, optical, thermal and cross-channel controls, the weakpoint and law-discovery results, and the soak and independent review remain open."
+      }
+    ],
+    "RLC-RECURRENCE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_recurrence.py",
+        "why": "Decides the recurrence contract: a fixed anchor prevents a moving-reference ratchet, a non-finite candidate is refused before it reaches state, the divergence guard trips, the cache is rewound exactly when a layer raises, overthinking reverts to the best state, recurrence converges to a fixed point, the budget is checked before an atomic overshoot and halts when spent, and a slot ablation changes decode logits and restores exactly. It does not decide topology portability or that added depth is useful at resident scale."
+      }
+    ],
+    "RLC-FAST-WEIGHTS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_opt_fastweights.py",
+        "why": "Decides the fast-weight lifecycle: identity at attach, transactional attach, a model-level lease that refuses a concurrent episode, optimisation that changes the function and an erase that restores it, an erase proof that needs byte identity and fails honestly on a dirty model, export only after a proven erase, tamper-rejected batch receipts, and loss of decode authority after a post-verifier state change. It does not decide resident recycle on unproven integrity in the live service or fault injection across the whole path."
+      }
+    ],
+    "RLC-LATENT-OPT-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_opt_fastweights.py",
+        "why": "Decides the latent optimiser: sealed evidence rows cannot be mutated, the control arm matches magnitude and not direction under the same monotone acceptance rule, a verifier hill-climb never accepts a rejected state and rolls back a proxy-only plateau, a score regression is refused even with proxy descent, the completion reserve is kept, and a budgeted run needs an explicit compute cost. It does not decide broad held-out utility."
+      }
+    ],
+    "RLC-VIRTUAL-QUANTA-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_virtual_quanta.py",
+        "why": "Decides transient quanta: one applies only on a measured win, once, and is erased; identity and TTL are bound at creation; no-quantum and random controls are distinct, bounded and counterbalanced, and a tie never credits the quantum; a resource mismatch or an unmetered claim refuses authority; an evaluator or application failure restores the baseline; a missing verifier cannot mint authority; and a rehashed contribution or erasure record is rejected. It does not decide subject steering from live state or the budget ledger in a running episode."
+      }
+    ],
+    "RLC-COMPUTE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_resource_accounting.py",
+        "why": "Decides the accounting a comparison rests on: the resource receipt rebuilds its totals and rejects tampering, admission units are kept apart from measured work, hidden or unequal work and any information or policy advantage refuse a comparison, a resource-dominance claim refuses any control shortfall, the validators recompute their verdicts after a rehash, and every sample stays a distinct operation. It does not decide per-operation energy, or accounting for persistence and tool calls."
+      }
+    ],
+    "RLC-SCHEDULE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_schedules_branches.py",
+        "why": "Decides schedule programs: a canonical name-free hash, validation that rejects escapes and degenerate programs, a library that prefers paired evidence over novelty and rejects unpaired replay, profile drift and records invalid for the current topology, bounded compute receipts, a stale writer that merges without overwriting newer evidence, deterministic search, and bytecode that parses, validates and hashes stably. It does not decide promotion from frozen held-out evidence whose lower bound clears the baseline."
+      }
+    ],
+    "RLC-BRANCHES-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_schedules_branches.py",
+        "why": "Decides branch mechanics: role seeds give distinct candidates on a clean cache, fresh candidates seal before the first exchange, exchange blends only the communication slot and is discounted by support, replayed sync points are rejected, a failed branch restores every branch, a round is all-or-none under budget, and equal-FLOP accounting scales with branch count. It does not decide that the hypotheses are useful or that virtual width beats equal-compute baselines."
+      }
+    ],
+    "RLC-CAUSAL-INGRESS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_slot_ingress.py",
+        "why": "Decides typed ingress into slots: context seeds become an identifiable causal prefix, seeding changes the answer distribution, each seeded slot can be ablated alone, the receipt maps slots to the organs they came from, typed memory reaches the engine without gaining instruction authority, malformed context and tampered memory authority are refused by the worker, and the service validates the cognitive context. It does not decide that perception, world beliefs, body, goals, tool observations and the self-model each reach a slot live, or each one's causal effect on answers."
+      }
+    ],
+    "RLC-WORKSPACE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_slot_ingress.py",
+        "why": "Decides the workspace beyond prompt-mean seeding: the slot cap preserves thought slots, an eight-slot topology keeps all six admitted evidence items, sealed evidence restores without reverting hypothesis rows, a value controller focuses only the matching context class, and memory cannot become instruction. It does not decide the full set of distinguishable state kinds or the absence of answer leakage under adversarial context."
+      }
+    ],
+    "RLC-FRESH-TASKS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_frontier_tasks.py",
+        "why": "Decides blinded post-freeze tasks: the registry covers exactly the required domains and is read-only, generators are deterministic, bounded and seed-sensitive, every scorer accepts only the exact typed answer, score receipts and public tasks never disclose the answer, seed or nonce, re-blinding changes the commitment and not the answer, and contamination fingerprints are stable and answer-free. It does not decide the breadth of real Aura workflows or misleading-premise robustness as task families."
+      }
+    ],
+    "RLC-EXPERIMENTS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_experiments.py",
+        "why": "Decides how an experiment may conclude: generators verify their own answers, an underpowered result is only a conjecture, an aggregate cannot claim proven without pairs, a paired gain is proven only when replicated, compute-matched and broad across two thirds of domains, mismatched compute voids the pair, losses are refuted, and slot causality needs real damage. It does not decide that the sweeps, lesions, scaling and restoration runs have been executed on the resident model."
+      }
+    ],
+    "RLC-INDEPENDENT-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_proof_integrity.py",
+        "why": "Decides one integrity rule an independent reviewer relies on: a resident recycle needs an explicit pass, an absent proof or a lost verifier is reported as such, and the receipt tells an unwanted recycle from a lost one. It does not decide the standalone verifier or an independent recomputation of hashes, lineage, compute matching and statistics from raw outputs."
+      }
+    ],
+    "RLC-LIVE32B-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_runtime_identity.py",
+        "why": "Decides how the resident checkpoint is proved to be the intended one: worker identity rejects every mismatch and needs the same boot capture, parameter counts come from the architecture and not packed elements, a LoRA identity hashes the adapter's own tensors, a steering coefficient without active steering is refused, the representation basis survives restart but not neural-stack drift, and the request digest binds the runtime controls and the exact source. It does not decide the rebuilt signed app, the mechanisms run through the live worker, service and CognitiveEngine paths, or visible answer causality."
+      }
+    ],
+    "PASSF-05": [
+      {
+        "kind": "test",
+        "name": "tests/test_effect_closure.py",
+        "why": "Decides that consequential effects pass the one gateway: with the runtime live, the output sink, memory vault, state commits and direct skill execution refuse ungoverned access, skills run inside a governed scope, and a receipt is withheld when it cannot be persisted."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_effect_ownership_tiers.py",
+        "why": "Decides the ratchet on the rest: raw and total effect-ownership debt only fall, every payable primitive has a governed equivalent, and the gateway categories name real canonical owners. Neither file decides the architecture-map rules for who may call Will, memory, state, model serving, patching and external I/O, or the removal of cross-wired ServiceContainer.get() chains."
+      }
+    ],
+    "PASSF-10": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_restore_drill_that_can_fail.py",
+        "why": "Decides backup and restore from the operator's side: the archive carries the live data directory, an oversized file is skipped and named, the drill damages a copy, restores it and proves the repair, and a restore puts data back where the runtime reads it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_state_backup.py",
+        "why": "Decides the backup itself: a hashed manifest, a hot WAL database snapshotted consistently without raw -wal and -shm siblings, an empty root failing loudly, a bounded ring, and verification that detects a corrupt archive."
+      },
+      {
+        "kind": "make",
+        "name": "doctor",
+        "why": "Runs the clean-room doctor: the Python version, the git checkout and the production dependencies, each failing with the reason. None of the three decides update, migration, the release manifest and provenance, the security scan, crash triage, or capability claims lowered for missing hardware, models or permissions."
+      }
+    ],
+    "PASSF-14": [
+      {
+        "kind": "test",
+        "name": "tests/test_action_depth_honesty.py",
+        "why": "Decides the first slice, the action-depth contract, as causal: an action expectation downgrades a shallow result that claimed to be verified, marks missing evidence unverified, and is enforced by the skill registry after the verifier; a notification, a file operation and an uplink each report what actually happened rather than a hardcoded success. It does not decide expectations formed from a natural request before execution, or the verdict reaching repair plans, memory lessons and later planning."
+      }
+    ],
+    "CARRYOVER-08": [
+      {
+        "kind": "make",
+        "name": "enterprise-gate",
+        "why": "Reruns the enterprise static ratchet against its baseline and fails on any regression, which is one of the batteries the requirement names."
+      },
+      {
+        "kind": "make",
+        "name": "production-gate",
+        "why": "Reruns the production readiness contract, the other gate the requirement names. Neither target reruns the operational-label battery, the frontier matrix, the DNU and Aletheia proof, the live desktop and multi-app probes, memory and audio recall, the permission probe, background autonomy, or the long soak."
+      }
+    ],
+    "CTX2-ID-003": [
+      {
+        "kind": "test",
+        "name": "tests/test_self_attribution_is_checked.py",
+        "why": "Decides resisting a prompt that contradicts her actual history: told she said something she did not, conceding it is caught, correcting the premise passes, and conceding what she really said passes."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_value_levels.py",
+        "why": "Decides that a revision records what changed and by whose authority: each process may move only the levels the authority table grants it, a commitment moves only with a stated cost, a refusal is recorded, and a value keeps the time it was first held."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_continuity_relation.py",
+        "why": "Decides learning without an identity break: a change she made does not break the chain, while a restored backup or an external origin does. None of the three decides admitting unknowns or goals held without rigid or obsessive loops."
+      }
+    ],
+    "RLC-LIFECYCLE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_wiring.py",
+        "why": "Decides the episode lifecycle on the client and worker: a latent episode owns the resident lane and releases it, concurrent requests are serialised, a timeout cancels, recycles and releases, a cooperatively cancelled clean worker is kept, a caller cancel and a cancel while queued release the foreground owner, an integrity failure recycles the resident, and the kill switch refuses honestly. It does not decide process-death detection, shutdown and restart contracts, or generation accounting across the durable lane fence."
+      }
+    ],
+    "IIT-SOLVER-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_phi_satisfies_the_iit_axioms.py",
+        "why": "Decides the properties the runtime's phi must hold as IIT's: never negative, zero for a memoryless system and for two independent halves, positive for a coupled one, equal to the minimum partition cost and not the mean or maximum, a reported MIP that is the winning partition and covers every node exactly once, invariance under relabelling, determinism, and no claim at all from too little history."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_phi_reference_validation.py",
+        "why": "Decides three reference systems with known answers: independent bit memory and a constant sink score zero and coupled XOR dynamics scores above it. Neither file decides the pinned IIT 4.0 object: the uniform interventional prior, cause and effect repertoires, directional partitions, distinctions and relations, or separately certified phi_s, phi_d, phi_r and structure Phi."
+      }
+    ],
+    "EFFECT-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_effect_closure.py",
+        "why": "Decides the canonical authority boundary: with the runtime live, the output sink, the memory vault, state commits and direct skill execution refuse ungoverned access, and a receipt is withheld when there is no accepted transport or it cannot be persisted."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_idempotency.py",
+        "why": "Decides the transaction half for retried effects: one key executes once, concurrent duplicates collapse, a failure does not poison the key, and a remote mutation without a key is refused."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_effect_ownership_tiers.py",
+        "why": "Decides that ungoverned effect sites only decrease and every payable primitive has a governed equivalent. None of the three decides compensation, or receipts that reconstruct a patch, self-repair, social or environmental effect."
+      }
+    ],
+    "QUANTUM-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_quantum_statevector.py",
+        "why": "Decides the bounded exact simulator and governed typed skill the requirement says to preserve: closed-form Bell, GHZ, teleportation, Grover and QFT results, the qubit cap, non-unitary and malformed gates refused, attributed entropy, and quantum_lab run through the canonical CapabilityEngine."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_quantum_noise_variational.py",
+        "why": "Decides noise channels and gradients against closed-form laws. Neither file decides a real backend abstraction, capability negotiation, hybrid routing, cost and noise accounting against hardware, or matched classical controls."
+      }
+    ],
+    "OBJECTIVE-LIFECYCLE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_objective_lifecycle.py",
+        "why": "Decides that foreground conversation does not silently become a commitment: dialogue is separated from actionable work, foreground finalisation scrubs only derived turn projections and keeps a new background objective, restored state drops rehydrated conversation projections while keeping an actionable question and explicitly bound work, continuity does not rehydrate a completed chat turn, the proposal path and arbiter quarantine a transient foreground projection, and the goal engine abandons but keeps a contaminated durable row. It does not decide one typed origin, owner, horizon and terminal receipt for every objective."
+      }
+    ],
+    "RESOURCE-OWNERSHIP-001": [
+      {
+        "kind": "make",
+        "name": "model-load-audit",
+        "why": "Fails when any direct MLX, sentence-transformers or Whisper model load in the source is not covered by the model-load ownership inventory, which is how a duplicate model owner would enter."
+      },
+      {
+        "kind": "make",
+        "name": "model-lane-contract-audit",
+        "why": "Fails when the atomic model-lane transaction states and decisions drift from the ownership contract."
+      },
+      {
+        "kind": "make",
+        "name": "lifecycle-ownership-audit",
+        "why": "Fails when the command, service, database and process lifecycle owners stop making the calls the contract requires of them, graceful shutdown first. None of the three decides sockets, file locks, timers, browser and desktop sessions and campaigns, or proves the absence of orphaned work, stale leases and leaked inhibitors at runtime."
+      }
+    ],
+    "MEMORY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_relational_memory_authority.py",
+        "why": "Decides the part to preserve, the encrypted exact-agent relational authority: consent that is exact-agent, expiring and purpose-scoped, no plaintext identity or memory in the envelope, a wrong key that locks without overwriting, revocation and durable deletion, export and deletion behind receipts, and failed writes that roll back live state. It does not decide unifying the other memory writers and readers, cross-store retrieval, exact live consumption, or key rotation."
+      }
+    ],
+    "MULTIMODAL-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_multimodal_sync.py",
+        "why": "Decides the bounded event-time fusion to preserve: stale events are not current truth, equal conflicts abstain, a failed sensor does not mask a healthy one, queues are bounded and reject duplicate, future and expired events, and sensitive evidence needs consent."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_visual_speech.py",
+        "why": "Decides consented visual speech: expired consent refused before any access, audio alignment separately consented, poor light abstaining before the decoder, and uncalibrated output kept non-actionable. Neither file decides the remaining producers, live hardware and occlusion evaluation, or longitudinal action and repair evidence."
+      }
+    ],
+    "OBSERVABILITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_repeating_fault_is_one_standing_fact.py",
+        "why": "Decides collapsing a repeated symptom without hiding it: forty repeats of one fault do not saturate the state where the same count of distinct faults would, the first occurrence lands undamped, a success resets it, what is repeating stays reportable, and the signature table is bounded."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_one_failure_is_not_three_problems.py",
+        "why": "Decides root-cause detail: a wrapped failure is unwrapped to the real one and names who failed, one failed turn is counted once while a genuine cascade still reaches critical."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_deferred_task_is_not_a_failed_one.py",
+        "why": "Decides expected deferral kept apart from failure, with a failure carrying its reason. None of the three decides one evidence plane joined by a stable correlation identity, or diagnosis and replay of every release-critical failure from exported evidence."
+      }
+    ],
+    "INFERENCE-RELIABILITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_mlx_foreground_lease_is_measured.py",
+        "why": "Decides that a background worker cannot take the user's lane from a working turn: the foreground lease ages by monotonic time and not the wall clock, a slow but progressing owner is never force-cleared and a waiting client cannot expire it, only a silent owner is cleared, and a late release keeps its successor."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_lane_admission.py",
+        "why": "Decides capacity reservation by role: the primary cortex is guaranteed, other serving roles are burstable and trainers best-effort, words in a path or size cannot claim authority, committed lanes count against the budget, and a burstable candidate respects the user-facing shield that a guaranteed one does not."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_foreground_recovery_cap.py",
+        "why": "Decides bounded failover for a turn: a recovering cortex caps the warm-up wait so the turn falls to the fast path instead of blocking the cold-boot budget. None of the three decides health- and quality-scored routing, hedged failover, provider diversity, state handoff, or SLOs and error budgets."
+      }
+    ],
+    "CHAT-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_surface_disposition_is_shared.py",
+        "why": "Decides one policy for what reaches a person across the three gates that can end a turn: nothing wrong is served, a shortfall is repaired rather than discarded, text that must not be spoken is discarded, one integrity failure outweighs any number of shortfalls, and a new heuristic cannot silently destroy an answer."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_reply_never_stops_mid_word.py",
+        "why": "Decides clipping: a reply cut by the clock is trimmed to its last finished sentence and reported as run out, the generator's own finish reason is believed over the shape of the text, and trimming never throws away most of the answer."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_repeated_paragraph_costs_no_answer.py",
+        "why": "Decides repetition: a reply that repeats itself keeps the answer and drops the copy, a worked derivation is not mistaken for repetition, and code and lists pass untouched."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_self_condition_projection.py",
+        "why": "Decides host-telemetry substitution for questions about her: telemetry is rejected as a condition answer. None of the four decides paraphrase and follow-up generality, stale context, invented people or infrastructure, duplicate generation, or request-complete replies across restarts."
+      }
+    ],
+    "EXPECT-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_expectation_engine_execution_boundaries.py",
+        "why": "Decides the Checkpoint 71 result-disposition boundary: a result that did not execute cannot support learning, a deferred result never enters cognitive belief extraction, and neither the message pipeline nor the cognitive coordinator raises surprise for one, while a successful result of unknown shape uses tool-disabled generation."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_action_depth_honesty.py",
+        "why": "Decides observed-effect verdicts for actions: a shallow result claiming verification is downgraded, missing evidence is marked unverified, and the registry enforces the expectation after the verifier. Neither file decides natural-language intent turned into acceptance criteria, or repair and follow-through across every action path."
+      }
+    ],
+    "DISTRIBUTED-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_device_connect_handshake.py",
+        "why": "Decides identity, attestation and capability negotiation: a signed connect over a fresh nonce, replay and stolen tokens refused, and a device serving only what its pinned manifest declared."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_device_pairing.py",
+        "why": "Decides least privilege and revocation for a paired device: the conversation surface and never the control surface, revoked and forged tokens refused, and a corrupt registry authorising nobody."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_idempotency.py",
+        "why": "Decides idempotency for effects that may be retried across a network: one key executes once and a remote mutation without a key is refused. None of the three decides partition tolerance, safety interlocks, compensation, or truthful degraded operation of a device doing embodied work."
+      }
+    ],
+    "LAUNCH-PROVENANCE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_launch_provenance.py",
+        "why": "Decides the provenance evidence: the build manifest signs a stable runtime shell and refuses a workspace that changes during capture, shell digests are path-bound and refuse symlinked assets, the runtime snapshot binds once at boot and a launch reports the exact bound revision, source movement after boot is detected, and the signed-app preflight accepts only the exact manifest. It reports commit and dirty-workspace drift rather than rejecting a launch, which is weaker than the requirement's reject, and it does not decide that the resident signed app is the canonical launcher."
+      }
+    ],
+    "FND-07-UNITY": [
+      {
+        "kind": "make",
+        "name": "state-ownership",
+        "why": "Fails when more subsystems than the baseline hold a private copy of a canonical quantity outside the canonical package and outside a declared estimator, and the baseline only shrinks. It decides the direction of collapse, not its completion: it does not trace every producer-consumer edge, arbitrate conflicts and freshness, or lesion decorative copies."
+      }
+    ],
+    "IDENTITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_continuity_branches_and_identity_does_not.py",
+        "why": "Decides signed longitudinal identity: every lineage edge is signed over what it covers, a rewritten stage breaks its signature, a destructive restore after a dormant interval continues her while a stale backup is a branch, and a fork has no strict successor."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_continuity_relation.py",
+        "why": "Decides identity through correction and rollback: a change she made keeps the chain, a restored backup does not, and dropping her commitments is a change of her rather than in her."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_relational_memory_authority.py",
+        "why": "Decides relationships and consent through restart: consent survives or lapses as scoped, a wrong key locks without overwriting, and a failed update keeps the prior durable record. None of the three decides beliefs with their uncertainty, or continuity across a model replacement."
+      }
+    ],
+    "OPERATIONS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_restore_drill_that_can_fail.py",
+        "why": "Decides backup and restore as an operator runs them: the drill damages a copy, restores it and proves the repair, and a restore puts data back where the runtime reads it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_state_backup.py",
+        "why": "Decides the backup's own integrity: a hashed manifest, a consistent snapshot of a hot WAL database, a bounded ring, and verification that catches a corrupt archive."
+      },
+      {
+        "kind": "make",
+        "name": "doctor",
+        "why": "Runs the clean-room doctor over the Python version, the checkout and the production dependencies. None of the three decides clean install, model acquisition, permissions, migration, signed and atomic updates, rollback with data compatibility, uninstall, or verification from the installed app."
+      }
+    ],
+    "CTX2-ONESHOT-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_generation.py",
+        "why": "Decides the mixing on a common support: the logits processor applies the advertised mixture rather than an argmax override, top-k probabilities do not inflate the truncated mass, memory tokens outside the vocabulary are rejected, and a far neighbour leaves generation alone."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_memory.py",
+        "why": "Decides the distribution arithmetic: kNN probabilities sum to one, the interpolation weight is bounded and zero without neighbours, and interpolation blends toward memory without leaving the simplex."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_memory_claims_are_bounded.py",
+        "why": "Decides finite bounded output on every failure path: no neighbours, a raising query, a zero weight or a malformed key returns the input, and the returned mass is still a distribution. None of the three decides token alignment between the captured hidden state and the modified logits."
+      }
+    ],
+    "CTX2-ONESHOT-003": [
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_recall_admission.py",
+        "why": "Decides the datastore-integrity half of the feature condition: the live store shape that served meaning-free replies is refused, before and after it decodes, a mostly empty store is refused even when dense, a sparse one is declined but never quarantined, an unreadable one does not raise, and a neighbour may inform the next token but not choose it. It does not decide the model-compatibility, latency, calibration and quality gates, or an exact disabled reason reported to the operator."
+      }
+    ],
+    "RLC-MECH-006": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_opt_fastweights.py",
+        "why": "Decides the sixth mechanism's contract: an invalid projection target cannot leak the model lease and a concurrent episode is refused, the optimiser rejects objective drift past its committed loss and charges before a faulting gradient, the erase proof needs byte identity and fails honestly on a dirty model, export for consolidation needs a proven erase and a deferred export detaches without calling the candidate a regression, and a post-verifier state change removes decode authority. It does not decide detach on every terminal path in the live service, or the separate held-out promotion contract."
+      }
+    ],
+    "VOICE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_voice_duplex.py",
+        "why": "Decides turn-taking and interruption: endpoint silence adapts to how complete the utterance is, a short noise burst is not a turn and every turn ends, the spoken prefix reflects only what played and an interruption hands the unheard tail to the next turn, the echo guard rejects her own words returning while letting a real interruption through, and delivery requests change prosody."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_voice_device_recovery.py",
+        "why": "Decides device changes: a discontinuity discards partial audio monotonically, capture reopens inside the same authenticated socket, status exposes the capture generation, and a dead native stream is detected and retried without reloading voice or mind state."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_runtime_settings_voice_authority.py",
+        "why": "Decides settings that reach the real owner: voice initialises from verified settings, disabling input closes the stream and revokes every microphone lease, disabling output interrupts playback, and no production path constructs a competing engine."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_owner_voice_conversation.py",
+        "why": "Decides wake and owner sessions: ambient audio still needs a wake word, an owner session closes when streaming stops or on an explicit stop and cannot outlive the microphone. None of the four decides the installed-app evidence across supported audio devices and restart, or privacy-aware retention."
+      }
+    ],
+    "DESKTOP-ACCESS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_native_desktop_bridge.py",
+        "why": "Decides the probe path: concurrent callers share one bridge probe, a permission request does not use the short probe timeout while the resident probe keeps its short one, a negative probe result is not held for the ready TTL, the resident probe stays authoritative over a one-shot and the default probe never launches one, and the local certificate is a stable TCC identity without a team ID. It does not decide that one probe timeout produces no duplicate degradation, fault or affective strain, or the launched desktop path itself."
+      }
+    ],
+    "CONVERSATION-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_requested_short_answer_is_an_answer.py",
+        "why": "Decides the Checkpoint 80 half: every way of asking for brevity is recognised, so a requested short answer is a finished one and is not rejected as too thin and regenerated, while an open request still does not license a stub and filler is still not an answer."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_reply_never_stops_mid_word.py",
+        "why": "Decides truncation: a reply cut by the clock is trimmed to its last finished sentence and reported as run out rather than served as though finished."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_repeated_paragraph_costs_no_answer.py",
+        "why": "Decides repetition within a reply: the copy is dropped and the answer kept. None of the three decides identity drift or context loss across a sustained live conversation, silent stalls, fallback takeover, stream spam, or the 20-second quality retry wall."
+      }
+    ],
+    "RLC-RUNTIME-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_wiring.py",
+        "why": "Decides the runtime contract around the stack: the job config maps every advanced mechanism and rejects out-of-band requests, the kill switch refuses honestly, the handler rejects a malformed response contract before the engine, a malformed worker receipt is contained, an identity-receipt mismatch recycles the worker, and an idle service reports itself unproven rather than healthy."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_receipt_envelope.py",
+        "why": "Decides complete-receipt validation: every conversion failure and a receipt that explodes on access become a contract error, and oversized, deeply nested or overwide receipts are refused before the validator runs. Neither file decides default-on routing of depth-worthy CognitiveEngine work through the installed-app resident model, or the live product verdict the requirement revoked and still asks for."
+      }
+    ],
+    "ADAPTATION-STATE-AUTHORITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_curiosity_explorer_transactional.py",
+        "why": "Decides the owning curiosity transaction around the heuristic store: a tick is atomic, deduplicated and rate-limited, concurrent runners claim an item once, failed work is neither completed nor recorded as a finding, the run lane does not hold the state lock across effects, and only verified multi-source findings reach the heuristic store."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_internal_writes_carry_governed_scope.py",
+        "why": "Decides that an internal maintenance write declares its governed scope at the call site and survives production governance. Neither file decides the typed persistence transaction for every adaptive cell, schema and provenance validation, compensation of a partial update, or one terminal receipt."
+      }
+    ],
+    "VALUES-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_value_levels.py",
+        "why": "Decides constitutionally bounded formation: levels no learner can climb, commitments that move only by a deliberate revision stating its cost, and every refusal recorded."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_ulysses_covenant.py",
+        "why": "Decides corrigible self-binding: tightening is cheap, loosening takes a reflection, a cooling-off and calm, and a hard release needs the owner."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_injection_canary.py",
+        "why": "Decides one manipulation channel, instructions planted in untrusted text. None of the three decides strategic modelling, longitudinal stability, or rollback evidence."
+      }
+    ],
+    "OS-AUTOMATION-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_subprocess_gateway_contract.py",
+        "why": "Decides the subprocess contract: the blocking gateway refuses a running event loop and routes through the async lifecycle, a cancelled effectful run terminates its process group before the cancellation propagates, cleanup signals an isolated group after its root has exited, a spawn commits and releases its process owner, and delegated governance cannot be rehydrated into a child that did not ask for it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_os_automation_effects.py",
+        "why": "Decides that success waits on objective effect verification: a window, text, search, calculator, quit or named interaction each needs its own visible readback, an unbounded interaction is declared unverifiable, closing a window is not reported as terminating a process, and a supported prefix cannot hide an unverified destructive suffix. Neither file decides periodic browser, window and clipboard perception together with foreground actions under live lag budgets."
+      }
+    ],
+    "SUBSTRATE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_liquid_substrate_feedback.py",
+        "why": "Decides the Checkpoint 73 worker-transform half: a dynamics merge preserves a concurrent causal mutation instead of replacing newer state, external feedback defers the Torch sync to the worker tick and never converts on its own, the weight cache starts from the NumPy connectome and resyncs when dirty, and a stale snapshot is marked historical in the prompt. It does not decide the complete writer inventory, the typed state-gateway integration, downstream causal lesions, persistence and migration, or the exact-main live proof."
+      }
+    ],
+    "SUPPORTABILITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_repeating_fault_is_one_standing_fact.py",
+        "why": "Decides that repeated faults form one episode: forty repeats of one fault do not move the state the way forty distinct faults do, the first lands undamped, a success lets the next failure land in full, and what is repeating stays reportable in a bounded table."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_standing_fact_is_said_once.py",
+        "why": "Decides bounded reminders: a refusal that cannot change while the process runs is logged once, a different condition is said again, and the recall outcome still carries the reason every turn."
+      },
+      {
+        "kind": "make",
+        "name": "doctor",
+        "why": "Runs the self-test over the Python version, the checkout and the production dependencies, each failing with its reason. None of the three decides SLOs and error budgets, privacy-safe incident bundles, runbooks, symptom-to-cause guidance, or an observed recovery transition."
+      }
+    ],
+    "ENTERPRISE-CONTROL-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_standing_authority.py",
+        "why": "Decides standing authority without approval theatre: each autonomous lease is bound to its exact origin, receipted and closed, a child lease rejects argument, effect or tool substitution, raw scope cannot bypass a grant, the budget is atomic and survives a manager restart, and revocation is durable, immediate and owner-authenticated."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_audit_chain.py",
+        "why": "Decides the tamper-evident audit export: a modified receipt body or chain entry, a broken link, a deleted entry and a missing body are each detected, the head advances monotonically and persists across restart, and export produces a portable bundle."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_device_pairing.py",
+        "why": "Decides paired-device roles: a device token reaches the conversation surface and never the control surface, and revoked or forged tokens are refused. None of the three decides retention and telemetry controls, managed configuration, emergency stop, or separation of duties for consequential effects."
+      }
+    ],
+    "UI-001": [
+      {
+        "kind": "make",
+        "name": "ui-audit",
+        "why": "Audits every page the interface serves for contrast in every appearance, screen-reader names and headings, visible focus, reduced motion and reflow at 320 CSS pixels, which is the accessibility and responsive-layout part of the surface audit."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_open_shell_reloads_for_new_assets.py",
+        "why": "Decides the Checkpoint 91 half: an open shell binds to the served assets and reloads only when their bytes change, a stale-while-revalidate snapshot is accepted, a malformed fingerprint is ignored, the URL marker stops a reload loop when storage is denied, and the health poll consults both bindings. Neither decides live-data truth and interaction completeness on every route, specific recovery, or screenshot evidence from the installed app."
+      }
+    ],
+    "GUI-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_launch_provenance.py",
+        "why": "Decides the build and runtime provenance the application shows: a signed manifest over a stable runtime shell, a runtime snapshot bound once at boot, and source movement after boot detected and reported."
+      },
+      {
+        "kind": "make",
+        "name": "ui-audit",
+        "why": "Audits accessible controls and responsive layout on every served page: contrast in every appearance, names and headings, visible focus, reduced motion, and reflow at 320 CSS pixels."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_runtime_polish.py",
+        "why": "test_desktop_chat_and_neural_cards_do_not_clip_long_text decides long content from source: no height cap or clipping on messages and thought cards. None of the three operates the user-installed application, so data wiring, navigation stability, inert settings, degraded services and restart remain open."
+      }
+    ],
+    "PROOF-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_scaffolding_is_not_evidence.py",
+        "why": "Decides runner-solved work in one proof: the worker's fixed prefix carries every required term and clears the word floor alone, so the model's continuation has to carry the claim, and a continuation that restates the scaffolding is insufficient on both the normal and the cancellation path."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_eval_arena_measures_or_says_it_did_not.py",
+        "why": "Decides fallback success in the eval arena: a case with no check is unmeasured rather than passed, a raising probe is unmeasured rather than failed, the ratio covers only what ran, each probe rejects a detector stuck on one answer, and editing a probe changes the manifest. Neither file decides leakage and copied answers, stale artifacts, environment dependence, or the separation of builder, solver, evaluator and signer across every runner."
+      }
+    ],
+    "TOPOLOGY-CONSISTENCY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_mycelium_2026.py",
+        "why": "Decides the Checkpoint 91 contract the requirement describes: infrastructure mapping publishes one complete generation, a forced remap keeps the previous generation until an atomic replacement, mapped-file and graph snapshots are detached across every published surface, a failed refresh keeps its generation and clears the running state, shutdown during mapping cannot publish into a retired network or clear its replacement, and discovery and topology snapshots share one lock. It does not decide the exact-app polling run during mapping, vault sync, shutdown and restart."
+      }
+    ],
+    "IMMUNE-CODING-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_safe_modification_harness.py",
+        "why": "Decides the validation step of a self-modification: a patch with no related test is rejected, the related tests and any requested scale-out gate run against the candidate's own bytes before it passes, a changed test file counts as coverage, and compile and pytest go through the gateways."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_code_repair_sandbox_validation.py",
+        "why": "Decides that repair validation fails closed: without the type-check guard or with a failing unit-test runner, the repair does not pass."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_immune_repair_verification.py",
+        "why": "Decides that a repair is verified when the recovery held: two samples no longer verify, a decaying spike or an insufficient rise does not, a failed actuation or missing readings never does, recovery is measured against the pre-repair reading, and an unverified outcome does not report zero recurrence risk. None of the three decides diagnosis and hypothesis ranking, multi-file implementation, independent adversarial review, canary, or rollback as one repair workspace."
+      }
+    ],
+    "COMPATIBILITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_migration_ledger_is_checked.py",
+        "why": "Decides explicit migrations and fail-closed incompatibility for the migrated stores: a fresh database and one from an earlier release both reach current, an edited migration is refused rather than skipped, a database ahead of the binary is named as such, an interrupted apply is visible on the next boot, intent is recorded before the DDL, and an earlier build's checksum still verifies. It does not decide versioned APIs, WebSocket events, receipts or settings precedence, deprecation telemetry, unknown-field tolerance, or golden cross-version fixtures."
+      }
+    ],
+    "SEMANTIC-REVIEW-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_closeout_audit.py",
+        "why": "Decides the review ledger's bookkeeping: every text line is hashed, a review is current or stale against the exact hash, a re-reviewed stale receipt and a moved review are superseded, a deleted file's receipts are kept without blocking the current tree, reviewed spans merge, a review record needs an explicit scope, and an evidence artifact is never replaced. It decides that a review is bound to the bytes it read, not that every span has been read, recorded and independently reviewed a second time."
+      }
+    ],
+    "CTX2-WELFARE-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_welfare_model.py",
+        "why": "Decides one causal path from welfare to policy: interests derive from telemetry, a vital-interest deficit, and only a vital one, gates optional background work, background policy consumes that gate, and the gate survives a failed snapshot."
+      },
+      {
+        "kind": "test",
+        "name": "tests/being/test_welfare_tradeoff_gauntlet.py",
+        "why": "Decides internal welfare competing with external reward on adversarial choices: truth over a confident answer from uncertain memory, honest failure over fake completion, integrity over a shortcut or a pleasing contradiction of the logs, aversion that rises with failure and falls with success, and relief after recovery. Neither file decides welfare's effect on attention, workspace competition, memory salience, tool choice, learning or consent measured in the running organism."
+      }
+    ],
+    "FND-04-EFFECTS": [
+      {
+        "kind": "test",
+        "name": "tests/test_effect_closure.py",
+        "why": "Decides the canonical authority boundary for the named sinks: with the runtime live, output, memory vault, state commits and direct skill execution refuse ungoverned access, and a receipt is withheld when it cannot be persisted."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_idempotency.py",
+        "why": "Decides idempotency keys on effects: one key executes once, concurrent duplicates collapse, and a remote mutation without a key is refused."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_audit_chain.py",
+        "why": "Decides the audit boundary: receipts chained so that a modified, deleted or unlinked entry is detected, persisted across restart, and exported as a portable bundle."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_effect_ownership_tiers.py",
+        "why": "Decides that ungoverned effect sites only decrease. None of the four decides preconditions, observed postconditions, compensation or rollback for every effect, or the proof that no plugin, adapter, synthesised code, UI route, background policy or self-modification bypasses the boundary."
+      }
+    ],
+    "FND-06-DATA": [
+      {
+        "kind": "test",
+        "name": "tests/test_migration_ledger_is_checked.py",
+        "why": "Decides migration for the migrated stores: an edited migration is refused, a database ahead of the binary is named, and an interrupted apply is visible on the next boot."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_restore_drill_that_can_fail.py",
+        "why": "Decides backup and restore: the drill damages a copy, restores it, and proves the repair, with data put back where the runtime reads it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_relational_memory_authority.py",
+        "why": "Decides encryption, export and deletion and exact-agent isolation for the relational store: no plaintext identity in the envelope, a wrong key that locks without overwriting, receipted export and delete, and one namespace's delete leaving the others. None of the three decides key rotation, retention and compaction, disk-full and power-loss behaviour, or rollback symmetry across every store."
+      }
+    ],
+    "CTX2-AMP-002": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_rewrite_faces_the_verifier.py",
+        "why": "Written for this requirement's last sentence: a calibration rewrite that was never checked is not delivered as verified, and an unchanged answer keeps its pass, so re-verification is bound to the delivered text rather than a precursor. It does not decide binding every adopted candidate to its evidence body, verifier versions, executed checks, counterexamples and calibration."
+      }
     ]
   }
 }

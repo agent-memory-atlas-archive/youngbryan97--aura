@@ -2974,8 +2974,11 @@ def _phenomena_reachable() -> int:
         container = get_container()
         found = 0
         for name in SERVICE_NAMES:
+            # A disposition the container does not hold resolves to None and is
+            # not counted. Asked without a default it raised, and the claim
+            # errored instead of reporting a number.
             try:
-                if container.get(name) is not None:
+                if container.get(name, None) is not None:
                     found += 1
             except (ImportError, AttributeError, KeyError, RuntimeError, TypeError, ValueError):
                 continue

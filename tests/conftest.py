@@ -1009,6 +1009,156 @@ def _reset_process_wide_state():
     yield
 
 
+#: Packages whose lazily built singletons belong to the test that built them.
+_OWN_PACKAGES = ("core.", "interface.", "skills.", "security.", "llm.", "executors.")
+#: Per module, the private names its source declares empty at module level and
+#: never assigns there otherwise: the slots a `get_x()` fills on first use.
+_DECLARED_EMPTY: dict[str, tuple[str, ...]] = {}
+
+
+def _declared_empty(name: str, module: object) -> tuple[str, ...]:
+    """The slots a module's own source leaves as `None` at import.
+
+    Read from the source rather than from the module's namespace, because a
+    module imported for the first time inside a test has already had its slot
+    filled by the time anything looks: the interiority service is imported
+    lazily, and the test that first imported it built the service too.
+    """
+    known = _DECLARED_EMPTY.get(name)
+    if known is not None:
+        return known
+    import ast
+
+    empty: set[str] = set()
+    other: set[str] = set()
+    try:
+        source = Path(getattr(module, "__file__", "") or "").read_text(encoding="utf-8")
+        tree = ast.parse(source)
+    except (OSError, SyntaxError, ValueError):
+        tree = None
+    for node in tree.body if tree is not None else ():
+        if isinstance(node, ast.Assign):
+            targets, value = node.targets, node.value
+        elif isinstance(node, ast.AnnAssign) and node.value is not None:
+            targets, value = [node.target], node.value
+        else:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name) and target.id.startswith("_") and not target.id.startswith("__"):
+                is_none = isinstance(value, ast.Constant) and value.value is None
+                (empty if is_none else other).add(target.id)
+    found = tuple(sorted(empty - other))
+    _DECLARED_EMPTY[name] = found
+    return found
+
+
+def _own_modules() -> dict[str, dict]:
+    out: dict[str, dict] = {}
+    for name, module in list(sys.modules.items()):
+        if not name.startswith(_OWN_PACKAGES):
+            continue
+        namespace = getattr(module, "__dict__", None)
+        if isinstance(namespace, dict):
+            out[name] = namespace
+    return out
+
+
+def _empty_module_slots() -> tuple[set[str], list[tuple[dict, str]]]:
+    """The modules loaded now, and each declared-empty slot that is still empty."""
+    modules = _own_modules()
+    slots: list[tuple[dict, str]] = []
+    for name, namespace in modules.items():
+        for key in _declared_empty(name, sys.modules.get(name)):
+            if namespace.get(key, 0) is None:
+                slots.append((namespace, key))
+    return set(modules), slots
+
+
+def _process_resources() -> tuple[type, ...]:
+    """Kinds a slot holds as wiring rather than as a singleton: emptying it breaks the wiring.
+
+    A thread, an executor, a loop or a connection would be stranded. A function,
+    a class or a module is what an install-once patch keeps to call back into:
+    `handler_reentry._original_call_handlers` holds the logging method its
+    patch forwards to, and emptied, every log call after it raised.
+    """
+    import asyncio
+    import concurrent.futures
+    import functools
+    import io
+    import socket
+    import sqlite3
+    import threading
+    import types
+
+    return (
+        threading.Thread, concurrent.futures.Executor, asyncio.AbstractEventLoop, sqlite3.Connection,
+        io.IOBase, socket.socket,
+        types.FunctionType, types.BuiltinFunctionType, types.MethodType, functools.partial,
+        type, types.ModuleType,
+    )
+
+
+@pytest.fixture(autouse=True)
+def _a_singleton_built_in_a_test_ends_with_it(request):
+    """A module slot that was empty when a test began is empty when it ends.
+
+    The general form of the `reset_X_for_test` list: `get_agency_ledger()`,
+    `get_interiority()` and a hundred more fill a module global on first use
+    and keep it. A test that fills one hands its ledger to every test after
+    it, so a goal was set aside after four failures instead of five, and a
+    calm sentence read as negative, in company and never alone. 135 of the
+    162 resets in core were called by nothing here.
+
+    A slot a module- or session-scoped fixture filled was full before this
+    fixture looked, so it is left alone. So is one holding a thread, an
+    executor, a loop or a connection, which an emptied slot would strand.
+    """
+    if request.node.get_closest_marker("mutates_global_state"):
+        yield
+        return
+    loaded, empty = _empty_module_slots()
+    yield
+    # And every declared-empty slot of a module this test imported first.
+    for name, namespace in _own_modules().items():
+        if name not in loaded:
+            empty.extend((namespace, key) for key in _declared_empty(name, sys.modules.get(name)))
+    resources = _process_resources()
+    for namespace, key in empty:
+        value = namespace.get(key)
+        if value is not None and not _holds_a_resource(value, resources):
+            namespace[key] = None
+
+
+def _holds_a_resource(value: object, resources: tuple[type, ...], depth: int = 2) -> bool:
+    """Whether a slot's object is, or keeps inside it, a thread, a handle or a hook.
+
+    The ontogeny experience store keeps its connection and its writer inside
+    it; emptied, both were stranded where the sqlite sweeper could not reach
+    them, and the hermetic guard reported its database open in the next test's
+    teardown. Such a singleton stays for the process, as it did before.
+    """
+    if isinstance(value, resources):
+        return True
+    if depth <= 0:
+        return False
+    held = getattr(value, "__dict__", None)
+    if not isinstance(held, dict):
+        return False
+    # Inside an object only a handle counts: nearly every object keeps a bound
+    # method or a callback, and those are not something an emptied slot strands.
+    import functools
+    import types
+
+    wiring = (types.FunctionType, types.BuiltinFunctionType, types.MethodType, functools.partial, type, types.ModuleType)
+    inner = tuple(r for r in resources if r not in wiring)
+    return any(
+        _holds_a_resource(item, inner, depth - 1)
+        for item in list(held.values())
+        if not isinstance(item, (str, bytes, int, float, bool, type(None)))
+    )
+
+
 @pytest.fixture(autouse=True)
 def _what_she_learned_about_worlds_is_per_test(tmp_path_factory):
     """Each test starts knowing no world, and leaves none behind.

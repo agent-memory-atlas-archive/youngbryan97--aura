@@ -37,14 +37,19 @@ EVENT_GRANT = "conation.access_granted"
 EVENT_DISENGAGE = "conation.disengaged"
 
 _declared = False
+#: What the one declaration declared, handed back on every later call. An
+#: empty answer from a second call registered a publisher with no channels.
+_declared_names: tuple[str, ...] = ()
 _refusals_seen = 0
 
 
 def declare() -> list[str]:
     """Declare this organ's channels and events. Idempotent."""
-    global _declared
-    if _declared:
-        return []
+    global _declared, _declared_names
+    from core.fsw.telemetry_dictionary import still_declared
+
+    if _declared and still_declared(_declared_names):
+        return list(_declared_names)
     try:
         from core.fsw.telemetry_dictionary import ChannelType, EventSeverity, channel, event
     except ImportError as exc:
@@ -150,13 +155,14 @@ def declare() -> list[str]:
                                action=f"event {spec.get('name')} not declared")
 
     _declared = bool(names)
+    _declared_names = tuple(names)
     return names
 
 
 def publish(engine: Any) -> bool:
     """Write one sample to every declared channel. Cheap and non-fatal."""
     global _refusals_seen
-    if not _declared and not declare():
+    if not declare():
         return False
     try:
         from core.fsw.telemetry_dictionary import write

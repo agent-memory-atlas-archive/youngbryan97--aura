@@ -1596,3 +1596,106 @@ At one turn C is decided in relay, carried and joined and not in control (lower
 bound -0.129), and I is undecided in control, as the body's schedule predicts.
 These numbers were read after the fact on seed 7 and decide nothing; they are
 why seed 23 is run to this estimator.
+
+## Addendum, 29 September 2026, evening: shards fork from one organism's anchors
+
+Named before any run reads it.
+
+### Why
+
+Two processes on one seed are two organisms (the addendum above), so the
+carrier merge refused every sharded sweep, and a single process takes about ten
+hours for the 511 cuts at the 23 anchor-forks a cut drew on the looks
+(`tools/where_a_cut_decides.py`). A sharded sweep counts only if every shard
+cuts the same organism.
+
+### What changes
+
+With `--share-anchors`, which the sharded runner passes by default, the
+coordinator collects the anchor bank, writes it to the shard directory, and
+every shard forks from those anchors instead of collecting its own. The shards
+still boot, seed every generator and stop their free loops as the coordinator
+does, and skip the baseline, which they no longer use.
+
+A snapshot crosses processes by `core/subject/anchor_travel.py`. Her state
+travels by value. What is not her state travels as a marker filled from the
+same place in the reading process's own snapshot or made new there: functions
+and classes made at runtime, locks, events, queues, the event loop, a handle on
+the writer's own process, and objects their own class holds as its singleton.
+A module-level object stays the reader's own and is given the writer's copy of
+what it held. The run's state files, saved under the writer's state root, are
+moved to the reader's root, which the restore otherwise refuses.
+
+`tools/probe_anchor_travel.py` measures it between two processes, the reader
+built with a longer baseline so it is a different organism until it restores.
+As restored, 0 of 438 columns differ at each of four anchors.
+
+### The network is declared
+
+After one turn from those anchors the two processes differed in one fact: each
+turn writes the connectivity status into her world facts, and it was a TCP
+connect to 1.1.1.1:53 with its latency, 20.57 ms in one process and 21.14 in
+the other. That moved the world domain's fact profile by up to 0.078. The
+declared host now declares the network as well (`core/subject/declared_network.py`,
+37e1e0374): online, no measured latency, stamped by the run's clock. A
+campaign read before this commit had the machine's network in W.
+
+### The entropy is declared
+
+The predictive self model adds managed entropy to every observation before it
+updates its weights, and agency's curiosity takes a jitter from the same
+source. It drew from the ANU quantum generator over the network, then from
+`os.urandom`: seeded by nothing and carried by no fork. The declared host now
+declares it as the run's own Python generator, which the run seeds and every
+snapshot carries, and the fork carries the source's budget
+(`core/subject/declared_entropy.py`, af0f998b4). The size of the injection and
+its budget are unchanged. A campaign read before this commit had noise in S
+that no seed could replay.
+
+### What is left after a turn
+
+With the network declared and the generators seeded as the rig seeds them,
+one turn from the same restored anchors still differs between the two
+processes in 89 of 438 columns. For 87 of them the gap is below 0.02 of the
+column's spread on the seed-7 look's recording, the median 8e-6. Two are not:
+the workspace's coherence, at 0.37 of its spread, and its fragmentation, at
+0.18. Both come from the unity monitor, whose inputs are not yet traced.
+
+The snapshot does not carry everything the next turn reads, even in one
+process. From one anchor, a turn taken after sixteen more turns of history
+differs from the same turn taken first in 21 columns, the substrate's minimum
+activation by 0.475 of its spread, and a capture of every service, phase and
+module slot finds nothing uncarried that moved. What does move is fixed for all
+the arms at one anchor, which is why the sham reads exactly zero there: it
+behaves as part of the anchor. The paired estimator compares arms within an
+anchor, so the carrier's decisions stand; what it limits is the claim that a
+restored anchor is the whole organism.
+
+### A late fork, read after the last cut
+
+That uncarried part is not fixed across a sweep. Each anchor's two untouched
+forks are rolled with its first cut and reused by every later cut, so a cut
+late in the sweep compares an arm rolled now with forks rolled hundreds of
+turns ago. The sham and the playback are both read from the cached forks and
+cannot see it. It was measured on seed 7 at 16 anchors, after three cuts: a
+third untouched fork from each anchor, read as a cut against the cached forks
+by the cut's own rule, level and draws, gave an excess of 2.0e-6 and a lower
+bound below zero (p 0.2), where the three cuts gave 0.05 to 0.9. Drift is
+there, in 109 columns, and four orders of magnitude under a cut.
+
+It is now part of the design (`isc_v5.LATE_FORK`). Her sweep reads the late
+fork at the deciding horizon on the anchors its cuts drew, after the last cut
+(`v25_cut.late_fork_decided`, `v25_runtime.collect_late_forks`). If it is
+decided, drift alone clears the bar and the irreducibility line fails; a
+sweep that did not read it fails the line as well. Merged shards count as
+decided if any shard's late fork was.
+
+### What counts
+
+Seed 23's decisive sweep runs in one process, which takes about ten hours,
+until those two columns agree. A sharded sweep until then is a look. And a
+sharded sweep counts at all only when its shards forked from the coordinator's
+bank. The merge marks a shard whose anchors are not exchangeable with the
+coordinator's, and the authority gate then refuses the sweep, which is what
+refused every sharded sweep so far; shards that fork from the bank hold the
+coordinator's anchors exactly.

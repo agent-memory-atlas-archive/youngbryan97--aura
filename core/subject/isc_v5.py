@@ -86,6 +86,14 @@ ONE_SIGNAL: bool = True
 #: core.subject.paired_displacement and the preregistration's addendum of
 #: 29 September, afternoon.
 ESTIMATOR: str = "displacement"
+#: Whether her sweep reads a third untouched fork from each anchor after its
+#: last cut, as a cut against the untouched forks it cached. Each anchor's
+#: untouched forks are rolled with its first cut and reused by every later
+#: one, so a cut's arm and its comparison are rolled hundreds of turns apart,
+#: and the snapshot does not carry everything those turns change. See
+#: `v25_cut.late_fork_decided` and the preregistration's addendum of 29
+#: September, evening.
+LATE_FORK: bool = True
 
 
 def design() -> dict[str, Any]:
@@ -102,6 +110,7 @@ def design() -> dict[str, Any]:
         "one_clock": ONE_CLOCK,
         "one_signal": ONE_SIGNAL,
         "estimator": ESTIMATOR,
+        "late_fork": LATE_FORK,
     }
 
 
@@ -183,6 +192,16 @@ def lines(
             {"key": "partition_beats_nulls", "passed": False, "value": None, "why": blocked},
         ]
     problems = _conforms(sweep)
+    # Her sweep only: the null architectures' sweeps are not rolled from her
+    # snapshots and have no cache to drift from.
+    late = sweep.get("late_fork")
+    if LATE_FORK and not isinstance(late, Mapping):
+        problems.append("no late untouched fork was read against the cached ones")
+    elif LATE_FORK and late.get("decided"):
+        problems.append(
+            "a late untouched fork was decided against the cached one, so drift alone "
+            f"clears the bar (lower bound {late.get('lower_bound')})"
+        )
     cuts = int(sweep.get("cuts_tested") or 0)
     in_full = int(sweep.get("cuts_in_full") or 0)
     decided = int(sweep.get("cuts_decided") or 0)

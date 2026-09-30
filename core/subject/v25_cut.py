@@ -227,6 +227,14 @@ class SweepReport:
     #: checked it. `isc_v5._conforms` refuses a mismatch now.
     estimator: str = ""
     one_signal: bool = False
+    #: A third untouched fork from each anchor, rolled after every cut had run,
+    #: read as a cut against the untouched fork the sweep cached. Two of each
+    #: cut's arms are that cached fork, rolled when the anchor's first cut was;
+    #: every later cut's arm starts from a process that has lived hundreds of
+    #: turns since, and some of what those turns change the snapshot does not
+    #: carry. Decided, it means drift alone clears the bar, and no cut decided
+    #: in this sweep can be told from it. See `late_fork_decided`.
+    late_fork: dict[str, Any] | None = None
 
     @property
     def weakest(self) -> CutVerdict | None:
@@ -278,6 +286,7 @@ class SweepReport:
             "paired": self.paired,
             "estimator": self.estimator,
             "one_signal": self.one_signal,
+            "late_fork": None if self.late_fork is None else dict(self.late_fork),
             "irreducible": self.irreducible,
             "weakest_cut": None if weakest is None else weakest.name,
             "weakest_lower_bound": None if weakest is None else round(weakest.lower_bound, 6),
@@ -334,7 +343,19 @@ def merge_sweeps(shards: Sequence[dict[str, Any]], *, cuts_in_full: int) -> Swee
     if len(designs) != 1:
         raise ValueError(f"shards were run to different designs: {sorted(designs)}")
     looks, alpha_per_look, draws, deciding, paired, estimator, one_signal = designs.pop()
+    forks = [s.get("late_fork") for s in shards]
+    late_fork = None
+    if forks and all(isinstance(fork, dict) for fork in forks):
+        # Each shard rolled its own late forks from its own cache, so the merged
+        # sweep's control is decided if any shard's was.
+        late_fork = {
+            "decided": any(bool(fork.get("decided")) for fork in forks),
+            "anchors": sum(int(fork.get("anchors", 0)) for fork in forks),
+            "lower_bound": max(float(fork.get("lower_bound", 0.0)) for fork in forks),
+            "shards": len(forks),
+        }
     return SweepReport(
+        late_fork=late_fork,
         tau_seconds=float(shards[0]["tau_seconds"]),
         cuts_in_full=cuts_in_full,
         estimator=estimator,
@@ -384,6 +405,33 @@ class _Gathered:
         }
 
 
+def late_fork_decided(
+    samples: dict[str, np.ndarray], *, tau_seconds: float, seed: int, alpha: float, draws: int,
+    paired: bool = False, estimator: str = "fisher_rao",
+) -> dict[str, Any]:
+    """The late untouched forks read as a cut, by the cut's own rule, level and draws.
+
+    `samples` holds the cached untouched forks as `intact`, `sham_a` and
+    `sham_b`, and a fork rolled from the same anchors after the sweep as
+    `cut`. Nothing was cut, so a decision here is the process having moved
+    between the two rollouts. On seed 7 at 16 anchors, after three cuts, it
+    read an excess of 2.0e-6 with a lower bound below zero, against 0.05 to
+    0.9 for the cuts themselves.
+    """
+    _estimate, excess, lower, p_value = decide_cut(
+        samples, tau_seconds=tau_seconds, seed=seed, alpha=alpha, draws=draws,
+        **({"paired": True} if paired else {}),
+        **({"estimator": estimator} if estimator != "fisher_rao" else {}),
+    )
+    return {
+        "decided": bool(lower > 0.0),
+        "excess": float(excess),
+        "lower_bound": float(lower),
+        "p_value": float(p_value),
+        "anchors": int(len(samples["cut"])),
+    }
+
+
 def playback_decided(
     samples: dict[str, np.ndarray], *, tau_seconds: float, seed: int, alpha: float, draws: int,
     paired: bool = False, estimator: str = "fisher_rao",
@@ -399,7 +447,8 @@ def playback_decided(
     replay["cut"] = np.asarray(samples["intact"]).copy()
     _estimate, _excess, lower, _p = decide_cut(
         replay, tau_seconds=tau_seconds, seed=seed, alpha=alpha, draws=draws, permutation_draws=19,
-        paired=paired, **({"estimator": estimator} if estimator != "fisher_rao" else {}),
+        **({"paired": True} if paired else {}),
+        **({"estimator": estimator} if estimator != "fisher_rao" else {}),
     )
     return lower > 0.0
 
@@ -673,6 +722,7 @@ async def sweep_cuts_over_lags(
     kept: dict[str, dict[int, dict[str, np.ndarray]]] | None = None,
     estimator: str = "fisher_rao",
     one_signal: bool = False,
+    untouched: dict | None = None,
 ) -> dict[int, SweepReport]:
     """Every bipartition at every horizon, from one set of rollouts per cut.
 
@@ -760,7 +810,9 @@ async def sweep_cuts_over_lags(
     def open_at(name: str, lag: int) -> bool:
         return not verdicts[lag][name].decided and name not in unreached[lag]
 
-    untouched: dict = {}
+    # The caller's, when it passes one, so the late forks can be read against
+    # the same cached untouched forks every cut was.
+    untouched = {} if untouched is None else untouched
     gathered: dict[str, _Gathered] = {}
 
     async def advance(name: str, take: int) -> None:

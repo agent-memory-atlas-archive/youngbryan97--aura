@@ -35,8 +35,16 @@ from core.organism.model_validation import (
 
 @pytest.fixture(autouse=True)
 def _clean():
+    # Lockdep's register too. The order claim is about a clean process, and
+    # its own source says a test process is not one: anything asserting it
+    # resets the register first, as tests/test_runtime_boot_contracts.py does.
+    # Without it, a splat left by whatever ran earlier in a chunk failed both
+    # claims here (Q09, chunk 11), and the claim's failure named no lock.
+    from core.runtime.lockdep import reset_lockdep_for_test
+
     metta_mod.reset_metta_for_test()
     val_mod.reset_validation_for_test()
+    reset_lockdep_for_test()
     yield
     metta_mod.reset_metta_for_test()
     val_mod.reset_validation_for_test()

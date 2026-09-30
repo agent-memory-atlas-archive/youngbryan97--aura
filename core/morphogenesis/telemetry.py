@@ -51,14 +51,19 @@ EVENT_PARTITIONED = "morphogenesis_partitioned"
 EVENT_MOTIF_CREDITED = "morphogenesis_motif_credited"
 
 _declared = False
+#: What the one declaration declared, handed back on every later call. An
+#: empty answer from a second call registered a publisher with no channels.
+_declared_names: tuple[str, ...] = ()
 _last_components = 1
 
 
 def declare() -> list[str]:
     """Declare the layer's channels and events. Idempotent."""
-    global _declared
-    if _declared:
-        return []
+    global _declared, _declared_names
+    from core.fsw.telemetry_dictionary import still_declared
+
+    if _declared and still_declared(_declared_names):
+        return list(_declared_names)
     try:
         from core.fsw.telemetry_dictionary import ChannelType, EventSeverity, channel, event
     except ImportError as exc:
@@ -202,13 +207,14 @@ def declare() -> list[str]:
             )
 
     _declared = True
+    _declared_names = tuple(names)
     return names
 
 
 def publish(status: dict[str, Any]) -> None:
     """Write one sample per channel from a governor status dict."""
     global _last_components
-    if not _declared and not declare():
+    if not declare():
         return
     try:
         from core.fsw.telemetry_dictionary import emit_event, write
@@ -253,7 +259,7 @@ def publish(status: dict[str, Any]) -> None:
 
 
 def publish_motifs(library_status: dict[str, Any]) -> None:
-    if not _declared and not declare():
+    if not declare():
         return
     try:
         from core.fsw.telemetry_dictionary import write

@@ -1255,6 +1255,9 @@ SUBSTRATE_BODY: tuple[tuple[str, int, bool], ...] = (
 _MODULE_SINGLETONS: tuple[tuple[str, str, str], ...] = (
     ("interiority.cleft", "core.interiority.cleft", "get_cleft"),
     ("interiority.receptors", "core.interiority.receptors", "get_receptor_bank"),
+    # Machinery by package, so the module scan leaves it out, and its budget
+    # decides how much noise the self model and agency take this turn.
+    ("runtime.managed_entropy", "core.runtime.managed_entropy", "get_managed_entropy"),
 )
 
 

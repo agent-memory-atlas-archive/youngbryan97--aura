@@ -56,14 +56,14 @@ def _infrastructure() -> tuple[type, ...]:
     """Kinds of object that hold a process's resources rather than her state."""
     import asyncio
     import concurrent.futures
-    import io as _io
-    import socket
-    import sqlite3
     import contextvars
     import hashlib
+    import io as _io
     import mmap
     import queue
     import selectors
+    import socket
+    import sqlite3
     import ssl
     import subprocess
     import threading
@@ -357,7 +357,7 @@ class _Filler:
                 self.fill(value, mine[i] if i < len(mine) else None, (path, i))
                 for i, value in enumerate(travelled)
             ]
-            if all(a is b for a, b in zip(items, travelled)):
+            if all(a is b for a, b in zip(items, travelled, strict=True)):
                 filled = travelled
             elif hasattr(travelled, "_fields"):
                 filled = type(travelled)._make(items)
@@ -381,10 +381,10 @@ class _Filler:
                 )
             items = list(travelled.items())
             moved = [self._moved(key) for key, _ in items]
-            if any(a is not b for a, b in zip(moved, (key for key, _ in items))):
+            if any(a is not b for a, b in zip(moved, (key for key, _ in items), strict=True)):
                 # Rebuilt in order, so a dict keyed by path keeps its order.
                 travelled.clear()
-                for key, (old_key, value) in zip(moved, items):
+                for key, (old_key, value) in zip(moved, items, strict=True):
                     travelled[key] = self.fill(value, mine.get(key, mine.get(old_key)), (path, key))
                 return travelled
             for key, value in items:

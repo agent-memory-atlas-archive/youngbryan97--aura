@@ -28,6 +28,8 @@ def _conforming(**over):
         "estimator": plan["estimator"], "one_signal": plan["one_signal"],
         "deciding": True, "screened": False, "shard": "",
         "cuts_tested": 511, "cuts_in_full": 511, "cuts_decided": 511, "undecided": [],
+        # The late untouched fork, read after the last cut and not decided.
+        "late_fork": {"decided": False, "lower_bound": -1e-9, "anchors": 128},
     }
     return base | over
 

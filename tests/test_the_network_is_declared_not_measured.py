@@ -15,7 +15,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.runtime.connectivity import get_connectivity_status, set_connectivity_probe_for_test
+from core.runtime.connectivity import get_connectivity_status
 from core.subject.driver import install_declared_host, release_declared_host
 
 pytestmark = pytest.mark.unit
@@ -42,12 +42,13 @@ def test_a_declared_run_reads_the_network_it_declared(monkeypatch) -> None:
 
 
 def test_releasing_the_host_puts_the_measuring_probe_back() -> None:
-    before = set_connectivity_probe_for_test(None)
-    set_connectivity_probe_for_test(before)
+    from core.runtime.connectivity import ConnectivityProbe, get_connectivity_probe
+
     runtime = _runtime()
     install_declared_host(runtime)
+    assert not isinstance(get_connectivity_probe(), ConnectivityProbe)
     release_declared_host(runtime)
-    assert set_connectivity_probe_for_test(before) is before
+    assert isinstance(get_connectivity_probe(), ConnectivityProbe)
 
 
 def test_two_readings_at_one_moment_are_the_same_reading(monkeypatch) -> None:

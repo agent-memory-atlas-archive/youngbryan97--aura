@@ -55,7 +55,7 @@ import math
 import os
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -238,6 +238,39 @@ async def _dose_matched(
 # ── stage 2: the grain ────────────────────────────────────────────────────
 
 
+def _says_how_far_along(stage: str) -> Callable[[int, int], None]:
+    """Report a long stage's progress, with the time left at the rate measured so far.
+
+    The grain said nothing between its one line and its end. On 29 September a
+    probe on three domains spent 113 minutes there and hit its alarm, and the log
+    could not say whether it was halfway or stuck. On ten domains the stage is
+    11,264 rollouts for the training matrix and 15,360 for the attack, six times
+    the whole 511-cut sweep, so it is the longest unwatched stretch of a decisive
+    run.
+
+    The estimate is the elapsed time over the anchors done, so it is a
+    measurement of this run rather than a figure carried from another one. It
+    reports every tenth of the way and on the last anchor, so a stage of any
+    length writes about eleven lines.
+    """
+    started = time.monotonic()
+    reported = [-1]
+
+    def far_along(done: int, total: int) -> None:
+        tenth = (done * 10) // max(1, total)
+        if tenth == reported[0] and done != total:
+            return
+        reported[0] = tenth
+        spent = time.monotonic() - started
+        left = spent / done * (total - done) if done else 0.0
+        _log(
+            f"  {stage}: {done}/{total} anchors, {spent / 60:.1f} min spent"
+            + (f", about {left / 60:.1f} min left at this rate" if done < total else "")
+        )
+
+    return far_along
+
+
 async def _learn_grain(
     runtime: Any,
     anchors: Sequence[Any],
@@ -278,11 +311,17 @@ async def _learn_grain(
     if claims is None:
         from core.subject.v25_grain import signature_matrix
 
-        train = await signature_matrix(runtime, anchors, conditions, train_actions, **signature)
+        train = await signature_matrix(
+            runtime, anchors, conditions, train_actions,
+            progress=_says_how_far_along("grain, training"), **signature,
+        )
         # The attack. Negative doses and preregistered pairs, none of which the
         # rank was fitted on. If raw history still predicts these once the grain
         # is known, the grain merged two states that are not the same state.
-        heldout = await signature_matrix(runtime, anchors, conditions, test_actions, **signature)
+        heldout = await signature_matrix(
+            runtime, anchors, conditions, test_actions,
+            progress=_says_how_far_along("grain, the attack"), **signature,
+        )
     else:
         gathered = await _gather_grain_rows(
             runtime, anchors, conditions, plan, signature,
@@ -352,6 +391,44 @@ async def _learn_grain(
     }
 
 
+#: Where the coordinator leaves its anchors for the shards.
+ANCHOR_BANK = "anchor_bank.bin"
+
+
+def _write_anchor_bank(path: Path, bank: dict[str, Any]) -> int:
+    """The coordinator's anchors, doses and scales, moved into place whole."""
+    from core.subject.anchor_travel import dumps
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = dumps(bank)
+    partial = path.with_suffix(".partial")
+    partial.write_bytes(data)
+    partial.replace(path)
+    return len(data)
+
+
+async def _read_anchor_bank(path: Path, runtime: Any, wait_seconds: float) -> dict[str, Any]:
+    """The coordinator's bank, each snapshot's functions filled from this organism's own.
+
+    Two processes on one seed are two organisms (tools/same_organism.py), so a
+    shard that forked from anchors of its own swept another organism. From
+    these it sweeps the coordinator's.
+    """
+    from dataclasses import replace
+
+    from core.subject.anchor_travel import fill_snapshot, loads
+
+    deadline = time.monotonic() + max(0.0, wait_seconds)
+    while not await asyncio.to_thread(path.exists):
+        if time.monotonic() >= deadline:
+            raise SystemExit(f"refusing: no anchor bank at {path} when the wait ran out")
+        await asyncio.sleep(30.0)
+    bank = loads(await asyncio.to_thread(path.read_bytes))
+    own = runtime.snapshot()
+    bank["anchors"] = [replace(anchor, snapshot=fill_snapshot(anchor.snapshot, own)) for anchor in bank["anchors"]]
+    return bank
+
+
 def _seed_every_generator(seed: int) -> None:
     """The process's global generators, from the run's seed, before the organism exists.
 
@@ -414,6 +491,22 @@ def _write_grain_row(directory: Path, index: int, train: np.ndarray, heldout: np
     np.savez(partial, train=train, heldout=heldout, anchor=np.asarray(anchor_state, dtype=np.float64),
              doses=np.asarray(json.dumps(sorted(doses.items()))))
     partial.replace(final)
+
+
+def _row_is_this_anchors(row: Mapping[str, Any], current: Any, doses: Mapping[str, float]) -> bool:
+    """Whether a stored grain row was made from this anchor's state and these doses.
+
+    The one condition that decides whether a row on disk is evidence or a
+    stranger. A row from another anchor, or from the same anchor under different
+    doses, is a different measurement wearing the right filename — which is what
+    makes it worth naming, since it is also what a resume rests on.
+    """
+    if not {"anchor", "doses"} <= set(row):
+        return False
+    return bool(
+        np.array_equal(np.asarray(row["anchor"]), np.asarray(current, dtype=np.float64))
+        and str(row["doses"]) == json.dumps(sorted(doses.items()))
+    )
 
 
 def _read_grain_row(directory: Path, index: int) -> dict[str, Any] | None:
@@ -481,7 +574,7 @@ async def _gather_grain_rows(runtime: Any, anchors: Sequence[Any], conditions: S
             if row is None:
                 continue
             arrived = True
-            if np.array_equal(row["anchor"], np.asarray(anchor.current, dtype=np.float64)) and str(row["doses"]) == wanted:
+            if _row_is_this_anchors(row, anchor.current, doses):
                 rows[index] = (row["train"], row["heldout"])
                 shared += 1
             else:
@@ -542,6 +635,7 @@ async def _spectrum(
     spectrum: dict[float, float] = {}
     detail: dict[str, Any] = {}
     chosen = design or {}
+    untouched: dict = {}
     reports = await sweep_cuts_over_lags(
         runtime, anchors, conditions,
         lags=lags, frame_seconds=frame_seconds,
@@ -558,7 +652,10 @@ async def _spectrum(
         kept=None if keep_samples is None else (kept := {}),
         estimator=str(chosen.get("estimator") or "fisher_rao"),
         one_signal=bool(chosen.get("one_signal")),
+        untouched=untouched,
     )
+    if chosen.get("late_fork"):
+        await _read_the_late_forks(runtime, anchors, conditions, reports, untouched, turns=turns, seed=seed)
     if keep_samples is not None:
         detail["samples_file"] = str(await asyncio.to_thread(_save_cut_samples, keep_samples, kept))
     for lag in sorted(reports):
@@ -573,6 +670,49 @@ async def _spectrum(
             f"/{report.as_dict()['cuts_tested']} decided"
         )
     return spectrum, detail
+
+
+async def _read_the_late_forks(
+    runtime: Any,
+    anchors: Sequence[Any],
+    conditions: Sequence[Any],
+    reports: dict[int, Any],
+    untouched: dict,
+    *,
+    turns: int,
+    seed: int,
+) -> None:
+    """Each deciding horizon's late-fork control, on the anchors its cuts drew.
+
+    Only a sweep that ran to its end reads it: one that stopped at an undecided
+    cut has already refused the claim this control guards.
+    """
+    from core.subject.v25_cut import late_fork_decided
+    from core.subject.v25_runtime import collect_late_forks
+
+    for lag, report in reports.items():
+        if not report.deciding or report.stopped_after or not report.verdicts:
+            continue
+        drawn = max((v.anchors_used for v in report.verdicts), default=0)
+        samples = await collect_late_forks(
+            runtime, list(anchors[:drawn]), conditions, untouched, turns=turns, lag=int(lag)
+        )
+        if samples is None:
+            continue
+        report.late_fork = late_fork_decided(
+            samples,
+            tau_seconds=report.tau_seconds,
+            seed=seed + int(lag) + 7919,
+            alpha=report.alpha_per_look,
+            draws=report.draws,
+            paired=report.paired,
+            estimator=report.estimator or "fisher_rao",
+        )
+        _log(
+            f"  lag {lag:>3}: late untouched forks read as a cut, lower bound "
+            f"{report.late_fork['lower_bound']:.3g}, "
+            f"{'decided' if report.late_fork['decided'] else 'not decided'} on {report.late_fork['anchors']} anchors"
+        )
 
 
 def _save_cut_samples(target: Path, kept: dict[str, dict[int, dict[str, np.ndarray]]]) -> Path:
@@ -835,11 +975,22 @@ async def main() -> int:
         ),
     )
     parser.add_argument(
+        "--share-anchors", action="store_true",
+        help=(
+            "shard workers fork from the coordinator's anchors, read from the shard "
+            "directory, instead of collecting their own: two processes on one seed "
+            "are two organisms. The shard launcher turns it on"
+        ),
+    )
+    parser.add_argument(
         "--grain-claims", action="store_true",
         help=(
-            "share the grain's signature rows between the coordinator and the shard "
-            "workers, anchor by anchor, through the shard directory. The rows are "
-            "the ones one process makes; the shard launcher turns it on"
+            "keep the grain's signature rows on disk, one per anchor. Sharded, they "
+            "are shared between the coordinator and the workers through the shard "
+            "directory and the shard launcher turns it on; alone, they are kept under "
+            "the run directory so a death inside the grain resumes rather than "
+            "restarts. A row is reused only if it was made from the same anchor state "
+            "and the same doses"
         ),
     )
     parser.add_argument(
@@ -992,6 +1143,7 @@ async def main() -> int:
         "paired": bool(args.v5 and preset["paired"]),
         "one_signal": bool(args.v5 and preset.get("one_signal")),
         "estimator": str(preset.get("estimator") or "fisher_rao") if args.v5 else "fisher_rao",
+        "late_fork": bool(args.v5 and preset.get("late_fork")),
     }
     if sweep_design["one_signal"]:
         # Before any estimate, and inherited by every process the draws spread to.
@@ -1077,6 +1229,18 @@ async def main() -> int:
 
     try:
         failures_before = dict(getattr(runtime, "failures", {}) or {})
+        # ── a worker sharing the coordinator's anchors reads them, and no baseline of its own ──
+        shared_bank: dict[str, Any] | None = None
+        if shard is not None and args.share_anchors:
+            bank_path = Path(args.shard_dir or (args.out / "shards")) / ANCHOR_BANK
+            _log(f"waiting for the coordinator's anchors at {bank_path}")
+            shared_bank = await _read_anchor_bank(bank_path, runtime, float(args.shard_wait_seconds or 86400.0))
+            doses = dict(shared_bank["doses"])
+            scale = np.asarray(shared_bank["scale"])
+            live_mask = np.asarray(shared_bank["live_mask"])
+            baseline_mean = np.asarray(shared_bank["baseline_mean"])
+            _log(f"  {len(shared_bank['anchors'])} anchors from the coordinator")
+            done_v25 = tuple(done_v25) + ("baseline",)
         # ── the baseline, which every scale is read against ────────────
         if "baseline" not in done_v25:
             _log(f"baseline: {args.rounds} rounds over {len(conditions)} conditions")
@@ -1154,7 +1318,10 @@ async def main() -> int:
         # the nulls forks anything, so a run resumed past them does not pay for
         # a bank it will not use.
         anchors: list[Any] = []
-        if "nulls" not in done_v25:
+        if shared_bank is not None:
+            evidence["stopped_loops"] = stopped_at_boot + await quiesce_organism(runtime)
+            anchors = list(shared_bank["anchors"])
+        elif "nulls" not in done_v25:
             # Everything from here forks paired arms off these anchors, so the
             # free-running loops stop before any anchor is taken, as
             # run_subject_core.py stops them before its interventions. Left
@@ -1176,6 +1343,15 @@ async def main() -> int:
             _log(f"  {len(anchors)} anchors, history {args.history_turns} turns")
             if len(anchors) < 2:
                 raise RuntimeError("fewer than two anchors; nothing can be forked")
+            if args.from_shards and args.share_anchors:
+                # Every shard forks from these, so every cut is a cut of one
+                # organism; see core.subject.anchor_travel.
+                written = await asyncio.to_thread(
+                    _write_anchor_bank, Path(args.from_shards) / ANCHOR_BANK,
+                    {"anchors": anchors, "doses": dict(doses), "scale": scale, "live_mask": live_mask,
+                     "baseline_mean": baseline_mean},
+                )
+                _log(f"  wrote the anchors for the shards, {written} bytes")
 
         # ── a shard worker scores its share of the cuts and stops ──────
         if shard is not None:
@@ -1232,7 +1408,19 @@ async def main() -> int:
             else:
                 _log("learning the grain, then attacking it")
                 grain_lags = (1, 8) if args.quick else (1, 8, 33)
-                shared_dir = Path(args.from_shards) if (args.grain_claims and args.from_shards) else None
+                # A lone run keeps its rows too, so a death inside the grain
+                # resumes rather than restarts. The stage is 11,264 rollouts for
+                # the training matrix and 15,360 for the attack on ten domains,
+                # and the checkpoint is only written once it has all of them, so
+                # a run that died at the last anchor lost every one. The claim
+                # machinery already writes a row per anchor and reuses only rows
+                # made from the same anchor state and the same doses, which is
+                # exactly what a resume needs; it lived under `--from-shards`
+                # because sharding was the first thing to want it.
+                shared_dir = (
+                    Path(args.from_shards) if args.from_shards
+                    else (run_dir if args.grain_claims else None)
+                )
                 grain = await _learn_grain(
                     runtime, anchors, conditions, doses,
                     baseline_mean=baseline_mean, baseline_scale=scale,
@@ -1241,7 +1429,9 @@ async def main() -> int:
                     history_turns=args.history_turns,
                     claims=None if shared_dir is None else shared_dir / "grain",
                     refused=None if shared_dir is None else shared_dir / "REFUSED",
-                    wait_seconds=float(args.shard_wait_seconds),
+                    # A lone run waits for nobody: every row it has not got, it
+                    # makes itself before it gathers.
+                    wait_seconds=0.0 if args.from_shards is None else float(args.shard_wait_seconds),
                 )
                 grain.pop("_grain", None)
                 evidence["canonical_grain"] = grain

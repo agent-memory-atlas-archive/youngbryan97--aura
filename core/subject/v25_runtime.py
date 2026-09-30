@@ -206,6 +206,45 @@ async def collect_partition_samples(
     }
 
 
+async def collect_late_forks(
+    runtime: Any,
+    anchors: Sequence[Any],
+    conditions: Sequence[Any],
+    untouched: Untouched,
+    *,
+    turns: int,
+    lag: int,
+) -> dict[str, np.ndarray] | None:
+    """A third untouched fork from each cached anchor, for `v25_cut.late_fork_decided`.
+
+    Rolled now, after the sweep, from every anchor whose untouched forks the
+    sweep cached at this horizon, and laid out as a cut's samples with the
+    late fork as the cut. None when nothing was cached.
+    """
+    names = [getattr(c, "name", str(i)) for i, c in enumerate(conditions)]
+    rows: dict[str, list[np.ndarray]] = {k: [] for k in ("context", "intact", "sham_a", "sham_b", "cut", "reached")}
+    for position, anchor in enumerate(anchors):
+        condition = conditions[position % len(conditions)]
+        key = (position, names[position % len(conditions)], int(turns))
+        cached = untouched.get(key)
+        if cached is None or int(lag) not in cached[0]:
+            continue
+        intact_a, intact_b, length = cached
+        runtime.restore(anchor.snapshot)
+        late = await _run_turns(runtime, condition, turns)
+        one_hot = np.zeros(len(conditions), dtype=np.float64)
+        one_hot[position % len(conditions)] = 1.0
+        rows["context"].append(np.concatenate([anchor.current, one_hot]))
+        rows["intact"].append(intact_a[int(lag)])
+        rows["sham_a"].append(intact_a[int(lag)])
+        rows["sham_b"].append(intact_b[int(lag)])
+        rows["cut"].append(lag_vector(late, int(lag)))
+        rows["reached"].append(np.asarray([1.0 if int(lag) <= min(length, len(late)) else 0.0]))
+    if not rows["cut"]:
+        return None
+    return {key: np.vstack(values) for key, values in rows.items()}
+
+
 async def collect_anchor_bank(
     runtime: Any,
     conditions: Sequence[Any],
