@@ -21,6 +21,7 @@ from core.runtime.resource_observation import (
     ResourceObserver,
     get_resource_observer,
 )
+from core.utils.standing_condition import StandingCondition
 
 logger = logging.getLogger("Aura.MemoryMonitor")
 
@@ -464,6 +465,11 @@ class AppleSiliconMemoryMonitor:
         self.is_running = False
         self._pressure = 0
         self._loop_task = None
+        # Said when pressure crosses the threshold, again each five points it
+        # climbs, and once when it falls back; not on every two-second look.
+        self._high_pressure = StandingCondition(
+            logger, ended="Memory pressure is back under its threshold.", step=5.0
+        )
 
     async def start(self) -> None:
         self.is_running = True
@@ -493,12 +499,14 @@ class AppleSiliconMemoryMonitor:
                 # Sample memory pressure off the event loop so watchdogs never
                 # see a shell command or psutil hiccup as a global stall.
                 self._pressure = await asyncio.to_thread(self._get_pressure_sysctl)
+                self._high_pressure.report(
+                    self._pressure >= self.threshold,
+                    "⚠️ HIGH MEMORY PRESSURE: %s%% (Threshold: %s%%)",
+                    self._pressure,
+                    self.threshold,
+                    level=float(self._pressure),
+                )
                 if self._pressure >= self.threshold:
-                    logger.warning(
-                        "⚠️ HIGH MEMORY PRESSURE: %s%% (Threshold: %s%%)",
-                        self._pressure,
-                        self.threshold,
-                    )
                     import time as _time
                     now = _time.monotonic()
                     # Run a generational gc once per minute when pressure is up.

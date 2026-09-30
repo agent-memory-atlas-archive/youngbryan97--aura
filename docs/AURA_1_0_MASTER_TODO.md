@@ -750,6 +750,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  2026-09-30, the next three by count in the live log of 24-29 September, one
+  cause: a standing condition warned again on every pass of its loop. "HIGH
+  MEMORY PRESSURE" 574 times on 26 September, 471 and 259 the days after;
+  "RAM CRITICAL ... Strike N" 210; "Sustained distress" up to 46 a day.
+  Homeostasis had already been changed to say its strain as it starts and
+  ends (26 September) and went from 936 a day to 9. The same rule now serves
+  all three through `core/utils/standing_condition.py`: a warning when the
+  condition starts, the monitor and the guard again when the reading climbs
+  a step, debug while it lasts, info when it ends.
+  `tests/test_a_standing_condition_is_said_when_it_changes.py` drives each
+  loop through repeated looks, and its three site tests fail on the old
+  code.
   2026-09-29, read from the night's live log by count. The two loudest classes
   said nothing actionable at warning: 124 "UI log buffer at capacity" (the
   replay ring for late clients, info now) and 61 "Embedding model admission
