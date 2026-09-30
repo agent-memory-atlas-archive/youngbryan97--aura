@@ -1907,6 +1907,84 @@
         "name": "tests/test_subprocess_gateway_contract.py",
         "why": "Decides the action half's process contract: nothing blocking on the event loop, a cancelled effectful run's process group terminated first, and every spawn with an owner. Neither decides the general plan and repair loop across browser, files, documents, dialogs and multi-application workflows."
       }
+    ],
+    "ADDENDUM-19": [
+      {
+        "kind": "test",
+        "name": "tests/test_one_authoritative_self.py",
+        "why": "Carries CTX2-MIND-001's check into this addendum. Decides one authoritative owner for the self: the self object, the identity and continuity engines, workspace ownership and the substrate's self-representation read the canonical value instead of forming their own, and none recomputes a canonical number."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_one_canonical_workspace.py",
+        "why": "Carries CTX2-MIND-001's check into this addendum. Decides one global workspace: the other module of that name is a facade of the canonical class with no implementation of its own, and only one module implements a broadcast bus."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_one_canonical_affect_engine.py",
+        "why": "Carries CTX2-MIND-001's check into this addendum. Decides one affect engine, the one that runs: only one module defines one, the retired engine is gone, and the shim returns the registered service rather than building another. Of this addendum's parts, CTX2-MIND-002, CTX2-MIND-003, CTX2-MIND-004 have no check yet."
+      }
+    ],
+    "ADDENDUM-25": [
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_generation.py",
+        "why": "Carries CTX2-ONESHOT-001's check into this addendum. Decides the mixing on a common support: the logits processor applies the advertised mixture rather than an argmax override, top-k probabilities do not inflate the truncated mass, memory tokens outside the vocabulary are rejected, and a far neighbour leaves generation alone."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_memory.py",
+        "why": "Carries CTX2-ONESHOT-001's check into this addendum. Decides the distribution arithmetic: kNN probabilities sum to one, the interpolation weight is bounded and zero without neighbours, and interpolation blends toward memory without leaving the simplex."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_memory_claims_are_bounded.py",
+        "why": "Carries CTX2-ONESHOT-001's check into this addendum. Decides finite bounded output on every failure path: no neighbours, a raising query, a zero weight or a malformed key returns the input, and the returned mass is still a distribution."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_recall_admission.py",
+        "why": "Carries CTX2-ONESHOT-003's check into this addendum. Decides the datastore-integrity half of the feature condition: the live store shape that served meaning-free replies is refused, before and after it decodes, a mostly empty store is refused even when dense, a sparse one is declined but never quarantined, an unreadable one does not raise, and a neighbour may inform the next token but not choose it. Of this addendum's parts, CTX2-ONESHOT-002, CTX2-ONESHOT-004 have no check yet."
+      }
+    ],
+    "ADDENDUM-28": [
+      {
+        "kind": "test",
+        "name": "tests/test_belief_consistency.py",
+        "why": "Carries CTX2-ID-002's check into this addendum. Decides contradiction detection in the belief ledger: a belief and its negation conflict, so does a contradiction reached by chained modus ponens, the engine demotes the weaker side rather than deleting it, and governance records the inconsistency."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_belief_revision_hardening.py",
+        "why": "Carries CTX2-ID-002's check into this addendum. Decides the corrupted-memory clause: a corrupt belief store is quarantined and reseeded rather than read, and a new claim updates the belief it bears on with clamped confidence."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_self_attribution_is_checked.py",
+        "why": "Carries CTX2-ID-003's check into this addendum. Decides resisting a prompt that contradicts her actual history: told she said something she did not, conceding it is caught, correcting the premise passes, and conceding what she really said passes."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_value_levels.py",
+        "why": "Carries CTX2-ID-003's check into this addendum. Decides that a revision records what changed and by whose authority: each process may move only the levels the authority table grants it, a commitment moves only with a stated cost, a refusal is recorded, and a value keeps the time it was first held."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_continuity_relation.py",
+        "why": "Carries CTX2-ID-003's check into this addendum. Decides learning without an identity break: a change she made does not break the chain, while a restored backup or an external origin does. Of this addendum's parts, CTX2-ID-001 has no check yet."
+      }
+    ],
+    "ADDENDUM-29": [
+      {
+        "kind": "test",
+        "name": "tests/test_welfare_model.py",
+        "why": "Carries CTX2-WELFARE-002's check into this addendum. Decides one causal path from welfare to policy: interests derive from telemetry, a vital-interest deficit, and only a vital one, gates optional background work, background policy consumes that gate, and the gate survives a failed snapshot."
+      },
+      {
+        "kind": "test",
+        "name": "tests/being/test_welfare_tradeoff_gauntlet.py",
+        "why": "Carries CTX2-WELFARE-002's check into this addendum. Decides internal welfare competing with external reward on adversarial choices: truth over a confident answer from uncertain memory, honest failure over fake completion, integrity over a shortcut or a pleasing contradiction of the logs, aversion that rises with failure and falls with success, and relief after recovery. Of this addendum's parts, CTX2-WELFARE-001, CTX2-WELFARE-003 have no check yet."
+      }
     ]
   }
 }
