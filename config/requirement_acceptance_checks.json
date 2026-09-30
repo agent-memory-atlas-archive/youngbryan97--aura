@@ -2245,6 +2245,13 @@
         "name": "tests/test_delegator_runtime_hardening.py",
         "why": "Decides the bounded-cancellation and containment parts of delegation: a debate that times out marks its agents failed and releases their capacity, a callback failure does not poison an agent that completed, an empty shard output fails closed with an explicit result, joining ignores retained completed agents, the tool adapter keeps the origin outside the payload, and consensus tolerates an invalid confidence. It does not decide typed delegation with scoped authority and budget ownership, shared-world coordination, conflict arbitration, recovery, or end-to-end accountability."
       }
+    ],
+    "CTX3-DECIDE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_cognitive_situation_frame.py",
+        "why": "Decides the part the requirement says is in place: a calibrated social rupture changes response routing and planning, fused perception changes attention, routing, response and planning, and an unknown social state asks for clarity rather than diagnosing. It does not decide unified option generation and selection over expected outcomes, uncertainty, cost, reversibility and replanning, or learning from receipted outcomes."
+      }
     ]
   }
 }
