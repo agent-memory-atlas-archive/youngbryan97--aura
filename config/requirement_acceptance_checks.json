@@ -2014,6 +2014,18 @@
         "name": "tests/test_a_refused_task_is_not_a_failed_one.py",
         "why": "Decides declining as its own act: a refused task never starts and carries why. None of the three decides that she explains the norm or interest behind a refusal, or revises a decision when the facts change."
       }
+    ],
+    "CTX2-GRAPH-004": [
+      {
+        "kind": "test",
+        "name": "tests/test_trace_propagation.py",
+        "why": "Decides following a turn across the process boundary: every job through the authorisation chokepoint carries the active trace as a valid W3C traceparent, the far side rebuilds the context from the job alone, a child span keeps the trace id, and an untraced payload fabricates no correlation."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_audit_chain.py",
+        "why": "Decides that receipt-chain gaps are detected: a modified or deleted entry, a broken link and a missing body each fail verification, and the chain survives restart. Neither decides redaction of secret values in the operator trace, or gaps, unknown owners and stale nodes surfacing as failures in proof and readiness."
+      }
     ]
   }
 }
