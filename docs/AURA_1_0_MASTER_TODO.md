@@ -1389,6 +1389,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  The [fit-only counterfactual cohort preflight](evidence/G03_COUNTERFACTUAL_ACQUISITION_PREFLIGHT_2026-09-29.md)
+  requires at least 648 examples to preserve every declared cell. After the
+  [postfix wording repair](evidence/G03_POSTFIX_DEFINITION_WORDING_2026-09-29.md),
+  the [active-tokenizer audit](evidence/G03_REAL_TOKENIZER_PAIR_AUDIT_2026-09-29.md)
+  found witnessed operation and reference peers for all 648 selected sources,
+  with 388 late-join reference peers. All 648 source annotations also projected
+  onto that tokenizer without error. Acquisition now checks the cohort bound
+  and token/span projection before worker startup. No new hidden states, fit,
+  development gain, or fresh transfer follows from these CPU-only checks.
   [Six-scale calibration ceiling](evidence/G03_RESIDUAL_SCALE_ORACLE_CEILING_2026-09-29.md)
   finds 112/185 exact at the selected scale, at most 120/185 with an oracle
   scale per source and 126/185 per decision. Ninety teacher decisions never

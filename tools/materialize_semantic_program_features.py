@@ -92,6 +92,31 @@ def _configured_jobs(args: argparse.Namespace):
     return jobs
 
 
+def _preflight_projections(jobs, tokenizer) -> None:
+    """Reject bad token/span alignment before asking the resident worker to load."""
+    from core.learning.semantic_program_corpus import project_example_to_ir
+    from core.learning.semantic_program_feature_materialization import (
+        SemanticFeatureMaterializationError,
+        select_bounded_semantic_examples,
+        tokenize_with_offsets,
+    )
+
+    for name, _output, config, corpus, _source_sha in jobs:
+        selected = select_bounded_semantic_examples(corpus, max_examples=config.max_examples)
+        for example in selected:
+            try:
+                token_ids, offsets = tokenize_with_offsets(tokenizer, example.source_text)
+                project_example_to_ir(
+                    example, source_token_ids=token_ids, offset_mapping=offsets,
+                    model_basis_receipt_sha256="0" * 64,
+                    transducer_receipt_sha256="0" * 64,
+                )
+            except (SemanticFeatureMaterializationError, TypeError, ValueError) as exc:
+                raise ValueError(
+                    f"{name} example {example.example_id} fails tokenizer/span preflight"
+                ) from exc
+
+
 async def _acquire_jobs(client, *, model, tokenizer, tokenizer_identity, jobs):
     from core.learning.semantic_program_feature_materialization import materialize_semantic_program_features
 
@@ -161,6 +186,7 @@ async def _run(args: argparse.Namespace) -> dict[str, object]:
     tokenizer_identity = await asyncio.to_thread(tokenizer_checkpoint_identity, model)
     tokenizer_wrapper = await asyncio.to_thread(load_tokenizer, model)
     offset_tokenizer = offset_tokenizer_for_worker(tokenizer_wrapper)
+    await asyncio.to_thread(_preflight_projections, jobs, offset_tokenizer)
     client = get_mlx_client(str(model))
     results = await _acquire_jobs(client, model=model, tokenizer=offset_tokenizer,
         tokenizer_identity=tokenizer_identity, jobs=jobs)

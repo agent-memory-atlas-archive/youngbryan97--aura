@@ -54,6 +54,32 @@ def test_single_cohort_rejects_unrepresentable_bound_before_worker_setup(tmp_pat
     assert len(features.select_bounded_semantic_examples(corpus, max_examples=648)) == 648
 
 
+def test_projection_preflight_checks_every_selected_span_without_a_worker(tmp_path):
+    config = features.SemanticFeatureConfig(
+        schema=features.FAMILY_FEATURE_CONFIG_SCHEMA,
+        corpus_kind=features.COUNTERFACTUAL_SOURCE_CORPUS_KIND,
+        seed=43, max_examples=36, idle_wait_s=0,
+    )
+    corpus = features.build_semantic_program_corpus_for_config(config)
+    jobs = [("fit", tmp_path / "features", config, corpus, None)]
+    cli._preflight_projections(jobs, _CharacterTokenizer())
+
+    class MissingOffsets:
+        def __call__(self, text, **_kwargs):
+            return {"input_ids": [ord(text[0])], "offset_mapping": [(0, 1)]}
+
+    with pytest.raises(ValueError, match="fit example .* fails tokenizer/span preflight"):
+        cli._preflight_projections(jobs, MissingOffsets())
+
+    class NoOffsets:
+        def __call__(self, text, **_kwargs):
+            return {"input_ids": [ord(text[0])]}
+
+    with pytest.raises(ValueError, match="fit example .* fails tokenizer/span preflight"):
+        cli._preflight_projections(jobs, NoOffsets())
+    assert not (tmp_path / "features").exists()
+
+
 def test_reacquisition_rebuilds_exact_selection_without_loading_arrays(acquired, tmp_path, monkeypatch):
     _model, source, config, corpus = acquired
     monkeypatch.setattr(features, "load_semantic_feature_record", lambda *_a, **_k: pytest.fail("old array read"))
