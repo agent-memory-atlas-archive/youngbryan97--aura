@@ -45,6 +45,7 @@ import logging
 import threading
 import time
 from collections import deque
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from enum import IntEnum, StrEnum
 from typing import Any
@@ -446,6 +447,11 @@ class TelemetryDictionary:
         with self._lock:
             return name in self._channels
 
+    def holds(self, name: str) -> bool:
+        """Whether a channel or an event of this name is declared."""
+        with self._lock:
+            return name in self._channels or name in self._events
+
     def state(self, name: str) -> LimitState:
         """Current limit state, with staleness applied."""
         with self._lock:
@@ -669,6 +675,16 @@ def event(
             owner=owner,
         )
     )
+
+
+def still_declared(names: Sequence[str]) -> bool:
+    """Whether a group's declaration is still in the dictionary.
+
+    A group remembers that it declared, and the dictionary can forget: a test
+    that resets it leaves every group's flag set over channels that are gone.
+    A reset clears everything at once, so the first name answers for the rest.
+    """
+    return bool(names) and _DICTIONARY.holds(names[0])
 
 
 def channel_value(name: str) -> Sample | None:

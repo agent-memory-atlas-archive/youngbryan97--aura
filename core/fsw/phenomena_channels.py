@@ -62,13 +62,18 @@ EVENT_MERGED = "empathy.state_no_longer_own"
 EVENT_LEARNING_LED = "receptivity.taken_to_find_out"
 
 _declared = False
+#: What the one declaration declared, handed back on every later call. An
+#: empty answer from a second call registered a publisher with no channels.
+_declared_names: tuple[str, ...] = ()
 
 
 def declare() -> list[str]:
     """Declare every channel and event for this group. Idempotent."""
-    global _declared
-    if _declared:
-        return []
+    global _declared, _declared_names
+    from core.fsw.telemetry_dictionary import still_declared
+
+    if _declared and still_declared(_declared_names):
+        return list(_declared_names)
     try:
         from core.fsw.telemetry_dictionary import ChannelType, EventSeverity, channel, event
     except ImportError as exc:  # pragma: no cover — dictionary always present
@@ -273,12 +278,14 @@ def declare() -> list[str]:
             logger.debug("event %s not declared: %s", spec.get("name"), exc)
 
     _declared = True
+    _declared_names = tuple(names)
     return names
 
 
 def reset_for_test() -> None:
-    global _declared
+    global _declared, _declared_names
     _declared = False
+    _declared_names = ()
 
 
 def channel_names() -> list[str]:

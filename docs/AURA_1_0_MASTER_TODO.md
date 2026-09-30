@@ -3306,6 +3306,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   past 400 lines.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-09-29, night: three more, one class. Four telemetry groups
+  (conation, morphogenesis, ontogeny, phenomena) remember that they declared
+  with a flag. A second `declare()` returned `[]`, so a second
+  `declare_telemetry` registered the phenomena publisher with no channels,
+  and `test_phenomena_wiring` resetting the dictionary left every flag set
+  over channels that were gone: the cadence test failed after
+  `test_cognition_discipline`, and the morphogenesis tick and the bound
+  check read `None` about one run in two. Each group now answers with what
+  it declared and declares again into a dictionary that forgot it, asked
+  through `telemetry_dictionary.still_declared`. The set of fifteen files
+  passed three shuffled runs of three; the new test fails all five of its
+  first cases on the old code.
   2026-09-29, evening: the full run at 40 chunks read five failures in its
   first thirteen chunks, four passing alone. A class, and fixed as one: a
   singleton a test builds through `get_x()` stayed for every test after it

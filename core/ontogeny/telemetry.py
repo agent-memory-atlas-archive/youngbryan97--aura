@@ -59,6 +59,9 @@ EVENT_CALIBRATION_STATUS = "ontogeny_calibration_status"
 _DEFERRED_SPECS: dict[str, dict[str, Any]] = {}
 
 _declared = False
+#: What the one declaration declared, handed back on every later call. An
+#: empty answer from a second call registered a publisher with no channels.
+_declared_names: tuple[str, ...] = ()
 _deferred_done: set[str] = set()
 _last_calibration_status: dict[str, tuple[str, str]] = {}
 
@@ -76,9 +79,11 @@ def _authority_rank(report: dict[str, Any]) -> int:
 
 def declare() -> list[str]:
     """Declare the organ's channels and events. Idempotent."""
-    global _declared
-    if _declared:
-        return []
+    global _declared, _declared_names
+    from core.fsw.telemetry_dictionary import still_declared
+
+    if _declared and still_declared(_declared_names):
+        return list(_declared_names)
     try:
         from core.fsw.telemetry_dictionary import ChannelType, EventSeverity, channel, event
     except ImportError as exc:
@@ -186,6 +191,7 @@ def declare() -> list[str]:
         ),
     })
     _declared = True
+    _declared_names = tuple(names)
     return names
 
 
@@ -210,7 +216,7 @@ def _declare_on_demand(name: str) -> bool:
 
 def sample(report: dict[str, Any]) -> None:
     """Write the organ's current values to their channels."""
-    if not _declared:
+    if not _declared or not declare():
         return
     try:
         from core.fsw.telemetry_dictionary import write
