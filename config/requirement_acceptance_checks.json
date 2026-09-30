@@ -1997,6 +1997,23 @@
         "name": "tests/test_there_is_one_substrate.py",
         "why": "Decides convergence for one canonical organ: the orchestrator adopts the substrate the consciousness system built rather than building a second, and that one substrate is published under every name a subsystem asks for it by, so no consumer reads a copy nothing steps. It does not decide that a duplicate construction or a conflicting publication fails readiness and names both sites, or cardinality across boot retries, headless launch and worker processes."
       }
+    ],
+    "CTX2-PERSON-003": [
+      {
+        "kind": "test",
+        "name": "tests/test_standing_authority.py",
+        "why": "Decides that who authorised what is recorded and cannot be forged: each lease is bound to its exact origin and receipted, a child lease rejects origin, argument and effect substitution, and revocation is durable, immediate and owner-authenticated."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_relational_memory_authority.py",
+        "why": "Decides consent that changes what happens: revocation blocks prompt use at once, an expired record is refused before it mutates anything, and consent is exact-agent and purpose-scoped."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_refused_task_is_not_a_failed_one.py",
+        "why": "Decides declining as its own act: a refused task never starts and carries why. None of the three decides that she explains the norm or interest behind a refusal, or revises a decision when the facts change."
+      }
     ]
   }
 }
