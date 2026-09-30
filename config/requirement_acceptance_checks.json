@@ -1922,7 +1922,12 @@
       {
         "kind": "test",
         "name": "tests/test_one_canonical_affect_engine.py",
-        "why": "Carries CTX2-MIND-001's check into this addendum. Decides one affect engine, the one that runs: only one module defines one, the retired engine is gone, and the shim returns the registered service rather than building another. Of this addendum's parts, CTX2-MIND-002, CTX2-MIND-003, CTX2-MIND-004 have no check yet."
+        "why": "Carries CTX2-MIND-001's check into this addendum. Decides one affect engine, the one that runs: only one module defines one, the retired engine is gone, and the shim returns the registered service rather than building another."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_there_is_one_substrate.py",
+        "why": "Carries CTX2-MIND-003's check into this addendum. Decides convergence for one canonical organ: the orchestrator adopts the substrate rather than building a second, published under every name. Of this addendum's parts, CTX2-MIND-002 and CTX2-MIND-004 have no check yet."
       }
     ],
     "ADDENDUM-25": [
@@ -1984,6 +1989,13 @@
         "kind": "test",
         "name": "tests/being/test_welfare_tradeoff_gauntlet.py",
         "why": "Carries CTX2-WELFARE-002's check into this addendum. Decides internal welfare competing with external reward on adversarial choices: truth over a confident answer from uncertain memory, honest failure over fake completion, integrity over a shortcut or a pleasing contradiction of the logs, aversion that rises with failure and falls with success, and relief after recovery. Of this addendum's parts, CTX2-WELFARE-001, CTX2-WELFARE-003 have no check yet."
+      }
+    ],
+    "CTX2-MIND-003": [
+      {
+        "kind": "test",
+        "name": "tests/test_there_is_one_substrate.py",
+        "why": "Decides convergence for one canonical organ: the orchestrator adopts the substrate the consciousness system built rather than building a second, and that one substrate is published under every name a subsystem asks for it by, so no consumer reads a copy nothing steps. It does not decide that a duplicate construction or a conflicting publication fails readiness and names both sites, or cardinality across boot retries, headless launch and worker processes."
       }
     ]
   }
