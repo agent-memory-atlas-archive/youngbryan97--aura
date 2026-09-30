@@ -2156,6 +2156,42 @@
         "name": "skill-runtime-route-audit",
         "why": "Fails when the production skill API, router, engine and authority path do not form one route. None of the three is a per-capability dossier: boundary and adversarial cases, partial failure, cancellation, restart, observed effect, compensation and signed-app evidence for each capability are not decided."
       }
+    ],
+    "CTX2-MIND-004": [
+      {
+        "kind": "test",
+        "name": "tests/test_one_canonical_affect_engine.py",
+        "why": "Decides one migration carried to its end: only one module defines an affect engine, the retired engine is gone, and the compatibility shim still imports but builds nothing and returns the registered canonical service. It does not decide dependency-ordered migration of the other organs, reconciliation of divergent state, or rollback of the authority mapping."
+      }
+    ],
+    "CTX2-MEM-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_memory_write_gateway_hardening.py",
+        "why": "Decides the shared write authority's contract: a governance outage denies the write, a receipt that fails restores the previous record or removes the unreceipted one, content is hashed and secrets redacted in the governance context, identifiers refuse path traversal, and a failed quarantine receipt restores the source."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_relational_memory_authority.py",
+        "why": "Decides one authority for the relational store, with every legacy adapter sharing it. Neither decides one read and write authority across episodic, semantic, procedural, workspace, solved-cache and nonparametric stores."
+      }
+    ],
+    "ACTION-SPINE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_agency_execution_bridge.py",
+        "why": "Decides the spine from selection to outcome for autonomous goals: the preflight receipt is bound to the tool execution, a denied initiative never runs, the goal's status follows the verified outcome, and a cancellation still settles the claim."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_standing_authority.py",
+        "why": "Decides invocation-bound standing authority: leases bound to their exact origin, receipted and closed, with argument and effect substitution refused."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_action_depth_honesty.py",
+        "why": "Decides the expectation verdict: a shallow result that claimed verification is downgraded and missing evidence is unverified. None of the three decides that generated prose can never become executable authority, substrate feedback and learning from each outcome, or authority kept on the owner loop without blocking it."
+      }
     ]
   }
 }
