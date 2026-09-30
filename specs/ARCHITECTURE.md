@@ -1,27 +1,23 @@
 # Aura Architecture Specification
 
-> **Scope note (reviewed 2026-08-01).** This is a 114-line invariant summary
-> and component map. The authoritative technical spec is
-> [../ARCHITECTURE.md](../ARCHITECTURE.md) (§0–§18); where the two disagree,
-> that one wins. This file is kept for its **invariant list**, which is
-> still the compact statement of what must always hold.
+> **Scope note (reviewed 2026-08-01).** This document provides a high-level summary of system rules and a component map. The authoritative technical specification is [../ARCHITECTURE.md](../ARCHITECTURE.md) (§0–§18); if the two disagree, that specification takes precedence. This file is kept for its **invariants list**, which clearly states the core operational rules that must always hold true.
 
 ## System Overview
 
-Aura is a tick-based cognitive architecture that processes every input through a linear phase pipeline, commits the resulting state to a persistent store, and maintains continuous background cognition via a 1Hz heartbeat.
+Aura is an AI cognitive system organized around discrete execution steps called "ticks." Every input passes through a step-by-step processing pipeline, saves its resulting state to persistent storage, and maintains continuous background processing through a once-per-second pulse (a 1Hz heartbeat).
 
 ## Invariants (must always be true)
 
-1. **Every tick is atomic**: lock → phases → commit → release. No partial state commits.
-2. **State is event-sourced**: each phase derives a new immutable state version from the previous one.
-3. **The kernel never crashes on a single phase failure**: phase exceptions are caught and logged, tick continues.
-4. **Vault commit failures are non-fatal**: if persistence fails, the tick still returns a response.
-5. **Identity instructions are always closer to generation than conversation history**: personality cannot be pushed out of context by long conversations.
-6. **System prompts never exceed 5000 tokens**: hard cap prevents context window overflow.
-7. **No raw numeric metrics in user-facing responses**: affect values shape tone, they are not narrated.
-8. **Mock fallbacks exist for every organ**: the kernel completes its tick even if hardware/models are unavailable.
-9. **Working memory caps at 40 turns**: compaction triggers before context degrades.
-10. **The substrate pauses when idle**: no CPU burn without user interaction.
+1. **Every tick is atomic (all-or-nothing)**: acquire lock → run phases → save state → release lock. Incomplete states are never saved.
+2. **State is event-sourced**: each phase creates a new, unchangeable state record derived from the previous one.
+3. **The kernel never crashes on a single phase failure**: errors in an individual phase are caught and logged, and the tick continues running.
+4. **Vault commit failures are non-fatal**: if saving to long-term storage fails, the system still returns a response to the user.
+5. **Identity instructions stay closer to generation than conversation history**: core personality prompts are placed near the end of the prompt context, so long chats cannot push the system's personality out of the language model's active memory window.
+6. **System prompts never exceed 5000 tokens**: a strict cap prevents overflowing the language model's input limit.
+7. **No raw numeric metrics in user-facing responses**: internal emotional and cognitive scores influence the tone of voice, but are never recited directly to the user.
+8. **Mock fallbacks exist for every organ**: the kernel completes its tick even if underlying hardware or AI models are unavailable.
+9. **Working memory caps at 40 turns**: older conversation history is summarized before memory and context quality degrade.
+10. **The substrate pauses when idle**: background processing pauses to avoid wasting CPU power when there is no user interaction.
 
 ## Component Map
 
@@ -112,9 +108,9 @@ Level 3: System Prompt (response_generation_unitary.py)
 
 ## State Persistence
 
-- **SQLite** via StateRepository (event-sourced)
-- **Working memory**: in-process list, capped at 40 turns
-- **Rolling summary**: compressed via KnowledgeCompressor (3-layer atoms)
-- **Episodic memory**: SQLite + NavigatingGraph for O(log N) retrieval
-- **Conceptual gravitation**: embedding drift applied during dream cycles
-- **STDP weights**: updated in liquid substrate every 100th tick
+- **SQLite** via `StateRepository`: records system state as an immutable history of events.
+- **Working memory**: an active in-memory conversation list, capped at 40 turns.
+- **Rolling summary**: compressed conversation history managed by `KnowledgeCompressor` (broken down into 3-layer semantic units).
+- **Episodic memory**: stores past events in SQLite, using `NavigatingGraph` for fast logarithmic-time (O(log N)) retrieval.
+- **Conceptual gravitation**: gradually shifts concept embeddings (semantic associations) during background dream cycles.
+- **STDP weights**: updates synaptic learning weights in the neural liquid substrate every 100 ticks.
