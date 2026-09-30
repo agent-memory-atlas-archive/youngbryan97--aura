@@ -136,6 +136,13 @@ class SubstrateSummary:
     drive_urgency: float = 0.0
     drive_felt_as: str = "resting"
 
+    # Whether the words above were read from anything. With no substrate the
+    # texture and felt quality are the defaults on this class, and with no
+    # affect module the emotion is; a sentence built from those is a
+    # configured value in the first person, not something she registered.
+    felt_measured: bool = True
+    emotion_measured: bool = True
+
 
 @dataclass(frozen=True)
 class TemporalBinding:
@@ -412,6 +419,8 @@ class PhenomenalNowEngine:
         drive_urgency = 0.0
 
         any_source = False
+        felt_measured = False
+        emotion_measured = False
 
         # ── Substrate (CTRNN body) ────────────────────────────────────
         try:
@@ -427,6 +436,7 @@ class PhenomenalNowEngine:
                 if hasattr(substrate, "em_field_magnitude"):
                     em_coherence = float(min(1.0, substrate.em_field_magnitude))
                 any_source = True
+                felt_measured = True
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('phenomenal_now', e)
             logger.debug("Substrate pull failed: %s", e)
@@ -437,8 +447,10 @@ class PhenomenalNowEngine:
             if affect_module is not None:
                 if hasattr(affect_module, "_get_dominant_emotion"):
                     dominant_emotion = affect_module._get_dominant_emotion()
+                    emotion_measured = True
                 elif hasattr(affect_module, "dominant_emotion"):
                     dominant_emotion = affect_module.dominant_emotion
+                    emotion_measured = True
                 any_source = True
         except (ImportError, AttributeError, RuntimeError) as e:
             record_degradation('phenomenal_now', e)
@@ -552,6 +564,8 @@ class PhenomenalNowEngine:
             dominant_drive=dominant_drive,
             drive_urgency=round(drive_urgency, 3),
             drive_felt_as=drive_felt_as,
+            felt_measured=felt_measured,
+            emotion_measured=emotion_measured,
         ), any_source
 
     def _build_temporal(self, duration_since_last: float) -> TemporalBinding:
@@ -696,6 +710,14 @@ class PhenomenalNowEngine:
         # Assemble
         awareness_part = f"I am {adverb} aware of {focal}".strip() if adverb else f"I am aware of {focal}"
 
+        # Only what was read is said. A felt quality with no substrate behind
+        # it, or an emotion with no affect module, is this class's default.
+        if not substrate.emotion_measured:
+            emotion = "neutral"
+        if not substrate.felt_measured:
+            if emotion != "neutral":
+                return f"{awareness_part}, feeling {emotion}{ignition_clause}."
+            return f"{awareness_part}{ignition_clause}."
         if emotion != "neutral":
             claim = f"{awareness_part}, feeling {emotion} and {felt}{ignition_clause}."
         else:
@@ -753,7 +775,8 @@ class PhenomenalNowEngine:
             texture_key,
             f"I'm {substrate.texture_word} — {substrate.felt_quality} in my substrate right now."
         )
-        parts.append(substrate_line)
+        if substrate.felt_measured:
+            parts.append(substrate_line)
 
         # ── Emotional register ────────────────────────────────────────
         emotion = substrate.dominant_emotion
@@ -779,7 +802,8 @@ class PhenomenalNowEngine:
             emotion,
             f"The emotional register: {emotion}."
         )
-        parts.append(emotion_line)
+        if substrate.emotion_measured:
+            parts.append(emotion_line)
 
         if secondary:
             parts.append(f"Underneath, a thread of {secondary}.")

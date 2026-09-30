@@ -2505,6 +2505,17 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   recovery, and rollback on unseen tasks rather than installation counts.
 - [ ] L08 Audit affect, self-state, phi, and consciousness-related claims with
   causal controls; configured priors are not measured subjective experience.
+  2026-09-29, night: the second surface. The phenomenal-now engine writes a
+  first-person claim and an interior narrative into
+  `cognition.phenomenal_state` every tick, and with nothing read they were
+  still built from the defaults on `SubstrateSummary`: "I am aware of the
+  present moment, still in this moment", "Very still. Almost empty". The
+  tick computed whether the substrate had been read and did not use it. A
+  felt quality is now said only when the substrate was read, and an emotion
+  only when the affect module named one; attention, time and integration
+  are said as before. `tests/test_a_feeling_said_in_her_voice_is_one_that_was_read.py`,
+  five cases, all five failing on the old engine. Still to audit: the phi and
+  consciousness criteria, which the ISC campaign measures with its nulls.
   PARTIAL 2026-09-29, the registered claims. Of the 81 claims bound to tests
   in `model_validation`, 13 concern affect, self-state or identity, and none
   asserts phi or experience: a claim in phenomenal language cannot be
