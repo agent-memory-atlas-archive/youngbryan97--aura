@@ -1859,6 +1859,54 @@
         "name": "tests/test_one_canonical_affect_engine.py",
         "why": "Decides one affect engine, the one that runs: only one module defines one, the retired engine is gone, and the shim returns the registered service rather than building another. None of the three decides the owners of the phenomenal substrate, the consciousness cycle, welfare, executive authority or memory authority, or an inventory of every competing construction."
       }
+    ],
+    "MATRIX-15": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_restore_drill_that_can_fail.py",
+        "why": "Decides backup and restore on the operator path: the drill damages a copy, restores it and proves the repair."
+      },
+      {
+        "kind": "make",
+        "name": "doctor",
+        "why": "Runs the doctor over the Python version, the checkout and the production dependencies, each failing with its reason."
+      },
+      {
+        "kind": "make",
+        "name": "release-ready",
+        "why": "Fails unless the release lane is fail-closed and every channel names gates that exist. None of the three exercises clean install, model acquisition, permission repair, update, migration, uninstall or incident export across the machine matrix, or produces a signed reproducible build."
+      }
+    ],
+    "MATRIX-16": [
+      {
+        "kind": "test",
+        "name": "tests/test_scaffolding_is_not_evidence.py",
+        "why": "Decides runner-solved work in one proof: the worker's own prefix cannot carry the claim, so the model's continuation has to, on the normal and the cancellation path."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_eval_arena_measures_or_says_it_did_not.py",
+        "why": "Decides fallback success in the eval arena: an unchecked case is unmeasured rather than passed, a raising probe is unmeasured rather than failed, and each probe rejects a detector stuck on one answer. Neither decides leakage, fixture contamination, stale artifacts, environment dependence, or the separation of builder, solver, evaluator and signer across every runner."
+      }
+    ],
+    "MATRIX-18": [
+      {
+        "kind": "test",
+        "name": "tests/test_closeout_audit.py",
+        "why": "Decides the semantic ledger's bookkeeping: every line hashed, a review current or stale against the exact hash, re-reviewed and moved reviews superseded, spans merged, and a scope required on every record. It does not decide that every tracked file has been reviewed, or the re-run questionnaire."
+      }
+    ],
+    "MATRIX-07": [
+      {
+        "kind": "test",
+        "name": "tests/test_os_automation_effects.py",
+        "why": "Decides the observe-and-verify half of a desktop loop: a window, text, search, calculator, quit or named interaction each needs its own visible readback, an unbounded interaction is declared unverifiable, and a supported prefix cannot hide an unverified destructive suffix."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_subprocess_gateway_contract.py",
+        "why": "Decides the action half's process contract: nothing blocking on the event loop, a cancelled effectful run's process group terminated first, and every spawn with an owner. Neither decides the general plan and repair loop across browser, files, documents, dialogs and multi-application workflows."
+      }
     ]
   }
 }
