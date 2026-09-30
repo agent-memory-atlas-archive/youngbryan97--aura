@@ -1554,6 +1554,35 @@
         "name": "tests/test_device_pairing.py",
         "why": "Decides paired-device roles: a device token reaches the conversation surface and never the control surface, and revoked or forged tokens are refused. None of the three decides retention and telemetry controls, managed configuration, emergency stop, or separation of duties for consequential effects."
       }
+    ],
+    "UI-001": [
+      {
+        "kind": "make",
+        "name": "ui-audit",
+        "why": "Audits every page the interface serves for contrast in every appearance, screen-reader names and headings, visible focus, reduced motion and reflow at 320 CSS pixels, which is the accessibility and responsive-layout part of the surface audit."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_open_shell_reloads_for_new_assets.py",
+        "why": "Decides the Checkpoint 91 half: an open shell binds to the served assets and reloads only when their bytes change, a stale-while-revalidate snapshot is accepted, a malformed fingerprint is ignored, the URL marker stops a reload loop when storage is denied, and the health poll consults both bindings. Neither decides live-data truth and interaction completeness on every route, specific recovery, or screenshot evidence from the installed app."
+      }
+    ],
+    "GUI-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_launch_provenance.py",
+        "why": "Decides the build and runtime provenance the application shows: a signed manifest over a stable runtime shell, a runtime snapshot bound once at boot, and source movement after boot detected and reported."
+      },
+      {
+        "kind": "make",
+        "name": "ui-audit",
+        "why": "Audits accessible controls and responsive layout on every served page: contrast in every appearance, names and headings, visible focus, reduced motion, and reflow at 320 CSS pixels."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_runtime_polish.py",
+        "why": "test_desktop_chat_and_neural_cards_do_not_clip_long_text decides long content from source: no height cap or clipping on messages and thought cards. None of the three operates the user-installed application, so data wiring, navigation stability, inert settings, degraded services and restart remain open."
+      }
     ]
   }
 }
