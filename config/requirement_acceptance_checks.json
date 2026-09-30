@@ -630,6 +630,23 @@
         "name": "tests/test_self_condition_projection.py",
         "why": "Decides the projection the answer is built from: fresh inner state is taken before host pressure, a stale dimension is disclosed as stale, agency-only evidence does not become wellbeing, and with no inner evidence the answer says it is unavailable. Neither suite decides calibrated uncertainty in the reply or the launched desktop path end to end."
       }
+    ],
+    "AGENCY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_person_outranks_her_own_errand_at_the_executive.py",
+        "why": "Decides foreground yielding at the executive: a lane serving a person counts as the person's, a phase inside a person's turn is the person's work, her own loop stays her own while somebody waits, and a turn nobody waits on does not promote itself."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_agency_execution_bridge.py",
+        "why": "Decides obstacle recovery and bounded self-generated action: a goal's execution lease retries with backoff and then blocks, a stale claim is recovered, a scheduler rejection returns the goal to retry, a cancelled execution still settles its claim, a denied initiative never claims or runs its goal, and success needs consistent positive evidence."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_an_intention_she_acted_on_is_closed.py",
+        "why": "Decides stale-obligation cleanup for what she acted on: an act that worked closes its intention as completed, one that failed closes it as failed, and many acts leave nothing open. None of the three decides restart continuity, operator override or indefinite-life behavior."
+      }
     ]
   }
 }
