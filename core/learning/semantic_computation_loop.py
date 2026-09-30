@@ -7,6 +7,7 @@ from core.reasoning.computation_sandbox import (
     run_formulation_async,
 )
 from core.reasoning.computational_knowledge import _sha
+from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -19,13 +20,13 @@ class SemanticComputationOutcome:
     candidate_union: object = None
 
     @property
-    def result(self):
+    def result(self) -> Any:
         if self.portfolio is None:
             return None
         return dict(self.portfolio.executions)[self.portfolio.decision.selected]["result"]
 
 
-async def _observe_missing_premises(outcome, providers):
+async def _observe_missing_premises(outcome: Any, providers: Any) -> tuple[Any, dict[str, Any]]:
     """Caller-bound observation ports can supply data; text retrieval cannot."""
     import inspect
 
@@ -86,10 +87,18 @@ async def _observe_missing_premises(outcome, providers):
     return updated, {**body, "receipt_sha256": _sha(body)}
 
 
-async def run_semantic_computation_loop(*, portfolio, formulation, context,
-                                      providers=None, gateway=None, result_unit="count",
-                                      selection_output=None, observation_providers=None,
-                                      memory_retriever=None):
+async def run_semantic_computation_loop(
+    *,
+    portfolio: Any,
+    formulation: Any,
+    context: Any,
+    providers: Any=None,
+    gateway: Any=None,
+    result_unit: str='count',
+    selection_output: Any=None,
+    observation_providers: Any=None,
+    memory_retriever: Any=None,
+) -> Any:
     """One checked graph supplies evidence to the retained executable candidates.
 
     Source-to-equation mappings are caller proposals. Retrieval supplies cited
@@ -130,7 +139,7 @@ async def run_semantic_computation_loop(*, portfolio, formulation, context,
             raise ValueError("intentional memory provider is already bound")
         from core.memory.intentional_retrieval import RetrievalIntent
 
-        def retrieve(query):
+        def retrieve(query: Any) -> Any:
             return memory_retriever.retrieve(RetrievalIntent(
                 task=query, query=query, kind="learn", whose_values="", limit=8)).to_dict()
         retrieval_providers["intentional_memory"] = retrieve
@@ -157,10 +166,21 @@ async def run_semantic_computation_loop(*, portfolio, formulation, context,
                                       {**body, "receipt_sha256": _sha(body)})
 
 
-async def run_grounded_semantic_computation_loop(*, candidates, public_inputs,
-        incumbent_origin, formulation, context, fuel=2_000_000, providers=None,
-        gateway=None, result_unit="count", selection_output=None,
-        observation_providers=None, memory_retriever=None):
+async def run_grounded_semantic_computation_loop(
+    *,
+    candidates: Any,
+    public_inputs: Any,
+    incumbent_origin: Any,
+    formulation: Any,
+    context: Any,
+    fuel: int=2000000,
+    providers: Any=None,
+    gateway: Any=None,
+    result_unit: str='count',
+    selection_output: Any=None,
+    observation_providers: Any=None,
+    memory_retriever: Any=None,
+) -> Any:
     """Connect the mixed candidate union to the same scoped computation loop.
 
     Callers supply source-grounded proposals and a proposed equation mapping,

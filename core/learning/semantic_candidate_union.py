@@ -15,6 +15,7 @@ from core.learning.semantic_program_composition import (
 )
 from core.learning.semantic_program_ir import TokenSpan
 from core.verify.invariants import invariant
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -52,8 +53,7 @@ class SemanticCandidateUnion:
                 ]):
             raise ValueError("mixed candidate receipt differs from retained programs")
 
-    def to_portfolio(self, *, public_inputs: tuple, incumbent_origin: str,
-                     fuel: int = 2_000_000):
+    def to_portfolio(self, *, public_inputs: tuple, incumbent_origin: str, fuel: int=2000000) -> Any:
         """Execute all aligned proposals without using method agreement as truth."""
         from core.learning.semantic_program_portfolio import select_semantic_program_portfolio
 

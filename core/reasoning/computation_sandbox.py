@@ -18,6 +18,7 @@ from core.reasoning.computational_knowledge import (
     _sha,
     compute_knowledge,
 )
+from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,14 +30,14 @@ class Formulation:
     cells: tuple[ComputationRequest, ...]
     outputs: tuple[str, ...]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         names = tuple(cell.identity for cell in self.cells)
         if (not self.identity or not self.definition.strip() or len(self.definition) > 8192
                 or not self.cells or len(self.cells) > 128 or len(names) != len(set(names))
                 or not self.outputs or not set(self.outputs) <= set(names)):
             raise ValueError("formulation needs unique cells, outputs, and a bounded definition")
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         body = {"schema": "aura.computation_formulation.v1", "identity": self.identity,
                 "definition": self.definition, "outputs": self.outputs,
                 "cells": [{"identity": cell.identity, "model": cell.model.identity,
@@ -48,7 +49,7 @@ class Formulation:
         return {**body, "receipt_sha256": _sha(body)}
 
     @classmethod
-    def from_dict(cls, payload, catalog):
+    def from_dict(cls, payload: Any, catalog: Any) -> Any:
         if payload.get("schema") != "aura.computation_formulation.v1":
             raise ValueError("retained formulation schema differs")
         cells = []
@@ -64,7 +65,7 @@ class Formulation:
             raise ValueError("retained formulation content differs")
         return recipe
 
-    async def retain(self, gateway):
+    async def retain(self, gateway: Any) -> Any:
         from core.runtime.gateways import StateMutationRequest
         payload = self.to_dict()
         return await gateway.mutate(StateMutationRequest(
@@ -72,7 +73,7 @@ class Formulation:
             cause="retain a unit-checked cross-domain recipe without promoting its semantic mapping"))
 
     @classmethod
-    async def restore(cls, gateway, identity, catalog):
+    async def restore(cls, gateway: Any, identity: Any, catalog: Any) -> Any:
         payload = await gateway.read(identity, domain="computation_formulations", fresh=True)
         if payload is None:
             return None
@@ -89,7 +90,7 @@ class FormulationOutcome:
     completed: tuple[ComputedKnowledge, ...]
     gaps: tuple[dict, ...]
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         complete = not self.gaps
         body = {"schema": "aura.computation_formulation_outcome.v1",
                 "formulation_receipt_sha256": self.formulation.to_dict()["receipt_sha256"],
@@ -145,12 +146,12 @@ def run_formulation(formulation: Formulation, context: KnowledgeContext) -> Form
                               tuple(failures[name] for name in sorted(failures)))
 
 
-async def run_formulation_async(formulation, context):
+async def run_formulation_async(formulation: Any, context: Any) -> Any:
     from core.runtime.executors import off_the_loop
     return await off_the_loop(run_formulation, formulation, context)
 
 
-async def retrieve_formulation_gaps(outcome, providers):
+async def retrieve_formulation_gaps(outcome: Any, providers: Any) -> tuple[Any, ...]:
     """Query available knowledge stores; passages never become numeric facts here."""
     import inspect
 
@@ -173,8 +174,13 @@ async def retrieve_formulation_gaps(outcome, providers):
     return tuple(rows)
 
 
-def solve_model_unknown(model: ComputationModel, *, unknown: str, known: dict,
-                        output: QuantityBounds):
+def solve_model_unknown(
+    model: ComputationModel,
+    *,
+    unknown: str,
+    known: dict,
+    output: QuantityBounds,
+) -> Any:
     """Solve a rational affine numerator and check the original equation and domain."""
     import sympy as sp
     units = dict(model.inputs)
@@ -195,7 +201,7 @@ def solve_model_unknown(model: ComputationModel, *, unknown: str, known: dict,
               for name, value in known.items()}
     values[unknown] = symbol
 
-    def walk(node):
+    def walk(node: Any) -> Any:
         if isinstance(node, ast.Name):
             return values[node.id]
         if isinstance(node, ast.Constant) and type(node.value) in {int, float}:

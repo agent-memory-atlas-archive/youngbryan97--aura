@@ -3,9 +3,16 @@
 from core.reasoning.computational_knowledge import ScopedPremise, _sha, premise_closure
 from core.reasoning.natural_deduction import Bot, Not, formula_to_dict, parse, prove
 from core.reasoning.proof_kernel import check_proof
+from typing import Any
 
 
-def derive_scoped_fact(context, premise_ids, *, identity, goal):
+def derive_scoped_fact(
+    context: Any,
+    premise_ids: tuple[Any, ...],
+    *,
+    identity: Any,
+    goal: Any,
+) -> tuple[Any, dict[str, Any]]:
     """A checked conditional theorem can fill a model guard; inconsistency cannot."""
     premise_ids = tuple(premise_ids)
     if (not premise_ids or len(premise_ids) > 16 or len(set(premise_ids)) != len(premise_ids)
@@ -24,7 +31,7 @@ def derive_scoped_fact(context, premise_ids, *, identity, goal):
     atoms = set()
     nodes = 0
 
-    def inspect(node):
+    def inspect(node: Any) -> None:
         nonlocal nodes
         nodes += 1
         if nodes > 128:

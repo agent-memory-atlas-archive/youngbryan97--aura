@@ -11,14 +11,15 @@ from fractions import Fraction
 
 from core.engineering.units import DIMENSIONLESS, Dimension, DimensionError, Q, dimension_of
 from core.verify.invariants import invariant
+from typing import Any
 
 
-def _sha(value):
+def _sha(value: dict[str, Any]) -> Any:
     return hashlib.sha256(json.dumps(value, sort_keys=True, separators=(",", ":"),
                                   allow_nan=False).encode()).hexdigest()
 
 
-def _rational(value):
+def _rational(value: Any) -> Any:
     if type(value) not in {int, float, str, Fraction} or isinstance(value, bool):
         raise ValueError("quantity bounds must be finite rational numbers")
     if type(value) is float and not math.isfinite(value):
@@ -39,14 +40,14 @@ class QuantityBounds:
     upper: Fraction
     dimension: Dimension = DIMENSIONLESS
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         object.__setattr__(self, "lower", _rational(self.lower))
         object.__setattr__(self, "upper", _rational(self.upper))
         if self.lower > self.upper or not isinstance(self.dimension, Dimension):
             raise ValueError("quantity bounds or dimensions are invalid")
 
     @classmethod
-    def of(cls, lower, upper=None, unit="count"):
+    def of(cls, lower: int, upper: int=None, unit: str='count') -> Any:
         zero, one = Q(0, unit), Q(1, unit)
         if zero.value != 0 or one.value <= 0:
             raise ValueError("use absolute SI values for offset units")
@@ -54,34 +55,34 @@ class QuantityBounds:
         return cls(_rational(lower) * scale,
                    _rational(lower if upper is None else upper) * scale, one.dimension)
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         return {"lower": str(self.lower), "upper": str(self.upper),
                 "si_dimension": [str(value) for value in self.dimension.exponents]}
 
-    def __add__(self, other):
+    def __add__(self, other: Any) -> Any:
         if self.dimension != other.dimension:
             raise DimensionError("computed sum has incompatible dimensions")
         return QuantityBounds(self.lower + other.lower, self.upper + other.upper, self.dimension)
 
-    def __neg__(self):
+    def __neg__(self) -> Any:
         return QuantityBounds(-self.upper, -self.lower, self.dimension)
 
-    def __sub__(self, other):
+    def __sub__(self, other: Any) -> Any:
         return self + -other
 
-    def __mul__(self, other):
+    def __mul__(self, other: Any) -> Any:
         products = [left * right for left in (self.lower, self.upper)
                     for right in (other.lower, other.upper)]
         return QuantityBounds(min(products), max(products), self.dimension * other.dimension)
 
-    def __truediv__(self, other):
+    def __truediv__(self, other: Any) -> Any:
         if other.lower <= 0 <= other.upper:
             raise ValueError("division interval includes zero; consequence is unproved")
         reciprocal = QuantityBounds(1 / other.upper, 1 / other.lower,
                                     DIMENSIONLESS / other.dimension)
         return self * reciprocal
 
-    def __pow__(self, power):
+    def __pow__(self, power: Any) -> Any:
         if type(power) is not int or not -4 <= power <= 4:
             raise ValueError("computed power exceeds the declared expression grammar")
         if power < 0:
@@ -107,7 +108,7 @@ class ScopedPremise:
     valid_until: float | None = None
     dependencies: tuple[str, ...] = ()
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if (any(not isinstance(value, str) or not value.strip()
                 for value in (self.identity, self.scope, self.origin, self.ref))
                 or not isinstance(self.value, QuantityBounds) and type(self.value) is not bool
@@ -126,7 +127,7 @@ class ScopedPremise:
                 and self.valid_from > self.valid_until):
             raise ValueError("premise validity interval is reversed")
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         return {"identity": self.identity, "scope": self.scope, "origin": self.origin,
                 "ref": self.ref, "kind": self.kind, "proposition": self.proposition,
                 "value": self.value.to_dict() if isinstance(self.value, QuantityBounds) else self.value,
@@ -140,7 +141,7 @@ class KnowledgeContext:
     now: float
     premises: tuple[ScopedPremise, ...]
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if (not isinstance(self.scope, str) or not self.scope
                 or type(self.now) not in {int, float} or not math.isfinite(self.now)
                 or not isinstance(self.premises, tuple) or len(self.premises) > 256
@@ -148,7 +149,7 @@ class KnowledgeContext:
                 or len({item.identity for item in self.premises}) != len(self.premises)):
             raise ValueError("computed knowledge context is invalid or repeats a premise")
 
-    def premise(self, identity):
+    def premise(self, identity: Any) -> Any:
         item = next((item for item in self.premises if item.identity == identity), None)
         if (item is None or item.scope != self.scope
                 or item.valid_from is not None and self.now < item.valid_from
@@ -156,17 +157,17 @@ class KnowledgeContext:
             raise ValueError("computed knowledge premise is absent, stale, or in another scope")
         return item
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         return {"scope": self.scope, "now": self.now,
                 "premises": [item.to_dict() for item in self.premises]}
 
 
-def _expression(text, values):
+def _expression(text: Any, values: dict[str, Any]) -> Any:
     tree = ast.parse(text, mode="eval")
     if len(tuple(ast.walk(tree))) > 128:
         raise ValueError("computed expression exceeds its node bound")
 
-    def walk(node):
+    def walk(node: Any) -> Any:
         if isinstance(node, ast.Name):
             return values[node.id]
         if isinstance(node, ast.Constant) and type(node.value) in {int, float}:
@@ -189,12 +190,12 @@ def _expression(text, values):
     return walk(tree.body)
 
 
-def _expression_dimension(text, units):
+def _expression_dimension(text: Any, units: dict[str, Any]) -> Any:
     tree = ast.parse(text, mode="eval")
     if len(tuple(ast.walk(tree))) > 128:
         raise ValueError("computed expression exceeds its node bound")
 
-    def walk(node):
+    def walk(node: Any) -> Any:
         if isinstance(node, ast.Name):
             if node.id not in units:
                 raise ValueError("computed expression names an undeclared input")
@@ -222,11 +223,11 @@ def _expression_dimension(text, units):
     return walk(tree.body)
 
 
-def premise_closure(context, identities):
+def premise_closure(context: KnowledgeContext, identities: tuple[Any, ...]) -> Any:
     """A derived value keeps the freshness and uncertainty of all its ancestors."""
     checked, active = {}, set()
 
-    def visit(identity):
+    def visit(identity: Any) -> None:
         if identity in active:
             raise ValueError("computed knowledge premise dependencies are cyclic")
         if identity in checked:
@@ -256,7 +257,7 @@ class ComputationModel:
     nonnegative: tuple[str, ...] = ()
     positive: tuple[str, ...] = ()
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if (any(not isinstance(value, str) or not value.strip()
                 for value in (self.identity, self.field, self.reference, self.output_unit, self.expression))
                 or not isinstance(self.inputs, tuple) or len(self.inputs) > 64
@@ -277,7 +278,7 @@ class ComputationModel:
             raise DimensionError("computed model output dimension differs")
 
     @property
-    def identity_sha256(self):
+    def identity_sha256(self) -> Any:
         return _sha({name: getattr(self, name) for name in self.__dataclass_fields__})
 
 
@@ -288,7 +289,7 @@ class ComputationRequest:
     bindings: tuple[tuple[str, str], ...]
     assumption_bindings: tuple[tuple[str, str], ...] = ()
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if (not isinstance(self.identity, str) or not self.identity
                 or not isinstance(self.model, ComputationModel)
                 or any(not isinstance(rows, tuple) or any(not isinstance(row, tuple)
@@ -305,7 +306,7 @@ class ComputedKnowledge:
     premise_ids: tuple[str, ...]
     hard_constraint: bool
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, Any]:
         body = {"schema": "aura.computed_knowledge.v1", "identity": self.request.identity,
                 "scope": self.context.scope, "context_sha256": _sha(self.context.to_dict()),
                 "model_sha256": self.request.model.identity_sha256,
@@ -356,7 +357,7 @@ def compute_knowledge(request: ComputationRequest, context: KnowledgeContext) ->
                              all(item.kind in {"given", "measurement"} for item in premises.values()))
 
 
-def verify_computed_knowledge(knowledge: ComputedKnowledge, *, scope: str, now: float):
+def verify_computed_knowledge(knowledge: ComputedKnowledge, *, scope: str, now: float) -> Any:
     """Recompute the consequence and recheck scope and time before selection."""
     if not isinstance(knowledge, ComputedKnowledge) or knowledge.context.scope != scope:
         raise ValueError("computed consequence belongs to another problem")
@@ -368,7 +369,7 @@ def verify_computed_knowledge(knowledge: ComputedKnowledge, *, scope: str, now: 
     return replay
 
 
-async def compute_knowledge_batch(requests, context):
+async def compute_knowledge_batch(requests: tuple[Any, ...], context: Any) -> Any:
     """Move independent calculation cells off the live loop; preserve request order."""
     from core.runtime.executors import off_the_loop
     requests = tuple(requests)
@@ -380,7 +381,7 @@ async def compute_knowledge_batch(requests, context):
 
 @invariant("reasoning.computation_does_not_promote_estimates", scope="reasoning",
            owner="core/reasoning/computational_knowledge.py", observational=False)
-def _estimate_is_not_exact():
+def _estimate_is_not_exact() -> Any:
     context = KnowledgeContext("request", 0., (
         ScopedPremise("speed", "request", QuantityBounds.of(9, 11, "m/s"), "sensor", "speed:1", "estimate"),
         ScopedPremise("time", "request", QuantityBounds.of(2, unit="s"), "clock", "time:1"),
