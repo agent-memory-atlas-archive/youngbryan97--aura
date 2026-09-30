@@ -1383,6 +1383,66 @@
         "name": "doctor",
         "why": "Runs the clean-room doctor over the Python version, the checkout and the production dependencies. None of the three decides clean install, model acquisition, permissions, migration, signed and atomic updates, rollback with data compatibility, uninstall, or verification from the installed app."
       }
+    ],
+    "CTX2-ONESHOT-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_generation.py",
+        "why": "Decides the mixing on a common support: the logits processor applies the advertised mixture rather than an argmax override, top-k probabilities do not inflate the truncated mass, memory tokens outside the vocabulary are rejected, and a far neighbour leaves generation alone."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_memory.py",
+        "why": "Decides the distribution arithmetic: kNN probabilities sum to one, the interpolation weight is bounded and zero without neighbours, and interpolation blends toward memory without leaving the simplex."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_memory_claims_are_bounded.py",
+        "why": "Decides finite bounded output on every failure path: no neighbours, a raising query, a zero weight or a malformed key returns the input, and the returned mass is still a distribution. None of the three decides token alignment between the captured hidden state and the modified logits."
+      }
+    ],
+    "CTX2-ONESHOT-003": [
+      {
+        "kind": "test",
+        "name": "tests/test_nonparametric_recall_admission.py",
+        "why": "Decides the datastore-integrity half of the feature condition: the live store shape that served meaning-free replies is refused, before and after it decodes, a mostly empty store is refused even when dense, a sparse one is declined but never quarantined, an unreadable one does not raise, and a neighbour may inform the next token but not choose it. It does not decide the model-compatibility, latency, calibration and quality gates, or an exact disabled reason reported to the operator."
+      }
+    ],
+    "RLC-MECH-006": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_opt_fastweights.py",
+        "why": "Decides the sixth mechanism's contract: an invalid projection target cannot leak the model lease and a concurrent episode is refused, the optimiser rejects objective drift past its committed loss and charges before a faulting gradient, the erase proof needs byte identity and fails honestly on a dirty model, export for consolidation needs a proven erase and a deferred export detaches without calling the candidate a regression, and a post-verifier state change removes decode authority. It does not decide detach on every terminal path in the live service, or the separate held-out promotion contract."
+      }
+    ],
+    "VOICE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_voice_duplex.py",
+        "why": "Decides turn-taking and interruption: endpoint silence adapts to how complete the utterance is, a short noise burst is not a turn and every turn ends, the spoken prefix reflects only what played and an interruption hands the unheard tail to the next turn, the echo guard rejects her own words returning while letting a real interruption through, and delivery requests change prosody."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_voice_device_recovery.py",
+        "why": "Decides device changes: a discontinuity discards partial audio monotonically, capture reopens inside the same authenticated socket, status exposes the capture generation, and a dead native stream is detected and retried without reloading voice or mind state."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_runtime_settings_voice_authority.py",
+        "why": "Decides settings that reach the real owner: voice initialises from verified settings, disabling input closes the stream and revokes every microphone lease, disabling output interrupts playback, and no production path constructs a competing engine."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_owner_voice_conversation.py",
+        "why": "Decides wake and owner sessions: ambient audio still needs a wake word, an owner session closes when streaming stops or on an explicit stop and cannot outlive the microphone. None of the four decides the installed-app evidence across supported audio devices and restart, or privacy-aware retention."
+      }
+    ],
+    "DESKTOP-ACCESS-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_native_desktop_bridge.py",
+        "why": "Decides the probe path: concurrent callers share one bridge probe, a permission request does not use the short probe timeout while the resident probe keeps its short one, a negative probe result is not held for the ready TTL, the resident probe stays authoritative over a one-shot and the default probe never launches one, and the local certificate is a stable TCC identity without a team ID. It does not decide that one probe timeout produces no duplicate degradation, fault or affective strain, or the launched desktop path itself."
+      }
     ]
   }
 }
