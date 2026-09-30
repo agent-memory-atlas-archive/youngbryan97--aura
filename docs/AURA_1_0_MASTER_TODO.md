@@ -1467,6 +1467,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Prepared native fit handoff](evidence/G03_PREPARED_NATIVE_FIT_HANDOFF_2026-09-30.md)
+  advances the verified preparation into its unchanged model fit and independent
+  replay. Failed prerequisites launch no training; an unfitted selection cannot
+  advance as learned tissue. Generated correctness and promotion remain unproved.
   [Native preparation handoff](evidence/G03_NATIVE_PREPARATION_HANDOFF_2026-09-30.md)
   continues the completed source bank into one frozen native plan and audited
   supervision without loading model weights or repeating upstream work.
