@@ -493,7 +493,10 @@ def select_bounded_semantic_examples(
             )
         ].append(example)
     if max_examples < len(grouped):
-        raise ValueError("selection bound cannot represent every factorial corpus cell")
+        raise ValueError(
+            "selection bound cannot represent every factorial corpus cell "
+            f"({max_examples} requested, {len(grouped)} required)"
+        )
     for rows in grouped.values():
         rows.sort(key=lambda item: item.example_id)
     selected: list[SemanticProgramExample] = []

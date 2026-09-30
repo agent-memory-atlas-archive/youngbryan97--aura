@@ -51,6 +51,7 @@ def _configured_jobs(args: argparse.Namespace):
     from core.learning.semantic_program_feature_materialization import (
         FAMILY_FEATURE_CONFIG_SCHEMA, FEATURE_CONFIG_SCHEMA, SemanticFeatureConfig,
         build_semantic_program_corpus_for_config, rebuild_semantic_feature_selection,
+        select_bounded_semantic_examples,
     )
 
     output = args.output.expanduser().resolve(strict=False)
@@ -63,7 +64,9 @@ def _configured_jobs(args: argparse.Namespace):
             corpus_kind=args.corpus_kind,
             schema=FEATURE_CONFIG_SCHEMA if args.corpus_kind == "chain_3x2" else FAMILY_FEATURE_CONFIG_SCHEMA,
         )
-        return [("single", output, config, build_semantic_program_corpus_for_config(config), None)]
+        corpus = build_semantic_program_corpus_for_config(config)
+        select_bounded_semantic_examples(corpus, max_examples=config.max_examples)
+        return [("single", output, config, corpus, None)]
     plan = json.loads(plan_path.read_text("ascii"))
     if (not isinstance(plan, dict) or set(plan) != {"schema", "jobs"}
             or plan["schema"] != "aura.semantic_feature_reacquisition_plan.v1"

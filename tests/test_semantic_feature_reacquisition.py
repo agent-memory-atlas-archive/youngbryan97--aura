@@ -38,6 +38,22 @@ def _plan(tmp_path, jobs):
     return SimpleNamespace(plan=path, output=tmp_path / "new")
 
 
+def test_single_cohort_rejects_unrepresentable_bound_before_worker_setup(tmp_path):
+    args = SimpleNamespace(
+        plan=None, output=tmp_path / "features", seed=41,
+        examples_per_operation_pair=1, max_examples=576,
+        representation="final_hidden_v1", hidden_timeout_s=120.0,
+        idle_wait_s=0.0,
+        corpus_kind=features.COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND,
+    )
+    with pytest.raises(ValueError, match="576 requested, 648 required"):
+        cli._configured_jobs(args)
+    args.max_examples = 648
+    name, _target, config, corpus, _source = cli._configured_jobs(args)[0]
+    assert name == "single" and config.max_examples == 648
+    assert len(features.select_bounded_semantic_examples(corpus, max_examples=648)) == 648
+
+
 def test_reacquisition_rebuilds_exact_selection_without_loading_arrays(acquired, tmp_path, monkeypatch):
     _model, source, config, corpus = acquired
     monkeypatch.setattr(features, "load_semantic_feature_record", lambda *_a, **_k: pytest.fail("old array read"))
