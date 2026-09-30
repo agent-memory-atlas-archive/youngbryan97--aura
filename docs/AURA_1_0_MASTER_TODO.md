@@ -3275,6 +3275,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   it ends; chunk 8 at its own order went from two failures to 1780 passed.
   The lock-order claim now reads a reset register, as its own source asks.
   The fifth was a gate that could not see `**extra`; fixed at the gate.
+  Two refinements the next chunks showed: a slot holding a function, a class
+  or a module is wiring an install-once patch calls back into, and stays
+  (logging's reentry guard raised in every test after it was emptied); and a
+  singleton that keeps a connection or a writer inside it stays, or its
+  database is left open for the next teardown. Chunk 1 then passed whole,
+  and chunk 8 at its own order passed but for two 60-second subprocess
+  budgets run out under the evening's load.
   2026-09-29: two more, both resolved, and the order they depended on is
   pytest-randomly's. It is installed and shuffles modules, classes and
   functions every run, so an order dependence shows as a flake. The
