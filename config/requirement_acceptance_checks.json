@@ -1501,6 +1501,25 @@
         "name": "tests/test_injection_canary.py",
         "why": "Decides one manipulation channel, instructions planted in untrusted text. None of the three decides strategic modelling, longitudinal stability, or rollback evidence."
       }
+    ],
+    "OS-AUTOMATION-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_subprocess_gateway_contract.py",
+        "why": "Decides the subprocess contract: the blocking gateway refuses a running event loop and routes through the async lifecycle, a cancelled effectful run terminates its process group before the cancellation propagates, cleanup signals an isolated group after its root has exited, a spawn commits and releases its process owner, and delegated governance cannot be rehydrated into a child that did not ask for it."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_os_automation_effects.py",
+        "why": "Decides that success waits on objective effect verification: a window, text, search, calculator, quit or named interaction each needs its own visible readback, an unbounded interaction is declared unverifiable, closing a window is not reported as terminating a process, and a supported prefix cannot hide an unverified destructive suffix. Neither file decides periodic browser, window and clipboard perception together with foreground actions under live lag budgets."
+      }
+    ],
+    "SUBSTRATE-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_liquid_substrate_feedback.py",
+        "why": "Decides the Checkpoint 73 worker-transform half: a dynamics merge preserves a concurrent causal mutation instead of replacing newer state, external feedback defers the Torch sync to the worker tick and never converts on its own, the weight cache starts from the NumPy connectome and resyncs when dirty, and a stale snapshot is marked historical in the prompt. It does not decide the complete writer inventory, the typed state-gateway integration, downstream causal lesions, persistence and migration, or the exact-main live proof."
+      }
     ]
   }
 }
