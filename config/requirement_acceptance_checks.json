@@ -1583,6 +1583,25 @@
         "name": "tests/test_runtime_polish.py",
         "why": "test_desktop_chat_and_neural_cards_do_not_clip_long_text decides long content from source: no height cap or clipping on messages and thought cards. None of the three operates the user-installed application, so data wiring, navigation stability, inert settings, degraded services and restart remain open."
       }
+    ],
+    "PROOF-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_scaffolding_is_not_evidence.py",
+        "why": "Decides runner-solved work in one proof: the worker's fixed prefix carries every required term and clears the word floor alone, so the model's continuation has to carry the claim, and a continuation that restates the scaffolding is insufficient on both the normal and the cancellation path."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_eval_arena_measures_or_says_it_did_not.py",
+        "why": "Decides fallback success in the eval arena: a case with no check is unmeasured rather than passed, a raising probe is unmeasured rather than failed, the ratio covers only what ran, each probe rejects a detector stuck on one answer, and editing a probe changes the manifest. Neither file decides leakage and copied answers, stale artifacts, environment dependence, or the separation of builder, solver, evaluator and signer across every runner."
+      }
+    ],
+    "TOPOLOGY-CONSISTENCY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_mycelium_2026.py",
+        "why": "Decides the Checkpoint 91 contract the requirement describes: infrastructure mapping publishes one complete generation, a forced remap keeps the previous generation until an atomic replacement, mapped-file and graph snapshots are detached across every published surface, a failed refresh keeps its generation and clears the running state, shutdown during mapping cannot publish into a retired network or clear its replacement, and discovery and topology snapshots share one lock. It does not decide the exact-app polling run during mapping, vault sync, shutdown and restart."
+      }
     ]
   }
 }
