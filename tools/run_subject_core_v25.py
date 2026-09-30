@@ -529,8 +529,15 @@ async def _one_grain_row(runtime: Any, anchor: Any, conditions: Sequence[Any], p
 async def _work_grain_rows(runtime: Any, anchors: Sequence[Any], conditions: Sequence[Any],
                            plan: dict[str, Any], signature: dict[str, Any], *, directory: Path,
                            refused: Path | None, doses: dict[str, float]) -> int:
-    """Claim anchors one at a time and write their rows, until none is left or the sweep refused."""
+    """Claim anchors one at a time and write their rows, until none is left or the sweep refused.
+
+    Progress is reported here rather than inside `signature_matrix`, because a
+    claimed row is one anchor at a time: the matrix would only ever see 1 of 1
+    and say so 128 times. This counts the anchors this process got through,
+    which is what a reader of a multi-hour stage wants to know.
+    """
     done = 0
+    far_along = _says_how_far_along("grain, claimed rows")
     for index, anchor in enumerate(anchors):
         if refused is not None and await asyncio.to_thread(refused.exists):
             break
@@ -539,6 +546,7 @@ async def _work_grain_rows(runtime: Any, anchors: Sequence[Any], conditions: Seq
         train, heldout = await _one_grain_row(runtime, anchor, conditions, plan, signature)
         await asyncio.to_thread(_write_grain_row, directory, index, train, heldout, anchor.current, doses)
         done += 1
+        far_along(index + 1, len(anchors))
     return done
 
 
