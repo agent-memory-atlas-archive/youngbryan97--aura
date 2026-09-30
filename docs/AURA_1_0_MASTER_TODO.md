@@ -3319,6 +3319,39 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  2026-09-30. On this commit, run on it: compile, lint, smoke, layering,
+  deps-check, governance-lint, security, enterprise-gate, production-gate,
+  doc-drift, writing, typed-surface, swallowed, epistemic-independence,
+  acceptance-links, method-size and module-size are green. Method size,
+  module size, swallowed and the enterprise gate were red on main before it,
+  for one reason: functions and files had grown past bars the ratchets held.
+  Fifty-seven extractions, each proven token-equal by
+  `tools/extract_seam.py`, bring every function under 400 lines or its
+  recorded size; the serving order leaves `GoalEngine`, the cached
+  generation leaves `response_generation`, and the phenomena claims leave
+  `model_validation`, so the oversize total is its measured 125,177. The
+  enterprise gate's two findings were a test that ran Layer 8 through
+  `exec`; Layer 8 is a function now and the test calls it. deps-check went
+  red on main at 03:14 over a `core/reasoning/DEPS` whose generated header
+  no longer matched; regenerated here, with no edge added or removed.
+  Two gates are still red, here as on main. The reqproof structural gate
+  has 20 receipts made stale by new modules changing what their manifests
+  select; they are re-recorded from a clean tree after this lands.
+  Reachability has three modules reached only by their tests,
+  `semantic_computation_loop`, `computational_models` and
+  `scoped_logical_computation`, which Codex added at 03:14
+  and is still joining to its computation path; they are left to it and
+  read again before the full run. Tests run on this batch: 4,656 passed
+  across the files that import or read a moved module, and 316 of the 321
+  that import or read `model_validation`. What failed was three source
+  contracts that had followed their code into a sibling (fixed); a
+  sandboxed solver whose one-second bound expired under load, which was a
+  race in the subprocess gateway (fixed in 837507e3b, see Q09); three
+  public-claim tests red on main since the README rewrite renamed the
+  coefficient lesion (fixed in 5b26e7ea9); and two resident decode
+  canaries sealed over source that a2a81602d changed on 21 September, which
+  only a re-run on her cortex can re-seal. The chunked full suite on a tree
+  holding all of this is still to run, and it is Q09's run too.
   2026-09-21. Every named gate is green again, and three were not for
   reasons that were not bookkeeping.
   `make deps-gate` had been red since 10 September, and what it was saying is
@@ -3516,7 +3549,7 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   there. Each runner now gives an exited child one more period to drain,
   and calls the pipes stranded only if they are still open after it. Two
   tests drive that order with a fake child and fail on the old code. Paired
-  runs of the 2,267 gateway-importing tests at seed 424242 on main and on
+  runs of the 2,266 gateway-importing tests at seed 424242 on main and on
   the fix fail the same four and error the same one; none of those five
   touches the gateway.
   2026-09-30: chunk 4 of the full run at 308d623df, three failures in
