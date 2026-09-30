@@ -1443,6 +1443,35 @@
         "name": "tests/test_native_desktop_bridge.py",
         "why": "Decides the probe path: concurrent callers share one bridge probe, a permission request does not use the short probe timeout while the resident probe keeps its short one, a negative probe result is not held for the ready TTL, the resident probe stays authoritative over a one-shot and the default probe never launches one, and the local certificate is a stable TCC identity without a team ID. It does not decide that one probe timeout produces no duplicate degradation, fault or affective strain, or the launched desktop path itself."
       }
+    ],
+    "CONVERSATION-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_requested_short_answer_is_an_answer.py",
+        "why": "Decides the Checkpoint 80 half: every way of asking for brevity is recognised, so a requested short answer is a finished one and is not rejected as too thin and regenerated, while an open request still does not license a stub and filler is still not an answer."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_reply_never_stops_mid_word.py",
+        "why": "Decides truncation: a reply cut by the clock is trimmed to its last finished sentence and reported as run out rather than served as though finished."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_repeated_paragraph_costs_no_answer.py",
+        "why": "Decides repetition within a reply: the copy is dropped and the answer kept. None of the three decides identity drift or context loss across a sustained live conversation, silent stalls, fallback takeover, stream spam, or the 20-second quality retry wall."
+      }
+    ],
+    "RLC-RUNTIME-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_wiring.py",
+        "why": "Decides the runtime contract around the stack: the job config maps every advanced mechanism and rejects out-of-band requests, the kill switch refuses honestly, the handler rejects a malformed response contract before the engine, a malformed worker receipt is contained, an identity-receipt mismatch recycles the worker, and an idle service reports itself unproven rather than healthy."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_latent_cortex_receipt_envelope.py",
+        "why": "Decides complete-receipt validation: every conversion failure and a receipt that explodes on access become a contract error, and oversized, deeply nested or overwide receipts are refused before the validator runs. Neither file decides default-on routing of depth-worthy CognitiveEngine work through the installed-app resident model, or the live product verdict the requirement revoked and still asks for."
+      }
     ]
   }
 }
