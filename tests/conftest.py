@@ -1075,13 +1075,25 @@ def _empty_module_slots() -> tuple[set[str], list[tuple[dict, str]]]:
 
 
 def _process_resources() -> tuple[type, ...]:
-    """Kinds that hold a thread or a handle: emptying their slot would strand them."""
+    """Kinds a slot holds as wiring rather than as a singleton: emptying it breaks the wiring.
+
+    A thread, an executor, a loop or a connection would be stranded. A function,
+    a class or a module is what an install-once patch keeps to call back into:
+    `handler_reentry._original_call_handlers` holds the logging method its
+    patch forwards to, and emptied, every log call after it raised.
+    """
     import asyncio
     import concurrent.futures
+    import functools
     import sqlite3
     import threading
+    import types
 
-    return (threading.Thread, concurrent.futures.Executor, asyncio.AbstractEventLoop, sqlite3.Connection)
+    return (
+        threading.Thread, concurrent.futures.Executor, asyncio.AbstractEventLoop, sqlite3.Connection,
+        types.FunctionType, types.BuiltinFunctionType, types.MethodType, functools.partial,
+        type, types.ModuleType,
+    )
 
 
 @pytest.fixture(autouse=True)
