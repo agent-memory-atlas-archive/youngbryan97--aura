@@ -107,6 +107,8 @@ def run_formulation(formulation: Formulation, context: KnowledgeContext) -> Form
     names = {cell.identity for cell in formulation.cells}
     if names & {item.identity for item in context.premises}:
         raise ValueError("formulation results cannot overwrite input evidence")
+    if len(context.premises) + len(names) > 256:
+        raise ValueError("formulation inputs and derived values exceed the context bound")
     pending, completed = list(formulation.cells), []
     working = context
     failures = {}

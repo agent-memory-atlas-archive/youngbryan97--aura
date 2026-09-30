@@ -16,6 +16,11 @@ That mapping remains an upstream proposal which needs evidence.
    change in graph order. Computations run off the event loop.
 3. Calculation checks dimensions, applicability premises and numeric domains.
    Derived values retain the uncertainty and freshness of every ancestor.
+   Caller-bound observation ports can supply absent inputs as `ScopedPremise`
+   records. Each record must name a requested input, its provenance, the current
+   scope and a valid time interval. Derived values and untyped text are refused.
+   Conflicting ports leave the input unresolved. New input data triggers another
+   graph calculation; the loop ends when complete or when no new input arrives.
 4. The semantic program portfolio replays each consequence before selection.
    Contradicted candidates are removed. The incumbent survives when the evidence
    cannot distinguish candidates. If every candidate is refuted, there is no
@@ -23,6 +28,9 @@ That mapping remains an upstream proposal which needs evidence.
 5. Missing or contradicted premises produce explicit gaps. Supplied knowledge
    providers receive queries. Their passages remain retrieved material; this
    path does not turn a passage into a measured quantity.
+   An optional `memory_retriever` uses the existing intentional-retrieval router,
+   including registered local-reference and episodic adapters. Missing stores
+   remain visible in its result. No second memory store is created.
 6. The state gateway retains the equation graph, model hashes, bindings and
    semantic definition. Restoration verifies those hashes. New observations
    require a new calculation; retained recipes contain no cached answers.
@@ -30,6 +38,10 @@ That mapping remains an upstream proposal which needs evidence.
 A formulation with several outputs must name its `selection_output`. Distinct
 quantities such as pressure and energy cannot silently constrain the same answer.
 An unresolved cell leaves the original portfolio selection untouched.
+Observation ports do not overwrite existing evidence or count repeated reports
+as new facts. The v2 loop receipt binds each admission and recalculation to its
+before-and-after context. Port authority comes from the caller's wiring, not
+from a string in retrieved content. Estimates remain conditional after admission.
 
 ## Calculation Boundary
 
@@ -78,7 +90,8 @@ No cell supplies a default measurement of gravity, density or temperature.
 
 The executable API and portfolio connection are tested. The tests include a
 three-cell fluid/mechanical graph, premise ablation, changed observations,
-counterevidence, invalid units, provider failure and state-gateway restoration.
+counterevidence, invalid units, provider failure, observation-driven recomputation,
+real local-corpus retrieval and state-gateway restoration.
 They establish conditional computation and integration on those fixtures.
 
 The autonomous language-to-equation mapper is not supplied by this catalog.

@@ -1455,6 +1455,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Observation-driven recomputation](evidence/G03_OBSERVATION_RECOMPUTATION_2026-09-30.md)
+  fills declared inputs through scoped observation ports, recalculates dependent
+  equations, and reuses intentional-memory retrieval without treating passages
+  as measurements. Source-fit-only partition preparation now precedes candidate
+  evaluation with separate custody. These implementation checks do not close G03.
   [Computed constraints and native rejection](evidence/G03_COMPUTED_CONSTRAINTS_AND_NATIVE_REJECTION_2026-09-30.md)
   connect equation graphs, scoped evidence and executable portfolios, with
   durable recipe restoration and causal ablation checks. The completed v7
