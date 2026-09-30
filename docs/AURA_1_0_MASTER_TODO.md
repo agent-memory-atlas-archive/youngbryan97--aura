@@ -3494,6 +3494,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   past 400 lines.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-09-30, morning: the `autonomous_rsi` sandbox test that failed in
+  loaded chunks and passed alone. Both work-bound runners in the subprocess
+  gateway treated a child that had exited as stranded if its exit landed
+  between a watch period timing out and the poll after it: the output was
+  still in the pipe, and the run came back 124, "exited child left inherited
+  output pipes open". A slow start on a busy host is what puts the exit
+  there. Each runner now gives an exited child one more period to drain,
+  and calls the pipes stranded only if they are still open after it. Two
+  tests drive that order with a fake child and fail on the old code. Paired
+  runs of the 2,267 gateway-importing tests at seed 424242 on main and on
+  the fix fail the same four and error the same one; none of those five
+  touches the gateway.
   2026-09-30: chunk 4 of the full run at 308d623df, three failures in
   `test_a_lock_held_while_working_is_not_a_deadlock`, passing alone.
   `LockWatchdog` is decorated `@singleton`, which hands every caller the

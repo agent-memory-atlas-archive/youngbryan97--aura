@@ -994,6 +994,10 @@ class SubprocessGateway:
         advanced_at = started
         stopped_for = ""
         stdout = stderr = ""
+        # An exit that lands between a timed-out period and this poll is a
+        # finished child whose output is still in the pipe; one more period
+        # drains it. See _run_bounded_by_its_work.
+        exit_seen = False
         while True:
             try:
                 stdout, stderr = proc.communicate(timeout=watch_period_s)
@@ -1003,7 +1007,9 @@ class SubprocessGateway:
             now = time.monotonic()
             cpu = _child_cpu_seconds(proc.pid)
             if proc.poll() is not None:
-                stopped_for = "exited child left inherited output pipes open"
+                if exit_seen:
+                    stopped_for = "exited child left inherited output pipes open"
+                exit_seen = True
             elif cpu is None:
                 if proc.poll() is None and now - started >= budget:
                     stopped_for = (
