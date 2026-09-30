@@ -21,6 +21,8 @@ from core.agency.agency_core import AgencyCore, _skill_cooldown_effect
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = (ROOT / "core" / "agency" / "agency_core.py").read_text("utf-8")
+#: The shard's work, lifted out of agency_core on 21 September.
+SHARD_SOURCE = (ROOT / "core" / "agency" / "agency_shard_work.py").read_text("utf-8")
 
 
 def test_no_pathway_spends_the_cooldown_while_being_asked():
@@ -210,11 +212,12 @@ def test_a_fabricated_conclusion_is_not_learned_from():
     the abstraction engine then learned from that sentence as a SUCCESS, the
     crucible refined it dialectically, and the collective was pulsed with
     success=True. A formatting collapse became a lesson."""
-    assert "shard_succeeded = not bool(" in SOURCE
-    assert "if abstractor is not None and shard_succeeded:" in SOURCE
-    assert "if output_text and shard_succeeded:" in SOURCE
-    assert "success=shard_succeeded" in SOURCE
-    assert 'pulse_hypha("collective", "distributed_agency", success=True)' not in SOURCE
+    assert "shard_succeeded = not bool(" in SHARD_SOURCE
+    assert "if abstractor is not None and shard_succeeded:" in SHARD_SOURCE
+    assert "if output_text and shard_succeeded:" in SHARD_SOURCE
+    assert "success=shard_succeeded" in SHARD_SOURCE
+    for source in (SOURCE, SHARD_SOURCE):
+        assert 'pulse_hypha("collective", "distributed_agency", success=True)' not in source
 
 
 def test_the_internet_pulse_waits_for_the_research_to_win():
