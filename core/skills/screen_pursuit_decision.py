@@ -11,6 +11,16 @@ after the point where the closure used to be defined.
 """
 from __future__ import annotations
 
+from .screen_pursuit_decision_steps import (  # noqa: F401  (re-exported: they were defined here)
+    _carry_rules_from_a_world_like_it,
+    _hold_the_rule_to_its_prediction,
+    _learn_what_made_a_move_safe,
+    _log_every_sixth_move,
+    _mend_what_went_wrong,
+    _narrate_a_fresh_plan,
+    _read_where_she_is_aiming,
+    _report_the_progress_made,
+)
 from .screen_pursuit_decision_reading import (  # noqa: F401  (re-exported: they were defined here)
     _decide_the_next_move_how_long_whole,
     _decide_the_next_move_laid_out,
@@ -380,7 +390,6 @@ async def decide_the_next_move(
     # they stay inside it. A module-level import binds once; a test that
     # patches one of these on its own module would then never be seen,
     # which is exactly what happened to `learn_about`.
-    import re
     from collections.abc import Sequence
     from dataclasses import replace
 
@@ -395,15 +404,9 @@ async def decide_the_next_move(
     )
     from core.agency.standing_strategy import settle_on_an_approach, still_holds
     from core.agency.task_knowledge import learn_about, stuck, work_out_what_it_means
-    from core.agency.what_worked_before import WhatWorkedBefore
     from core.agency.worth_thinking_about import worth_a_pass
-    from core.cognition.a_shape_that_makes_it_safe import what_makes_it_safe
-    from core.cognition.a_window_not_a_maximum import AWindow, which_act_lands_in_it
-    from core.cognition.enough_rather_than_most import the_one_most_likely_to_do
-    from core.perception.how_it_moves import HowItMoves
-    from core.perception.what_the_world_does import WhatTheWorldDoes
     from core.perception.where_it_responds import within
-    from core.perception.why_nothing_answers import ELSEWHERE, ENDED, work_out_why
+    from core.perception.why_nothing_answers import work_out_why
     from core.runtime.what_she_learned import recall
     from core.skills.fluid_executor import Step
     # The closure, named. It assigns none of these, so binding them back
@@ -644,26 +647,12 @@ async def decide_the_next_move(
             # And what stood around it when it did no harm — the two
             # pieces either side of a gap, found by taking things away
             # rather than by being described.
-            if (
-                attempt.verdict.observed_change
-                and pending["arranged"] is not None
-                and previous.chosen is not None
-                and len(getattr(pending["arranged"], "cells", ())) <= 24
-            ):
-                shape = what_makes_it_safe(
-                    pending["arranged"],
-                    previous.chosen.name,
-                    safe=lambda one, act: bool(
-                        knows.rules.expect(one, act) is not None
-                    ),
-                    parts_of=lambda one: list(getattr(one, "cells", ())),
-                    without=_the_same_thing_without,
-                    where_of=lambda one: (one.row, one.column),
-                    kind_of=lambda one: one.says,
-                    about=lambda act: (0, 0),
-                )
-                if shape.around and shape.established:
-                    logger.debug("what made %r safe: %s", previous.chosen.name, shape.describe())
+            _learn_what_made_a_move_safe(
+                attempt=attempt,
+                knows=knows,
+                pending=pending,
+                previous=previous,
+            )
             _decide_the_next_move_what_true_time(attempt, can_do, confirmed_here, in_the_way, opens, previous, responds)
             if can_do.dead() and not foreseen.get("acts"):
                 foreseen["acts"] = True
@@ -706,36 +695,15 @@ async def decide_the_next_move(
                     len(moves),
                     holding=plan["held"].approach if plan["held"] is not None else "",
                 )
-                if reached:
-                    # And the rest of her hears about it: what she is doing
-                    # is not only what she set out to do and how she is going
-                    # about it, but whether any of it is working.
-                    doing.getting_somewhere(
-                        going.where_it_stands(len(moves)), reached=made
-                    )
-                    # And the promise this run belongs to, when a request made
-                    # one: what she carries into conversation about it said
-                    # 0% for as long as she worked on it.
-                    from core.agency.commitment_engine import report_progress
-
-                    report_progress(
-                        going.share_done(len(moves)), going.where_it_stands(len(moves))
-                    )
-                    # How the line she was holding did against what she said
-                    # it would do. A prediction nobody reports on is a wish.
-                    if narrate:
-                        against = going.how_it_turned_out(len(moves))
-                        if against:
-                            _tell(against.capitalize() + ".")
-                    # The line that was being held when she got up a rung is
-                    # a line that worked, and that is what a line is for.
-                    # Graded per move, an approach is judged on whether the
-                    # last keystroke came out — which is the move's business,
-                    # not the approach's.
-                    if plan["held"] is not None:
-                        lines.learned(A_LINE_HERE, plan["held"].approach, True)
-                    if narrate:
-                        _tell(f"Where this stands: {going.where_it_stands(len(moves))}.")
+                _report_the_progress_made(
+                    going=going,
+                    lines=lines,
+                    made=made,
+                    moves=moves,
+                    narrate=narrate,
+                    plan=plan,
+                    reached=reached,
+                )
             _say_what_she_worked_out(knows, foreseen)
             _say_what_kind_of_problem(
                 knows,
@@ -757,30 +725,14 @@ async def decide_the_next_move(
                 judge = pending.get("when_a_game_ends")
                 if callable(judge):
                     judge()
-            if len(moves) % 6 == 0 and knows.rules is not None:
-                logger.info(
-                    "after %d move(s): %s%s | reading %dx%d%s | %s",
-                    len(moves),
-                    knows.rules.says(),
-                    _what_she_is_not_reading(knows.rules),
-                    laid_out.rows,
-                    laid_out.columns,
-                    _what_she_could_not_learn_from(dropped),
-                    # What a move costs her, said where anyone watching the
-                    # run can see it: a demo is a latency measurement.
-                    # And how far that thinking reached, which is what the
-                    # time buys: the same second is a different depth in a
-                    # quiet process and in a busy one.
-                    "a look took %.2fs of which %.2fs was reading it, and she "
-                    "thought for %.2fs, seeing %d move(s) ahead"
-                    % (
-                        float(observation.get("seconds_to_still", 0.0) or 0.0)
-                        + float(observation.get("seconds_reading", 0.0) or 0.0),
-                        float(observation.get("seconds_reading", 0.0) or 0.0),
-                        float(pending.get("thought_for", 0.0) or 0.0),
-                        _how_far_she_saw(),
-                    ),
-                )
+            _log_every_sixth_move(
+                dropped=dropped,
+                knows=knows,
+                laid_out=laid_out,
+                moves=moves,
+                observation=observation,
+                pending=pending,
+            )
         _decide_the_next_move_learned_same_measurement(anchor, attempt, observation, pending, previous, responds, target_app)
         if moves:
             moves[-1]["held"] = attempt.verdict.held
@@ -1032,28 +984,16 @@ async def decide_the_next_move(
                 spine=spine,
                 lived=lived,
             )
-            if narrate and not same:
-                said = fresh.narrate()
-                # And what she expects it to do, which is what makes it a
-                # line rather than a remark: the rung it is for, and what
-                # a rung has cost here.
-                if going is not None:
-                    wants = going.expecting(fresh.approach, len(moves))
-                    if wants:
-                        said = f"{said} — {wants}"
-                # And whether anything she read bears it out. Her voice
-                # is one witness; what she read is another, and a line
-                # only her own voice vouches for is held knowing that.
-                read = knowledge["held"].findings if knowledge["held"] is not None else []
-                if read:
-                    from core.agency.what_agrees import borne_out
-
-                    borne = borne_out(fresh.approach, read)
-                    said = f"{said} ({borne.says_so()})"
-                    logger.info("the line she took, against what she read: %s", borne.says_so())
-                _tell(f"{said} ({ended})" if changing and ended else said)
-            elif going is not None:
-                going.expecting(fresh.approach, len(moves))
+            _narrate_a_fresh_plan(
+                changing=changing,
+                ended=ended,
+                fresh=fresh,
+                going=going,
+                knowledge=knowledge,
+                moves=moves,
+                narrate=narrate,
+                same=same,
+            )
         if plan["held"] is not None:
             learned = learned + plan["held"].as_evidence()
 
@@ -1079,44 +1019,14 @@ async def decide_the_next_move(
                 on_top=await _whats_on_top(mine_now, over=responds["state"].band()),
                 still_there=_is_a_thing_laid_out(laid_out),
             )
-            if why.can_fix:
-                # Not an ending. Something she can do something about, and
-                # the doing is the answer rather than the reporting.
-                if narrate and not said_it_ended["value"]:
-                    _tell(why.says())
-                mended = (
-                    await _ensure_page(anchor["page"])
-                    if why.because == ELSEWHERE
-                    else await clear_what_is_in_front(why.what)
-                )
-                if mended:
-                    # Reachable again, so this cycle is not an ending. The
-                    # rest of it proceeds normally: she has her window
-                    # back and there is a move to choose.
-                    responds["state"].began_again()
-                    ended = False
-                elif responds.get("ended_by") == ONLY_SILENCE:
-                    # Something over it that will not move is still not an
-                    # ending. Silence was the only evidence, and silence is
-                    # what a dialog holding the keyboard looks like; the
-                    # thing is still there under it. Kept as an ending, it
-                    # offered starting again without needing a reason, and
-                    # LIVE 2026-09-24 she threw away a board with a 64 on it
-                    # to a notification she could not close. It is somebody
-                    # else's to answer, so she says so once and keeps trying
-                    # the thing she was asked to do.
-                    responds["state"].began_again()
-                    ended = False
-                    if narrate and not said_it_ended.get("blocked"):
-                        said_it_ended["blocked"] = True
-                        _tell(
-                            f"{why.what} will not close, and it is not mine to "
-                            "answer. What I am working on is still under it, so "
-                            "I am carrying on."
-                        )
-            elif why.because == ENDED and narrate and not said_it_ended["value"]:
-                said_it_ended["value"] = True
-                _tell(why.says())
+            ended = await _mend_what_went_wrong(
+                anchor=anchor,
+                ended=ended,
+                narrate=narrate,
+                responds=responds,
+                said_it_ended=said_it_ended,
+                why=why,
+            )
         # Seeing it through is a choice about something still going. Chosen
         # once while a game was going badly, it closed this door for the rest
         # of the run, so when the game really ended no way to begin again was
@@ -1243,31 +1153,13 @@ async def decide_the_next_move(
                 here = [responds["lattice"].rows, responds["lattice"].columns]
                 if list(read_through or ()) != here:
                     elsewhere = {}
-            if elsewhere:
-                carried = _no_more_than_a_fresh_one_is_worth(elsewhere.get("moves"))
-                knows.rules.__dict__.update(
-                    HowItMoves.from_memory(
-                        elsewhere.get("moves") or {}, carried
-                    ).__dict__
-                )
-                skilled.__dict__.update(
-                    WhatWorkedBefore.from_memory(
-                        elsewhere.get("skill") or {}, carried
-                    ).__dict__
-                )
-                world.__dict__.update(
-                    WhatTheWorldDoes.from_memory(
-                        elsewhere.get("world") or {}, carried
-                    ).__dict__
-                )
-                _tell(
-                    f"I have been somewhere like this before — {like_it['kind']} — "
-                    "so I will start from what that moved like."
-                )
-                logger.info(
-                    "borrowed from %r at %.2f trust: %s",
-                    like_it["kind"], carried, knows.rules.says(),
-                )
+            _carry_rules_from_a_world_like_it(
+                elsewhere=elsewhere,
+                knows=knows,
+                like_it=like_it,
+                skilled=skilled,
+                world=world,
+            )
 
         # Where each move would lead, when she has worked out how this
         # moves and there is anything to prefer one future over another by.
@@ -1446,30 +1338,10 @@ async def decide_the_next_move(
         # a bid over one number and under another. Overshooting looks like
         # success right up to the moment it is a disaster, because the
         # measure that says more says more all the way past the edge.
-        if ahead and aiming_at:
-            numbers = [
-                float(one)
-                for one in re.findall(r"-?\d+(?:\.\d+)?", str(aiming_at))
-            ][:2]
-            if len(numbers) == 2 and numbers[0] < numbers[1]:
-                band = AWindow(at_least=numbers[0], at_most=numbers[1])
-                landing = which_act_lands_in_it(
-                    list(ahead),
-                    now=0.0,
-                    what_it_moves=lambda one: ahead[one][0],
-                    window=band,
-                )
-                if landing and not landing[0][2]:
-                    ahead = {landing[0][0]: ahead[landing[0][0]]}
-            elif len(numbers) == 1:
-                # A bar rather than a band: which most often clears it,
-                # which is not the same as which averages best.
-                took = the_one_most_likely_to_do(
-                    {one: [worth] for one, (worth, _why) in ahead.items()},
-                    needs=numbers[0],
-                )
-                if took is not None and took.clears_it > 0:
-                    ahead = {took.name: ahead[took.name]}
+        ahead = _read_where_she_is_aiming(
+            ahead=ahead,
+            aiming_at=aiming_at,
+        )
 
         kind = _decide_the_next_move_where_move_she(ahead, aiming_at, available, goal, laid_out, marks, wont)
         # What she has learned about this KIND of situation, where the
@@ -1712,25 +1584,12 @@ async def decide_the_next_move(
         # not a failure: a reading the rule cannot be applied to has no expectation to give.
         except (AttributeError, TypeError, ValueError):
             foretold_by_the_rule = None
-        if foretold_by_the_rule is not None:
-            from core.perception.how_it_moves import prediction_held
-
-            was = chosen.expected or chosen.chosen.expectation
-            chosen.expected = replace(
-                was,
-                becomes=foretold_by_the_rule,
-                # Checked the way the rules themselves are scored, so a
-                # tile the world deals does not read as her being wrong.
-                becomes_holds=(
-                    lambda after, foretold=foretold_by_the_rule: prediction_held(
-                        foretold, knows.rules.the_thing(after)
-                    )
-                ),
-                describes=(
-                    was.describes
-                    or f"the thing to become what {key} makes of it"
-                ),
-            )
+        _hold_the_rule_to_its_prediction(
+            chosen=chosen,
+            foretold_by_the_rule=foretold_by_the_rule,
+            key=key,
+            knows=knows,
+        )
         pending["deliberation"] = chosen
         pending["before"] = seen
         pending["arranged"] = laid_out

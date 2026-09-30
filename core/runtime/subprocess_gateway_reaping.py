@@ -161,6 +161,11 @@ def _run_bounded_by_its_work(
     stopped_for = ""
     out = err = None
     pending_input = input
+    # A child can exit between a watch period timing out and the poll after
+    # it, with its output still in the pipe. That is a child that finished,
+    # and one more period drains it; only pipes still open a period after the
+    # exit belong to something the child left behind.
+    exit_seen = False
     try:
         while True:
             try:
@@ -171,7 +176,9 @@ def _run_bounded_by_its_work(
             now = time.monotonic()
             cpu = _child_cpu_seconds(proc.pid)
             if proc.poll() is not None:
-                stopped_for = "exited child left inherited output pipes open"
+                if exit_seen:
+                    stopped_for = "exited child left inherited output pipes open"
+                exit_seen = True
             elif cpu is None:
                 if proc.poll() is None and now - started >= budget:
                     stopped_for = (

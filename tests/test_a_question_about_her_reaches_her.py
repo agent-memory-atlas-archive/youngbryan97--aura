@@ -134,8 +134,12 @@ class TestEachQuestionIsItsOwnDecision:
         )
 
     def test_the_loop_executes_resolved_selectors_directly(self):
+        from core.skills import sovereign_browser
+
         loop = inspect.getsource(SovereignBrowserSkill._handle_pursue)
-        assert 'decision.get("resolved_actions")' in loop
+        assert "_moves_from_the_decision(decision, elements)" in loop
+        moves = inspect.getsource(sovereign_browser._moves_from_the_decision)
+        assert 'decision.get("resolved_actions")' in moves
 
     def test_one_failed_item_does_not_lose_the_screen(self, monkeypatch):
         """A question her record cannot be read against is left open, recorded,

@@ -59,6 +59,13 @@ from ..state.aura_state import (  # noqa: F401  (read at call time by the lifted
     CognitiveMode,
 )
 from . import BasePhase
+from .response_generation_cached import (  # noqa: F401  (re-exported: they were defined here)
+    _serve_the_cached_generation,
+)
+from .response_generation_drafts import (  # noqa: F401  (re-exported: they were defined here)
+    _keep_a_repairable_draft_or_reject_it,
+    _repair_the_instruction_shape_after_voice,
+)
 from .response_generation_steps import _RunsTheGenerationSteps
 from .response_required_search import _RunsTheRequiredSearch
 
@@ -416,91 +423,6 @@ def _judge_the_latent_quality(
 
     _seam_early_response = _block()
     return _seam_early_response, final_latent_quality
-
-
-async def _serve_the_cached_generation(
-    *,
-    generation_metadata: Any,
-    latent_outcome: Any,
-    latent_trace: Any,
-    live_mind_controls_bound: Any,
-    live_mind_generation_controls: Any,
-    response_text: Any,
-    self: Any,
-    state: Any,
-    token_budget: Any,
-    visible_output_contract_payload: Any,
-) -> tuple[Any, Any, Any]:
-    """Serve a cached generation when this turn already has one.
-
-    Moved out of ``ResponseGenerationPhase.execute`` by tools/extract_seam.py, which checks
-    the body against the original token for token before writing. The
-    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
-    means it finished instead. It reads 10 name(s) and hands back
-    2.
-    """
-    async def _block() -> Any:
-        nonlocal generation_metadata, response_text
-        if latent_outcome.answer_available:
-            response_text = latent_outcome.text
-            latent_receipt = dict(
-                latent_trace.get("latent_cortex_receipt") or {}
-            )
-            if not latent_outcome.succeeded:
-                failure_reason = str(
-                    latent_trace.get("latent_cortex_failure_reason")
-                    or "latent_episode_failed"
-                )
-                state.response_modifiers.update(
-                    {
-                        "model_retry_suppressed": True,
-                        "generation_failure_class": failure_reason[:120],
-                    }
-                )
-            generation_metadata = {
-                **latent_trace,
-                "model_retry_suppressed": bool(
-                    not latent_outcome.succeeded
-                ),
-                "surface_control_receipt": (
-                    self._latent_cortex_surface_receipt(
-                        latent_receipt,
-                        controls_bound=live_mind_controls_bound,
-                        generation_controls=live_mind_generation_controls,
-                        token_budget=token_budget,
-                        requested_output_contract=(
-                            visible_output_contract_payload
-                        ),
-                    )
-                ),
-            }
-        elif (
-            latent_outcome.attempted
-            and not latent_outcome.fallback_allowed
-        ):
-            failure_reason = str(
-                latent_trace.get("latent_cortex_failure_reason")
-                or "latent_owner_exhausted"
-            )
-            state.response_modifiers.update(
-                {
-                    "model_retry_suppressed": True,
-                    "generation_failure_class": failure_reason[:120],
-                    "response_path": (
-                        "cognitive_engine_latent_owner_exhausted"
-                    ),
-                }
-            )
-            logger.error(
-                "Recursive Latent Cortex exhausted the single resident "
-                "owner (%s); refusing a colliding ordinary generation.",
-                failure_reason,
-            )
-            return state
-        return _SEAM_FELL_THROUGH
-
-    _seam_early_response = await _block()
-    return _seam_early_response, generation_metadata, response_text
 
 
 def _the_amplifier_stood_down(draft, reason: str):
@@ -2388,53 +2310,15 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                         # be SPOKEN; a draft that merely fell short is kept and
                         # repaired. See core/conversation/surface_disposition.py
                         # for why the three gates were unified.
-                        from core.conversation.surface_disposition import (
-                            draft_is_servable,
+                        _seam_early_response = _keep_a_repairable_draft_or_reject_it(
+                            reliability=reliability,
+                            reliability_reasons=reliability_reasons,
+                            response_text=response_text,
+                            response_text_s=response_text_s,
+                            state=state,
                         )
-
-                        if (
-                            reliability_reasons
-                            and (
-                                reliability_reasons.issubset(
-                                    _DOWNSTREAM_REPAIRABLE_RESPONSE_REASONS
-                                )
-                                or draft_is_servable(reliability_reasons)
-                            )
-                            and len(response_text_s) >= 48
-                            and len(response_text_s.split()) >= 8
-                        ):
-                            # The draft itself, bounded. A reason and a length
-                            # describe a rejection without saying what was
-                            # rejected, and the two questions a reader has are
-                            # "was the gate right?" and "what did she nearly
-                            # say?" — neither answerable from a number. The
-                            # file sink redacts, and this stays local.
-                            logger.warning(
-                                "🛡️ ResponseGeneration kept repairable foreground draft for final reply repair (%s, len=%d): %r",
-                                ",".join(reliability.reasons) or "unknown",
-                                len(response_text_s),
-                                response_text_s[:_REJECTED_DRAFT_LOG_CHARS],
-                            )
-                            try:
-                                from core.conversation.surface_disposition import (
-                                    preserve_draft,
-                                )
-
-                                preserve_draft(response_text_s)
-                            except (ImportError, RuntimeError, TypeError, ValueError) as exc:
-                                logger.debug(
-                                    "the rejected draft was not preserved (%s: %s)",
-                                    type(exc).__name__,
-                                    exc,
-                                )
-                        else:
-                            logger.warning(
-                                "🛡️ ResponseGeneration rejected unsafe user-facing draft (%s, len=%d): %r",
-                                ",".join(reliability.reasons) or "unknown",
-                                len(str(response_text or "")),
-                                str(response_text or "")[:_REJECTED_DRAFT_LOG_CHARS],
-                            )
-                            return state
+                        if _seam_early_response is not _SEAM_FELL_THROUGH:
+                            return _seam_early_response
 
             action, content = self._execute_defensive_hardening_json(append_only_continuation_pending, kwargs, objective, response_mutation_receipt, response_text, state)
 
@@ -2742,39 +2626,17 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                     )
                     logger.debug("ResponseShaper failed (using raw): %s", _shape_exc)
 
-            if (
-                not is_background
-                and cleaned_response
-                and not is_test_run
-                and not latent_response_owned
-                and not append_only_continuation_pending
-            ):
-                repaired_response, repaired_shape, repair_reasons = (
-                    self._repair_substantive_instruction_shape_miss(
-                        user_surface_validation_prompt, cleaned_response
-                    )
-                )
-                if repaired_shape:
-                    pre_post_voice_repair = cleaned_response
-                    cleaned_response = repaired_response
-                    append_text_mutation(
-                        response_mutation_receipt,
-                        stage="response_generation.post_voice_shape",
-                        method="deterministic_instruction_shape",
-                        reasons=repair_reasons,
-                        before=pre_post_voice_repair,
-                        after=cleaned_response,
-                        deterministic=True,
-                        authorship_effect="preserved",
-                    )
-                    state.response_modifiers["post_voice_shape_repair"] = {
-                        "reasons": list(repair_reasons),
-                        "method": "deterministic_instruction_shape",
-                    }
-                    logger.info(
-                        "🛡️ ResponseGeneration repaired instruction shape after voice shaping (%s).",
-                        ",".join(repair_reasons) or "unknown",
-                    )
+            cleaned_response = _repair_the_instruction_shape_after_voice(
+                append_only_continuation_pending=append_only_continuation_pending,
+                cleaned_response=cleaned_response,
+                is_background=is_background,
+                is_test_run=is_test_run,
+                latent_response_owned=latent_response_owned,
+                response_mutation_receipt=response_mutation_receipt,
+                self=self,
+                state=state,
+                user_surface_validation_prompt=user_surface_validation_prompt,
+            )
 
             pre_final_tool_repair = cleaned_response
             if not append_only_continuation_pending:

@@ -750,6 +750,18 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  2026-09-30, the next three by count in the live log of 24-29 September, one
+  cause: a standing condition warned again on every pass of its loop. "HIGH
+  MEMORY PRESSURE" 574 times on 26 September, 471 and 259 the days after;
+  "RAM CRITICAL ... Strike N" 210; "Sustained distress" up to 46 a day.
+  Homeostasis had already been changed to say its strain as it starts and
+  ends (26 September) and went from 936 a day to 9. The same rule now serves
+  all three through `core/utils/standing_condition.py`: a warning when the
+  condition starts, the monitor and the guard again when the reading climbs
+  a step, debug while it lasts, info when it ends.
+  `tests/test_a_standing_condition_is_said_when_it_changes.py` drives each
+  loop through repeated looks, and its three site tests fail on the old
+  code.
   2026-09-29, read from the night's live log by count. The two loudest classes
   said nothing actionable at warning: 124 "UI log buffer at capacity" (the
   replay ring for late clients, info now) and 61 "Embedding model admission
@@ -3311,6 +3323,39 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  2026-09-30. On this commit, run on it: compile, lint, smoke, layering,
+  deps-check, governance-lint, security, enterprise-gate, production-gate,
+  doc-drift, writing, typed-surface, swallowed, epistemic-independence,
+  acceptance-links, method-size and module-size are green. Method size,
+  module size, swallowed and the enterprise gate were red on main before it,
+  for one reason: functions and files had grown past bars the ratchets held.
+  Fifty-seven extractions, each proven token-equal by
+  `tools/extract_seam.py`, bring every function under 400 lines or its
+  recorded size; the serving order leaves `GoalEngine`, the cached
+  generation leaves `response_generation`, and the phenomena claims leave
+  `model_validation`, so the oversize total is its measured 125,177. The
+  enterprise gate's two findings were a test that ran Layer 8 through
+  `exec`; Layer 8 is a function now and the test calls it. deps-check went
+  red on main at 03:14 over a `core/reasoning/DEPS` whose generated header
+  no longer matched; regenerated here, with no edge added or removed.
+  Two gates are still red, here as on main. The reqproof structural gate
+  has 20 receipts made stale by new modules changing what their manifests
+  select; they are re-recorded from a clean tree after this lands.
+  Reachability has three modules reached only by their tests,
+  `semantic_computation_loop`, `computational_models` and
+  `scoped_logical_computation`, which Codex added at 03:14
+  and is still joining to its computation path; they are left to it and
+  read again before the full run. Tests run on this batch: 4,656 passed
+  across the files that import or read a moved module, and 316 of the 321
+  that import or read `model_validation`. What failed was three source
+  contracts that had followed their code into a sibling (fixed); a
+  sandboxed solver whose one-second bound expired under load, which was a
+  race in the subprocess gateway (fixed in 837507e3b, see Q09); three
+  public-claim tests red on main since the README rewrite renamed the
+  coefficient lesion (fixed in 5b26e7ea9); and two resident decode
+  canaries sealed over source that a2a81602d changed on 21 September, which
+  only a re-run on her cortex can re-seal. The chunked full suite on a tree
+  holding all of this is still to run, and it is Q09's run too.
   2026-09-21. Every named gate is green again, and three were not for
   reasons that were not bookkeeping.
   `make deps-gate` had been red since 10 September, and what it was saying is
@@ -3484,8 +3529,33 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     call.
   Still red: method-size, fourteen tracked functions that grew and four new
   past 400 lines.
+  - method-size, 2026-09-29: all eighteen are back under their bars, by 57
+    blocks moved with `tools/extract_seam.py`, which refuses a block it
+    cannot prove separable and checks each helper's body against the
+    original token for token. The helpers live in new sibling modules, so
+    module-size ends 191 lines under its budget rather than over it. The last
+    two needed the tool to see more than it did: `CapabilityEngine.execute`
+    is one nested function, and the tool took every name it reads from the
+    method around it as possibly unbound; `_mlx_worker_loop` is one `while`
+    loop, and the tool did not hand back a name the next pass reads. Both
+    are fixed with tests, and the 53 call sites cut before the second fix
+    were checked for a dropped update and had none. On the way the lift
+    tool wrote over `screen_pursuit_steps`, an existing module; it now
+    refuses before writing.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-09-30, morning: the `autonomous_rsi` sandbox test that failed in
+  loaded chunks and passed alone. Both work-bound runners in the subprocess
+  gateway treated a child that had exited as stranded if its exit landed
+  between a watch period timing out and the poll after it: the output was
+  still in the pipe, and the run came back 124, "exited child left inherited
+  output pipes open". A slow start on a busy host is what puts the exit
+  there. Each runner now gives an exited child one more period to drain,
+  and calls the pipes stranded only if they are still open after it. Two
+  tests drive that order with a fake child and fail on the old code. Paired
+  runs of the 2,266 gateway-importing tests at seed 424242 on main and on
+  the fix fail the same four and error the same one; none of those five
+  touches the gateway.
   2026-09-30: chunk 4 of the full run at 308d623df, three failures in
   `test_a_lock_held_while_working_is_not_a_deadlock`, passing alone.
   `LockWatchdog` is decorated `@singleton`, which hands every caller the

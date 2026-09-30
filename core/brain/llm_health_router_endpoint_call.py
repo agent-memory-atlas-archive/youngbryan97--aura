@@ -19,6 +19,88 @@ if TYPE_CHECKING:
     )
 
 
+def _route_to_the_primary_proof_lane(
+    *,
+    benchmark_request: Any,
+    deep_handoff: Any,
+    is_bg: Any,
+    kwargs: Any,
+    live_benchmark_request: Any,
+    prefer_endpoint: Any,
+    prefer_tier: Any,
+    strict_primary_proof_lane: Any,
+) -> tuple[Any, Any, Any, Any]:
+    """Pin a proof request to the primary lane and tier.
+
+    Moved out of ``_generate_core`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 5 name(s) from the turn and hands back
+    4.
+    """
+    from .llm_health_router import PRIMARY_ENDPOINT
+    if strict_primary_proof_lane:
+        kwargs["proof_primary_lane_required"] = True
+        kwargs["proof_model_tier"] = "primary"
+        kwargs["foreground_request"] = (
+            True if live_benchmark_request else (False if benchmark_request else True)
+        )
+        kwargs["is_background"] = False
+        is_bg = False
+        prefer_tier = "primary"
+        prefer_endpoint = PRIMARY_ENDPOINT
+        deep_handoff = False
+    return deep_handoff, is_bg, prefer_endpoint, prefer_tier
+
+
+def _hold_the_tier_the_request_may_use(
+    *,
+    deep_handoff: Any,
+    is_bg: Any,
+    prefer_tier: Any,
+) -> tuple[Any, Any]:
+    """Background work takes the governed tertiary tier, and a secondary request needs a deep handoff.
+
+    Moved out of ``_generate_core`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 3 name(s) from the turn and hands back
+    2.
+    """
+    from .llm_health_router import logger
+    if is_bg:
+        if prefer_tier in ("primary", "secondary"):
+            logger.info("🛡️ Tier Lock: Background task requested '%s'; using the governed tertiary tier.", prefer_tier)
+        prefer_tier = "tertiary"
+        deep_handoff = False
+    elif prefer_tier == "secondary" and not deep_handoff:
+        logger.info("🛡️ Router: suppressing implicit secondary request without explicit deep handoff.")
+        prefer_tier = "primary"
+    return deep_handoff, prefer_tier
+
+
+def _the_foreground_is_owned(
+    *,
+    foreground_owned: Any,
+    is_bg: Any,
+) -> Any:
+    """Whether a foreground turn owns the lane, read for a background request.
+
+    Moved out of ``_generate_core`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 2 name(s) from the turn and hands back
+    1.
+    """
+    from .llm_health_router import logger
+    if is_bg:
+        try:
+            from core.brain.llm.mlx_client import _foreground_owner_active
+
+            foreground_owned = bool(_foreground_owner_active())
+        except (ImportError, AttributeError, RuntimeError) as exc:
+            logger.debug("Foreground ownership unreadable, not treating the lane as owned: %s", exc)
+            foreground_owned = False
+    return foreground_owned
+
+
 class _CallsTheEndpoint:
     """Lifted whole out of HealthAwareLLMRouter; see llm_health_router.py."""
 
@@ -650,17 +732,16 @@ class _CallsTheEndpoint:
                 "fallback_chain": [],
             }
         strict_primary_proof_lane = self._generate_core_strict_primary_proof_lane(isolated_generation_contract, kwargs, live_benchmark_request, origin, purpose)
-        if strict_primary_proof_lane:
-            kwargs["proof_primary_lane_required"] = True
-            kwargs["proof_model_tier"] = "primary"
-            kwargs["foreground_request"] = (
-                True if live_benchmark_request else (False if benchmark_request else True)
-            )
-            kwargs["is_background"] = False
-            is_bg = False
-            prefer_tier = "primary"
-            prefer_endpoint = PRIMARY_ENDPOINT
-            deep_handoff = False
+        deep_handoff, is_bg, prefer_endpoint, prefer_tier = _route_to_the_primary_proof_lane(
+            benchmark_request=benchmark_request,
+            deep_handoff=deep_handoff,
+            is_bg=is_bg,
+            kwargs=kwargs,
+            live_benchmark_request=live_benchmark_request,
+            prefer_endpoint=prefer_endpoint,
+            prefer_tier=prefer_tier,
+            strict_primary_proof_lane=strict_primary_proof_lane,
+        )
         solver_guard = guard_solver_request(prefer_endpoint, deep_handoff=deep_handoff)
         if solver_guard["redirected"]:
             logger.info(
@@ -714,14 +795,10 @@ class _CallsTheEndpoint:
                 }
 
         foreground_owned = False
-        if is_bg:
-            try:
-                from core.brain.llm.mlx_client import _foreground_owner_active
-
-                foreground_owned = bool(_foreground_owner_active())
-            except (ImportError, AttributeError, RuntimeError) as exc:
-                logger.debug("Foreground ownership unreadable, not treating the lane as owned: %s", exc)
-                foreground_owned = False
+        foreground_owned = _the_foreground_is_owned(
+            foreground_owned=foreground_owned,
+            is_bg=is_bg,
+        )
 
         if is_bg and (self._foreground_user_turn_active() or self._foreground_owner_active() or foreground_owned):
             logger.info(
@@ -750,14 +827,11 @@ class _CallsTheEndpoint:
         elif prefer_tier == "api_deep":
             prefer_tier = "secondary"
 
-        if is_bg:
-            if prefer_tier in ("primary", "secondary"):
-                logger.info("🛡️ Tier Lock: Background task requested '%s'; using the governed tertiary tier.", prefer_tier)
-            prefer_tier = "tertiary"
-            deep_handoff = False
-        elif prefer_tier == "secondary" and not deep_handoff:
-            logger.info("🛡️ Router: suppressing implicit secondary request without explicit deep handoff.")
-            prefer_tier = "primary"
+        deep_handoff, prefer_tier = _hold_the_tier_the_request_may_use(
+            deep_handoff=deep_handoff,
+            is_bg=is_bg,
+            prefer_tier=prefer_tier,
+        )
 
         selectors = self._generate_core_selectors(deep_handoff, is_bg, prefer_endpoint, prefer_tier)
 

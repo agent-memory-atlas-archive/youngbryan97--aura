@@ -1,7 +1,8 @@
+from typing import Any
 """Register the measured boundary of scoped calculation cells."""
 
 
-def _scoped_computation_estimates_stay_conditional():
+def _scoped_computation_estimates_stay_conditional() -> bool:
     from core.reasoning.computational_knowledge import _estimate_is_not_exact
     receipt = _estimate_is_not_exact()
     return (receipt["hard_constraint"] is False
@@ -9,13 +10,13 @@ def _scoped_computation_estimates_stay_conditional():
             and receipt["general_transfer_proven"] is False)
 
 
-def _mixed_program_agreement_is_not_truth():
+def _mixed_program_agreement_is_not_truth() -> bool:
     from core.learning.semantic_candidate_union import _mixed_agreement_keeps_incumbent
     receipt = _mixed_agreement_keeps_incumbent()
     return receipt["selected"] == receipt["incumbent"] and receipt["serving_authority"] is False
 
 
-def install_computational_knowledge_claims(suite):
+def install_computational_knowledge_claims(suite: Any) -> None:
     from core.organism.model_validation import (
         Claim,
         Evidence,

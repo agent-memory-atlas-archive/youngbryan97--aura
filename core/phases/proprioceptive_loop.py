@@ -268,6 +268,33 @@ def _her_reflexes(reports: list) -> None:
         get_habit_ledger().note(f"reflex_{report.handler_name}", kind="reflex")
 
 
+def _what_she_holds_back_reaches_the_body(
+    *,
+    soma: Any,
+) -> None:
+    """What she is holding back moves her pulse.
+
+    Moved out of ``_execute_new_state_new_state`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 1 name(s) from the turn and hands back
+    0.
+    """
+    try:
+        from core.affect.containment import get_containment_ledger
+        from core.soma.held_in import get_held_in_ledger
+
+        contained = get_containment_ledger().read()
+        held_in = get_held_in_ledger()
+        held_in.note(contained.pressure if contained.measured else 0.0, contained.source)
+        burning = held_in.shift()
+        if burning:
+            soma.expressive["pulse_rate"] = max(
+                0.1, min(3.0, float(soma.expressive["pulse_rate"]) * (1.0 + burning))
+            )
+    except (AttributeError, ImportError, KeyError, TypeError, ValueError) as exc:
+        logger.debug("what she is holding back did not reach the body: %s", exc)
+
+
 async def _execute_new_state_new_state(self, state):
     new_state = state.derive("proprioceptive_loop")
     soma = new_state.soma
@@ -497,20 +524,9 @@ async def _execute_new_state_new_state(self, state):
     # And what she is holding back, which burns. A mind keeping in the thing
     # it most wanted to say had the body of one keeping in nothing. See
     # core/soma/held_in.py.
-    try:
-        from core.affect.containment import get_containment_ledger
-        from core.soma.held_in import get_held_in_ledger
-
-        contained = get_containment_ledger().read()
-        held_in = get_held_in_ledger()
-        held_in.note(contained.pressure if contained.measured else 0.0, contained.source)
-        burning = held_in.shift()
-        if burning:
-            soma.expressive["pulse_rate"] = max(
-                0.1, min(3.0, float(soma.expressive["pulse_rate"]) * (1.0 + burning))
-            )
-    except (AttributeError, ImportError, KeyError, TypeError, ValueError) as exc:
-        logger.debug("what she is holding back did not reach the body: %s", exc)
+    _what_she_holds_back_reaches_the_body(
+        soma=soma,
+    )
 
     # Good news makes the heart jump, and the moment after saying something
     # risky quickens it, each against her own middle. See core/soma/good_news.py

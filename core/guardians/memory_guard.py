@@ -5,6 +5,7 @@ from typing import Optional
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
 from core.utils.concurrency import cancel_and_join
+from core.utils.standing_condition import StandingCondition
 from core.utils.task_tracker import get_task_tracker
 
 logger = logging.getLogger("Aura.MemoryGuard")
@@ -43,6 +44,9 @@ class MemoryGuard:
         base_threshold = self.threshold_percent
         adaptive_threshold = base_threshold
         self.consecutive_strikes = 0
+        # The first strike and every three points of climb are warnings; the
+        # strikes between are debug. The cool-down below says when it ends.
+        critical = StandingCondition(logger, ended=None, step=3.0)
 
         while self._running:
             try:
@@ -52,7 +56,13 @@ class MemoryGuard:
                 # Check if we are above the ADAPTIVE threshold
                 if pressure > adaptive_threshold:
                     self.consecutive_strikes = self.consecutive_strikes + 1
-                    logger.warning("🔴 RAM CRITICAL (%s%%) - Strike %s. Defensive Mode Active.", pressure, self.consecutive_strikes)
+                    critical.report(
+                        True,
+                        "🔴 RAM CRITICAL (%s%%) - Strike %s. Defensive Mode Active.",
+                        pressure,
+                        self.consecutive_strikes,
+                        level=float(pressure),
+                    )
                     
                     # 1. Emergency Garbage Collection
                     # GUARD: Focus Area 3 - Building the reference graph for gen-2 GC can cause MemoryError
@@ -127,6 +137,7 @@ class MemoryGuard:
                             logger.error("MemoryGuard: Background MLX shed failed: %s", e)
 
                 else:
+                    critical.report(False, "")
                     # Cooling down
                     if self.consecutive_strikes > 0:
                         try:

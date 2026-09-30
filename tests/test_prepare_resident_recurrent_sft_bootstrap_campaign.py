@@ -213,7 +213,9 @@ def test_prepare_accepts_clean_published_worktree_branch(
     head = "a" * 40
 
     def run(command: list[str], **_kwargs: Any) -> Result:
-        args = command[1:]
+        # Read-only git passes core.fsmonitor=false since 20 September.
+        assert command[1:3] == ["-c", "core.fsmonitor=false"], command
+        args = command[3:]
         if args[:3] == ["diff", "--name-only", "HEAD"]:
             return Result("")
         if args == ["rev-parse", "HEAD"]:
@@ -246,7 +248,9 @@ def test_prepare_accepts_clean_published_detached_source(
     head = "a" * 40
 
     def run(command: list[str], **_kwargs: Any) -> Result:
-        args = command[1:]
+        # Read-only git passes core.fsmonitor=false since 20 September.
+        assert command[1:3] == ["-c", "core.fsmonitor=false"], command
+        args = command[3:]
         if args[:3] == ["diff", "--name-only", "HEAD"]:
             return Result("")
         if args in (["rev-parse", "HEAD"], ["rev-parse", "origin/main"]):

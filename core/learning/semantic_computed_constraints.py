@@ -9,6 +9,7 @@ from core.evidence.necessary_condition_selector import (
 )
 from core.evidence.packet import observe
 from core.reasoning.computational_knowledge import QuantityBounds, _sha, verify_computed_knowledge
+from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
@@ -17,7 +18,13 @@ class ComputedPortfolioSelection:
     receipt: dict
 
 
-def select_computed_semantic_portfolio(portfolio, consequences, *, now, result_unit="count"):
+def select_computed_semantic_portfolio(
+    portfolio: Any,
+    consequences: tuple[Any, ...],
+    *,
+    now: Any,
+    result_unit: str='count',
+) -> Any:
     """Reject a computed contradiction; overlapping consequences retain uncertainty."""
     consequences = tuple(consequences)
     if not consequences or len(consequences) > 128:

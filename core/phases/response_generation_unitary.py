@@ -91,6 +91,9 @@ from .response_generation_unitary_proof_turns import (  # noqa: F401  (re-export
     _retry_against_the_answer_options,
     _set_the_strict_proof_worker_arguments,
 )
+from .response_generation_unitary_render import (  # noqa: F401  (re-exported: they were defined here)
+    _launch_a_manim_render,
+)
 from .unitary_memory_recall import _AnswersFromWhatSheRemembers
 
 # Declared flags (migrated from raw os.environ reads so the knobs are
@@ -6542,32 +6545,9 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                         or "\\nabla" in response_text
                     )
                 ):
-                    if not _MANIM_RENDER_LOCK.acquire(blocking=False):
-                        logger.info(
-                            "🎬 Manim render already in flight; skipping overlapping autonomous render."
-                        )
-                    else:
-                        logger.info(
-                            "🎬 Math/Physics detected in response. Autonomously launching Manim generation..."
-                        )
-
-                        try:
-                            threading.Thread(
-                                target=_render_manim_in_background,
-                                args=(response_text,),
-                                name="aura-manim-render",
-                                daemon=True,
-                            ).start()
-                            # Nothing is said about it here. The render may
-                            # produce a file or may produce nothing, and this
-                            # sentence went out either way — for months it was
-                            # always "either way", because the render could not
-                            # start at all. A finished render announces itself
-                            # on the thought stream, which is a report of
-                            # something that happened.
-                        except _RESPONSE_RECOVERABLE_ERRORS:
-                            _MANIM_RENDER_LOCK.release()
-                            raise
+                    _launch_a_manim_render(
+                        response_text=response_text,
+                    )
             except _RESPONSE_RECOVERABLE_ERRORS as e:
                 _record_response_degradation(e, "UnitaryResponse: Manim trigger parsing failed: %s")
 

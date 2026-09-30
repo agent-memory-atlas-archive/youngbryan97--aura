@@ -18,7 +18,13 @@ def _digest(value: Any) -> str:
         ensure_ascii=True, allow_nan=False).encode("ascii")).hexdigest()
 
 
-def bounded_native_fit_schedule(examples, fit_ids, *, steps: int, seed: int):
+def bounded_native_fit_schedule(
+    examples: Any,
+    fit_ids: tuple[Any, ...],
+    *,
+    steps: int,
+    seed: int,
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """Sample fit construction/depth strata with the existing SFT sampler."""
     fit_ids = tuple(fit_ids)
     requested = set(fit_ids)
@@ -56,7 +62,12 @@ def bounded_native_fit_schedule(examples, fit_ids, *, steps: int, seed: int):
     return schedule, {**body, "receipt_sha256": _digest(body)}
 
 
-def native_depth_calibration_subset(examples, identities, *, per_stratum: int):
+def native_depth_calibration_subset(
+    examples: Any,
+    identities: tuple[Any, ...],
+    *,
+    per_stratum: int,
+) -> tuple[Any, ...]:
     """Keep a source-identity sample from every calibration construction/depth."""
     identities = tuple(identities)
     requested = set(identities)
@@ -76,7 +87,11 @@ def native_depth_calibration_subset(examples, identities, *, per_stratum: int):
     return tuple(sorted(identity for group in groups.values() for identity in group[:per_stratum]))
 
 
-def scheduled_native_source_pairs(pairs, schedule, fit_ids):
+def scheduled_native_source_pairs(
+    pairs: dict[str, Any],
+    schedule: tuple[Any, ...],
+    fit_ids: tuple[Any, ...],
+) -> dict[str, Any]:
     """Keep primary interactions and their donors inside the admitted fit set."""
     fitting, scheduled = set(fit_ids), set(schedule)
     if not scheduled or not scheduled <= fitting or not set(pairs) <= fitting:

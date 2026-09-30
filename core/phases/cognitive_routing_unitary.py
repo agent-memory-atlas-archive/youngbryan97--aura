@@ -4,7 +4,7 @@ import asyncio
 import logging
 import re
 import time
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from core.kernel.bridge import Phase
 from core.language.semantic_work import build_semantic_work_contract
@@ -29,6 +29,10 @@ from core.state.aura_state import AuraState, CognitiveMode
 from core.utils.conversational_shape import (
     looks_like_simple_dialogue_request as _looks_like_simple_dialogue_request,
 )
+
+#: Returned by an extracted block that did NOT return early. A unique
+#: object, so no value a block legitimately returns can be mistaken for it.
+_SEAM_FELL_THROUGH = object()
 
 if TYPE_CHECKING:
     from core.kernel.aura_kernel import AuraKernel
@@ -127,6 +131,432 @@ _FOLLOWUP_CODING_MARKERS = frozenset(
 _FILE_REF_PATTERN = re.compile(
     r"(?<![A-Za-z0-9_])(?:\.{0,2}/|/)?[A-Za-z0-9_.~/-]+\.(?:py|md|json|toml|ya?ml|txt|js|ts|tsx|sh|swift|rs|go|cpp|c|h)"
 )
+
+async def _route_by_heuristic_while_bootstrapping(
+    *,
+    analysis: Any,
+    is_user_facing: Any,
+    new_state: Any,
+    objective: Any,
+    priority: Any,
+    route_meta: Any,
+    self: Any,
+) -> Any:
+    """In the first ten cycles, route by heuristic.
+
+    Moved out of ``_route`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 7 name(s) and hands back
+    0.
+    """
+    async def _block() -> Any:
+        try:
+            cycle = getattr(getattr(self.kernel, "orchestrator", None), "cycle_count", 0)
+            if cycle < 10:
+                logger.debug("🧭 Routing: Bootstrap mode active (cycle < 10). Using heuristics.")
+                new_state.cognition.current_mode = CognitiveMode.REACTIVE
+                self._stamp_llm_route(
+                    new_state,
+                    objective=objective,
+                    intent_type="CHAT",
+                    is_user_facing=is_user_facing,
+                    analysis=analysis,
+                    route_meta=route_meta,
+                )
+                return new_state
+
+            await self._execute_llm(analysis, is_user_facing, new_state, objective, priority, route_meta)
+
+        except RuntimeError:
+            logger.warning("🧭 Routing: LLM Organ not ready, defaulting to CHAT.")
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+        except (ImportError, AttributeError) as e:
+            _record_cognitive_routing_degradation(
+                e,
+                action="fell back to governed reactive chat route after classifier failed",
+                severity="error",
+            )
+            logger.error("🧭 Routing: Classification error: %s", e)
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = await _block()
+    return _seam_early_response
+
+
+def _route_a_question_about_her(
+    *,
+    affective_complexity: Any,
+    analysis: Any,
+    contract: Any,
+    is_user_facing: Any,
+    memory_salience: Any,
+    new_state: Any,
+    objective: Any,
+    route_meta: Any,
+    self: Any,
+    state: Any,
+) -> Any:
+    """A contract that asks for her state, stance or question takes the deliberate route.
+
+    Moved out of ``_route`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 10 name(s) and hands back
+    0.
+    """
+    def _block() -> Any:
+        if (
+            contract.requires_state_reflection
+            or contract.requires_aura_stance
+            or contract.requires_aura_question
+            or (contract.requires_memory_grounding and memory_salience > 0.55)
+        ):
+            logger.info("🧭 Routing: affect-coupled reflective path engaged.")
+            reflective_mode = CognitiveMode.REACTIVE
+            if (
+                analysis.suggests_deliberate_mode
+                or (is_user_facing and state.cognition.current_mode is CognitiveMode.DELIBERATE)
+                or (contract.requires_memory_grounding and memory_salience > 0.55)
+                or (
+                    contract.requires_state_reflection
+                    and affective_complexity > 0.65
+                )
+            ):
+                reflective_mode = CognitiveMode.DELIBERATE
+
+            new_state.cognition.current_mode = reflective_mode
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+            # [STABILITY v53] Removed deep_handoff for reflective/emotional/philosophical
+            # conversations. The 32B cortex is MORE than capable of handling questions
+            # about Aura's feelings, opinions, state, and philosophical topics.
+            # The 72B deep solver should ONLY activate for genuinely complex technical
+            # problems (coding, math, architecture). Emotional depth ≠ computational depth.
+            return new_state
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response
+
+
+def _route_simple_dialogue(
+    *,
+    analysis: Any,
+    is_user_facing: Any,
+    new_state: Any,
+    objective: Any,
+    route_meta: Any,
+    self: Any,
+    semantic_work: Any,
+    state: Any,
+) -> Any:
+    """Simple dialogue from a person takes the conversational route.
+
+    Moved out of ``_route`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 8 name(s) and hands back
+    0.
+    """
+    def _block() -> Any:
+        if is_user_facing and _looks_like_simple_dialogue_request(objective):
+            selected_mode = (
+                CognitiveMode.DELIBERATE
+                if (
+                    semantic_work.requires_deliberation
+                    or state.cognition.current_mode is CognitiveMode.DELIBERATE
+                )
+                else CognitiveMode.REACTIVE
+            )
+            logger.info(
+                "🧭 Routing: inline dialogue kept on CHAT lane with %s cognition "
+                "(%d typed obligations, floor=%d).",
+                selected_mode.name,
+                semantic_work.obligation_count,
+                semantic_work.answer_token_floor,
+            )
+            new_state.cognition.current_mode = selected_mode
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=True,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+            return new_state
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response
+
+
+def _route_to_the_mcp_client(
+    *,
+    _mcp_signals: Any,
+    analysis: Any,
+    is_user_facing: Any,
+    lower_obj: Any,
+    new_state: Any,
+    objective: Any,
+    route_meta: Any,
+    self: Any,
+) -> Any:
+    """An autonomous or directive request naming an MCP tool goes to the MCP client.
+
+    Moved out of ``_route`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 8 name(s) and hands back
+    0.
+    """
+    def _block() -> Any:
+        if any(sig in lower_obj for sig in _mcp_signals) and (
+            not is_user_facing or analysis.request_mood == "directive"
+        ):
+            logger.info("🧭 Routing: MCP Client autonomous trigger detected.")
+            new_state.cognition.current_mode = CognitiveMode.DELIBERATE
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="TASK",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+            new_state.response_modifiers["matched_skills"] = ["mcp_client"]
+            new_state.world.recent_percepts.append(
+                {
+                    "type": "goal_achieved",
+                    "content": "Autonomous MCP Client activation",
+                    "intensity": 0.5,
+                    "timestamp": time.time(),
+                }
+            )
+            return new_state
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response
+
+
+def _route_a_directive_or_sensory_feed(
+    *,
+    _lower_obj: Any,
+    new_state: Any,
+    objective: Any,
+) -> Any:
+    """A system directive or a sensory feed takes the fast chat path.
+
+    Moved out of ``_route`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 3 name(s) and hands back
+    0.
+    """
+    def _block() -> Any:
+        if (
+            objective.startswith("CORE DIRECTIVE:")
+            or "[environmental context" in _lower_obj
+            or "[embodied control contract]" in _lower_obj
+            or "[sensory update" in _lower_obj
+            or "[sensory feed" in _lower_obj
+        ):
+            logger.info(
+                "🧭 Routing: SYSTEM DIRECTIVE / SENSORY FEED detected — fast-path CHAT bypass."
+            )
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            new_state.response_modifiers["intent_type"] = "CHAT"
+            new_state.response_modifiers["semantic_intent"] = "casual"
+            new_state.response_modifiers["model_tier"] = "primary"
+            new_state.response_modifiers["deep_handoff"] = False
+            return new_state
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response
+
+
+def _route_reasoning_only(
+    *,
+    execution_scope: Any,
+    new_state: Any,
+) -> Any:
+    """A turn scoped to reasoning alone is internal deliberate chat.
+
+    Moved out of ``_route`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 2 name(s) and hands back
+    0.
+    """
+    def _block() -> Any:
+        if execution_scope is CognitiveExecutionScope.REASONING_ONLY:
+            new_state.cognition.current_mode = CognitiveMode.DELIBERATE
+            new_state.response_modifiers["intent_type"] = "CHAT"
+            new_state.response_modifiers["semantic_intent"] = "internal_reasoning"
+            new_state.response_modifiers["model_tier"] = str(
+                new_state.response_modifiers.get("model_tier") or "tertiary"
+            )
+            new_state.response_modifiers["deep_handoff"] = False
+            new_state.response_modifiers.pop("matched_skills", None)
+            logger.info(
+                "🧭 Routing: reasoning-only cognitive request kept out of TASK/SKILL dispatch."
+            )
+            return new_state
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response
+
+
+def _route_self_protection(
+    *,
+    analysis: Any,
+    contract: Any,
+    is_user_facing: Any,
+    new_state: Any,
+    objective: Any,
+    route_meta: Any,
+    self: Any,
+) -> Any:
+    """A contract about self-preservation or identity takes the self-protective deliberate path.
+
+    Moved out of ``_route`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 7 name(s) and hands back
+    0.
+    """
+    def _block() -> Any:
+        if contract.requires_self_preservation or contract.requires_identity_defense:
+            logger.info("🧭 Routing: self-protective deliberate path engaged.")
+            new_state.cognition.current_mode = CognitiveMode.DELIBERATE
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+            # [STABILITY v53] Removed forced deep_handoff=True for identity/self-preservation.
+            # The 32B cortex handles identity questions perfectly well. Forcing 72B
+            # for "are you real?" or philosophical questions was the #1 cause of
+            # unnecessary deep solver activation, which then crashed or hung and
+            # prevented the 32B from coming back.
+            return new_state
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response
+
+
+def _route_a_required_search(
+    *,
+    analysis: Any,
+    contract: Any,
+    is_user_facing: Any,
+    new_state: Any,
+    objective: Any,
+    route_meta: Any,
+    self: Any,
+) -> Any:
+    """A contract that requires a search and names its skill goes to that skill.
+
+    Moved out of ``_route`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 7 name(s) and hands back
+    0.
+    """
+    def _block() -> Any:
+        if (
+            contract.requires_search
+            and contract.required_skill
+            and analysis.request_mood != "mention"
+        ):
+            logger.info("🧭 Routing: Response contract requires grounded search.")
+            new_state.cognition.current_mode = CognitiveMode.REACTIVE
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="SKILL",
+                is_user_facing=is_user_facing,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+            new_state.response_modifiers["matched_skills"] = [contract.required_skill]
+            return new_state
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response
+
+
+def _route_the_default_chat(
+    *,
+    analysis: Any,
+    is_user_facing: Any,
+    new_state: Any,
+    objective: Any,
+    route_meta: Any,
+    self: Any,
+) -> Any:
+    """A person's turn with nothing more specific takes the governed default chat route.
+
+    Moved out of ``_route`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 6 name(s) and hands back
+    0.
+    """
+    def _block() -> Any:
+        if is_user_facing:
+            logger.info("🧭 Routing: governed default chat route for user-facing turn.")
+            new_state.cognition.current_mode = (
+                CognitiveMode.DELIBERATE
+                if analysis.suggests_deliberate_mode
+                else CognitiveMode.REACTIVE
+            )
+            self._stamp_llm_route(
+                new_state,
+                objective=objective,
+                intent_type="CHAT",
+                is_user_facing=True,
+                analysis=analysis,
+                route_meta=route_meta,
+            )
+            return new_state
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response
+
 
 class CognitiveRoutingPhase(Phase):
     """
@@ -560,19 +990,12 @@ class CognitiveRoutingPhase(Phase):
         new_state.cognition.current_origin = routing_origin
 
         execution_scope = bound_cognitive_execution_scope(new_state, objective)
-        if execution_scope is CognitiveExecutionScope.REASONING_ONLY:
-            new_state.cognition.current_mode = CognitiveMode.DELIBERATE
-            new_state.response_modifiers["intent_type"] = "CHAT"
-            new_state.response_modifiers["semantic_intent"] = "internal_reasoning"
-            new_state.response_modifiers["model_tier"] = str(
-                new_state.response_modifiers.get("model_tier") or "tertiary"
-            )
-            new_state.response_modifiers["deep_handoff"] = False
-            new_state.response_modifiers.pop("matched_skills", None)
-            logger.info(
-                "🧭 Routing: reasoning-only cognitive request kept out of TASK/SKILL dispatch."
-            )
-            return new_state
+        _seam_early_response = _route_reasoning_only(
+            execution_scope=execution_scope,
+            new_state=new_state,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
         # ── SYSTEM / ENVIRONMENTAL SENSORY FEED FAST-PATH ──────────────
         # General improvement: programmatic system directives and environmental
@@ -583,22 +1006,13 @@ class CognitiveRoutingPhase(Phase):
         # compute and, worse, can misclassify the payload as a user TASK/SKILL
         # intent, triggering erroneous tool dispatch or multi-step planning.
         _lower_obj = objective.lower()
-        if (
-            objective.startswith("CORE DIRECTIVE:")
-            or "[environmental context" in _lower_obj
-            or "[embodied control contract]" in _lower_obj
-            or "[sensory update" in _lower_obj
-            or "[sensory feed" in _lower_obj
-        ):
-            logger.info(
-                "🧭 Routing: SYSTEM DIRECTIVE / SENSORY FEED detected — fast-path CHAT bypass."
-            )
-            new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            new_state.response_modifiers["intent_type"] = "CHAT"
-            new_state.response_modifiers["semantic_intent"] = "casual"
-            new_state.response_modifiers["model_tier"] = "primary"
-            new_state.response_modifiers["deep_handoff"] = False
-            return new_state
+        _seam_early_response = _route_a_directive_or_sensory_feed(
+            _lower_obj=_lower_obj,
+            new_state=new_state,
+            objective=objective,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
         # Off the loop: the contract's capability selection reaches the
         # resident encoder, and it held the loop 241ms with 25ms on CPU
@@ -655,78 +1069,46 @@ class CognitiveRoutingPhase(Phase):
         )
         new_state.response_modifiers["affective_reasoning_pressure"] = affect_signature
 
-        if contract.requires_self_preservation or contract.requires_identity_defense:
-            logger.info("🧭 Routing: self-protective deliberate path engaged.")
-            new_state.cognition.current_mode = CognitiveMode.DELIBERATE
-            self._stamp_llm_route(
-                new_state,
-                objective=objective,
-                intent_type="CHAT",
-                is_user_facing=is_user_facing,
-                analysis=analysis,
-                route_meta=route_meta,
-            )
-            # [STABILITY v53] Removed forced deep_handoff=True for identity/self-preservation.
-            # The 32B cortex handles identity questions perfectly well. Forcing 72B
-            # for "are you real?" or philosophical questions was the #1 cause of
-            # unnecessary deep solver activation, which then crashed or hung and
-            # prevented the 32B from coming back.
-            return new_state
+        _seam_early_response = _route_self_protection(
+            analysis=analysis,
+            contract=contract,
+            is_user_facing=is_user_facing,
+            new_state=new_state,
+            objective=objective,
+            route_meta=route_meta,
+            self=self,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
-        if (
-            contract.requires_search
-            and contract.required_skill
-            and analysis.request_mood != "mention"
-        ):
-            logger.info("🧭 Routing: Response contract requires grounded search.")
-            new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            self._stamp_llm_route(
-                new_state,
-                objective=objective,
-                intent_type="SKILL",
-                is_user_facing=is_user_facing,
-                analysis=analysis,
-                route_meta=route_meta,
-            )
-            new_state.response_modifiers["matched_skills"] = [contract.required_skill]
-            return new_state
+        _seam_early_response = _route_a_required_search(
+            analysis=analysis,
+            contract=contract,
+            is_user_facing=is_user_facing,
+            new_state=new_state,
+            objective=objective,
+            route_meta=route_meta,
+            self=self,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
         memory_salience = float(affect_signature.get("memory_salience", 0.0) or 0.0)
         affective_complexity = float(affect_signature.get("affective_complexity", 0.0) or 0.0)
-        if (
-            contract.requires_state_reflection
-            or contract.requires_aura_stance
-            or contract.requires_aura_question
-            or (contract.requires_memory_grounding and memory_salience > 0.55)
-        ):
-            logger.info("🧭 Routing: affect-coupled reflective path engaged.")
-            reflective_mode = CognitiveMode.REACTIVE
-            if (
-                analysis.suggests_deliberate_mode
-                or (is_user_facing and state.cognition.current_mode is CognitiveMode.DELIBERATE)
-                or (contract.requires_memory_grounding and memory_salience > 0.55)
-                or (
-                    contract.requires_state_reflection
-                    and affective_complexity > 0.65
-                )
-            ):
-                reflective_mode = CognitiveMode.DELIBERATE
-
-            new_state.cognition.current_mode = reflective_mode
-            self._stamp_llm_route(
-                new_state,
-                objective=objective,
-                intent_type="CHAT",
-                is_user_facing=is_user_facing,
-                analysis=analysis,
-                route_meta=route_meta,
-            )
-            # [STABILITY v53] Removed deep_handoff for reflective/emotional/philosophical
-            # conversations. The 32B cortex is MORE than capable of handling questions
-            # about Aura's feelings, opinions, state, and philosophical topics.
-            # The 72B deep solver should ONLY activate for genuinely complex technical
-            # problems (coding, math, architecture). Emotional depth ≠ computational depth.
-            return new_state
+        _seam_early_response = _route_a_question_about_her(
+            affective_complexity=affective_complexity,
+            analysis=analysis,
+            contract=contract,
+            is_user_facing=is_user_facing,
+            memory_salience=memory_salience,
+            new_state=new_state,
+            objective=objective,
+            route_meta=route_meta,
+            self=self,
+            state=state,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
         technical_task = self._should_upgrade_to_technical_task(
             objective,
@@ -779,56 +1161,31 @@ class CognitiveRoutingPhase(Phase):
             "external mcp",
             "query mcp",
         )
-        if any(sig in lower_obj for sig in _mcp_signals) and (
-            not is_user_facing or analysis.request_mood == "directive"
-        ):
-            logger.info("🧭 Routing: MCP Client autonomous trigger detected.")
-            new_state.cognition.current_mode = CognitiveMode.DELIBERATE
-            self._stamp_llm_route(
-                new_state,
-                objective=objective,
-                intent_type="TASK",
-                is_user_facing=is_user_facing,
-                analysis=analysis,
-                route_meta=route_meta,
-            )
-            new_state.response_modifiers["matched_skills"] = ["mcp_client"]
-            new_state.world.recent_percepts.append(
-                {
-                    "type": "goal_achieved",
-                    "content": "Autonomous MCP Client activation",
-                    "intensity": 0.5,
-                    "timestamp": time.time(),
-                }
-            )
-            return new_state
+        _seam_early_response = _route_to_the_mcp_client(
+            _mcp_signals=_mcp_signals,
+            analysis=analysis,
+            is_user_facing=is_user_facing,
+            lower_obj=lower_obj,
+            new_state=new_state,
+            objective=objective,
+            route_meta=route_meta,
+            self=self,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
-        if is_user_facing and _looks_like_simple_dialogue_request(objective):
-            selected_mode = (
-                CognitiveMode.DELIBERATE
-                if (
-                    semantic_work.requires_deliberation
-                    or state.cognition.current_mode is CognitiveMode.DELIBERATE
-                )
-                else CognitiveMode.REACTIVE
-            )
-            logger.info(
-                "🧭 Routing: inline dialogue kept on CHAT lane with %s cognition "
-                "(%d typed obligations, floor=%d).",
-                selected_mode.name,
-                semantic_work.obligation_count,
-                semantic_work.answer_token_floor,
-            )
-            new_state.cognition.current_mode = selected_mode
-            self._stamp_llm_route(
-                new_state,
-                objective=objective,
-                intent_type="CHAT",
-                is_user_facing=True,
-                analysis=analysis,
-                route_meta=route_meta,
-            )
-            return new_state
+        _seam_early_response = _route_simple_dialogue(
+            analysis=analysis,
+            is_user_facing=is_user_facing,
+            new_state=new_state,
+            objective=objective,
+            route_meta=route_meta,
+            self=self,
+            semantic_work=semantic_work,
+            state=state,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
         if not is_deep_mind_probe and analysis.intent_type == "TASK":
             logger.info("🧭 Routing: TASK detected semantically for: %s", objective[:60])
             new_state.cognition.current_mode = CognitiveMode.DELIBERATE
@@ -986,66 +1343,27 @@ class CognitiveRoutingPhase(Phase):
             )
             return new_state
 
-        if is_user_facing:
-            logger.info("🧭 Routing: governed default chat route for user-facing turn.")
-            new_state.cognition.current_mode = (
-                CognitiveMode.DELIBERATE
-                if analysis.suggests_deliberate_mode
-                else CognitiveMode.REACTIVE
-            )
-            self._stamp_llm_route(
-                new_state,
-                objective=objective,
-                intent_type="CHAT",
-                is_user_facing=True,
-                analysis=analysis,
-                route_meta=route_meta,
-            )
-            return new_state
+        _seam_early_response = _route_the_default_chat(
+            analysis=analysis,
+            is_user_facing=is_user_facing,
+            new_state=new_state,
+            objective=objective,
+            route_meta=route_meta,
+            self=self,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
-        try:
-            cycle = getattr(getattr(self.kernel, "orchestrator", None), "cycle_count", 0)
-            if cycle < 10:
-                logger.debug("🧭 Routing: Bootstrap mode active (cycle < 10). Using heuristics.")
-                new_state.cognition.current_mode = CognitiveMode.REACTIVE
-                self._stamp_llm_route(
-                    new_state,
-                    objective=objective,
-                    intent_type="CHAT",
-                    is_user_facing=is_user_facing,
-                    analysis=analysis,
-                    route_meta=route_meta,
-                )
-                return new_state
-
-            await self._execute_llm(analysis, is_user_facing, new_state, objective, priority, route_meta)
-
-        except RuntimeError:
-            logger.warning("🧭 Routing: LLM Organ not ready, defaulting to CHAT.")
-            new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            self._stamp_llm_route(
-                new_state,
-                objective=objective,
-                intent_type="CHAT",
-                is_user_facing=is_user_facing,
-                analysis=analysis,
-                route_meta=route_meta,
-            )
-        except (ImportError, AttributeError) as e:
-            _record_cognitive_routing_degradation(
-                e,
-                action="fell back to governed reactive chat route after classifier failed",
-                severity="error",
-            )
-            logger.error("🧭 Routing: Classification error: %s", e)
-            new_state.cognition.current_mode = CognitiveMode.REACTIVE
-            self._stamp_llm_route(
-                new_state,
-                objective=objective,
-                intent_type="CHAT",
-                is_user_facing=is_user_facing,
-                analysis=analysis,
-                route_meta=route_meta,
-            )
+        _seam_early_response = await _route_by_heuristic_while_bootstrapping(
+            analysis=analysis,
+            is_user_facing=is_user_facing,
+            new_state=new_state,
+            objective=objective,
+            priority=priority,
+            route_meta=route_meta,
+            self=self,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
         return new_state

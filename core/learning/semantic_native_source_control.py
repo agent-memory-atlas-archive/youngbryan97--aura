@@ -131,6 +131,7 @@ def source_control_mode_from_plan(plan: Mapping[str, Any]) -> str:
 def erase_native_source_tokens(sequence: NativeProgramSequence, source: str, tokenizer: Any
                                ) -> tuple[NativeProgramSequence, dict[str, Any]]:
     """A training/lesion control, retaining length but no source-content tokens."""
+    from core.brain.llm.chat_format import for_this_template
     from core.learning.semantic_program_feature_materialization import (
         offset_tokenizer_for_worker,
         tokenize_with_offsets,
@@ -144,9 +145,11 @@ def erase_native_source_tokens(sequence: NativeProgramSequence, source: str, tok
         raise ValueError("native source control needs a complete source-bound sequence")
     marker = "_AURA_NATIVE_SOURCE_CONTENT_ANCHOR_"
     anchored = tokenizer.apply_chat_template(
-        [{"role": "user", "content": marker}], add_generation_prompt=True, tokenize=False)
+        for_this_template(tokenizer, [{"role": "user", "content": marker}]),
+        add_generation_prompt=True, tokenize=False)
     prefix = tokenizer.apply_chat_template(
-        [{"role": "user", "content": source}], add_generation_prompt=True, tokenize=False)
+        for_this_template(tokenizer, [{"role": "user", "content": source}]),
+        add_generation_prompt=True, tokenize=False)
     if not isinstance(anchored, str) or anchored.count(marker) != 1 or not isinstance(prefix, str):
         raise ValueError("native source control cannot locate the user-content boundary")
     before, after = anchored.split(marker)

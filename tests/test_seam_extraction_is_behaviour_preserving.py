@@ -434,3 +434,96 @@ def test_a_locally_defined_class_is_not_passed_as_an_argument(tmp_path):
         module, "serve", 12, 14, "_shout", is_async=False, apply=False
     )
     assert code == 1
+
+
+CLOSURE_SAMPLE = '''"""Sample."""
+
+
+def serve(flag, value):
+    total = value + 1
+
+    def inner():
+        nonlocal total
+        doubled = total * 2
+        total = doubled + flag
+        return total
+
+    return inner()
+'''
+
+
+def test_a_nested_target_may_read_what_the_function_around_it_holds(tmp_path):
+    """`flag` is a parameter around the target and `total` is bound before the
+    `def` and declared nonlocal: both hold a value at every call."""
+    module = tmp_path / "sample_closure.py"
+    module.write_text(CLOSURE_SAMPLE, encoding="utf-8")
+
+    before = _load(module, "_aura_closure_before")
+    original = [before.serve(1, 2), before.serve(0, 5)]
+
+    extractor = _load(EXTRACTOR, "_aura_extract_seam_test")
+    code = extractor.extract(module, "inner", 9, 10, "_double_and_add", is_async=False, apply=True)
+    assert code == 0, "the tool refused names the enclosing function certainly holds"
+
+    del sys.modules["_aura_closure_before"]
+    after = _load(module, "_aura_closure_after")
+    assert [after.serve(1, 2), after.serve(0, 5)] == original
+
+
+SHADOWED_SAMPLE = '''"""Sample."""
+
+
+def serve(flag):
+    answer = "outer"
+
+    def inner():
+        if flag:
+            answer = "inner"
+        shout = answer.upper()
+        return shout
+
+    return inner()
+'''
+
+
+def test_a_name_the_nested_target_assigns_is_its_own_and_is_not_trusted(tmp_path):
+    """`answer` assigned inside `inner` is inner's local, bound on one branch;
+    the outer `answer` says nothing about it."""
+    module = tmp_path / "sample_shadowed.py"
+    module.write_text(SHADOWED_SAMPLE, encoding="utf-8")
+
+    extractor = _load(EXTRACTOR, "_aura_extract_seam_test")
+    code = extractor.extract(module, "inner", 10, 10, "_shout", is_async=False, apply=False)
+    assert code == 1
+
+
+LOOP_CARRIED_SAMPLE = '''"""Sample."""
+
+
+def serve(values):
+    count = 0
+    total = 0
+    for value in values:
+        total = total + count
+        count = count + value
+    return total
+'''
+
+
+def test_a_name_the_next_pass_reads_is_handed_back(tmp_path):
+    """`count` is read on the loop's next pass, above the block that updates
+    it. Treated as unread, the helper's new value was dropped and every pass
+    added the first one again."""
+    module = tmp_path / "sample_loop.py"
+    module.write_text(LOOP_CARRIED_SAMPLE, encoding="utf-8")
+
+    before = _load(module, "_aura_loop_before")
+    original = before.serve([1, 2, 3, 4])
+
+    extractor = _load(EXTRACTOR, "_aura_extract_seam_test")
+    code = extractor.extract(module, "serve", 9, 9, "_count_it", is_async=False, apply=True)
+    assert code == 0
+
+    del sys.modules["_aura_loop_before"]
+    after = _load(module, "_aura_loop_after")
+    assert after.serve([1, 2, 3, 4]) == original

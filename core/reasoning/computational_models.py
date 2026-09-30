@@ -1,6 +1,7 @@
 """Reviewed model cells with declared premises, units, and domains of validity."""
 
 from core.reasoning.computational_knowledge import ComputationModel
+from typing import Any
 
 PHYSICS = "https://openstax.org/books/university-physics-volume-1"
 THERMODYNAMICS = "https://openstax.org/books/university-physics-volume-2"
@@ -8,8 +9,17 @@ CHEMISTRY = "https://openstax.org/books/chemistry-2e"
 ENZYME_KINETICS = "https://pmc.ncbi.nlm.nih.gov/articles/PMC3381512/"
 
 
-def _model(name, field, inputs, unit, expression, assumptions, reference,
-           nonnegative=(), positive=()):
+def _model(
+    name: Any,
+    field: Any,
+    inputs: Any,
+    unit: Any,
+    expression: Any,
+    assumptions: Any,
+    reference: Any,
+    nonnegative: tuple[Any, ...]=(),
+    positive: tuple[Any, ...]=(),
+) -> Any:
     return ComputationModel(name + ".v1", field, tuple(inputs), unit, expression,
                             tuple(assumptions), reference, tuple(nonnegative), tuple(positive))
 

@@ -80,24 +80,16 @@ def test_an_offline_organism_never_reaches_the_server(monkeypatch):
 
 
 async def _layer_eight(system):
-    """Run only Layer 8 of `ConsciousnessSystem.start`, read from its source.
+    """Run Layer 8 of `ConsciousnessSystem.start`, which is its own function now.
 
-    Reading the block out of the method is how this stays honest: a test that
+    Calling the function `start` calls is how this stays honest: a test that
     reimplemented the branch would pass while the real start still bound.
     """
-    import logging
-
     import core.consciousness.system as system_module
 
     source = inspect.getsource(ConsciousnessSystem.start)
-    begin = source.index("# Layer 8: Aura Protocol")
-    end = source.index("# \u2550\u2550\u2550", begin)
-    body = inspect.cleandoc(source[begin:end])
-    wrapped = "async def _run(self):\n" + "\n".join("    " + line for line in body.splitlines())
-    scope = dict(vars(system_module))
-    scope["logger"] = logging.getLogger("Consciousness")
-    exec(compile(wrapped, "<layer8>", "exec"), scope)
-    await scope["_run"](system)
+    assert "await _start_aura_protocol(" in source, "start no longer runs Layer 8 here"
+    await system_module._start_aura_protocol(self=system)
 
 
 if __name__ == "__main__":  # pragma: no cover

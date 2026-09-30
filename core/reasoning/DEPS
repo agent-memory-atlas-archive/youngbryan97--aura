@@ -6,7 +6,7 @@
 # `make deps-generate`; replace this file with a written one when this
 # package earns a real architectural rule, the way core/runtime/DEPS has.
 #
-# 9 outbound edges when this was generated.
+# 11 outbound edges when this was generated.
 
 description = "core.reasoning: may import only what it already imports; every new edge is an edit here."
 
@@ -16,9 +16,9 @@ include_rules = [
     # What this package reaches for today.
     "+core.cognition",
     "+core.container",
-    "+core.event_bus",
     # Shared SI dimensions only; computation does not depend on design or prose.
     "+core.engineering.units",
+    "+core.event_bus",
     "+core.governance",
     "+core.observability",
     "+core.planning",

@@ -224,6 +224,23 @@ def _guaranteed_at_call_site(
             if special is not None:
                 names.add(special.arg)
 
+    # A block inside a `for` body, a `with ... as` body or an `except ... as`
+    # handler reads the name that construct bound, and that name always holds
+    # a value there: the body does not run until it is bound.
+    for node in ast.walk(fn):
+        first = getattr(node, "lineno", None)
+        inside = first is not None and first < start and (getattr(node, "end_lineno", 0) or 0) >= end
+        if not inside:
+            continue
+        if isinstance(node, (ast.For, ast.AsyncFor)):
+            names |= {n.id for n in ast.walk(node.target) if isinstance(n, ast.Name)}
+        elif isinstance(node, (ast.With, ast.AsyncWith)):
+            for item in node.items:
+                if item.optional_vars is not None:
+                    names |= {n.id for n in ast.walk(item.optional_vars) if isinstance(n, ast.Name)}
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            names.add(node.name)
+
     for body in _body_chain(fn, start, end):
         prefix: list[ast.stmt] = []
         for statement in body:
@@ -234,6 +251,52 @@ def _guaranteed_at_call_site(
             prefix.append(statement)
         names |= tools.must_bind(prefix)
     return names
+
+
+def _held_by_the_enclosing_scope(tree: ast.AST, fn: ast.AST, tools: Any) -> set[str]:
+    """Names a nested target reads from the function around it that certainly hold a value.
+
+    Cutting from a nested function by naming it as the target judged its
+    closure reads against its own scope alone, so `self` read from the method
+    around it was "not certain". A name the target reads from the enclosing
+    function holds a value at every call if it is a parameter of that function
+    or bound on every path before the nested `def`: nothing can unbind it
+    afterwards. The target's own locals are excluded, because a name the
+    target assigns without declaring it `nonlocal` is a different variable,
+    which is the mistake the refusal for blocks inside nested functions exists
+    for. Only the innermost enclosing function is read.
+    """
+    enclosing = None
+    for node in ast.walk(tree):
+        if node is fn or not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if any(child is fn for child in ast.walk(node)):
+            if enclosing is None or node.lineno > enclosing.lineno:
+                enclosing = node
+    if enclosing is None:
+        return set()
+    held = _guaranteed_at_call_site(enclosing, fn.lineno, fn.end_lineno, tools)
+
+    declared: set[str] = set()
+    local: set[str] = set()
+    arguments = fn.args
+    for group in (arguments.posonlyargs, arguments.args, arguments.kwonlyargs):
+        local |= {a.arg for a in group}
+    for special in (arguments.vararg, arguments.kwarg):
+        if special is not None:
+            local.add(special.arg)
+    for node in ast.walk(fn):
+        if isinstance(node, ast.Nonlocal):
+            declared |= set(node.names)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
+            local.add(node.id)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node is not fn:
+            local.add(node.name)
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            local |= {(alias.asname or alias.name).split(".")[0] for alias in node.names}
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            local.add(node.name)
+    return {name for name in held if name not in local or name in declared}
 
 
 def _normalised_tokens(source: str) -> list[tuple[int, str]]:
@@ -353,6 +416,18 @@ def extract(
                 for n in ast.walk(statement)
                 if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
             }
+    # Inside a loop, "after" includes the next pass. A name the block updates
+    # and the loop reads above it, or in its own test, is read again before
+    # the block runs next; not handing it back would keep the old value there.
+    for loop in ast.walk(fn):
+        if not isinstance(loop, (ast.For, ast.AsyncFor, ast.While)):
+            continue
+        if loop.lineno < start and (getattr(loop, "end_lineno", 0) or 0) >= end:
+            after |= {
+                n.id
+                for n in ast.walk(loop)
+                if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)
+            }
     escapes = sorted(bound & after)
 
     # An escape is safe under exactly one of two conditions: the block binds it
@@ -368,6 +443,7 @@ def extract(
     # fire — UnboundLocalError on the first turn that took it.
     settled_inside = tools.must_bind(statements)
     held_by_caller = _guaranteed_at_call_site(fn, start, end, tools)
+    held_by_caller |= _held_by_the_enclosing_scope(tree, fn, tools)
     certain = held_by_caller | set(reads)
 
     # Every input becomes an argument, and arguments are evaluated before the
@@ -652,6 +728,20 @@ def _module_level_insertion_point(source: str, function: str, fn: ast.AST) -> in
             and node.name == function
         ):
             first = min([node.lineno] + [d.lineno for d in node.decorator_list])
+            return offset_of(first)
+
+    # A nested function: the helper goes above the top-level statement that
+    # holds it. Written at the nested `def` it landed inside the enclosing
+    # function's body at column zero, which does not parse.
+    for node in tree.body:
+        inner = [
+            child
+            for child in ast.walk(node)
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and child.name == function
+        ]
+        if inner:
+            decorated = getattr(node, "decorator_list", [])
+            first = min([node.lineno] + [d.lineno for d in decorated])
             return offset_of(first)
 
     marker = f"{'async ' if isinstance(fn, ast.AsyncFunctionDef) else ''}def {function}("

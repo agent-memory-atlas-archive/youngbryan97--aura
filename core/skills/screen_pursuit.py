@@ -115,11 +115,11 @@ from .screen_pursuit_blockers import clear_what_blocks_the_run
 from .screen_pursuit_decision import decide_the_next_move
 from .screen_pursuit_looking import (
     _ANSWERING_TOOK,  # noqa: F401
-    _WHY_SHE_CANNOT_LOOK,
+    _WHY_SHE_CANNOT_LOOK,  # noqa: F401  (read at call time by screen_pursuit_steps)
     ASKING_TO_CONFIRM,  # noqa: F401
     LONGER_THAN_USUAL,  # noqa: F401
     OBSERVE_TIMEOUT_S,  # noqa: F401
-    PASSES_ON_ITS_OWN,
+    PASSES_ON_ITS_OWN,  # noqa: F401  (read at call time by screen_pursuit_steps)
     _answer_own_confirmation,  # noqa: F401  (read at call time by the lifted module)
     _bring_the_thing_back_to_the_front,
     _covers,
@@ -132,22 +132,23 @@ from .screen_pursuit_looking import (
     _narrate,  # noqa: F401
     _no_more_than_a_fresh_one_is_worth,  # noqa: F401
     _say_intent,  # noqa: F401
-    _say_line,
+    _say_line,  # noqa: F401  (read at call time by screen_pursuit_steps)
     _settled_after,  # noqa: F401
     _the_best_reading_available,  # noqa: F401
     _the_kind_of_world_this_is,  # noqa: F401
     _the_thing_she_is_acting_in,  # noqa: F401
-    _what_being_refused_a_look_means,
+    _what_being_refused_a_look_means,  # noqa: F401  (read at call time by screen_pursuit_steps)
     _what_she_could_not_learn_from,  # noqa: F401
     _where,  # noqa: F401
     _where_clicked,  # noqa: F401
     _where_it_asks,  # noqa: F401
     _why_nothing_answers,  # noqa: F401
     clear_what_is_in_front,  # noqa: F401
-    wait_for_a_screen_to_look_at,
+    wait_for_a_screen_to_look_at,  # noqa: F401  (read at call time by screen_pursuit_steps)
 )
 from .screen_pursuit_observing import observe_the_screen
 from .screen_pursuit_steps import (  # noqa: F401  (re-exported: they were defined here)
+    _keep_the_screen_awake,
     _pursue_on_screen_part_2,
     _pursue_on_screen_part_5,
     _pursue_on_screen_part_6,
@@ -155,6 +156,9 @@ from .screen_pursuit_steps import (  # noqa: F401  (re-exported: they were defin
     _pursue_on_screen_result,
     _pursue_on_screen_she_has_taken,
     _pursue_on_screen_where_her_actions,
+    _remember_how_worlds_like_it_move,
+    _start_the_narrator,
+    _wait_for_a_screen_or_stop,
 )
 from .screen_pursuit_surface import (
     DECLINES_AND_NOTHING_ELSE,  # noqa: F401
@@ -174,6 +178,10 @@ from .screen_pursuit_surface import (
     press,
     window_bounds,
 )
+
+#: Returned by an extracted block that did NOT return early. A unique
+#: object, so no value a block legitimately returns can be mistaken for it.
+_SEAM_FELL_THROUGH = object()
 
 logger = logging.getLogger("Aura.ScreenPursuit")
 
@@ -816,37 +824,17 @@ async def pursue_on_screen(
     # in which nobody has touched the machine and its idle timer runs out
     # under her (live, 2026-09-18, twice).
     awake_from_here = None
-    try:
-        from core.capabilities.keeping_the_screen_awake import (  # noqa: PLC0415
-            keeping_it_awake,
-        )
-
-        awake_from_here = keeping_it_awake(f"she is getting to {target_app or 'the screen'}")
-        awake_from_here.__enter__()
-    except (ImportError, AttributeError, OSError, RuntimeError, TypeError, ValueError) as exc:
-        record_degradation(
-            "screen_pursuit", exc, severity="info",
-            action="waited for a screen that may sleep under her",
-        )
-    if not await wait_for_a_screen_to_look_at(ends_at, app=target_app):
-        if awake_from_here is not None:
-            awake_from_here.__exit__(None, None, None)
-        why = _WHY_SHE_CANNOT_LOOK["value"]
-        return {
-            "ok": False,
-            # Which of them it was, because they do not have the same remedy
-            # and the person is the one who can apply it.
-            "outcome": (
-                "something_else_is_in_front"
-                if why in SOMETHING_ELSE_IS_IN_FRONT
-                else "not_allowed_to_look"
-                if why and why not in PASSES_ON_ITS_OWN
-                else "no_screen_to_look_at"
-            ),
-            "refused_because": why,
-            "error": _what_being_refused_a_look_means(why),
-            "moves": [],
-        }
+    awake_from_here = _keep_the_screen_awake(
+        awake_from_here=awake_from_here,
+        target_app=target_app,
+    )
+    _seam_early_response = await _wait_for_a_screen_or_stop(
+        awake_from_here=awake_from_here,
+        ends_at=ends_at,
+        target_app=target_app,
+    )
+    if _seam_early_response is not _SEAM_FELL_THROUGH:
+        return _seam_early_response
     moves: list[dict[str, Any]] = []
     history: list[Attempt] = []
     #: Situations she has been in and whether things went well from there,
@@ -1507,20 +1495,10 @@ async def pursue_on_screen(
     # thinking. A narrator started with no scope narrates whatever reaches
     # her, which is the same faculty doing the more general thing.
     speaker = None
-    if narrate:
-        try:
-            from core.agency.narrator import Narrator
-
-            speaker = Narrator(say=_say_line, about="screen_pursuit.next_move")
-            speaker.start()
-        except (ImportError, RuntimeError, AttributeError, TypeError) as exc:
-            record_degradation(
-                "screen_pursuit",
-                exc,
-                severity="info",
-                action="pursued the goal without narrating it",
-            )
-            speaker = None
+    speaker = _start_the_narrator(
+        narrate=narrate,
+        speaker=speaker,
+    )
 
     executor, holding_the_foreground, awake = _pursue_on_screen_she_has_taken(goal, target_app)
     try:
@@ -1629,23 +1607,14 @@ async def pursue_on_screen(
     # knowing how it moves. Written only when she got far enough to have
     # worked the rule out, because a record of what she failed to establish
     # would be carried into every world of the kind and slow each of them down.
-    if like_it["kind"] and knows.rules is not None and knows.rules.rule() is not None:
-        kept = remember(
-            like_it["kind"],
-            {
-                part: value
-                for part, value in {
-                    "moves": knows.rules.as_memory(),
-                    "acts": can_do.as_memory(),
-                    "skill": skilled.as_memory(),
-                    "world": world.as_memory(),
-                    "lines": lines.as_memory(),
-                }.items()
-                if part in CARRIES_TO_A_WORLD_LIKE_IT
-            },
-        )
-        if kept:
-            logger.info("what worlds like %r move like, kept", like_it["kind"])
+    _remember_how_worlds_like_it_move(
+        can_do=can_do,
+        knows=knows,
+        like_it=like_it,
+        lines=lines,
+        skilled=skilled,
+        world=world,
+    )
     # What a cycle of this actually cost, so the next watched goal asks for
     # enough time to make the moves it is allowed to make.
     spent = max(0.0, time.monotonic() - began)

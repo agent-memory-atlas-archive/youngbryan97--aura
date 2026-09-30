@@ -34,6 +34,10 @@ from .sovereign_browser_understanding import (
     _UnderstandsThePage,
 )
 
+#: Returned by an extracted block that did NOT return early. A unique
+#: object, so no value a block legitimately returns can be mistaken for it.
+_SEAM_FELL_THROUGH = object()
+
 logger = logging.getLogger("Skills.SovereignBrowser")
 
 
@@ -132,6 +136,308 @@ class BrowserInput(BaseModel):
             if not self.goal:
                 raise ValueError("pursue mode requires a goal")
         return self
+
+def _account_of_the_pursuit(
+    *,
+    completed: Any,
+    concluded: Any,
+    final: Any,
+    goal: Any,
+    observation: Any,
+    self: Any,
+    steps: Any,
+) -> Any:
+    """What a pursuit reports: whether it landed anything, what stopped it, and where it ended.
+
+    Moved out of ``_handle_pursue`` by tools/extract_seam.py, which checks
+    the body against the original token for token before writing. The
+    block returns early, so it sits in a nested function and _SEAM_FELL_THROUGH
+    means it finished instead. It reads 7 name(s) and hands back
+    0.
+    """
+    def _block() -> Any:
+        self._retain_stated_positions(goal, steps)
+        landed_total = sum(int(step.get("landed") or 0) for step in steps)
+        # Work that landed is work that happened. A run that answered forty
+        # questions and then hit a slow round is not a failed run, and
+        # reporting it as one is what made a timeout look like nothing had
+        # been done at all.
+        ok = completed or landed_total > 0 or bool(steps and not steps[-1].get("error"))
+        # And where it is not ok, what stopped it.
+        #
+        # Every round that failed wrote its reason into `steps`, and the result
+        # carried no `error` field at all, so `BaseSkill` filled the silence
+        # with "sovereign_browser reported failure without a cause
+        # (status=failed_recoverable)" — LIVE 2026-09-28 00:45, over a run whose
+        # own log said `empty_decision` one line earlier. The surprise engine
+        # banked the causeless version.
+        # Named most recent first, and every distinct one of them: the round
+        # that ended the run says the stall limit was reached, and the round
+        # before it says why nothing was landing. Reporting only the last gives
+        # "no_progress", which is the fact the caller already has.
+        seen: list[str] = []
+        for step in reversed(steps):
+            reason = str(step.get("error") or "").strip()
+            if reason and reason not in seen:
+                seen.append(reason)
+        stopped_by = ":".join(seen[:3])
+        return {
+            "ok": ok,
+            "error": "" if ok else (stopped_by or "pursuit_made_no_progress"),
+            "landed_total": landed_total,
+            "goal": goal,
+            "completed": completed,
+            "steps": steps,
+            "rounds": len(steps),
+            # `observed_url` is the name the effect verifier reads. Returning
+            # only `final_url` meant a completed pursuit presented no evidence
+            # it had ever been anywhere, and verification failed on a run that
+            # had worked — a new mode conforming to its own vocabulary instead
+            # of the one the transaction already speaks.
+            "observed_url": (final or observation).get("url", ""),
+            "final_url": (final or observation).get("url", ""),
+            "result_text": str((final or observation).get("text") or "")[:4000],
+            "concluded": concluded,
+        }
+        return _SEAM_FELL_THROUGH
+
+    _seam_early_response = _block()
+    return _seam_early_response
+
+
+def _record_an_unreadable_page(
+    *,
+    observation: Any,
+    steps: Any,
+) -> None:
+    """Put a round whose page could not be read, or offered nothing to act on, on the record.
+
+    Moved out of ``_handle_pursue`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 2 name(s) from the turn and hands back
+    0.
+    """
+    steps.append(
+        {
+            "error": (
+                "page_read_refused"
+                if not observation
+                else "page_had_no_interactive_elements"
+            ),
+            "url": (observation or {}).get("url", ""),
+        }
+    )
+
+
+class _StillGoing:
+    """Tell every clock over a pursuit that it is still getting somewhere.
+
+    The executor's silence clock, and the governor that holds the whole
+    budget: a round of eight questions decided one after another on her own
+    model is long, and it is progress all the way. A heartbeat that fails
+    once is dropped and not called again. This was a closure inside
+    `_handle_pursue`; as a value it can be handed to the steps that report
+    progress.
+    """
+
+    def __init__(self, heartbeat: Any) -> None:
+        self._heartbeat = heartbeat
+
+    def __call__(self, note: str) -> None:
+        if self._heartbeat is not None:
+            try:
+                self._heartbeat(note)
+            except Exception as exc:  # a watchdog must never be the danger
+                record_degradation("sovereign_browser", exc, action="heartbeat skipped")
+                self._heartbeat = None
+        it_got_somewhere(note)
+
+
+def _record_the_round(
+    *,
+    asked: Any,
+    decision: Any,
+    elements: Any,
+    observation: Any,
+    report: Any,
+    steps: Any,
+) -> None:
+    """Put one round on the pursuit's record: what was asked, what she chose, what she said, and whether it landed.
+
+    Moved out of ``_handle_pursue`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 6 name(s) from the turn and hands back
+    0.
+    """
+    steps.append(
+        {
+            "asked": next(
+                (line for line in asked if "?" in line or line.lower().startswith("question")),
+                (asked[0] if asked else ""),
+            )[:180],
+            "why": str(decision.get("why") or ""),
+            "chose": [
+                str(item.get("name") or "")
+                for item in (decision.get("resolved_actions") or [])
+                if isinstance(item, dict)
+            ]
+            or [
+                f"{elements[int(item['index'])].get('name')}"
+                for item in (decision.get("actions") or [])
+                if isinstance(item, dict)
+                and str(item.get("index", "")).lstrip("-").isdigit()
+                and 0 <= int(item["index"]) < len(elements)
+            ],
+            # What she SAID for each choice, one line per answer.
+            #
+            # The account in the reply was built from the round: the
+            # first line of the page with a question mark in it, the
+            # names of every control pressed, and one reason for the
+            # lot. On a screen of eight answers that is a heading
+            # repeated eight times and eight control names, and her
+            # eight sentences — the whole point of answering as
+            # herself — reached nobody. They are already written, for
+            # the narration that speaks them as each move is made.
+            "said": [
+                str(item.get("said") or "")
+                for item in (decision.get("resolved_actions") or [])
+                if isinstance(item, dict) and str(item.get("said") or "").strip()
+            ],
+            "ok": bool(report.get("ok")),
+            "url": observation.get("url"),
+        }
+    )
+
+
+async def _understand_the_page_again(
+    *,
+    goal: Any,
+    mind: Any,
+    observation: Any,
+    self: Any,
+    shape: Any,
+    surprised: Any,
+    understanding: Any,
+) -> tuple[Any, Any]:
+    """Read the page afresh where there is no understanding of it yet, or it surprised her.
+
+    Moved out of ``_handle_pursue`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 7 name(s) from the turn and hands back
+    2.
+    """
+    if understanding is None or surprised:
+        understanding = await self._understand_page(
+            goal,
+            observation,
+            understanding,
+            mind,
+            self._recall_about(str(observation.get("url") or ""), shape),
+        )
+        surprised = False
+        self._remember_the_place(
+            str(observation.get("url") or ""), understanding, shape
+        )
+    return surprised, understanding
+
+
+async def _go_back_to_the_last_good_page(
+    *,
+    browser: Any,
+    last_good_url: Any,
+    observation: Any,
+    self: Any,
+) -> Any:
+    """Return to the last page that could be read when this one cannot.
+
+    Moved out of ``_handle_pursue`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 4 name(s) from the turn and hands back
+    1.
+    """
+    if (not observation or not observation.get("elements")) and last_good_url:
+        # A reload, a navigation, or a renderer that went away mid-run.
+        # The page being momentarily unreadable is not the end of the
+        # task — go back to where the work was and look again.
+        logger.info(
+            "🌐 Pursuit lost the page; returning to %s to continue.",
+            last_good_url,
+        )
+        if await self._safe_browse(browser, last_good_url):
+            observation = await browser.observe(principal="owner")
+    return observation
+
+
+def _moves_from_the_decision(
+    decision: Mapping[str, Any], elements: list[Any]
+) -> list[tuple[BrowserAction, str]]:
+    """Turn a decision into moves: each action it names, resolved against the list she was shown."""
+    moves: list[tuple[BrowserAction, str]] = []
+    # Selectors that were already resolved against the list their
+    # own decision was shown — see `_answer_each_question`. They
+    # skip index resolution entirely, because there is no shared
+    # list to resolve them against.
+    for item in decision.get("resolved_actions") or []:
+        if isinstance(item, dict) and item.get("selector"):
+            moves.append((
+                BrowserAction(type="click", selector=str(item["selector"])),
+                str(item.get("said") or ""),
+            ))
+    for item in decision.get("actions") or []:
+        if not isinstance(item, dict):
+            continue
+        try:
+            index = int(item.get("index"))
+        except (TypeError, ValueError):
+            continue
+        if not 0 <= index < len(elements):
+            continue
+        kind = str(item.get("type") or "click").lower()
+        if kind not in {"click", "type", "scroll"}:
+            continue
+        selector = str(elements[index].get("selector") or "")
+        if kind == "scroll":
+            moves.append((
+                BrowserAction(type="scroll", value=str(item.get("value") or "down")),
+                "",
+            ))
+        elif not selector:
+            continue
+        elif kind == "type":
+            moves.append((
+                BrowserAction(type="type", selector=selector, value=str(item.get("value") or "")),
+                "",
+            ))
+        else:
+            moves.append((BrowserAction(type="click", selector=selector), ""))
+    return moves
+
+
+def _how_many_landed(
+    *,
+    planned: Any,
+    report: Any,
+) -> tuple[Any, Any]:
+    """Count the actions of a round that landed, from its report.
+
+    Moved out of ``_handle_pursue`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 2 name(s) from the turn and hands back
+    2.
+    """
+    rows = report.get("action_report")
+    landed = sum(
+        1
+        for row in (rows if isinstance(rows, list) else [])
+        if isinstance(row, Mapping) and row.get("ok") is True
+    )
+    # A success with no per-action report still ran the actions.
+    # Counting only rows made a clean interaction look like nothing had
+    # happened, which then made a later "done" unbelievable.
+    if not landed and report.get("ok"):
+        landed = len(planned)
+    return landed, rows
+
 
 class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill):
     """The unified, high-fidelity web capability for Aura.
@@ -1217,21 +1523,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
             if callable(candidate):
                 heartbeat = candidate
 
-        def still_going(note: str) -> None:
-            """Tell every clock over this run that it is still getting somewhere.
-
-            The executor's silence clock, and the governor that holds the
-            whole budget: a round of eight questions decided one after
-            another on her own model is long, and it is progress all the way.
-            """
-            nonlocal heartbeat
-            if heartbeat is not None:
-                try:
-                    heartbeat(note)
-                except Exception as exc:  # a watchdog must never be the danger
-                    record_degradation("sovereign_browser", exc, action="heartbeat skipped")
-                    heartbeat = None
-            it_got_somewhere(note)
+        still_going = _StillGoing(heartbeat)
 
         # What she has already done survives however this ends.
         #
@@ -1249,29 +1541,19 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                     # the step that started it: the Next of a finished screen,
                     # rehearsed on 27 Sep, sent the run back to the screen before.
                     observation = await self._look_again_once_loaded(browser) or observation
-                if (not observation or not observation.get("elements")) and last_good_url:
-                    # A reload, a navigation, or a renderer that went away mid-run.
-                    # The page being momentarily unreadable is not the end of the
-                    # task — go back to where the work was and look again.
-                    logger.info(
-                        "🌐 Pursuit lost the page; returning to %s to continue.",
-                        last_good_url,
-                    )
-                    if await self._safe_browse(browser, last_good_url):
-                        observation = await browser.observe(principal="owner")
+                observation = await _go_back_to_the_last_good_page(
+                    browser=browser,
+                    last_good_url=last_good_url,
+                    observation=observation,
+                    self=self,
+                )
                 if not observation or not observation.get("elements"):
                     # Say which of the two it was. "Not observable" covers a
                     # refused read and a page with nothing on it, and those need
                     # different fixes.
-                    steps.append(
-                        {
-                            "error": (
-                                "page_read_refused"
-                                if not observation
-                                else "page_had_no_interactive_elements"
-                            ),
-                            "url": (observation or {}).get("url", ""),
-                        }
+                    _record_an_unreadable_page(
+                        observation=observation,
+                        steps=steps,
                     )
                     break
 
@@ -1317,18 +1599,15 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 # a website is after each click; they act until something does not
                 # match, and then they look again.
                 shape = self._page_shape(observation)
-                if understanding is None or surprised:
-                    understanding = await self._understand_page(
-                        goal,
-                        observation,
-                        understanding,
-                        mind,
-                        self._recall_about(str(observation.get("url") or ""), shape),
-                    )
-                    surprised = False
-                    self._remember_the_place(
-                        str(observation.get("url") or ""), understanding, shape
-                    )
+                surprised, understanding = await _understand_the_page_again(
+                    goal=goal,
+                    mind=mind,
+                    observation=observation,
+                    self=self,
+                    shape=shape,
+                    surprised=surprised,
+                    understanding=understanding,
+                )
 
                 decision = None
                 shaped_like_a_scale = self._asks_about_the_one_answering(observation)
@@ -1443,44 +1722,7 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 # Kept together so the loop can say that one and then make that
                 # one, in order, rather than making every choice and then
                 # reading out a list of what it had done.
-                moves: list[tuple[BrowserAction, str]] = []
-                # Selectors that were already resolved against the list their
-                # own decision was shown — see `_answer_each_question`. They
-                # skip index resolution entirely, because there is no shared
-                # list to resolve them against.
-                for item in decision.get("resolved_actions") or []:
-                    if isinstance(item, dict) and item.get("selector"):
-                        moves.append((
-                            BrowserAction(type="click", selector=str(item["selector"])),
-                            str(item.get("said") or ""),
-                        ))
-                for item in decision.get("actions") or []:
-                    if not isinstance(item, dict):
-                        continue
-                    try:
-                        index = int(item.get("index"))
-                    except (TypeError, ValueError):
-                        continue
-                    if not 0 <= index < len(elements):
-                        continue
-                    kind = str(item.get("type") or "click").lower()
-                    if kind not in {"click", "type", "scroll"}:
-                        continue
-                    selector = str(elements[index].get("selector") or "")
-                    if kind == "scroll":
-                        moves.append((
-                            BrowserAction(type="scroll", value=str(item.get("value") or "down")),
-                            "",
-                        ))
-                    elif not selector:
-                        continue
-                    elif kind == "type":
-                        moves.append((
-                            BrowserAction(type="type", selector=selector, value=str(item.get("value") or "")),
-                            "",
-                        ))
-                    else:
-                        moves.append((BrowserAction(type="click", selector=selector), ""))
+                moves = _moves_from_the_decision(decision, elements)
 
                 if not moves:
                     steps.append({"error": "no_executable_action", "why": str(decision.get("why") or "")})
@@ -1500,43 +1742,13 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 ]
                 planned = [action for action, _said in moves]
                 asked = str(observation.get("text") or "").strip().splitlines()
-                steps.append(
-                    {
-                        "asked": next(
-                            (line for line in asked if "?" in line or line.lower().startswith("question")),
-                            (asked[0] if asked else ""),
-                        )[:180],
-                        "why": str(decision.get("why") or ""),
-                        "chose": [
-                            str(item.get("name") or "")
-                            for item in (decision.get("resolved_actions") or [])
-                            if isinstance(item, dict)
-                        ]
-                        or [
-                            f"{elements[int(item['index'])].get('name')}"
-                            for item in (decision.get("actions") or [])
-                            if isinstance(item, dict)
-                            and str(item.get("index", "")).lstrip("-").isdigit()
-                            and 0 <= int(item["index"]) < len(elements)
-                        ],
-                        # What she SAID for each choice, one line per answer.
-                        #
-                        # The account in the reply was built from the round: the
-                        # first line of the page with a question mark in it, the
-                        # names of every control pressed, and one reason for the
-                        # lot. On a screen of eight answers that is a heading
-                        # repeated eight times and eight control names, and her
-                        # eight sentences — the whole point of answering as
-                        # herself — reached nobody. They are already written, for
-                        # the narration that speaks them as each move is made.
-                        "said": [
-                            str(item.get("said") or "")
-                            for item in (decision.get("resolved_actions") or [])
-                            if isinstance(item, dict) and str(item.get("said") or "").strip()
-                        ],
-                        "ok": bool(report.get("ok")),
-                        "url": observation.get("url"),
-                    }
+                _record_the_round(
+                    asked=asked,
+                    decision=decision,
+                    elements=elements,
+                    observation=observation,
+                    report=report,
+                    steps=steps,
                 )
                 # Say it while it happens. A pursuit runs for minutes; a trace
                 # handed over at the end is a transcript of something the owner
@@ -1558,17 +1770,10 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 # So the round is judged on whether anything landed. Nothing
                 # landing is still a failure, and the expectation check below still
                 # decides whether the page did what she thought.
-                rows = report.get("action_report")
-                landed = sum(
-                    1
-                    for row in (rows if isinstance(rows, list) else [])
-                    if isinstance(row, Mapping) and row.get("ok") is True
+                landed, rows = _how_many_landed(
+                    planned=planned,
+                    report=report,
                 )
-                # A success with no per-action report still ran the actions.
-                # Counting only rows made a clean interaction look like nothing had
-                # happened, which then made a later "done" unbelievable.
-                if not landed and report.get("ok"):
-                    landed = len(planned)
                 steps[-1]["landed"] = landed
                 if not report.get("ok") and not landed:
                     steps[-1]["error"] = str(report.get("error") or "interaction_failed")
@@ -1619,49 +1824,17 @@ class SovereignBrowserSkill(_NarratesTheBrowsing, _UnderstandsThePage, BaseSkill
                 self._say_out_loud(concluded)
                 await self._hold_for_reading(concluded)
 
-        self._retain_stated_positions(goal, steps)
-        landed_total = sum(int(step.get("landed") or 0) for step in steps)
-        # Work that landed is work that happened. A run that answered forty
-        # questions and then hit a slow round is not a failed run, and
-        # reporting it as one is what made a timeout look like nothing had
-        # been done at all.
-        ok = completed or landed_total > 0 or bool(steps and not steps[-1].get("error"))
-        # And where it is not ok, what stopped it.
-        #
-        # Every round that failed wrote its reason into `steps`, and the result
-        # carried no `error` field at all, so `BaseSkill` filled the silence
-        # with "sovereign_browser reported failure without a cause
-        # (status=failed_recoverable)" — LIVE 2026-09-28 00:45, over a run whose
-        # own log said `empty_decision` one line earlier. The surprise engine
-        # banked the causeless version.
-        # Named most recent first, and every distinct one of them: the round
-        # that ended the run says the stall limit was reached, and the round
-        # before it says why nothing was landing. Reporting only the last gives
-        # "no_progress", which is the fact the caller already has.
-        seen: list[str] = []
-        for step in reversed(steps):
-            reason = str(step.get("error") or "").strip()
-            if reason and reason not in seen:
-                seen.append(reason)
-        stopped_by = ":".join(seen[:3])
-        return {
-            "ok": ok,
-            "error": "" if ok else (stopped_by or "pursuit_made_no_progress"),
-            "landed_total": landed_total,
-            "goal": goal,
-            "completed": completed,
-            "steps": steps,
-            "rounds": len(steps),
-            # `observed_url` is the name the effect verifier reads. Returning
-            # only `final_url` meant a completed pursuit presented no evidence
-            # it had ever been anywhere, and verification failed on a run that
-            # had worked — a new mode conforming to its own vocabulary instead
-            # of the one the transaction already speaks.
-            "observed_url": (final or observation).get("url", ""),
-            "final_url": (final or observation).get("url", ""),
-            "result_text": str((final or observation).get("text") or "")[:4000],
-            "concluded": concluded,
-        }
+        _seam_early_response = _account_of_the_pursuit(
+            completed=completed,
+            concluded=concluded,
+            final=final,
+            goal=goal,
+            observation=observation,
+            self=self,
+            steps=steps,
+        )
+        if _seam_early_response is not _SEAM_FELL_THROUGH:
+            return _seam_early_response
 
     @staticmethod
     def _check_blocked(content: str) -> bool:

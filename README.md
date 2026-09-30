@@ -284,7 +284,7 @@ records the evidence available on 2026-09-08 and its limitations.
 The fresh v16 natural-language replication reached **26/96** exact answers,
 below its pre-registered **48/96** floor; ordinary generation was not run
 after that futility stop. The v19 repair reached **93/96** on the exposed
-development set, with coefficient ablation **0/96**. That development result
+development set, with coefficient lesion **0/96**. That development result
 still needs fresh replication. Neither record establishes broad reasoning
 gain or grants serving authority.
 
@@ -297,12 +297,12 @@ gain or grants serving authority.
 | Capability gain, **frozen** loop, 1.5B | **REFUTED** — vanilla 21/72 beat every one of 7 latent arms (7–13/72) |
 | Capability gain, **frozen** loop, 32B | **CONJECTURE**, negative point estimate — latent 0.375 vs vanilla 0.417, overlapping intervals |
 | Capability gain, typed semantic machine + state-conditioned decode, 32B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 16/60 for ordinary decode, ablation-dependent, *p* = 5.7 × 10⁻¹⁴ |
-| Cross-generation recovery, trained semantic tissue, 27B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 0/60 ordinary decode on a separate fresh set; wire 6, coefficient ablation 4, wrong-state 0; *p* = 8.67 × 10⁻¹⁹ |
+| Cross-generation recovery, trained semantic tissue, 27B | **`BOUNDED_WOW_SIGNAL`** — 60/60 against 0/60 ordinary decode on a separate fresh set; wire 6, coefficient lesion 4, wrong-state 0; *p* = 8.67 × 10⁻¹⁹ |
 | Family-blind procedure learning into neural tissue | **SUPPORTED, BOUNDED** — one depth-2 procedure learned from 16 examples, then 96/96 exact on fresh inputs; coefficient and wrong-input controls failed 96/96, no-procedure solved 1/96, shuffled-output nulls found 0/15 |
-| Resident decode of the learned neural procedure | **SUPPORTED, BOUNDED** — treatment 8/8, ordinary 1/8, wire 1/8, coefficient ablation 1/8, wrong-input 0/8, wrong-state 0/8; seven gains, no regressions, *p* = 0.0078125 |
-| Resident 27B language-to-program transfer | **SUPPORTED, BOUNDED** — exact execution emitted 134/256 held-out answers from learned model-bound semantics; exact program recovery was 133/256, against hidden-state shuffle 14/256, coefficient ablation 0/256 and label permutation 4/256 |
-| Frozen fresh-cohort semantic transfer | **SUPPORTED, REPLICATED, BOUNDED** — the unchanged transducer emitted 114/256 exact held-out answers on a separately seeded numeric set after a clean worker restart, against hidden-state shuffle 10/256 and coefficient ablation 0/256 |
-| Shared variable-geometry semantic programs | **SUPPORTED, BOUNDED** — one transducer with no family router recovered 258/368 complete programs and exact execution emitted 292/368 answers across arithmetic, sequence and fork/join geometries; hidden-token shuffle 0/368 and coefficient ablation 0/368, paired exact *p* = 2.16 × 10⁻⁷⁸ |
+| Resident decode of the learned neural procedure | **SUPPORTED, BOUNDED** — treatment 8/8, ordinary 1/8, wire 1/8, coefficient lesion 1/8, wrong-input 0/8, wrong-state 0/8; seven gains, no regressions, *p* = 0.0078125 |
+| Resident 27B language-to-program transfer | **SUPPORTED, BOUNDED** — exact execution emitted 134/256 held-out answers from learned model-bound semantics; exact program recovery was 133/256, against hidden-state shuffle 14/256, coefficient lesion 0/256 and label permutation 4/256 |
+| Frozen fresh-cohort semantic transfer | **SUPPORTED, REPLICATED, BOUNDED** — the unchanged transducer emitted 114/256 exact held-out answers on a separately seeded numeric set after a clean worker restart, against hidden-state shuffle 10/256 and coefficient lesion 0/256 |
+| Shared variable-geometry semantic programs | **SUPPORTED, BOUNDED** — one transducer with no family router recovered 258/368 complete programs and exact execution emitted 292/368 answers across arithmetic, sequence and fork/join geometries; hidden-token shuffle 0/368 and coefficient lesion 0/368, paired exact *p* = 2.16 × 10⁻⁷⁸ |
 | Learned programs on the universal floor | **SUPPORTED, BOUNDED** — all 368/368 accepted frozen test programs had identical outcomes under the existing exact executor and Aura's universal metered floor: 366 matching values and two matching typed refusals across all three families, with 20/20 primitive semantics covered |
 | Broad reasoning gain, fusion, frontier performance | **NOT CLAIMED** |
 
@@ -324,9 +324,9 @@ the key word: the limitations ship inside the same receipt as the verdict.
 **The four-domain experiment in detail:** On a frozen set of 60 typed tasks —
 coding, calibration, misleading premise, scientific inference — the
 semantic-machine treatment answered 60/60 exactly against 16/60 for ordinary
-decode, with a matched wire base at 7, a coefficient ablation at 5, and a
+decode, with a matched wire base at 7, a coefficient lesion at 5, and a
 wrong-state control at 0. Forty-four ordinary failures converted, none
-regressed, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. The coefficient ablation
+regressed, paired one-sided exact *p* = 5.7 × 10⁻¹⁴. The coefficient lesion
 reduces the result, supporting dependence on those learned coefficients within
 this experiment. State conditioning, formatting assistance and retries remain
 part of the recorded treatment contract; equal-compute broad reasoning
@@ -335,7 +335,7 @@ comparisons remain a separate requirement.
 **The 27B cross-generation replication:** The 2026-08-24 cortex migration
 repeated that bounded claim on the fused Qwen3.8-27B resident model. A
 separately seeded 60-task, 300-decode campaign returned treatment 60/60,
-ordinary decode 0/60, matched wire 6/60, coefficient ablation 4/60, and
+ordinary decode 0/60, matched wire 6/60, coefficient lesion 4/60, and
 wrong-state 0/60, with no regressions and exact one-sided *p* = 8.67 × 10⁻¹⁹.
 Independent verification replayed all 300 journal rows before the frozen
 adjudicator returned `BOUNDED_WOW_SIGNAL` again. This shows the bounded
@@ -357,7 +357,7 @@ operations.
 
 A second frozen canary carried that same learned program through the fused
 resident 27B's answer surface. Treatment was 8/8 exact against 1/8 ordinary
-decode; syntax-only wire and coefficient ablation were also 1/8, while
+decode; syntax-only wire and coefficient lesion were also 1/8, while
 wrong-input and wrong-state controls were 0/8. Seven ordinary failures
 converted with no regressions, exact paired one-sided *p* = 0.0078125.
 Independent replay reconstructed all 48 decodes and the 50-event journal.
@@ -368,7 +368,7 @@ unrestricted serving, static fusion or frontier performance.
 spans, primitive operations and register arguments from five construction
 families without expected answers. On four held-out construction combinations,
 exact execution emitted 134/256 correct answers and recovered 133/256 complete
-programs. Hidden-token shuffle reached 14/256, coefficient ablation 0/256 and
+programs. Hidden-token shuffle reached 14/256, coefficient lesion 0/256 and
 label permutation 4/256. An independent, source-bound replay reloaded all 576
 feature records, reproduced the coefficients and report exactly, and recounted
 all 1,344 task-arm rows. The result is bounded to the synthetic arithmetic
@@ -381,7 +381,7 @@ exact measured commit.
 separately seeded set with no task overlap. A clean worker restart changed its
 process identity but left the complete neural-function basis identical.
 Without fitting or refitting, exact execution emitted 114/256 held-out answers;
-hidden-state shuffle reached 10/256 and coefficient ablation 0/256. Independent
+hidden-state shuffle reached 10/256 and coefficient lesion 0/256. Independent
 verification reloaded both 576-record bundles, replayed the frozen result
 exactly, and recounted 1,728 task-arm rows. This establishes fresh-example
 reuse inside the same bounded language and primitive system. It does not
@@ -394,7 +394,7 @@ step applies, and whether each argument refers to an input or an earlier result.
 The same coefficient set handles two-step arithmetic, two-step sequence programs,
 and three-step fork/join arithmetic without a family router. On held-out
 constructions it recovered 258/368 complete programs, and exact execution
-emitted 292/368 correct answers. Hidden-token shuffle and coefficient ablation
+emitted 292/368 correct answers. Hidden-token shuffle and coefficient lesion
 each recovered 0/368 programs; both paired exact tests gave
 *p* = 2.16 × 10⁻⁷⁸. This establishes learned variable-geometry programs over
 the declared typed vocabulary. A new schema still needs support examples, and
@@ -411,7 +411,7 @@ semantics and a type signature; a new primitive without either is refused. The
 neural front end and endogenous substrate now share execution semantics. Later
 v14 evidence recovered **79/96** programs and answers on a fresh,
 fit-withheld synthetic program family using shared primitives. Its endogenous
-replay also reached **79/96**, versus **0/96** under coefficient ablation.
+replay also reached **79/96**, versus **0/96** under coefficient lesion.
 Open-domain schema learning remains unproven.
 
 One family — misleading premise — gained nothing, and the reason is worth

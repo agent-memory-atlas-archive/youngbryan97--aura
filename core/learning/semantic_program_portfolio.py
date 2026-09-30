@@ -5,7 +5,7 @@ import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from itertools import combinations
-from typing import TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from core.evidence.candidate_portfolio import CandidatePortfolioDecision, select_candidate_portfolio
 from core.evidence.necessary_condition_selector import (
@@ -50,12 +50,24 @@ class SemanticProgramPortfolio:
     def selected_program(self) -> Program | None:
         return dict(self.proposals)[self.decision.selected]
 
-    def reconcile_computed_constraints(self, consequences, *, now, result_unit="count"):
+    def reconcile_computed_constraints(
+        self,
+        consequences: Any,
+        *,
+        now: Any,
+        result_unit: str='count',
+    ) -> Any:
         """Use scoped model computations in the same retained candidate decision."""
         from core.learning.semantic_computed_constraints import select_computed_semantic_portfolio
         return select_computed_semantic_portfolio(self, consequences, now=now, result_unit=result_unit)
 
-    async def reconcile_computed_constraints_async(self, consequences, *, now, result_unit="count"):
+    async def reconcile_computed_constraints_async(
+        self,
+        consequences: Any,
+        *,
+        now: Any,
+        result_unit: str='count',
+    ) -> Any:
         from core.runtime.executors import off_the_loop
         return await off_the_loop(self.reconcile_computed_constraints, tuple(consequences),
                                   now=now, result_unit=result_unit)

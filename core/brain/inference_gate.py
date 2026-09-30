@@ -13,6 +13,9 @@ Timeouts are kept tight (45s) for conversational responsiveness.
 """
 from .inference_gate_initialization import _GateInitializationMixin
 from .inference_gate_thinking_budget import _ThinkingBudgetMixin
+from .inference_gate_first_attempt import (  # noqa: F401  (re-exported: they were defined here)
+    _warm_the_foreground_lane_before_the_first_attempt,
+)
 import asyncio
 import contextvars
 import copy
@@ -10003,52 +10006,14 @@ class InferenceGate(_GateInitializationMixin, _ThinkingBudgetMixin, _ServesTheTu
                     )
                     if _is_user_facing and local_label == PRIMARY_ENDPOINT and lane_managed_client:
                         lane_status = self.get_conversation_status()
-                        if not lane_status.get("conversation_ready"):
-                            blockers = lane_status.get("readiness_blockers") or []
-                            blocker_text = ", ".join(str(item) for item in blockers[:3]) or "conversation probe"
-                            logger.info(
-                                "🧠 %s lane process state=%s; conversation readiness is blocked by %s. Completing foreground warmup before first generation attempt.",
-                                local_label,
-                                lane_status.get("state", "unknown"),
-                                blocker_text,
-                            )
-                            try:
-                                # Admission control — break the cortex doom-loop.
-                                # A COLD first boot legitimately needs ~150s to
-                                # load the cortex and the user expects that one-time
-                                # wait. But a RECOVERY (Cortex was ready, got
-                                # force-killed on a first-token stall, is now
-                                # reloading) must NOT block every foreground turn
-                                # for 90-180s — that is the observed doom loop
-                                # (soak Jul 7: turns 21-30 crawled to 200s+ while
-                                # the warm window played out, memory thrashed).
-                                # When the lane was EVER ready, cap the preflight
-                                # wait short and let this turn fall to the ready
-                                # tier while Cortex warms in the background for the
-                                # next turn.
-                                warmup_timeout = self._foreground_warmup_timeout(
-                                    lane_status, primary_timeout
-                                )
-                                lane_status = await self.ensure_foreground_ready(
-                                    timeout=warmup_timeout
-                                )
-                            except (
-                                TimeoutError,
-                                RuntimeError,
-                                AttributeError,
-                                TypeError,
-                                ValueError,
-                                OSError,
-                            ) as warmup_exc:
-                                if self._note_foreground_warmup_failure(warmup_exc):
-                                    primary_warmup_memory_deferred = True
-                                lane_status = self.get_conversation_status()
-                            if not self._lane_can_attempt_visible_conversation_turn(lane_status):
-                                skip_initial_primary_attempt = True
-                                logger.warning(
-                                    "🧠 %s is still not ready after foreground preflight warmup (state=%s, blocked by %s). Skipping the cold first attempt and waiting for recovery before retry.",
-                                    local_label, lane_status.get("state", "unknown"), _named_blockers(lane_status),
-                                )
+                        lane_status, primary_warmup_memory_deferred, skip_initial_primary_attempt = await _warm_the_foreground_lane_before_the_first_attempt(
+                            lane_status=lane_status,
+                            local_label=local_label,
+                            primary_timeout=primary_timeout,
+                            primary_warmup_memory_deferred=primary_warmup_memory_deferred,
+                            self=self,
+                            skip_initial_primary_attempt=skip_initial_primary_attempt,
+                        )
                     if primary_warmup_memory_deferred:
                         _left_ = _generate_with_metadata_sink_part_1_1(self, context, desktop_cognitive_engine_contract, fallback_label, origin, proof_evaluation_contract, strict_primary_proof_lane)
                         if _left_ is not _FALL_THROUGH:

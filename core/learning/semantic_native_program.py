@@ -151,6 +151,7 @@ def native_text_decision_sequence(source: str, target: str,
             or any(type(left) is not int or type(right) is not int
                    or not 0 <= left < right <= len(target) for left, right in semantic_spans)):
         raise ValueError("native text decisions need exact nonempty target spans")
+    from core.brain.llm.chat_format import for_this_template
     from core.learning.semantic_program_feature_materialization import (
         offset_tokenizer_for_worker,
         tokenize_with_offsets,
@@ -158,13 +159,14 @@ def native_text_decision_sequence(source: str, target: str,
 
     user = {"role": "user", "content": source}
     messages = [user, {"role": "assistant", "content": target}]
-    prefix_text = tokenizer.apply_chat_template([user], add_generation_prompt=True, tokenize=False)
-    whole_text = tokenizer.apply_chat_template(messages, tokenize=False)
+    prefix_text = tokenizer.apply_chat_template(
+        for_this_template(tokenizer, [user]), add_generation_prompt=True, tokenize=False)
+    whole_text = tokenizer.apply_chat_template(for_this_template(tokenizer, messages), tokenize=False)
     if (not isinstance(prefix_text, str) or not prefix_text or not isinstance(whole_text, str)
             or not whole_text.startswith(prefix_text) or len(whole_text) <= len(prefix_text)):
         raise ValueError("native semantic continuation or sequence length differs from its template")
     whole, offsets = tokenize_with_offsets(offset_tokenizer_for_worker(tokenizer), whole_text)
-    if whole != tokenizer.apply_chat_template(messages, tokenize=True) or len(whole) > max_tokens:
+    if whole != tokenizer.apply_chat_template(for_this_template(tokenizer, messages), tokenize=True) or len(whole) > max_tokens:
         raise ValueError("native semantic continuation or sequence length differs from its template")
     # A BPE token may straddle the boundary; supervise that whole token once.
     start = next((index for index, (_begin, end) in enumerate(offsets)

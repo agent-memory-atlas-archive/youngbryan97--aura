@@ -29,13 +29,6 @@ from .temporal_binding import TemporalBindingEngine
 logger = logging.getLogger("Consciousness")
 
 
-class _NoPeerToReach(Exception):
-    """A layer that exists to reach another instance, in an organism that has none.
-
-    Not a fault: it leaves the layer's try block without the handler below
-    recording a degradation for something nobody asked to start.
-    """
-
 _RECOVERABLE_SYSTEM_ERRORS = (
     AttributeError,
     ImportError,
@@ -54,6 +47,65 @@ def _record_system_degradation(
     severity: str = "warning",
 ) -> None:
     record_degradation("system", exc, severity=severity, action=action)
+
+
+async def _start_aura_protocol(
+    *,
+    self: Any,
+) -> None:
+    """Layer 8: bind the inter-instance listener, or say why there is none.
+
+    Moved out of ``start`` by tools/extract_seam.py, which
+    checks the body against the original token for token before
+    writing. It reads 1 name(s) from the turn and hands back
+    0.
+    """
+    try:
+        from .aura_protocol import get_protocol_server
+
+        if self.offline_organism:
+            if not hasattr(self, "layer_status"):
+                self.layer_status = {}
+                self.layer_detail = {}
+            self.layer_status["aura_protocol"] = "not_started"
+            self.layer_detail["aura_protocol"] = (
+                "no other instance to reach, so no listener was bound"
+            )
+            logger.info(
+                "🧠 Layer 8: AuraProtocol not started — this organism has no peer to reach."
+            )
+            return
+        self.aura_protocol = get_protocol_server()
+        protocol_started = await self.aura_protocol.start()
+        if protocol_started:
+            self._mark_layer_online("aura_protocol")
+            logger.info(
+                "🧠 Layer 8: AuraProtocolServer ONLINE (port=%d)",
+                self.aura_protocol._port,
+            )
+        else:
+            status = self.aura_protocol.get_status()
+            if not hasattr(self, "layer_status"):
+                self.layer_status = {}
+                self.layer_detail = {}
+            if not hasattr(self, "_degraded_layers"):
+                self._degraded_layers = {}
+            self.layer_status["aura_protocol"] = "degraded"
+            self._degraded_layers["aura_protocol"] = str(
+                status.get("last_error") or "protocol listener did not bind"
+            )
+            logger.warning(
+                "🧠 Layer 8: AuraProtocolServer OFFLINE (port=%d, reason=%s)",
+                self.aura_protocol._port,
+                self._degraded_layers["aura_protocol"],
+            )
+    except (ImportError, AttributeError, RuntimeError) as e:
+        self._mark_layer_degraded(
+            "aura_protocol",
+            e,
+            action="continued consciousness start without AuraProtocol inter-instance server",
+        )
+        logger.warning("Could not boot AuraProtocolServer: %s", e)
 
 
 class ConsciousnessSystem:
@@ -581,54 +633,9 @@ class ConsciousnessSystem:
         # differ in one switch differed in which layers were online.
         # `quiesce_organism` already stops this listener; it should not have
         # bound in the first place.
-        try:
-            from .aura_protocol import get_protocol_server
-
-            if self.offline_organism:
-                if not hasattr(self, "layer_status"):
-                    self.layer_status = {}
-                    self.layer_detail = {}
-                self.layer_status["aura_protocol"] = "not_started"
-                self.layer_detail["aura_protocol"] = (
-                    "no other instance to reach, so no listener was bound"
-                )
-                logger.info(
-                    "🧠 Layer 8: AuraProtocol not started — this organism has no peer to reach."
-                )
-                raise _NoPeerToReach
-            self.aura_protocol = get_protocol_server()
-            protocol_started = await self.aura_protocol.start()
-            if protocol_started:
-                self._mark_layer_online("aura_protocol")
-                logger.info(
-                    "🧠 Layer 8: AuraProtocolServer ONLINE (port=%d)",
-                    self.aura_protocol._port,
-                )
-            else:
-                status = self.aura_protocol.get_status()
-                if not hasattr(self, "layer_status"):
-                    self.layer_status = {}
-                    self.layer_detail = {}
-                if not hasattr(self, "_degraded_layers"):
-                    self._degraded_layers = {}
-                self.layer_status["aura_protocol"] = "degraded"
-                self._degraded_layers["aura_protocol"] = str(
-                    status.get("last_error") or "protocol listener did not bind"
-                )
-                logger.warning(
-                    "🧠 Layer 8: AuraProtocolServer OFFLINE (port=%d, reason=%s)",
-                    self.aura_protocol._port,
-                    self._degraded_layers["aura_protocol"],
-                )
-        except _NoPeerToReach:
-            pass
-        except (ImportError, AttributeError, RuntimeError) as e:
-            self._mark_layer_degraded(
-                "aura_protocol",
-                e,
-                action="continued consciousness start without AuraProtocol inter-instance server",
-            )
-            logger.warning("Could not boot AuraProtocolServer: %s", e)
+        await _start_aura_protocol(
+            self=self,
+        )
 
         # ═══════════════════════════════════════════════════════════════════
 

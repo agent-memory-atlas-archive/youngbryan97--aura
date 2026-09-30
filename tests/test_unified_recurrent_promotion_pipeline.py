@@ -544,30 +544,33 @@ def test_supervision_requires_launchd_parent_and_exact_caffeinate_child(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     config = _config(tmp_path)
-    monkeypatch.setattr(pipeline.os, "getpid", lambda: 41)
-    monkeypatch.setattr(
-        pipeline,
-        "_launchd_job",
-        lambda _label: {"target": "gui/501/job", "pid": 41},
-    )
-    monkeypatch.setattr(
-        pipeline,
-        "_process_row",
-        lambda _pid: (41, "/usr/bin/caffeinate -dims -w 41"),
-    )
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(pipeline.os, "getpid", lambda: 41)
+        scoped.setattr(
+            pipeline,
+            "_launchd_job",
+            lambda _label: {"target": "gui/501/job", "pid": 41},
+        )
+        scoped.setattr(
+            pipeline,
+            "_process_row",
+            lambda _pid: (41, "/usr/bin/caffeinate -dims -w 41"),
+        )
 
-    assert pipeline._verify_supervision(config, 42) == {  # noqa: SLF001
-        "target": "gui/501/job",
-        "controller_pid": 41,
-        "sleep_inhibitor_pid": 42,
-    }
+        assert pipeline._verify_supervision(config, 42) == {  # noqa: SLF001
+            "target": "gui/501/job",
+            "controller_pid": 41,
+            "sleep_inhibitor_pid": 42,
+        }
 
-    monkeypatch.setattr(pipeline, "_process_row", lambda _pid: (99, "wrong"))
-    with pytest.raises(
-        pipeline.UnifiedRecurrentPromotionError,
-        match="sleep inhibitor lineage",
-    ):
-        pipeline._verify_supervision(config, 42)  # noqa: SLF001
+        scoped.setattr(pipeline, "_process_row", lambda _pid: (99, "wrong"))
+        with pytest.raises(
+            pipeline.UnifiedRecurrentPromotionError,
+            match="sleep inhibitor lineage",
+        ):
+            pipeline._verify_supervision(config, 42)  # noqa: SLF001
 
 
 def test_install_published_prepares_and_launches_only_inside_capsule(
@@ -873,41 +876,44 @@ def test_active_stage_receipt_is_authenticated_and_tamper_evident(
 ) -> None:
     config = _config(tmp_path)
     monkeypatch.setattr(pipeline, "_key", lambda _config: b"k" * 32)
-    monkeypatch.setattr(pipeline.os, "getpid", lambda: 41)
-    monkeypatch.setattr(
-        pipeline.replication.launcher.detached,
-        "_process_start_token",
-        lambda _pid: pytest.fail("stage publication re-probed controller identity"),
-    )
-    monkeypatch.setattr(
-        pipeline,
-        "_process_group_members",
-        lambda pgid: [{"pid": pgid, "start_token": f"token-{pgid}"}],
-    )
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(pipeline.os, "getpid", lambda: 41)
+        scoped.setattr(
+            pipeline.replication.launcher.detached,
+            "_process_start_token",
+            lambda _pid: pytest.fail("stage publication re-probed controller identity"),
+        )
+        scoped.setattr(
+            pipeline,
+            "_process_group_members",
+            lambda pgid: [{"pid": pgid, "start_token": f"token-{pgid}"}],
+        )
 
-    receipt = pipeline._publish_active_stage(  # noqa: SLF001
-        config,
-        controller_pid=41,
-        controller_start_token="token-41",
-        stage="lifecycle",
-        child_pid=42,
-        child_start_token="token-42",
-        result_path=Path(config["pipeline_root"]) / "result.json",
-        log_path=Path(config["pipeline_root"]) / "stage.log",
-        timeout_s=30.0,
-    )
-    assert pipeline._read_active_stage(config) == receipt  # noqa: SLF001
+        receipt = pipeline._publish_active_stage(  # noqa: SLF001
+            config,
+            controller_pid=41,
+            controller_start_token="token-41",
+            stage="lifecycle",
+            child_pid=42,
+            child_start_token="token-42",
+            result_path=Path(config["pipeline_root"]) / "result.json",
+            log_path=Path(config["pipeline_root"]) / "stage.log",
+            timeout_s=30.0,
+        )
+        assert pipeline._read_active_stage(config) == receipt  # noqa: SLF001
 
-    attacked = dict(receipt)
-    attacked["child_pid"] = 99
-    pipeline._active_stage_path(config).write_bytes(  # noqa: SLF001
-        canonical_bytes(attacked) + b"\n"
-    )
-    with pytest.raises(
-        pipeline.UnifiedRecurrentPromotionError,
-        match="authentication failed",
-    ):
-        pipeline._read_active_stage(config)  # noqa: SLF001
+        attacked = dict(receipt)
+        attacked["child_pid"] = 99
+        pipeline._active_stage_path(config).write_bytes(  # noqa: SLF001
+            canonical_bytes(attacked) + b"\n"
+        )
+        with pytest.raises(
+            pipeline.UnifiedRecurrentPromotionError,
+            match="authentication failed",
+        ):
+            pipeline._read_active_stage(config)  # noqa: SLF001
 
 
 def test_stage_cleanup_uses_authenticated_memory_when_receipt_reopen_fails(
@@ -1057,60 +1063,63 @@ def test_restart_never_retires_stage_owned_by_another_live_controller(
 ) -> None:
     config = _config(tmp_path)
     monkeypatch.setattr(pipeline, "_key", lambda _config: b"k" * 32)
-    monkeypatch.setattr(pipeline.os, "getpid", lambda: 41)
-    monkeypatch.setattr(
-        pipeline.replication.launcher.detached,
-        "_process_start_token",
-        lambda pid: f"token-{pid}",
-    )
-    monkeypatch.setattr(
-        pipeline,
-        "_process_group_members",
-        lambda pgid: [{"pid": pgid, "start_token": f"token-{pgid}"}],
-    )
-    pipeline._publish_active_stage(  # noqa: SLF001
-        config,
-        controller_pid=41,
-        controller_start_token="token-41",
-        stage="lifecycle",
-        child_pid=43,
-        child_start_token="token-43",
-        result_path=Path(config["pipeline_root"]) / "result.json",
-        log_path=Path(config["pipeline_root"]) / "stage.log",
-        timeout_s=30.0,
-    )
-    value = pipeline._read_active_stage(config)  # noqa: SLF001
-    assert value is not None
-    body = {
-        key: item
-        for key, item in value.items()
-        if key != "hmac_sha256"
-    }
-    body["controller_pid"] = 42
-    body["controller_start_token"] = "token-42"
-    attacked = {
-        **body,
-        "hmac_sha256": pipeline._signature(body, b"k" * 32),  # noqa: SLF001
-    }
-    pipeline._active_stage_path(config).write_bytes(  # noqa: SLF001
-        canonical_bytes(attacked) + b"\n"
-    )
-    monkeypatch.setattr(
-        pipeline.replication.launcher.detached,
-        "_identity_state",
-        lambda pid, token: "alive" if (pid, token) == (42, "token-42") else "dead",
-    )
-    monkeypatch.setattr(
-        pipeline,
-        "_terminate_exact_stage_process",
-        lambda *_args, **_kwargs: pytest.fail("live controller child was terminated"),
-    )
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(pipeline.os, "getpid", lambda: 41)
+        scoped.setattr(
+            pipeline.replication.launcher.detached,
+            "_process_start_token",
+            lambda pid: f"token-{pid}",
+        )
+        scoped.setattr(
+            pipeline,
+            "_process_group_members",
+            lambda pgid: [{"pid": pgid, "start_token": f"token-{pgid}"}],
+        )
+        pipeline._publish_active_stage(  # noqa: SLF001
+            config,
+            controller_pid=41,
+            controller_start_token="token-41",
+            stage="lifecycle",
+            child_pid=43,
+            child_start_token="token-43",
+            result_path=Path(config["pipeline_root"]) / "result.json",
+            log_path=Path(config["pipeline_root"]) / "stage.log",
+            timeout_s=30.0,
+        )
+        value = pipeline._read_active_stage(config)  # noqa: SLF001
+        assert value is not None
+        body = {
+            key: item
+            for key, item in value.items()
+            if key != "hmac_sha256"
+        }
+        body["controller_pid"] = 42
+        body["controller_start_token"] = "token-42"
+        attacked = {
+            **body,
+            "hmac_sha256": pipeline._signature(body, b"k" * 32),  # noqa: SLF001
+        }
+        pipeline._active_stage_path(config).write_bytes(  # noqa: SLF001
+            canonical_bytes(attacked) + b"\n"
+        )
+        scoped.setattr(
+            pipeline.replication.launcher.detached,
+            "_identity_state",
+            lambda pid, token: "alive" if (pid, token) == (42, "token-42") else "dead",
+        )
+        scoped.setattr(
+            pipeline,
+            "_terminate_exact_stage_process",
+            lambda *_args, **_kwargs: pytest.fail("live controller child was terminated"),
+        )
 
-    with pytest.raises(
-        pipeline.UnifiedRecurrentPromotionError,
-        match="owner is not proven dead: alive",
-    ):
-        pipeline._retire_interrupted_stage(config)  # noqa: SLF001
+        with pytest.raises(
+            pipeline.UnifiedRecurrentPromotionError,
+            match="owner is not proven dead: alive",
+        ):
+            pipeline._retire_interrupted_stage(config)  # noqa: SLF001
 
 
 def test_restart_never_retires_stage_when_owner_liveness_is_unknown(
@@ -1119,56 +1128,59 @@ def test_restart_never_retires_stage_when_owner_liveness_is_unknown(
 ) -> None:
     config = _config(tmp_path)
     monkeypatch.setattr(pipeline, "_key", lambda _config: b"k" * 32)
-    monkeypatch.setattr(pipeline.os, "getpid", lambda: 41)
-    monkeypatch.setattr(
-        pipeline.replication.launcher.detached,
-        "_process_start_token",
-        lambda pid: f"token-{pid}",
-    )
-    monkeypatch.setattr(
-        pipeline,
-        "_process_group_members",
-        lambda pgid: [{"pid": pgid, "start_token": f"token-{pgid}"}],
-    )
-    pipeline._publish_active_stage(  # noqa: SLF001
-        config,
-        controller_pid=41,
-        controller_start_token="token-41",
-        stage="lifecycle",
-        child_pid=43,
-        child_start_token="token-43",
-        result_path=Path(config["pipeline_root"]) / "result.json",
-        log_path=Path(config["pipeline_root"]) / "stage.log",
-        timeout_s=30.0,
-    )
-    value = pipeline._read_active_stage(config)  # noqa: SLF001
-    assert value is not None
-    body = {key: item for key, item in value.items() if key != "hmac_sha256"}
-    body["controller_pid"] = 42
-    body["controller_start_token"] = "token-42"
-    interrupted = {
-        **body,
-        "hmac_sha256": pipeline._signature(body, b"k" * 32),  # noqa: SLF001
-    }
-    pipeline._active_stage_path(config).write_bytes(  # noqa: SLF001
-        canonical_bytes(interrupted) + b"\n"
-    )
-    monkeypatch.setattr(
-        pipeline.replication.launcher.detached,
-        "_identity_state",
-        lambda _pid, _token: "unknown",
-    )
-    monkeypatch.setattr(
-        pipeline,
-        "_terminate_exact_stage_process",
-        lambda *_args, **_kwargs: pytest.fail("unknown owner child was terminated"),
-    )
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(pipeline.os, "getpid", lambda: 41)
+        scoped.setattr(
+            pipeline.replication.launcher.detached,
+            "_process_start_token",
+            lambda pid: f"token-{pid}",
+        )
+        scoped.setattr(
+            pipeline,
+            "_process_group_members",
+            lambda pgid: [{"pid": pgid, "start_token": f"token-{pgid}"}],
+        )
+        pipeline._publish_active_stage(  # noqa: SLF001
+            config,
+            controller_pid=41,
+            controller_start_token="token-41",
+            stage="lifecycle",
+            child_pid=43,
+            child_start_token="token-43",
+            result_path=Path(config["pipeline_root"]) / "result.json",
+            log_path=Path(config["pipeline_root"]) / "stage.log",
+            timeout_s=30.0,
+        )
+        value = pipeline._read_active_stage(config)  # noqa: SLF001
+        assert value is not None
+        body = {key: item for key, item in value.items() if key != "hmac_sha256"}
+        body["controller_pid"] = 42
+        body["controller_start_token"] = "token-42"
+        interrupted = {
+            **body,
+            "hmac_sha256": pipeline._signature(body, b"k" * 32),  # noqa: SLF001
+        }
+        pipeline._active_stage_path(config).write_bytes(  # noqa: SLF001
+            canonical_bytes(interrupted) + b"\n"
+        )
+        scoped.setattr(
+            pipeline.replication.launcher.detached,
+            "_identity_state",
+            lambda _pid, _token: "unknown",
+        )
+        scoped.setattr(
+            pipeline,
+            "_terminate_exact_stage_process",
+            lambda *_args, **_kwargs: pytest.fail("unknown owner child was terminated"),
+        )
 
-    with pytest.raises(
-        pipeline.UnifiedRecurrentPromotionError,
-        match="owner is not proven dead: unknown",
-    ):
-        pipeline._retire_interrupted_stage(config)  # noqa: SLF001
+        with pytest.raises(
+            pipeline.UnifiedRecurrentPromotionError,
+            match="owner is not proven dead: unknown",
+        ):
+            pipeline._retire_interrupted_stage(config)  # noqa: SLF001
 
 
 def test_restart_does_not_trust_reused_current_controller_pid(
@@ -1177,57 +1189,60 @@ def test_restart_does_not_trust_reused_current_controller_pid(
 ) -> None:
     config = _config(tmp_path)
     monkeypatch.setattr(pipeline, "_key", lambda _config: b"k" * 32)
-    monkeypatch.setattr(pipeline.os, "getpid", lambda: 41)
-    monkeypatch.setattr(
-        pipeline.replication.launcher.detached,
-        "_process_start_token",
-        lambda pid: "current-token" if pid == 41 else f"token-{pid}",
-    )
-    monkeypatch.setattr(
-        pipeline,
-        "_process_group_members",
-        lambda pgid: [{"pid": pgid, "start_token": f"token-{pgid}"}],
-    )
-    pipeline._publish_active_stage(  # noqa: SLF001
-        config,
-        controller_pid=41,
-        controller_start_token="current-token",
-        stage="lifecycle",
-        child_pid=43,
-        child_start_token="token-43",
-        result_path=Path(config["pipeline_root"]) / "result.json",
-        log_path=Path(config["pipeline_root"]) / "stage.log",
-        timeout_s=30.0,
-    )
-    value = pipeline._read_active_stage(config)  # noqa: SLF001
-    assert value is not None
-    body = {key: item for key, item in value.items() if key != "hmac_sha256"}
-    body["controller_start_token"] = "previous-token"
-    interrupted = {
-        **body,
-        "hmac_sha256": pipeline._signature(body, b"k" * 32),  # noqa: SLF001
-    }
-    pipeline._active_stage_path(config).write_bytes(  # noqa: SLF001
-        canonical_bytes(interrupted) + b"\n"
-    )
-    monkeypatch.setattr(
-        pipeline.replication.launcher.detached,
-        "_identity_state",
-        lambda pid, token: (
-            "unknown" if (pid, token) == (41, "previous-token") else "dead"
-        ),
-    )
-    monkeypatch.setattr(
-        pipeline,
-        "_terminate_exact_stage_process",
-        lambda *_args, **_kwargs: pytest.fail("reused PID child was terminated"),
-    )
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(pipeline.os, "getpid", lambda: 41)
+        scoped.setattr(
+            pipeline.replication.launcher.detached,
+            "_process_start_token",
+            lambda pid: "current-token" if pid == 41 else f"token-{pid}",
+        )
+        scoped.setattr(
+            pipeline,
+            "_process_group_members",
+            lambda pgid: [{"pid": pgid, "start_token": f"token-{pgid}"}],
+        )
+        pipeline._publish_active_stage(  # noqa: SLF001
+            config,
+            controller_pid=41,
+            controller_start_token="current-token",
+            stage="lifecycle",
+            child_pid=43,
+            child_start_token="token-43",
+            result_path=Path(config["pipeline_root"]) / "result.json",
+            log_path=Path(config["pipeline_root"]) / "stage.log",
+            timeout_s=30.0,
+        )
+        value = pipeline._read_active_stage(config)  # noqa: SLF001
+        assert value is not None
+        body = {key: item for key, item in value.items() if key != "hmac_sha256"}
+        body["controller_start_token"] = "previous-token"
+        interrupted = {
+            **body,
+            "hmac_sha256": pipeline._signature(body, b"k" * 32),  # noqa: SLF001
+        }
+        pipeline._active_stage_path(config).write_bytes(  # noqa: SLF001
+            canonical_bytes(interrupted) + b"\n"
+        )
+        scoped.setattr(
+            pipeline.replication.launcher.detached,
+            "_identity_state",
+            lambda pid, token: (
+                "unknown" if (pid, token) == (41, "previous-token") else "dead"
+            ),
+        )
+        scoped.setattr(
+            pipeline,
+            "_terminate_exact_stage_process",
+            lambda *_args, **_kwargs: pytest.fail("reused PID child was terminated"),
+        )
 
-    with pytest.raises(
-        pipeline.UnifiedRecurrentPromotionError,
-        match="owner is not proven dead: unknown",
-    ):
-        pipeline._retire_interrupted_stage(config)  # noqa: SLF001
+        with pytest.raises(
+            pipeline.UnifiedRecurrentPromotionError,
+            match="owner is not proven dead: unknown",
+        ):
+            pipeline._retire_interrupted_stage(config)  # noqa: SLF001
 
 
 def test_stage_parent_monitor_terminates_its_own_group_on_parent_loss(
@@ -1240,22 +1255,25 @@ def test_stage_parent_monitor_terminates_its_own_group_on_parent_loss(
         "_identity_state",
         lambda _pid, _token: "dead",
     )
-    monkeypatch.setattr(pipeline.os, "getpid", lambda: 73)
-    monkeypatch.setattr(pipeline.os, "getpgrp", lambda: 73)
-    monkeypatch.setattr(
-        pipeline.os,
-        "kill",
-        lambda *_args: pytest.fail("dedicated group must be terminated as a group"),
-    )
-    monkeypatch.setattr(
-        pipeline.os,
-        "killpg",
-        lambda pgid, sent: signals.append((pgid, sent)),
-    )
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(pipeline.os, "getpid", lambda: 73)
+        scoped.setattr(pipeline.os, "getpgrp", lambda: 73)
+        scoped.setattr(
+            pipeline.os,
+            "kill",
+            lambda *_args: pytest.fail("dedicated group must be terminated as a group"),
+        )
+        scoped.setattr(
+            pipeline.os,
+            "killpg",
+            lambda pgid, sent: signals.append((pgid, sent)),
+        )
 
-    pipeline._monitor_controller(41, "token-41")  # noqa: SLF001
+        pipeline._monitor_controller(41, "token-41")  # noqa: SLF001
 
-    assert signals == [(73, pipeline.signal.SIGTERM)]
+        assert signals == [(73, pipeline.signal.SIGTERM)]
 
 
 def test_stage_parent_monitor_does_not_signal_on_unknown_liveness(
@@ -1269,17 +1287,20 @@ def test_stage_parent_monitor_does_not_signal_on_unknown_liveness(
         "_identity_state",
         lambda _pid, _token: next(states),
     )
-    monkeypatch.setattr(pipeline.os, "getpid", lambda: 73)
-    monkeypatch.setattr(pipeline.os, "getpgrp", lambda: 73)
-    monkeypatch.setattr(
-        pipeline.os,
-        "killpg",
-        lambda pgid, sent: signals.append((pgid, sent)),
-    )
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(pipeline.os, "getpid", lambda: 73)
+        scoped.setattr(pipeline.os, "getpgrp", lambda: 73)
+        scoped.setattr(
+            pipeline.os,
+            "killpg",
+            lambda pgid, sent: signals.append((pgid, sent)),
+        )
 
-    pipeline._monitor_controller(41, "token-41")  # noqa: SLF001
+        pipeline._monitor_controller(41, "token-41")  # noqa: SLF001
 
-    assert signals == [(73, pipeline.signal.SIGTERM)]
+        assert signals == [(73, pipeline.signal.SIGTERM)]
 
 
 @pytest.mark.parametrize(
@@ -1529,21 +1550,24 @@ def test_run_stage_rejects_result_outside_pipeline_root(
         "_identity_state",
         lambda _pid, _token: "alive",
     )
-    monkeypatch.setattr(pipeline.os, "getpid", lambda: 73)
-    monkeypatch.setattr(pipeline.os, "getpgrp", lambda: 73)
-    arguments = argparse.Namespace(
-        config=tmp_path / "config.json",
-        stage="materialize",
-        result_output=tmp_path / "outside.json",
-        controller_pid=41,
-        controller_start_token="token-41",
-    )
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(pipeline.os, "getpid", lambda: 73)
+        scoped.setattr(pipeline.os, "getpgrp", lambda: 73)
+        arguments = argparse.Namespace(
+            config=tmp_path / "config.json",
+            stage="materialize",
+            result_output=tmp_path / "outside.json",
+            controller_pid=41,
+            controller_start_token="token-41",
+        )
 
-    with pytest.raises(
-        pipeline.UnifiedRecurrentPromotionError,
-        match="inside the pipeline root",
-    ):
-        pipeline.run_stage(arguments)
+        with pytest.raises(
+            pipeline.UnifiedRecurrentPromotionError,
+            match="inside the pipeline root",
+        ):
+            pipeline.run_stage(arguments)
 
 
 def test_active_authority_reopen_reads_real_flattened_package_shape(

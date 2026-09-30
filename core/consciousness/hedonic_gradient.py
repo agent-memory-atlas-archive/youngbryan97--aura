@@ -34,6 +34,8 @@ import time
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
+from core.utils.standing_condition import StandingCondition
+
 logger = logging.getLogger("Aura.HedoniGradient")
 
 # ── Attractor definition ──────────────────────────────────────────────────────
@@ -104,6 +106,9 @@ class HedoniGradientEngine:
         self._score_ema: float = 0.5
         self._gradient: float = 0.0
         self._distress_count: int = 0  # consecutive ticks below threshold
+        self._distress = StandingCondition(
+            logger, ended="HEDONIC: distress has eased; resources are no longer conserved for it."
+        )
         logger.info("Hedonic Gradient Engine online — valence is now load-bearing.")
 
     # ── Public API ────────────────────────────────────────────────────────
@@ -140,8 +145,11 @@ class HedoniGradientEngine:
         alloc = self._derive_allocation(smooth)
         self._allocation = alloc
 
-        if self._distress_count >= 5:
-            logger.warning("HEDONIC: Sustained distress detected (score=%.2f). Conserving resources.", smooth)
+        self._distress.report(
+            self._distress_count >= 5,
+            "HEDONIC: Sustained distress detected (score=%.2f). Conserving resources.",
+            smooth,
+        )
 
         return alloc
 

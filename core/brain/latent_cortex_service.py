@@ -37,6 +37,9 @@ from core.runtime.errors import (
     record_degradation,  # noqa: F401  (read at call time by the lifted module)
 )
 
+from .latent_cortex_refusal import (  # noqa: F401  (re-exported: they were defined here)
+    _refuse_an_answer_short_of_the_contract,
+)
 from .latent_cortex_service_deep_reason import _ReasonsDeeply
 from .latent_receipt_contract import _ChecksTheReceiptContract
 from .latent_receipt_evidence import _ChecksTheReceiptEvidence
@@ -3356,13 +3359,8 @@ class LatentCortexService(_ReasonsDeeply, _ChecksTheReceiptEvidence, _ChecksTheR
                 reason = "output_quality_failed:" + ",".join(
                     str(item) for item in reasons or ["unknown"]
                 )
-                record_degradation(
-                    "latent_cortex.output_quality",
-                    RuntimeError(reason),
-                    action=(
-                        "refused a mechanically complete latent episode whose visible answer did not satisfy the product contract"
-                    ),
-                    severity="degraded",
+                _refuse_an_answer_short_of_the_contract(
+                    reason=reason,
                 )
                 failed = dict(result)
                 failed.update(self._record_failure(reason))

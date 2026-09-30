@@ -8,6 +8,7 @@ from contextvars import ContextVar
 from pathlib import Path
 
 import numpy as np
+from typing import Any
 
 
 BOUNDED_BINARY_FIT_CONTRACT = {
@@ -90,20 +91,20 @@ def _objective_checkpoint(features, labels, sample_weight, tolerance):
 class BinaryFeatureRows:
     """Keep ordered row references until the solver requests a bounded batch."""
 
-    def __init__(self, rows):
+    def __init__(self, rows: Any) -> None:
         self._rows = tuple(rows)
         if not self._rows or any(row.ndim != 1 or row.shape != self._rows[0].shape for row in self._rows):
             raise ValueError("binary feature row geometry differs")
         self.shape = (len(self._rows), self._rows[0].size)
         self.ndim = 2
 
-    def __getitem__(self, index):
+    def __getitem__(self, index: Any) -> Any:
         if isinstance(index, (int, np.integer)):
             return self._rows[index]
         return np.stack(self._rows[index])
 
 
-def binary_objective(features, labels, sample_weight, *, batch_rows=256):
+def binary_objective(features: Any, labels: Any, sample_weight: Any, *, batch_rows: int=256) -> Any:
     """Return the liblinear objective, including its regularized unit bias."""
     from scipy.special import expit
     from sklearn.utils.class_weight import compute_class_weight
@@ -125,7 +126,7 @@ def binary_objective(features, labels, sample_weight, *, batch_rows=256):
         raise ValueError("bounded binary fit class weights are nonfinite")
     weights = weights * np.where(labels == 1, class_weights[1], class_weights[0])
 
-    def objective(parameters):
+    def objective(parameters: Any) -> tuple[Any, Any]:
         parameters = np.asarray(parameters, dtype=np.float64)
         if parameters.shape != (features.shape[1] + 1,) or not np.all(np.isfinite(parameters)):
             raise ValueError("bounded binary fit parameters differ")
@@ -150,8 +151,15 @@ def binary_objective(features, labels, sample_weight, *, batch_rows=256):
     return objective
 
 
-def fit_bounded_binary_head(features, labels, *, sample_weight=None, max_iter=1000,
-                            tolerance=1e-4, progress=None):
+def fit_bounded_binary_head(
+    features: Any,
+    labels: Any,
+    *,
+    sample_weight: Any=None,
+    max_iter: int=1000,
+    tolerance: float=0.0001,
+    progress: Any=None,
+) -> tuple[Any, float]:
     from scipy.optimize import minimize
 
     if type(max_iter) is not int or max_iter < 1 or not math.isfinite(tolerance) or tolerance <= 0:
@@ -170,7 +178,7 @@ def fit_bounded_binary_head(features, labels, *, sample_weight=None, max_iter=10
                   "solver": "blocked_lbfgs", "max_iter": max_iter, "tolerance": tolerance,
                   "resumed_iterations": resumed_iterations,
                   "checkpoint_identity": None if checkpoint is None else checkpoint.identity})
-    def advanced(parameters):
+    def advanced(parameters: Any) -> None:
         nonlocal iterations
         iterations += 1
         if checkpoint is not None and iterations % 25 == 0:
