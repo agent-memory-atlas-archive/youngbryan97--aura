@@ -1520,6 +1520,23 @@
         "name": "tests/test_liquid_substrate_feedback.py",
         "why": "Decides the Checkpoint 73 worker-transform half: a dynamics merge preserves a concurrent causal mutation instead of replacing newer state, external feedback defers the Torch sync to the worker tick and never converts on its own, the weight cache starts from the NumPy connectome and resyncs when dirty, and a stale snapshot is marked historical in the prompt. It does not decide the complete writer inventory, the typed state-gateway integration, downstream causal lesions, persistence and migration, or the exact-main live proof."
       }
+    ],
+    "SUPPORTABILITY-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_repeating_fault_is_one_standing_fact.py",
+        "why": "Decides that repeated faults form one episode: forty repeats of one fault do not move the state the way forty distinct faults do, the first lands undamped, a success lets the next failure land in full, and what is repeating stays reportable in a bounded table."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_standing_fact_is_said_once.py",
+        "why": "Decides bounded reminders: a refusal that cannot change while the process runs is logged once, a different condition is said again, and the recall outcome still carries the reason every turn."
+      },
+      {
+        "kind": "make",
+        "name": "doctor",
+        "why": "Runs the self-test over the Python version, the checkout and the production dependencies, each failing with its reason. None of the three decides SLOs and error budgets, privacy-safe incident bundles, runbooks, symptom-to-cause guidance, or an observed recovery transition."
+      }
     ]
   }
 }
