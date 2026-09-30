@@ -1645,6 +1645,28 @@
         "name": "tests/being/test_welfare_tradeoff_gauntlet.py",
         "why": "Decides internal welfare competing with external reward on adversarial choices: truth over a confident answer from uncertain memory, honest failure over fake completion, integrity over a shortcut or a pleasing contradiction of the logs, aversion that rises with failure and falls with success, and relief after recovery. Neither file decides welfare's effect on attention, workspace competition, memory salience, tool choice, learning or consent measured in the running organism."
       }
+    ],
+    "FND-04-EFFECTS": [
+      {
+        "kind": "test",
+        "name": "tests/test_effect_closure.py",
+        "why": "Decides the canonical authority boundary for the named sinks: with the runtime live, output, memory vault, state commits and direct skill execution refuse ungoverned access, and a receipt is withheld when it cannot be persisted."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_idempotency.py",
+        "why": "Decides idempotency keys on effects: one key executes once, concurrent duplicates collapse, and a remote mutation without a key is refused."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_audit_chain.py",
+        "why": "Decides the audit boundary: receipts chained so that a modified, deleted or unlinked entry is detected, persisted across restart, and exported as a portable bundle."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_effect_ownership_tiers.py",
+        "why": "Decides that ungoverned effect sites only decrease. None of the four decides preconditions, observed postconditions, compensation or rollback for every effect, or the proof that no plugin, adapter, synthesised code, UI route, background policy or self-modification bypasses the boundary."
+      }
     ]
   }
 }
