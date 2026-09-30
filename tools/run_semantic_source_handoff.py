@@ -78,6 +78,59 @@ def handoff_jobs(paths: dict[str, Any], directory: Path, *, python: str) -> list
             job("fit-source-bank", crossfit, directory, timeout=14400.)]
 
 
+def source_bank_directory(plan: dict[str, Any], source_fit_supervisor: Path) -> Path:
+    command = plan["command"]
+    if (not isinstance(command, list) or len(command) != 7
+            or command[1:3] != ["-u", "tools/run_semantic_source_handoff.py"]
+            or command[3] != "--source-fit-supervisor" or command[5] != "--directory"):
+        raise ValueError("native preparation requires the supervised source-bank handoff")
+    cwd = Path(plan["cwd"])
+
+    def resolve(raw: str) -> Path:
+        path = Path(raw).expanduser()
+        return (path if path.is_absolute() else cwd / path).resolve()
+
+    if resolve(command[4]) != source_fit_supervisor.resolve():
+        raise ValueError("source bank belongs to another supervised fit")
+    return resolve(command[6])
+
+
+def native_preparation_jobs(paths: dict[str, Any], bank_root: Path, native: Path,
+                            directory: Path, *, python: str) -> list[dict[str, Any]]:
+    from tools.run_semantic_native_micro_stages import job
+
+    bundles = [part for bundle in paths["bundles"] for part in ("--bundle", bundle)]
+    command = [python, str(ROOT / "tools/train_semantic_native_program.py"),
+        "--parent", str(paths["candidate"]), "--source-report", str(paths["report"]),
+        "--folds", str(bank_root / "utterance-folds.json"), "--bank", str(bank_root / "bank"),
+        "--directory", str(native), "--steps", "303", "--save-every", "101",
+        "--rank", "8", "--layers", "1", "--precision", "float32", "--prefix-strategy", "trie",
+        "--prefix-storage", "source_shards", "--prefix-resident-mib", "512",
+        "--max-seconds", "14400", "--max-sequence-tokens", "1024",
+        "--loss-scope", "semantic_decisions", "--objective", "grammar_source_pairs",
+        "--register-encoding", "role_relative_v1", "--path-objective", "--joint-graph-contrasts", "4",
+        "--source-pair-policy", "typed_choice_complete_v1",
+        "--schedule-policy", "construction_depth_balanced_v1",
+        "--calibration-per-construction", "1", "--held-per-construction", "1",
+        "--require-identifiable-supervision", *bundles]
+    return [job("native-plan", [*command, "--plan-only"], directory, timeout=1800.),
+            job("native-supervision", [*command, "--supervision-only"], directory, timeout=3600.)]
+
+
+def verify_source_bank(bank_root: Path, paths: dict[str, Any], verification: dict) -> dict:
+    from tools.train_nested_semantic_ranker import _verified_pair
+
+    plan, report = _verified_pair(bank_root / "bank")
+    if (plan.get("parent_receipt_sha256") != verification["candidate_receipt_sha256"]
+            or plan.get("source_report_sha256") != verification["source_report_sha256"]
+            or plan.get("folds_sha256") != hashlib.sha256(
+                (bank_root / "utterance-folds.json").read_bytes()).hexdigest()
+            or hashlib.sha256(paths["candidate"].read_bytes()).hexdigest() != verification["candidate_sha256"]
+            or hashlib.sha256(paths["report"].read_bytes()).hexdigest() != verification["source_report_sha256"]):
+        raise ValueError("source bank changed its candidate, partitions, or feature inputs")
+    return report
+
+
 def verify_source_fit_artifacts(paths: dict[str, Any]) -> dict[str, Any]:
     from core.learning.semantic_binary_fit_verification import verify_binary_fit_checkpoints
     from core.learning.semantic_fit_checkpoint import fit_identity
@@ -112,7 +165,11 @@ def main() -> int:
     parser.add_argument("--source-fit-supervisor", type=Path, required=True)
     parser.add_argument("--directory", type=Path, required=True)
     parser.add_argument("--policy-output", type=Path)
+    parser.add_argument("--wait-bank-supervisor", type=Path)
+    parser.add_argument("--native-directory", type=Path)
     args = parser.parse_args()
+    if (args.wait_bank_supervisor is None) != (args.native_directory is None):
+        parser.error("native preparation needs both the source-bank supervisor and a fresh output directory")
     from core.learning.semantic_fit_checkpoint import fit_identity
     from tools.probe_semantic_proposer_crossfit import _digest, _save_if_absent
     from tools.refit_semantic_argument_proposals import configure_refit_environment
@@ -127,11 +184,24 @@ def main() -> int:
     source_plan = json.loads(source_plan_path.read_bytes())
     _verify_plan(source_plan, source_plan_path)
     paths = source_fit_paths(source_plan)
-    jobs = handoff_jobs(paths, directory, python=sys.executable)
+    bank_supervisor, bank_plan, bank_root = None, None, directory
+    if args.wait_bank_supervisor is not None:
+        bank_supervisor = args.wait_bank_supervisor.resolve()
+        bank_plan_path = bank_supervisor / PLAN_FILE
+        bank_plan = json.loads(bank_plan_path.read_bytes())
+        _verify_plan(bank_plan, bank_plan_path)
+        bank_root = source_bank_directory(bank_plan, supervisor)
+    jobs = (handoff_jobs(paths, directory, python=sys.executable) if bank_supervisor is None else
+            native_preparation_jobs(paths, bank_root, args.native_directory.resolve(), directory,
+                                    python=sys.executable))
     body = {"schema": "aura.semantic_source_handoff_plan.v1",
             "source_fit_plan_sha256": source_plan["plan_sha256"],
             "source_fit_supervisor": str(supervisor), "jobs": jobs,
             "qualification_evidence": False, "serving_authority": False}
+    if bank_supervisor is not None:
+        body.update(schema="aura.semantic_source_native_preparation_plan.v1",
+                    source_bank_supervisor=str(bank_supervisor),
+                    source_bank_plan_sha256=bank_plan["plan_sha256"])
     _save_if_absent(directory / "handoff.json", {**body, "receipt_sha256": fit_identity(body)})
     if args.policy_output is not None:
         _save_if_absent(args.policy_output, [{key: value for key, value in item.items()
@@ -150,6 +220,12 @@ def main() -> int:
     _save_if_absent(directory / "source-fit-verification.json", verification)
     print(json.dumps({"stage": "source_fit_verified", "terminal_receipt_sha256": terminal[
         "receipt_sha256"], "verification_sha256": verification["receipt_sha256"]}), flush=True)
+    if bank_supervisor is not None:
+        print(json.dumps({"stage": "source_bank_wait", "plan_sha256": bank_plan["plan_sha256"]}), flush=True)
+        bank_terminal = wait_for_fit(bank_supervisor, timeout=30600.)
+        if _status(bank_supervisor)["plan_sha256"] != bank_plan["plan_sha256"]:
+            raise ValueError("source bank changed its supervised plan")
+        verify_source_bank(bank_root, paths, verification)
     for item in jobs:
         print(json.dumps({"stage": item["name"], "status": "started"}), flush=True)
         result = run_brokered_process(item["command"], cwd=ROOT,
@@ -159,6 +235,26 @@ def main() -> int:
             raise ValueError(f"source handoff command failed: {item['name']}:{result.status}")
         print(json.dumps({"stage": item["name"], "status": "process_completed",
                           "broker_receipt_sha256": result.receipt_sha256}), flush=True)
+    if bank_supervisor is not None:
+        from tools.evaluate_semantic_native_checkpoint import verified_document
+        from tools.semantic_native_identifiability import verify_identifiability_preflight
+
+        native = args.native_directory.resolve()
+        plan = verified_document(native / "plan.json", "plan_sha256")
+        supervision = verified_document(native / "supervision.json")
+        proof = verify_identifiability_preflight(native, plan, supervision)
+        completed = {"schema": "aura.semantic_source_native_preparation.v1",
+            "source_fit_terminal_receipt_sha256": terminal["receipt_sha256"],
+            "source_bank_terminal_receipt_sha256": bank_terminal["receipt_sha256"],
+            "source_fit_verification_sha256": verification["receipt_sha256"],
+            "plan_sha256": plan["plan_sha256"],
+            "supervision_receipt_sha256": supervision["receipt_sha256"],
+            "preflight_receipt_sha256": proof["receipt_sha256"],
+            "model_weights_loaded": False, "qualification_evidence": False, "serving_authority": False}
+        completed["receipt_sha256"] = fit_identity(completed)
+        _save_if_absent(directory / "native-preparation.json", completed)
+        print(json.dumps({"stage": "native_preparation_complete", **completed}), flush=True)
+        return 0
     bank = directory / "bank"
     plan, report = (json.loads((bank / name).read_bytes()) for name in ("plan.json", "report.json"))
     for document, field in ((plan, "plan_sha256"), (report, "receipt_sha256")):

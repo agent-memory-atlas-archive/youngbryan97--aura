@@ -16,6 +16,9 @@ from tools.run_semantic_source_handoff import (
     handoff_jobs,
     source_fit_paths,
     verify_source_fit_artifacts,
+    native_preparation_jobs,
+    source_bank_directory,
+    verify_source_bank,
 )
 
 
@@ -148,3 +151,64 @@ def test_source_artifact_handoff_binds_report_and_actual_coefficients(source_bun
     _save_if_absent(paths["report"], {**body, "report_sha256": _sha(body)})
     with pytest.raises(ValueError, match="incomplete"):
         verify_source_fit_artifacts(paths)
+
+
+def test_native_preparation_keeps_one_protocol_without_loading_or_repeating_a_fit(tmp_path):
+    paths = source_fit_paths(_plan())
+    jobs = native_preparation_jobs(paths, tmp_path / "bank", tmp_path / "native", tmp_path,
+                                   python="python")
+    assert [item["name"] for item in jobs] == ["native-plan", "native-supervision"]
+    left, right = (item["command"] for item in jobs)
+    assert left[:-1] == right[:-1]
+    assert left[-1] == "--plan-only" and right[-1] == "--supervision-only"
+    assert "--require-identifiable-supervision" in left
+    for flag, value in {"--steps": "303", "--save-every": "101", "--joint-graph-contrasts": "4",
+                        "--register-encoding": "role_relative_v1",
+                        "--source-pair-policy": "typed_choice_complete_v1",
+                        "--schedule-policy": "construction_depth_balanced_v1"}.items():
+        assert left[left.index(flag) + 1] == value
+    assert left.count("--bundle") == len(paths["bundles"])
+    assert "--reuse-prefix-from" not in left
+
+
+def test_source_bank_supervisor_binds_the_original_fit_and_output(tmp_path):
+    supervisor = tmp_path / "fit-supervisor"
+    plan = {"cwd": str(tmp_path), "command": ["python", "-u", "tools/run_semantic_source_handoff.py",
+        "--source-fit-supervisor", str(supervisor), "--directory", "bank"]}
+    assert source_bank_directory(plan, supervisor) == tmp_path / "bank"
+    with pytest.raises(ValueError, match="another"):
+        source_bank_directory(plan, tmp_path / "other")
+    plan["command"].extend(["--native-directory", "other"])
+    with pytest.raises(ValueError, match="supervised"):
+        source_bank_directory(plan, supervisor)
+
+
+@pytest.mark.parametrize("fault", [None, "candidate", "report", "folds", "missing_row", "stale_parent"])
+def test_completed_bank_cannot_change_the_source_basis(tmp_path, fault):
+    import hashlib
+    from tools.probe_semantic_proposer_crossfit import _digest, _save_if_absent
+
+    candidate, source, folds = (tmp_path / name for name in ("candidate.json", "source.json", "utterance-folds.json"))
+    for path in (candidate, source, folds):
+        path.write_bytes(b"{}")
+    sha = hashlib.sha256(b"{}").hexdigest()
+    verification = {"candidate_receipt_sha256": "a" * 64, "candidate_sha256": sha,
+                    "source_report_sha256": sha}
+    plan = {"schema": "aura.semantic_proposer_crossfit_plan.v1", "held_ids": ["held"],
+            "parent_receipt_sha256": "a" * 64, "source_report_sha256": sha, "folds_sha256": sha}
+    if fault == "stale_parent":
+        plan["parent_receipt_sha256"] = "b" * 64
+    plan["plan_sha256"] = _digest(plan)
+    report = {"schema": "aura.semantic_proposer_crossfit.v1", "plan_sha256": plan["plan_sha256"],
+              "row_receipts": {} if fault == "missing_row" else {"held": "c" * 64}}
+    report["receipt_sha256"] = _digest(report)
+    _save_if_absent(tmp_path / "bank/plan.json", plan)
+    _save_if_absent(tmp_path / "bank/report.json", report)
+    if fault in {"candidate", "report", "folds"}:
+        {"candidate": candidate, "report": source, "folds": folds}[fault].write_bytes(b"{\"altered\":true}")
+    paths = {"candidate": candidate, "report": source}
+    if fault is None:
+        assert verify_source_bank(tmp_path, paths, verification) == report
+    else:
+        with pytest.raises(ValueError):
+            verify_source_bank(tmp_path, paths, verification)
