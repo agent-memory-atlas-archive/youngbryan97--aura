@@ -2252,6 +2252,18 @@
         "name": "tests/test_cognitive_situation_frame.py",
         "why": "Decides the part the requirement says is in place: a calibrated social rupture changes response routing and planning, fused perception changes attention, routing, response and planning, and an unknown social state asks for clarity rather than diagnosing. It does not decide unified option generation and selection over expected outcomes, uncertainty, cost, reversibility and replanning, or learning from receipted outcomes."
       }
+    ],
+    "FND-08-DEPTH": [
+      {
+        "kind": "test",
+        "name": "tests/test_action_depth_honesty.py",
+        "why": "Decides verification against the outcome rather than the invocation: a shallow result that claimed to be verified is downgraded, missing evidence is unverified, the registry enforces the expectation after the verifier, and notifications, file operations and uplinks report what actually happened."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_stalled_pursuit_tries_something_different.py",
+        "why": "Decides repair and continuation after a stall: the next attempt comes from a different approach, a repeated plan is refused, and a pursuit with nothing different left says so. Neither decides discovery, ambiguity, interruption, explanation and durable follow-through for every advertised capability, or the removal of task-specific scripts."
+      }
     ]
   }
 }
