@@ -1794,6 +1794,23 @@
         "name": "tests/test_a_veto_is_a_decision_not_a_failure.py",
         "why": "Decides the repair receipts and the anti-storm clause: code repair produces its evidence before governance disposes of it, repair uses the canonical shadow-validated tier, a completed governance disposition does not trip the circuit breaker while real generation and application failures stay failures, and a repair decision's identity changes when its source changes. It does not decide the closed loop from intake to checkpoint commit, or the held-out curves capability-growth claims need."
       }
+    ],
+    "PASSF-06": [
+      {
+        "kind": "test",
+        "name": "tests/test_a_line_said_first_survives_a_cut_off_tail.py",
+        "why": "Decides the response-truncation clause: an answer that ran past its budget keeps its finished sentences and the line she said first, a finished answer is left alone, and nothing finished is nothing, rather than the whole answer being dropped for its last half-sentence."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_stand_in_does_not_repeat_an_old_reply.py",
+        "why": "Decides the fallback-takeover clause for a stand-in model: a reply copied from an earlier turn is recognised as a copy, while a new answer that shares one short sentence is not."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_a_repeating_fault_is_one_standing_fact.py",
+        "why": "Decides the failure-spam clause as it reaches her state: forty repeats of one fault do not saturate her the way forty distinct faults would, the first occurrence lands in full, and what is repeating stays reportable. None of the three decides identity or name drift, repeated retry requests, lost context or model-control receipt loss."
+      }
     ]
   }
 }
