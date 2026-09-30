@@ -40,3 +40,14 @@ or the learned representation of role binding, then test whole-path effects.
 Selecting alpha by source or decision alone cannot clear the 59 sources whose
 correct teacher choice never wins in this measured family. This audit grants
 no G03 pass, no causal general-transfer claim, and no serving authority.
+
+## Added source-role localization, 2026-09-29
+
+Of the 78 reference misses, 76 have a public input as their teacher choice
+and two have an earlier result. The misses concentrate in two construction
+forms: 46/78 are `fork_join:fork_begin_independently_combine`, 31/78 are
+`arithmetic:sequential_intermediate_after`, and one is cataphoric. Both large
+forms are train-eligible in the source corpus; this table alone does not
+establish their count in the checkpoint's fit partition. The retained problem
+is source-to-role binding across source and step structure. This analysis
+does not justify an input-index lookup or another global-scale selection.

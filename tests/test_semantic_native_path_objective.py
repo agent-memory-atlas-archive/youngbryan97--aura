@@ -128,6 +128,28 @@ def test_typed_source_interactions_share_the_path_risk_and_train_reference_bindi
         assert objective(mx.array(4.)).item() < objective(mx.array(0.)).item()
 
 
+def test_typed_source_interactions_keep_distinct_reference_decisions():
+    decisions = ((('early', 'early-rival'), 0), (('join', 'join-rival'), 0))
+    peers = {
+        'early-peer': ((('peer-early', 'peer-early-rival'), 1),
+                       (('unused', 'unused-rival'), 0)),
+        'join-peer': ((('unused', 'unused-rival'), 0),
+                      (('peer-join', 'peer-join-rival'), 1)),
+    }
+    pairs = [
+        {'kind': 'reference', 'partner': 'early-peer', 'decision_index': 0,
+         'own_index': 0, 'partner_index': 1},
+        {'kind': 'reference', 'partner': 'join-peer', 'decision_index': 1,
+         'own_index': 0, 'partner_index': 1},
+    ]
+    scores = {'early': 2., 'early-rival': 0., 'join': 2., 'join-rival': 0.,
+              'peer-early': 0., 'peer-early-rival': 2.,
+              'peer-join': 0., 'peer-join-rival': 2.}
+    loss = native_grammar_path_objective(lambda key: mx.array(scores[key]), decisions,
+                                         typed_pairs=pairs, partners=peers)
+    assert math.isfinite(loss.item())
+
+
 @pytest.mark.parametrize("defect", ["duplicate", "unknown_kind", "missing_peer", "labels", "legacy_mix"])
 def test_typed_interaction_rejects_bad_inventory_or_rebound_target(defect):
     decisions = (((1, 2), 0),)

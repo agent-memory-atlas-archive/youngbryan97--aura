@@ -1,16 +1,22 @@
 """Questions distinguish hypotheses without pretending their answer is known."""
 
-import pytest
 import asyncio
 import json
 from dataclasses import replace
 
+import pytest
+
 from core.learning.procedure_induction import Instruction, Program
+from core.learning.semantic_graph_counterexamples import (
+    controlled_counterfactual_inputs,
+    counterfactual_inputs,
+)
 from core.learning.semantic_program_inquiry import (
-    ObservedProgramInquiry, ProgramInquiry, plan_program_inquiries,
+    ObservedProgramInquiry,
+    ProgramInquiry,
+    plan_program_inquiries,
 )
 from core.learning.semantic_program_portfolio import select_semantic_program_portfolio
-from core.learning.semantic_graph_counterexamples import counterfactual_inputs
 
 
 def program(op):
@@ -65,11 +71,32 @@ def test_portfolio_considers_every_bounded_counterfactual_not_only_pair_witness(
         public_inputs=(2, 2), observation_sha256="c" * 64, incumbent="add",
     )
     expected = plan_program_inquiries(
-        dict(portfolio.proposals), counterfactual_inputs((2, 2), count=16),
+        dict(portfolio.proposals), tuple(dict.fromkeys((
+            *controlled_counterfactual_inputs((2, 2), count=8),
+            *counterfactual_inputs((2, 2), count=8),
+        ))),
         fuel=100_000, source_sha256=portfolio.source_sha256,
     )
     assert portfolio.plan_inquiries() == expected
     assert len(expected) > 1
+
+
+def test_controlled_probes_keep_one_role_variable_and_its_type_fixed():
+    original = (4, (2, 3), 9)
+    probes = controlled_counterfactual_inputs(original, count=30, seed=3)
+    assert probes[0] == original
+    assert len(probes) > 3
+    assert all(sum(before != after for before, after in zip(original, probe, strict=True)) == 1
+               for probe in probes[1:])
+    assert all(tuple(type(value) for value in probe) == (int, tuple, int)
+               for probe in probes)
+    assert probes == controlled_counterfactual_inputs(original, count=30, seed=3)
+    first_changes = [next(index for index, (before, after) in enumerate(
+        zip(original, probe, strict=True)) if before != after) for probe in probes[1:4]]
+    assert first_changes == [0, 1, 2]
+    assert controlled_counterfactual_inputs((4, 4), count=0) == ((4, 4),)
+    with pytest.raises(ValueError):
+        controlled_counterfactual_inputs((True, 2))
 
 
 def test_missing_and_boolean_observations_are_not_integer_answers():

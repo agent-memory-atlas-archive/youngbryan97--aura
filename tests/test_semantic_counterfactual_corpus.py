@@ -1,18 +1,28 @@
 """Language contrasts keep register identity, source order and meaning separate."""
 
-from dataclasses import replace
 import hashlib
+from dataclasses import replace
 from types import SimpleNamespace
+
 import pytest
 
 from core.learning.procedure_induction import Instruction, Program
 from core.learning.semantic_counterfactual_corpus import (
-    augment_source_programs, cross_construction_relation_controls,
+    augment_source_programs,
+    cross_construction_relation_controls,
     cross_construction_relation_partners,
-    equivalent_recompositions, render_bound_program,
+    equivalent_recompositions,
+    render_bound_program,
 )
-from core.learning.semantic_program_corpus import build_semantic_program_corpus
-from core.learning.semantic_program_floor import compile_source_independent_program_to_floor, execute_semantic_floor_program
+from core.learning.semantic_program_corpus import (
+    build_semantic_program_corpus,
+    build_semantic_program_fork_join_corpus,
+    build_semantic_program_fork_join_factorial_corpus,
+)
+from core.learning.semantic_program_floor import (
+    compile_source_independent_program_to_floor,
+    execute_semantic_floor_program,
+)
 
 
 def source():
@@ -76,6 +86,92 @@ def test_generated_contrasts_are_source_only_and_independently_replay():
         assert outputs == witness['outputs'] and outputs[0] != outputs[1]
     replay, repeated = augment_source_programs((*training, *excluded), seed=12)
     assert repeated == receipt and replay == rows
+
+
+def test_all_witnessed_mutations_cover_later_fork_join_roles():
+    original = next(item for item in build_semantic_program_fork_join_corpus(
+        seed=41, source_order_registers=True) if item.split == 'train'
+        and item.instructions[-1].instruction.op == 'sub')
+    legacy, _ = augment_source_programs((original,), seed=12, lineage_version=2)
+    expanded, receipt = augment_source_programs((original,), seed=12,
+        lineage_version=2, mutation_policy='all_witnessed')
+    assert len(expanded) > len(legacy)
+    assert receipt['mutation_policy'] == 'all_witnessed'
+    join_role = [record for record in receipt['records']
+                 if record.get('mutation_step') == 2 and record.get('mutation_kind') == 'role']
+    assert len(join_role) == 1
+    changed = next(item for item in expanded if item.example_id == join_role[0]['example'])
+    assert changed.program.instructions[:2] == original.program.instructions[:2]
+    assert changed.program.instructions[2].args == tuple(reversed(
+        original.program.instructions[2].args))
+    assert join_role[0]['comparison']['witness']['outputs'][0] != join_role[0]['comparison']['witness']['outputs'][1]
+
+
+def test_fork_join_counterfactual_corpus_is_training_only_and_feature_callable():
+    from core.learning.semantic_program_feature_materialization import (
+        COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND,
+        FAMILY_FEATURE_CONFIG_SCHEMA,
+        SemanticFeatureConfig,
+        build_semantic_program_corpus_for_config,
+    )
+
+    corpus = build_semantic_program_corpus_for_config(SemanticFeatureConfig(
+        seed=41, corpus_kind=COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND,
+        schema=FAMILY_FEATURE_CONFIG_SCHEMA, max_examples=4096))
+    assert corpus and len(corpus) <= 4096
+    assert {item.split for item in corpus} == {'train'}
+    assert any(item.program.depth == 3 for item in corpus)
+    origins = {hashlib.sha256(item.source_text.encode()).hexdigest(): item
+               for item in build_semantic_program_fork_join_factorial_corpus(seed=41)
+               if item.split == 'train'}
+    fit_topologies = {item.topology_id for item in build_semantic_program_fork_join_corpus(
+        seed=41) if item.split == 'train'}
+    assert len({item.construction_id for item in origins.values()}) == 3
+    assert len(fit_topologies) == 3
+    assert all(item.contrast_id in origins and origins[item.contrast_id].topology_id in fit_topologies
+               for item in corpus)
+    assert {item.construction_id for item in corpus} == (
+        {item.construction_id for item in origins.values()}
+        | {f'counterfactual-bound-v2:{item.construction_id}' for item in origins.values()})
+    assert {item.source_text for item in corpus if not item.construction_id.startswith(
+        'counterfactual-bound-v2:')} == {item.source_text for item in origins.values()
+                                            if item.topology_id in fit_topologies}
+    assert all(any(clause in item.source_text for item in corpus) for clause in (
+        'To obtain ', 'Record ', 'Define ', 'Compute: '))
+
+
+@pytest.mark.parametrize('style,prefix', [
+    ('obtain', 'To obtain '), ('record', 'Record '), ('define', 'Define '),
+    ('name_after', 'Compute: '),
+])
+def test_render_styles_preserve_annotated_roles_and_exact_execution(style, prefix):
+    item = source()
+    names = ('amber', 'juniper', 'cobalt', 'tulip', 'willow')
+    rendered = render_bound_program(item, names=names, clause_order=(1, 0),
+                                    render_style=style)
+    assert prefix in rendered.source_text
+    assert rendered.program == item.program
+    if style == 'name_after':
+        assert rendered.instructions[0].operation_span.start < (
+            rendered.register_definition_spans[3].start)
+    for annotation in rendered.instructions:
+        assert rendered.source_text[annotation.operation_span.start:annotation.operation_span.end]
+        for register, span in zip(annotation.instruction.args, annotation.argument_spans, strict=True):
+            assert rendered.source_text[span.start:span.end] == names[register]
+
+
+@pytest.mark.parametrize('style', ['record', 'name_after'])
+def test_source_first_subtraction_keeps_roles_when_word_order_changes(style):
+    item = source()
+    program = Program(3, (Instruction('sub', (0, 1)), Instruction('sub', (2, 3))))
+    rendered = render_bound_program(item, names=('first', 'second', 'third', 'interim', 'final'),
+                                    clause_order=(0, 1), program=program, render_style=style)
+    assert 'first minus second' in rendered.source_text
+    assert 'third minus interim' in rendered.source_text
+    assert tuple(annotation.instruction.args for annotation in rendered.instructions) == (
+        (0, 1), (2, 3))
+    for annotation in rendered.instructions:
+        assert rendered.source_text[annotation.operation_span.start:annotation.operation_span.end] == 'minus'
 
 
 def test_cross_construction_controls_share_relation_and_witness_role_change():
@@ -184,7 +280,9 @@ def test_recomposition_does_not_assume_subtraction_associativity_or_duplicate_sh
 
 
 def test_every_generated_natural_example_has_an_independent_execution():
-    from core.learning.semantic_counterfactual_corpus import build_semantic_counterfactual_source_corpus
+    from core.learning.semantic_counterfactual_corpus import (
+        build_semantic_counterfactual_source_corpus,
+    )
 
     for seed in (41, 43, 47):
         for item in build_semantic_counterfactual_source_corpus(seed=seed):
@@ -194,11 +292,15 @@ def test_every_generated_natural_example_has_an_independent_execution():
 
 
 def test_existing_feature_materializer_can_acquire_counterfactual_training():
-    from core.learning.semantic_program_feature_materialization import (
-        SemanticFeatureConfig, FAMILY_FEATURE_CONFIG_SCHEMA, build_semantic_program_corpus_for_config,
-        COUNTERFACTUAL_SOURCE_CORPUS_KIND,
+    from core.learning.semantic_program_corpus_natural import (
+        build_semantic_program_natural_source_corpus,
     )
-    from core.learning.semantic_program_corpus_natural import build_semantic_program_natural_source_corpus
+    from core.learning.semantic_program_feature_materialization import (
+        COUNTERFACTUAL_SOURCE_CORPUS_KIND,
+        FAMILY_FEATURE_CONFIG_SCHEMA,
+        SemanticFeatureConfig,
+        build_semantic_program_corpus_for_config,
+    )
 
     config = SemanticFeatureConfig(seed=41, corpus_kind=COUNTERFACTUAL_SOURCE_CORPUS_KIND,
                                    schema=FAMILY_FEATURE_CONFIG_SCHEMA, max_examples=4096)
@@ -212,12 +314,16 @@ def test_existing_feature_materializer_can_acquire_counterfactual_training():
 
 
 def test_v2_feature_materializer_uses_source_hash_lineage_without_changing_v1():
+    from core.learning.semantic_program_corpus_natural import (
+        build_semantic_program_natural_source_corpus,
+    )
     from core.learning.semantic_program_feature_materialization import (
-        COUNTERFACTUAL_SOURCE_CORPUS_KIND, COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND,
-        FAMILY_FEATURE_CONFIG_SCHEMA, SemanticFeatureConfig,
+        COUNTERFACTUAL_SOURCE_CORPUS_KIND,
+        COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND,
+        FAMILY_FEATURE_CONFIG_SCHEMA,
+        SemanticFeatureConfig,
         build_semantic_program_corpus_for_config,
     )
-    from core.learning.semantic_program_corpus_natural import build_semantic_program_natural_source_corpus
 
     def generated(kind):
         return build_semantic_program_corpus_for_config(SemanticFeatureConfig(
@@ -237,13 +343,20 @@ def test_v2_feature_materializer_uses_source_hash_lineage_without_changing_v1():
 
 def test_counterfactual_features_roundtrip_through_the_existing_bundle(tmp_path):
     import asyncio
+
     from core.learning.semantic_program_feature_materialization import (
-        SemanticFeatureConfig, FAMILY_FEATURE_CONFIG_SCHEMA, build_semantic_program_corpus_for_config,
-        COUNTERFACTUAL_SOURCE_CORPUS_KIND, materialize_semantic_program_features,
+        COUNTERFACTUAL_SOURCE_CORPUS_KIND,
+        FAMILY_FEATURE_CONFIG_SCHEMA,
+        SemanticFeatureConfig,
+        build_semantic_program_corpus_for_config,
         load_standard_semantic_feature_bundle,
+        materialize_semantic_program_features,
     )
     from tests.test_semantic_program_feature_materialization import (
-        _FeatureClient, _CharacterTokenizer, _lane_receipt, _tokenizer_identity,
+        _CharacterTokenizer,
+        _FeatureClient,
+        _lane_receipt,
+        _tokenizer_identity,
     )
     checkpoint = tmp_path / 'model'
     checkpoint.mkdir()

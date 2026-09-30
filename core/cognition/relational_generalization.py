@@ -201,6 +201,7 @@ class EvidenceRecord:
     falsification_attempt: bool = False
     evidence: str = ""
     source_id: str = ""
+    source_group_id: str = ""
 
     def __post_init__(self) -> None:
         if not self.context_id.strip() or not self.outcome.strip() or not self.evidence.strip():
@@ -209,6 +210,14 @@ class EvidenceRecord:
             raise ValueError("evidence verdicts must be measured booleans")
         if not isinstance(self.source_id, str):
             raise ValueError("evidence source identity must be a string")
+        if not isinstance(self.source_group_id, str):
+            raise ValueError("evidence source group identity must be a string")
+        if self.source_group_id and not self.source_id:
+            raise ValueError("evidence source group needs an identified source")
+
+    @property
+    def support_identity(self) -> str:
+        return self.source_group_id or self.source_id
 
 
 @dataclass
@@ -226,7 +235,13 @@ class PrincipleCandidate:
 
     @property
     def independent_sources(self) -> int:
-        return len({record.source_id for record in self.records if record.source_id})
+        return len({record.support_identity for record in self.records
+                    if record.support_identity})
+
+    @property
+    def independent_support(self) -> int:
+        return len({record.support_identity for record in self.records
+                    if record.supports and record.support_identity})
 
     @property
     def support(self) -> int:
@@ -244,7 +259,7 @@ class PrincipleCandidate:
         if self.contradictions:
             return "needs_revision"
         if (
-            self.support >= minimum_support
+            self.independent_support >= minimum_support
             and self.independent_contexts >= minimum_contexts
             and self.independent_sources >= minimum_contexts
             and self.falsifications >= 1
@@ -474,12 +489,13 @@ class RelationalGeneralizer:
         falsification_attempt: bool = False,
         evidence: str = "",
         source_id: str = "",
+        source_group_id: str = "",
     ) -> PrincipleCandidate:
         """Add one outcome without turning a single example into a principle."""
         if not context_id or not outcome:
             raise ValueError("relational evidence needs context and outcome")
         record = EvidenceRecord(context_id, outcome, supports, falsification_attempt,
-                                evidence, source_id)
+                                evidence, source_id, source_group_id)
         if not interpretation.hypothesis.strip():
             raise ValueError("interpretations need hypotheses")
         key = (case.shape_key, interpretation.hypothesis)
@@ -489,7 +505,8 @@ class RelationalGeneralizer:
         for previous in candidate.records:
             if previous.evidence == record.evidence:
                 if (previous.supports != record.supports or previous.outcome != record.outcome
-                        or previous.source_id != record.source_id):
+                        or previous.source_id != record.source_id
+                        or previous.source_group_id != record.source_group_id):
                     raise ValueError("one evidence identity cannot carry conflicting outcomes")
                 return candidate
         candidate.records.append(record)

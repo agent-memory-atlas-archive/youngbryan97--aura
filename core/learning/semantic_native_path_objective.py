@@ -90,7 +90,8 @@ def native_grammar_path_objective(scorer: Callable[[str], mx.array], decisions: 
     contrasts = [] if pair is None else [(pair, partner_decisions)]
     if typed_pairs is not None:
         kinds = [row["kind"] for row in typed_pairs]
-        if (not typed_pairs or len(kinds) != len(set(kinds))
+        indices = [row["decision_index"] for row in typed_pairs]
+        if (not typed_pairs or indices != sorted(set(indices))
                 or not set(kinds) <= {"operation", "reference", "termination"}
                 or any(row["partner"] not in partners for row in typed_pairs)):
             raise ValueError("native path objective typed contrast inventory differs")

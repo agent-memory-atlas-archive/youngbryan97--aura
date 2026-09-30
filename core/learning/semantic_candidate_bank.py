@@ -23,7 +23,7 @@ from core.learning.semantic_program_transducer_fitting import _assign_typed_argu
 from core.verify.invariants import invariant
 
 if TYPE_CHECKING:
-    from core.learning.semantic_meaning_hypothesis import MeaningHypothesis
+    from core.learning.semantic_meaning_hypothesis import MeaningHypothesis, MeaningTrajectory
 
 
 @dataclass(frozen=True)
@@ -100,6 +100,14 @@ class SemanticCandidateBank:
         from core.learning.semantic_meaning_hypothesis import meaning_hypotheses_from_bank
 
         return meaning_hypotheses_from_bank(self)
+
+    def meaning_trajectories(self, public_inputs: tuple[Any, ...], *, fuel: int = 100_000
+                             ) -> tuple["MeaningTrajectory", ...]:
+        """Predict each retained proposal's source-bound state transitions."""
+        from core.learning.semantic_meaning_hypothesis import predict_meaning_trajectory
+
+        return tuple(predict_meaning_trajectory(hypothesis, public_inputs, fuel=fuel)
+                     for hypothesis in self.meaning_hypotheses())
 
     def validate(self) -> None:
         """Reject modified payloads before they can become diagnostic evidence."""

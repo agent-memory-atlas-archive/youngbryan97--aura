@@ -7,14 +7,15 @@ targets and counterfactual probes are never runtime answer inputs.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+import random
 from collections import OrderedDict
+from collections.abc import Sequence
 from copy import deepcopy
 from dataclasses import dataclass
-import random
+from typing import Any
 
 from core.cognition.the_floor_she_stands_on import Stuck
-from core.learning.procedure_induction import Instruction, Program, _UNDEFINED
+from core.learning.procedure_induction import _UNDEFINED, Instruction, Program
 from core.learning.semantic_argument_chart import ScoredArgumentChart
 from core.learning.semantic_argument_optimization import ArgumentOptimizationIncompleteError
 from core.learning.semantic_program_campaign import _sha
@@ -26,7 +27,6 @@ from core.learning.semantic_program_floor import (
 )
 from core.learning.semantic_program_transducer_fitting import _operation_order
 from core.verify.invariants import invariant
-from typing import Any
 
 
 def counterfactual_inputs(inputs: Any, *, count: int=32, seed: int=0) -> tuple[Any, ...]:
@@ -45,6 +45,41 @@ def counterfactual_inputs(inputs: Any, *, count: int=32, seed: int=0) -> tuple[A
         probes.append(tuple(rng.choice(sequence_values if isinstance(value, tuple) else integer_values)
                             for value in inputs))
     return tuple(dict.fromkeys(probes))
+
+
+def controlled_counterfactual_inputs(
+    inputs: Any, *, count: int=32, seed: int=0,
+) -> tuple[tuple[Any, ...], ...]:
+    """Probe one public input at a time, preserving every other typed value.
+
+    These interventions expose operand-role sensitivity. They are program
+    predictions, not observations that establish the source's intended role.
+    """
+    if type(count) is not int or count < 0:
+        raise ValueError("controlled counterfactual count must be nonnegative")
+    base = tuple(inputs)
+    if any(type(value) is not int and not (
+        type(value) is tuple and all(type(item) is int for item in value)
+    ) for value in base):
+        raise ValueError("controlled counterfactuals require typed public inputs")
+    integer_values = (-3, -1, 0, 1, 2, 5, 11)
+    sequence_values = ((), (0,), (1, -1), (2, 2, 3), (5, 1, -3, 2))
+    rng = random.Random(seed)
+    alternatives: list[list[Any]] = []
+    for index, value in enumerate(base):
+        pool = [replacement for replacement in (
+            sequence_values if type(value) is tuple else integer_values
+        ) if replacement != value]
+        rng.shuffle(pool)
+        alternatives.append(pool)
+    candidates: list[tuple[Any, ...]] = []
+    for ordinal in range(max((len(pool) for pool in alternatives), default=0)):
+        for index, pool in enumerate(alternatives):
+            if ordinal < len(pool):
+                changed = list(base)
+                changed[index] = pool[ordinal]
+                candidates.append(tuple(changed))
+    return (base, *candidates[:count])
 
 
 def argument_graph_order(nodes: Any, arguments: Any, *, n_inputs: int) -> tuple[int, ...]:

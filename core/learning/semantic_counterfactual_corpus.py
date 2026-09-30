@@ -1,27 +1,61 @@
 """Program-first language variations with independently checked semantic contrasts."""
 
-from dataclasses import replace
-from collections.abc import Iterator
-from collections import defaultdict
 import hashlib
 import random
 import string
+from collections import defaultdict
+from collections.abc import Iterator
+from dataclasses import replace
+from typing import Any
 
 from core.learning.procedure_induction import Instruction
 from core.learning.semantic_graph_counterexamples import (
-    ProgramObservationCache, compare_program_meanings, counterfactual_inputs,
+    ProgramObservationCache,
+    compare_program_meanings,
+    counterfactual_inputs,
 )
 from core.learning.semantic_program_campaign import _sha
 from core.learning.semantic_program_corpus import (
-    SemanticInstructionAnnotation, _AnnotatedText, _append_natural_binary_operation,
+    SemanticInstructionAnnotation,
+    _AnnotatedText,
+    _append_natural_binary_operation,
 )
 from core.learning.semantic_program_floor import (
-    compile_source_independent_program_to_floor, execute_semantic_floor_program,
-    semantic_primitive_type_signature, semantic_program_structural_key,
+    compile_source_independent_program_to_floor,
+    execute_semantic_floor_program,
+    semantic_primitive_type_signature,
+    semantic_program_structural_key,
 )
-from typing import Any
 
 _BINARY_LANGUAGE = ('add', 'sub', 'mul', 'idiv', 'at', 'count_of')
+_RENDER_STYLES = ('obtain', 'record', 'define', 'name_after')
+
+
+def _append_bound_expression(text: _AnnotatedText, *, operation: str, ordinal: int,
+                             left: str, right: str, labels: tuple[str, str]) -> None:
+    """Use a first-operand-first expression with the same typed role spans."""
+    label = f'natural:operation:{ordinal}'
+    if operation == 'idiv':
+        text.append('the whole-number quotient of ', label=label)
+    elif operation == 'at':
+        text.append('the item of ', label=label)
+    elif operation == 'count_of':
+        text.append('the count in ', label=label)
+    text.append(left, label=labels[0])
+    if operation in ('add', 'sub', 'mul'):
+        text.append(' ')
+        text.append({'add': 'plus', 'sub': 'minus', 'mul': 'times'}[operation],
+                    label=label)
+        text.append(' ')
+    elif operation == 'idiv':
+        text.append(' divided by ')
+    elif operation == 'at':
+        text.append(' at index ')
+    elif operation == 'count_of':
+        text.append(' of ')
+    else:
+        raise ValueError('counterfactual expression operation is unsupported')
+    text.append(right, label=labels[1])
 
 
 def render_bound_program(
@@ -31,6 +65,7 @@ def render_bound_program(
     clause_order: list[Any],
     program: Any=None,
     lineage_version: int=1,
+    render_style: str='obtain',
 ) -> Any:
     """Render named dependencies independently of their textual clause order."""
     program = source.program if program is None else program
@@ -43,7 +78,8 @@ def render_bound_program(
             or any(type(index) is not int for index in clause_order)
             or sorted(clause_order) != list(range(len(program.instructions)))
             or any(ins.op not in _BINARY_LANGUAGE for ins in program.instructions)
-            or lineage_version not in (1, 2)):
+            or lineage_version not in (1, 2)
+            or render_style not in _RENDER_STYLES):
         raise ValueError('counterfactual source or rendering contract is unsupported')
     types = ['integer_sequence' if isinstance(value, tuple) else 'integer' for value in source.inputs]
     for ins in program.instructions:
@@ -72,12 +108,26 @@ def render_bound_program(
     annotations = {}
     for ordinal in clause_order:
         ins = program.instructions[ordinal]
-        text.append('To obtain ')
-        text.append(names[count + ordinal], label=f'definition:{count + ordinal}')
-        text.append(', ')
+        if render_style == 'name_after':
+            text.append('Compute: ')
+        else:
+            text.append({
+                'obtain': 'To obtain ',
+                'record': 'Record ',
+                'define': 'Define ',
+            }[render_style])
+            text.append(names[count + ordinal], label=f'definition:{count + ordinal}')
+            text.append({
+                'obtain': ', ',
+                'record': ' as ',
+                'define': ' as the result when you ',
+            }[render_style])
         left, right = (names[index] for index in ins.args)
         labels = (f'argument:{ordinal}:0', f'argument:{ordinal}:1')
-        if ins.op in ('at', 'count_of'):
+        if render_style in ('record', 'name_after'):
+            _append_bound_expression(text, operation=ins.op, ordinal=ordinal,
+                                     left=left, right=right, labels=labels)
+        elif ins.op in ('at', 'count_of'):
             text.append('select the item at' if ins.op == 'at' else 'count', label=f'natural:operation:{ordinal}')
             text.append(' ' if ins.op == 'at' else ' how often ')
             text.append(right, label=labels[1])
@@ -86,6 +136,9 @@ def render_bound_program(
         else:
             _append_natural_binary_operation(text, op=ins.op, ordinal=ordinal,
                 left_text=left, left_label=labels[0], right_text=right, right_label=labels[1])
+        if render_style == 'name_after':
+            text.append('; name that value ')
+            text.append(names[count + ordinal], label=f'definition:{count + ordinal}')
         text.append('. ')
         annotations[ordinal] = SemanticInstructionAnnotation(ins, text.span(f'natural:operation:{ordinal}'),
             tuple(text.span(label) for label in labels), tuple(sorted({arg - count for arg in ins.args if arg >= count})))
@@ -219,6 +272,7 @@ def cross_construction_relation_controls(examples: tuple[Any, ...]) -> dict[str,
     a pair, and a merely type-compatible but unproved rival is not a negative.
     """
     from itertools import combinations
+
     from core.learning.semantic_candidate_contrasts import source_program_factor_contrasts
 
     grouped = _source_relation_records(examples)
@@ -266,10 +320,15 @@ def augment_source_programs(
     variations: int=2,
     forbidden_constructions: tuple[Any, ...]=(),
     lineage_version: int=1,
+    mutation_policy: str='first',
+    render_styles: tuple[str, ...]=('obtain',),
 ) -> tuple[tuple[Any, ...], dict[str, Any]]:
     """Rename/reorder source programs and retain only witnessed meaning changes."""
     if (type(seed) is not int or type(variations) is not int or variations < 1
-            or lineage_version not in (1, 2)):
+            or lineage_version not in (1, 2)
+            or mutation_policy not in ('first', 'all_witnessed')
+            or not render_styles or len(set(render_styles)) != len(render_styles)
+            or any(style not in _RENDER_STYLES for style in render_styles)):
         raise ValueError('counterfactual generation settings are invalid')
     examples = tuple(examples)
     sources = tuple(item for item in examples if item.split == 'train')
@@ -291,7 +350,8 @@ def augment_source_programs(
                 names = _names(rng, len(names))
             try:
                 rendered = render_bound_program(source, names=names, clause_order=order,
-                                                lineage_version=lineage_version)
+                                                lineage_version=lineage_version,
+                                                render_style=render_styles[variant % len(render_styles)])
             except ValueError as exc:
                 records.append({'source': source.example_id, 'status': 'unsupported', 'reason': str(exc)})
                 break
@@ -303,7 +363,8 @@ def augment_source_programs(
         else:
             for program in equivalent_recompositions(source.program):
                 rendered = render_bound_program(source, names=names, clause_order=order,
-                                                program=program, lineage_version=lineage_version)
+                                                program=program, lineage_version=lineage_version,
+                                                render_style=render_styles[0])
                 rows.append(rendered)
                 records.append({'source': source.example_id, 'example': rendered.example_id,
                     'status': 'equivalent', 'transformation': 'associative_recomposition',
@@ -318,22 +379,31 @@ def augment_source_programs(
                 if len(set(ins.args)) == 2:
                     mutations.append((index, Instruction(ins.op, tuple(reversed(ins.args)))))
             rng.shuffle(mutations)
-            for index, instruction in mutations:
+            witnessed = 0
+            for mutation_ordinal, (index, instruction) in enumerate(mutations):
                 program = replace(source.program, instructions=tuple(
                     instruction if ordinal == index else ann.instruction for ordinal, ann in enumerate(source.instructions)))
                 try:
                     rendered = render_bound_program(source, names=names, clause_order=order,
-                                                    program=program, lineage_version=lineage_version)
+                                                    program=program, lineage_version=lineage_version,
+                                                    render_style=render_styles[mutation_ordinal % len(render_styles)])
                 except ValueError:
                     continue
                 comparison = compare_program_meanings(source.program, program, counterfactual_inputs(source.inputs))
-                if comparison['status'] != 'different':
+                if comparison['status'] != 'different' or comparison.get('witness') is None:
                     continue
                 rows.append(rendered)
-                records.append({'source': source.example_id, 'example': rendered.example_id,
-                                'status': 'different', 'comparison': comparison})
-                break
-            else:
+                record = {'source': source.example_id, 'example': rendered.example_id,
+                          'status': 'different', 'comparison': comparison}
+                if mutation_policy == 'all_witnessed':
+                    record.update(mutation_step=index,
+                                  mutation_kind=('operation' if instruction.op !=
+                                                 source.instructions[index].instruction.op else 'role'))
+                records.append(record)
+                witnessed += 1
+                if mutation_policy == 'first':
+                    break
+            if not witnessed:
                 records.append({'source': source.example_id, 'status': 'no_witnessed_mutation'})
     body = {'schema': 'aura.semantic_counterfactual_corpus.v1', 'seed': seed, 'variations': variations,
         'source_training_ids': sorted(item.example_id for item in sources),
@@ -342,6 +412,10 @@ def augment_source_programs(
         'generated_examples': len(rows), 'test_examples_used': 0, 'serving_authority': False}
     if lineage_version == 2:
         body['lineage_version'] = 2
+    if mutation_policy != 'first':
+        body['mutation_policy'] = mutation_policy
+    if render_styles != ('obtain',):
+        body['render_styles'] = list(render_styles)
     return tuple(rows), {**body, 'receipt_sha256': _sha(body)}
 
 
@@ -352,7 +426,9 @@ def build_semantic_counterfactual_source_corpus(
     lineage_version: int=1,
 ) -> Any:
     """Augment existing natural source training, never its validation/test domains."""
-    from core.learning.semantic_program_corpus_natural import build_semantic_program_natural_source_corpus
+    from core.learning.semantic_program_corpus_natural import (
+        build_semantic_program_natural_source_corpus,
+    )
 
     sources = build_semantic_program_natural_source_corpus(
         seed=seed, examples_per_schema_domain=examples_per_schema_domain)
@@ -361,3 +437,27 @@ def build_semantic_counterfactual_source_corpus(
     if any(row['status'] == 'unsupported' for row in receipt['records']):
         raise ValueError('declared counterfactual source corpus has unsupported programs')
     return rows
+
+
+def build_semantic_counterfactual_fork_join_corpus(
+    *, seed: int=0, examples_per_operation_triple: int=1,
+) -> Any:
+    """Cross fit wordings/topologies before making witnessed step contrasts."""
+    from core.learning.semantic_program_corpus import (
+        build_semantic_program_fork_join_corpus,
+        build_semantic_program_fork_join_factorial_corpus,
+    )
+
+    fit_topologies = {item.topology_id for item in build_semantic_program_fork_join_corpus(
+        seed=seed, examples_per_operation_triple=1) if item.split == 'train'}
+    sources = tuple(replace(item, contrast_id=hashlib.sha256(
+        item.source_text.encode('utf-8')).hexdigest())
+        for item in build_semantic_program_fork_join_factorial_corpus(
+        seed=seed, examples_per_cell=examples_per_operation_triple)
+        if item.split == 'train' and item.topology_id in fit_topologies)
+    rows, receipt = augment_source_programs(
+        sources, seed=seed, variations=len(_RENDER_STYLES), lineage_version=2,
+        mutation_policy='all_witnessed', render_styles=_RENDER_STYLES)
+    if any(row['status'] == 'unsupported' for row in receipt['records']):
+        raise ValueError('fork/join counterfactual source corpus has unsupported programs')
+    return (*sources, *rows)

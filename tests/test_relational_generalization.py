@@ -84,6 +84,32 @@ def test_relabelled_contexts_from_one_source_do_not_certify_principle():
     assert candidate.status(minimum_support=2, minimum_contexts=2) == "provisional"
 
 
+def test_correlated_artifacts_do_not_supply_extra_independent_support():
+    left, right = cases()
+    model = RelationalGeneralizer(minimum_support=3, minimum_contexts=2)
+    interpretation = Interpretation("retrieve")
+    candidate = model.observe(left, interpretation, outcome="found", context_id="one",
+                              supports=True, evidence="page-a", source_id="page-a",
+                              source_group_id="publisher-one")
+    model.observe(right, interpretation, outcome="found", context_id="two",
+                  supports=True, falsification_attempt=True, evidence="page-b",
+                  source_id="page-b", source_group_id="publisher-one")
+    model.observe(left, interpretation, outcome="found", context_id="three",
+                  supports=True, evidence="measurement-c", source_id="sensor-c",
+                  source_group_id="sensor-c")
+    assert candidate.support == 3
+    assert candidate.independent_support == candidate.independent_sources == 2
+    assert candidate.status(minimum_support=3, minimum_contexts=2) == "provisional"
+    model.observe(right, interpretation, outcome="found", context_id="four",
+                  supports=True, evidence="measurement-d", source_id="sensor-d",
+                  source_group_id="sensor-d")
+    assert candidate.independent_support == 3
+    assert candidate.status(minimum_support=3, minimum_contexts=2) == "consolidated"
+    with pytest.raises(ValueError, match="group needs an identified source"):
+        model.observe(left, interpretation, outcome="found", context_id="five",
+                      supports=True, evidence="unattributed", source_group_id="publisher-two")
+
+
 def test_contradiction_requests_revision_and_records_continuity():
     left, _ = cases()
     model = RelationalGeneralizer()

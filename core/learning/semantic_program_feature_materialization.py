@@ -93,6 +93,7 @@ NATURAL_WEAVE_DEFINITION_CORPUS_KIND: Final = "natural_weave_replication_6x5_def
 NATURAL_IDENTITY_SOURCE_CORPUS_KIND: Final = "natural_identity_source_linear_3x2"
 COUNTERFACTUAL_SOURCE_CORPUS_KIND: Final = "counterfactual_natural_source_v1"
 COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND: Final = "counterfactual_natural_source_v2"
+COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND: Final = "counterfactual_fork_join_source_v1"
 SEMANTIC_CORPUS_KINDS: Final = frozenset(
     {
         CHAIN_CORPUS_KIND,
@@ -110,6 +111,7 @@ SEMANTIC_CORPUS_KINDS: Final = frozenset(
         NATURAL_SOURCE_CORPUS_KIND,
         COUNTERFACTUAL_SOURCE_CORPUS_KIND,
         COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND,
+        COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND,
         SEQUENCE_BINARY_CHAIN_CORPUS_KIND,
         SEQUENCE_CATAPHORIC_CORPUS_KIND,
         SEQUENCE_RESERVED_ALIAS_CORPUS_KIND,
@@ -218,11 +220,21 @@ def build_semantic_program_corpus_for_config(
 
     if config.corpus_kind in {COUNTERFACTUAL_SOURCE_CORPUS_KIND,
                               COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND}:
-        from core.learning.semantic_counterfactual_corpus import build_semantic_counterfactual_source_corpus
+        from core.learning.semantic_counterfactual_corpus import (
+            build_semantic_counterfactual_source_corpus,
+        )
 
         return build_semantic_counterfactual_source_corpus(
             seed=config.seed, examples_per_schema_domain=config.examples_per_operation_pair,
             lineage_version=2 if config.corpus_kind == COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND else 1)
+
+    if config.corpus_kind == COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND:
+        from core.learning.semantic_counterfactual_corpus import (
+            build_semantic_counterfactual_fork_join_corpus,
+        )
+
+        return build_semantic_counterfactual_fork_join_corpus(
+            seed=config.seed, examples_per_operation_triple=config.examples_per_operation_pair)
 
     if config.corpus_kind == CHAIN_CORPUS_KIND:
         return build_semantic_program_corpus(
@@ -1609,6 +1621,7 @@ __all__ = [
     "NATURAL_IDENTITY_SOURCE_CORPUS_KIND",
     "COUNTERFACTUAL_SOURCE_CORPUS_KIND",
     "COUNTERFACTUAL_SOURCE_CORPUS_V2_KIND",
+    "COUNTERFACTUAL_FORK_JOIN_CORPUS_KIND",
     "NATURAL_REPLICATION_CORPUS_KIND",
     "NATURAL_REQUEST_CORPUS_KIND",
     "NATURAL_SOURCE_CORPUS_KIND",

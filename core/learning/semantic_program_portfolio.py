@@ -12,19 +12,25 @@ from core.evidence.necessary_condition_selector import (
     NecessaryEvidenceCondition,
     build_necessary_condition_selector,
 )
-from core.evidence.packet import observe, fuse
+from core.evidence.packet import fuse, observe
 from core.learning.procedure_induction import Program
-from core.learning.semantic_program_composition import ProgramComposition, compose_semantic_programs
 from core.learning.semantic_graph_counterexamples import (
-    ProgramObservationCache, compare_program_meanings,
+    ProgramObservationCache,
+    compare_program_meanings,
+    controlled_counterfactual_inputs,
     counterfactual_inputs,
 )
+from core.learning.semantic_program_composition import ProgramComposition, compose_semantic_programs
 from core.learning.semantic_program_floor import (
     compile_source_independent_program_to_floor,
     execute_semantic_floor_program,
 )
 
 if TYPE_CHECKING:
+    from core.learning.semantic_meaning_hypothesis import (
+        GroundedProgramProposal,
+        MeaningStageInquiry,
+    )
     from core.learning.semantic_program_inquiry import ProgramInquiry
     from core.runtime.gateways import StateGateway, StateMutationReceipt
 
@@ -38,6 +44,7 @@ class SemanticProgramPortfolio:
     composition: ProgramComposition | None = None
     source_sha256: str = ""
     public_inputs: tuple = ()
+    source_bound_proposals: tuple["GroundedProgramProposal", ...] = ()
 
     @property
     def selected_program(self) -> Program | None:
@@ -47,10 +54,36 @@ class SemanticProgramPortfolio:
         """Use retained disagreement witnesses to plan actual observations."""
         from core.learning.semantic_program_inquiry import plan_program_inquiries
 
-        probes = counterfactual_inputs(self.public_inputs, count=16)
+        probes = tuple(dict.fromkeys((
+            *controlled_counterfactual_inputs(self.public_inputs, count=8),
+            *counterfactual_inputs(self.public_inputs, count=8),
+        )))
         return plan_program_inquiries(
             {name: program for name, program in self.proposals if program is not None},
             probes, fuel=fuel, source_sha256=self.source_sha256)
+
+    def plan_stage_inquiries(self, *, fuel: int = 100_000,
+                             max_inquiries: int = 8) -> tuple["MeaningStageInquiry", ...]:
+        """Plan observable intermediate tests for source-bound interpretations."""
+        if not self.source_bound_proposals:
+            return ()
+        from core.learning.semantic_meaning_hypothesis import plan_meaning_stage_inquiries
+
+        probes = tuple(dict.fromkeys((
+            self.public_inputs,
+            *controlled_counterfactual_inputs(self.public_inputs, count=8),
+            *counterfactual_inputs(self.public_inputs, count=8),
+        )))
+        return plan_meaning_stage_inquiries(self.source_bound_proposals, probes,
+                                            max_inquiries=max_inquiries, fuel=fuel)
+
+    def reconcile_stage_inquiries(
+        self, feedback: Iterable[tuple["MeaningStageInquiry", int | tuple[int, ...], str, str]], *,
+        fuel: int = 100_000,
+    ) -> CandidatePortfolioDecision | None:
+        from core.learning.semantic_meaning_hypothesis import reconcile_meaning_stage_inquiries
+
+        return reconcile_meaning_stage_inquiries(self, tuple(feedback), fuel=fuel)
 
     async def retain_inquiries(self, gateway: "StateGateway", *,
                                fuel: int = 100_000) -> tuple["StateMutationReceipt", ...]:
@@ -59,6 +92,46 @@ class SemanticProgramPortfolio:
 
         inquiries = await off_the_loop(self.plan_inquiries, fuel=fuel)
         return tuple([await inquiry.retain(gateway) for inquiry in inquiries])
+
+    async def retain_stage_inquiries(self, gateway: "StateGateway", *,
+                                     fuel: int = 100_000) -> tuple["StateMutationReceipt", ...]:
+        """Retain source-aligned step questions without blocking the event loop."""
+        from core.runtime.executors import off_the_loop
+
+        inquiries = await off_the_loop(self.plan_stage_inquiries, fuel=fuel)
+        return tuple([await inquiry.retain(gateway) for inquiry in inquiries])
+
+    async def reconcile_retained_stage_inquiries(
+        self, gateway: "StateGateway", *, fuel: int = 100_000,
+    ) -> CandidatePortfolioDecision | None:
+        """Replay retained observations against the same source-bound proposal set."""
+        from core.learning.semantic_meaning_hypothesis import (
+            MeaningStageInquiry,
+            ObservedMeaningStageInquiry,
+        )
+        from core.runtime.executors import off_the_loop
+
+        if not self.source_bound_proposals:
+            return None
+        pending = await gateway.snapshot(domain="semantic_stage_inquiries")
+        observed = await ObservedMeaningStageInquiry.restore_all(gateway)
+        source = self.source_bound_proposals[0].hypothesis.source_text_sha256
+        bank = self.source_bound_proposals[0].hypothesis.bank_receipt_sha256
+        proposal_receipts = {item.receipt_sha256 for item in self.source_bound_proposals}
+        feedback = []
+        for record in observed:
+            inquiry = record.inquiry
+            if (inquiry.source_text_sha256 != source
+                    or inquiry.bank_receipt_sha256 != bank
+                    or {receipt for receipt, _ in inquiry.predictions} != proposal_receipts):
+                continue
+            retained = pending.get(inquiry.identity)
+            if retained is None or MeaningStageInquiry.from_dict(retained) != inquiry:
+                raise ValueError("observed stage inquiry lacks its retained distinction")
+            feedback.append((inquiry, record.observed_result, record.origin, record.ref))
+        if not feedback:
+            return self.decision
+        return await off_the_loop(self.reconcile_stage_inquiries, feedback, fuel=fuel)
 
     async def reconcile_retained_inquiries(self, gateway: "StateGateway", *,
                                            fuel: int = 100_000) -> CandidatePortfolioDecision | None:
