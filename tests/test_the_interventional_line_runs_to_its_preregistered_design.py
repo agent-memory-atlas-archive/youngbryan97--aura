@@ -139,7 +139,10 @@ def _sweep(decided: int, **over) -> dict:
         "cuts_decided": decided, "undecided": [] if decided == 511 else ["P|IAGCSMWDN"],
         "playback_decided": 0, "paired": isc_v5.PAIRED,
         # Both preregistered, and both refused when a sweep does not carry them.
-        "estimator": isc_v5.ESTIMATOR, "one_signal": isc_v5.ONE_SIGNAL, **over,
+        "estimator": isc_v5.ESTIMATOR, "one_signal": isc_v5.ONE_SIGNAL,
+        # And the late untouched fork, read after the last cut and not decided.
+        "late_fork": {"decided": False, "lower_bound": -1e-9, "anchors": 128},
+        **over,
     }
 
 
@@ -239,3 +242,85 @@ def test_the_fingerprint_moves_with_the_design() -> None:
     plain = campaign_v25(**base)["fingerprint"]
     v5 = campaign_v25(**base, design=isc_v5.design())["fingerprint"]
     assert plain != v5
+
+
+def test_a_sweep_whose_late_fork_was_decided_or_not_read_is_not_irreducible() -> None:
+    """Each anchor's untouched forks are rolled with its first cut and reused.
+
+    A later cut's arm is rolled hundreds of turns afterwards, from a process
+    that has changed in ways the snapshot does not carry, so a third untouched
+    fork is read after the last cut as a cut against the cached one. Decided,
+    drift alone clears the bar; unread, nothing said it did not.
+    """
+    drifted = isc_v5.lines(
+        _sweep(511, late_fork={"decided": True, "lower_bound": 0.01, "anchors": 128}),
+        playback_decided=0, nulls_that_pass=[], null_sweeps={},
+    )
+    assert [line["passed"] for line in drifted] == [False, False]
+    assert "drift alone" in drifted[0]["why"]
+    unread = isc_v5.lines(_sweep(511, late_fork=None), playback_decided=0, nulls_that_pass=[], null_sweeps={})
+    assert [line["passed"] for line in unread] == [False, False]
+    assert "no late untouched fork" in unread[0]["why"]
+    assert isc_v5.design()["late_fork"] is True
+
+
+def test_the_late_fork_is_read_by_the_cut_s_own_rule_and_merges_as_any() -> None:
+    from core.subject.v25_cut import late_fork_decided
+
+    rng = np.random.default_rng(3)
+    n, width = 32, 12
+    cached_a = rng.normal(size=(n, width))
+    cached_b = cached_a + rng.normal(scale=0.05, size=(n, width))
+    same = cached_a + rng.normal(scale=0.05, size=(n, width))
+    moved = same + np.r_[0.8, np.zeros(width - 1)]
+    base = {"context": np.zeros((n, 3)), "intact": cached_a, "sham_a": cached_a, "sham_b": cached_b,
+            "reached": np.ones((n, 1))}
+    kwargs = dict(tau_seconds=2.0, seed=1, alpha=0.05 / 6, draws=500, paired=True, estimator="displacement")
+    assert late_fork_decided({**base, "cut": same}, **kwargs)["decided"] is False
+    assert late_fork_decided({**base, "cut": moved}, **kwargs)["decided"] is True
+
+    row = {"cut": "A|B", "left": ["A"], "right": ["B"], "decided": True, "lower_bound": 0.1, "excess": 0.2,
+           "anchors_used": 8}
+    shard = {"tau_seconds": 1.0, "looks": [8], "alpha_per_look": 0.05, "draws": 200, "paired": True,
+             "estimator": "displacement", "one_signal": True}
+    clean = {**shard, "verdicts": [row], "late_fork": {"decided": False, "lower_bound": -0.1, "anchors": 8}}
+    drifted = {**shard, "verdicts": [{**row, "cut": "B|A"}],
+               "late_fork": {"decided": True, "lower_bound": 0.02, "anchors": 8}}
+    assert merge_sweeps([clean, drifted], cuts_in_full=2).as_dict()["late_fork"]["decided"] is True
+    assert merge_sweeps([clean, {**drifted, "late_fork": None}], cuts_in_full=2).as_dict()["late_fork"] is None
+
+
+def test_late_forks_are_rolled_from_the_anchors_the_sweep_cached() -> None:
+    import asyncio
+
+    from core.subject.v25_runtime import collect_late_forks
+
+    class _Frame:
+        def __init__(self, value: float) -> None:
+            self.value = value
+
+        def vector(self):
+            return np.full(3, self.value)
+
+    class _Runtime:
+        def __init__(self) -> None:
+            self.at = 0.0
+
+        def restore(self, snapshot) -> None:
+            self.at = float(snapshot)
+
+        async def turn_once(self, condition):
+            self.at += 1.0
+            return [_Frame(self.at)]
+
+    conditions = [SimpleNamespace(name="a"), SimpleNamespace(name="b")]
+    anchors = [SimpleNamespace(snapshot=10.0 * i, current=np.zeros(2)) for i in range(3)]
+    cached = {(i, conditions[i % 2].name, 2): ({2: np.full(3, 10.0 * i + 2)}, {2: np.full(3, 10.0 * i + 2)}, 2)
+              for i in (0, 2)}
+    samples = asyncio.run(collect_late_forks(_Runtime(), anchors, conditions, cached, turns=2, lag=2))
+    # Anchor 1 was never cached, so it has nothing to be compared with.
+    assert samples["cut"].shape == (2, 3)
+    np.testing.assert_array_equal(samples["cut"][:, 0], [2.0, 22.0])
+    np.testing.assert_array_equal(samples["intact"], samples["sham_a"])
+    assert samples["context"].shape == (2, 4)
+    assert asyncio.run(collect_late_forks(_Runtime(), anchors, conditions, {}, turns=2, lag=2)) is None

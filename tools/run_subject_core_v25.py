@@ -580,6 +580,7 @@ async def _spectrum(
     spectrum: dict[float, float] = {}
     detail: dict[str, Any] = {}
     chosen = design or {}
+    untouched: dict = {}
     reports = await sweep_cuts_over_lags(
         runtime, anchors, conditions,
         lags=lags, frame_seconds=frame_seconds,
@@ -596,7 +597,10 @@ async def _spectrum(
         kept=None if keep_samples is None else (kept := {}),
         estimator=str(chosen.get("estimator") or "fisher_rao"),
         one_signal=bool(chosen.get("one_signal")),
+        untouched=untouched,
     )
+    if chosen.get("late_fork"):
+        await _read_the_late_forks(runtime, anchors, conditions, reports, untouched, turns=turns, seed=seed)
     if keep_samples is not None:
         detail["samples_file"] = str(await asyncio.to_thread(_save_cut_samples, keep_samples, kept))
     for lag in sorted(reports):
@@ -611,6 +615,49 @@ async def _spectrum(
             f"/{report.as_dict()['cuts_tested']} decided"
         )
     return spectrum, detail
+
+
+async def _read_the_late_forks(
+    runtime: Any,
+    anchors: Sequence[Any],
+    conditions: Sequence[Any],
+    reports: dict[int, Any],
+    untouched: dict,
+    *,
+    turns: int,
+    seed: int,
+) -> None:
+    """Each deciding horizon's late-fork control, on the anchors its cuts drew.
+
+    Only a sweep that ran to its end reads it: one that stopped at an undecided
+    cut has already refused the claim this control guards.
+    """
+    from core.subject.v25_cut import late_fork_decided
+    from core.subject.v25_runtime import collect_late_forks
+
+    for lag, report in reports.items():
+        if not report.deciding or report.stopped_after or not report.verdicts:
+            continue
+        drawn = max((v.anchors_used for v in report.verdicts), default=0)
+        samples = await collect_late_forks(
+            runtime, list(anchors[:drawn]), conditions, untouched, turns=turns, lag=int(lag)
+        )
+        if samples is None:
+            continue
+        report.late_fork = late_fork_decided(
+            samples,
+            tau_seconds=report.tau_seconds,
+            seed=seed + int(lag) + 7919,
+            alpha=report.alpha_per_look,
+            draws=report.draws,
+            paired=report.paired,
+            estimator=report.estimator or "fisher_rao",
+        )
+        _log(
+            f"  lag {lag:>3}: late untouched forks read as a cut, lower bound "
+            f"{report.late_fork['lower_bound']:.3g}, "
+            f"{'decided' if report.late_fork['decided'] else 'not decided'} on {report.late_fork['anchors']} anchors"
+        )
 
 
 def _save_cut_samples(target: Path, kept: dict[str, dict[int, dict[str, np.ndarray]]]) -> Path:
@@ -1038,6 +1085,7 @@ async def main() -> int:
         "paired": bool(args.v5 and preset["paired"]),
         "one_signal": bool(args.v5 and preset.get("one_signal")),
         "estimator": str(preset.get("estimator") or "fisher_rao") if args.v5 else "fisher_rao",
+        "late_fork": bool(args.v5 and preset.get("late_fork")),
     }
     if sweep_design["one_signal"]:
         # Before any estimate, and inherited by every process the draws spread to.

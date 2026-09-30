@@ -115,6 +115,49 @@ The coordinator at `bb3faa54a` refused authority for four reasons:
    already exist, so it is the arm most likely to decide C.
 4. The four arms' campaigns, as preregistered.
 
+### Evening: one organism across processes, and three things the machine lent her
+
+**Anchors travel.** A fork snapshot now crosses processes by pickle
+(`core/subject/anchor_travel.py`): her state by value, and what is not state
+(functions, runtime classes, locks, the loop, a handle on the writer's own
+process, class-held singletons) as markers the reader fills from its own
+snapshot or makes new. Three things the first probes found were real: a module
+object is kept beside its copy in the snapshot, so the reader's own must stay
+and take the writer's copy; the restore refuses stores saved under another
+root, so paths move to the reader's root; and unpickling a `__new__` singleton
+wrote the writer's state over the reader's live one. As restored, 0 of 438
+columns differ between two processes at every anchor (probe 9 onward).
+
+**The network and the entropy were the machine's.** After one turn the two
+processes differed in one fact: the connectivity status, a live TCP probe with
+its latency, written into her world facts every turn (0.078 of the fact
+profile). And the predictive self model adds managed entropy to every
+observation before its weight update, drawn from the ANU generator or
+`os.urandom`. Both are now declared with the host (`37e1e0374`, `af0f998b4`).
+
+**What is still left, and why seed 23 runs in one process.** Two workspace
+columns still differ after a turn, coherence by 0.37 of its spread and
+fragmentation by 0.18; within one process they repeat exactly, so their source
+is something that differs between processes from birth, not yet found. Until it
+is, a sharded sweep is a look and the decisive carrier runs in one process,
+about ten hours.
+
+**A drift the cached forks could hide.** Within one process a restored anchor
+does not carry everything: after sixteen more turns, 21 columns of the same
+turn differ, the substrate's minimum by 0.475 of its spread. Each anchor's
+untouched forks are rolled with its first cut and reused, so later cuts compare
+an arm rolled now with forks rolled much earlier. Measured directly, a third
+untouched fork rolled after three cuts at 16 anchors reads an excess of 2.0e-6
+as a cut, lower bound below zero, against 0.05 to 0.9 for the cuts. It is now a
+standing control of the design (`isc_v5.LATE_FORK`).
+
+**J* rehearsed on seed 7.** `tools/solve_for_j.py` on the plumbing sweep, the
+`c093fcfb7` content run, a 370-round campaign and the seed-7 reports ground
+runs end to end: J* UNRESOLVED (the sweep skipped the grain; the decisive run
+does not), structure fails on moves-together, reports not measured (0 of 24
+anchors readable in every arm), markers and lineage hold. The bridge reads
+BELOW_PARITY on those inputs.
+
 ## 28 September
 
 ### The floor under every paired arm was the estimator, and the fork

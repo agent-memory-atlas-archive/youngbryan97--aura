@@ -1640,6 +1640,18 @@ declared host now declares the network as well (`core/subject/declared_network.p
 37e1e0374): online, no measured latency, stamped by the run's clock. A
 campaign read before this commit had the machine's network in W.
 
+### The entropy is declared
+
+The predictive self model adds managed entropy to every observation before it
+updates its weights, and agency's curiosity takes a jitter from the same
+source. It drew from the ANU quantum generator over the network, then from
+`os.urandom`: seeded by nothing and carried by no fork. The declared host now
+declares it as the run's own Python generator, which the run seeds and every
+snapshot carries, and the fork carries the source's budget
+(`core/subject/declared_entropy.py`, af0f998b4). The size of the injection and
+its budget are unchanged. A campaign read before this commit had noise in S
+that no seed could replay.
+
 ### What is left after a turn
 
 With the network declared and the generators seeded as the rig seeds them,
@@ -1658,6 +1670,25 @@ the arms at one anchor, which is why the sham reads exactly zero there: it
 behaves as part of the anchor. The paired estimator compares arms within an
 anchor, so the carrier's decisions stand; what it limits is the claim that a
 restored anchor is the whole organism.
+
+### A late fork, read after the last cut
+
+That uncarried part is not fixed across a sweep. Each anchor's two untouched
+forks are rolled with its first cut and reused by every later cut, so a cut
+late in the sweep compares an arm rolled now with forks rolled hundreds of
+turns ago. The sham and the playback are both read from the cached forks and
+cannot see it. It was measured on seed 7 at 16 anchors, after three cuts: a
+third untouched fork from each anchor, read as a cut against the cached forks
+by the cut's own rule, level and draws, gave an excess of 2.0e-6 and a lower
+bound below zero (p 0.2), where the three cuts gave 0.05 to 0.9. Drift is
+there, in 109 columns, and four orders of magnitude under a cut.
+
+It is now part of the design (`isc_v5.LATE_FORK`). Her sweep reads the late
+fork at the deciding horizon on the anchors its cuts drew, after the last cut
+(`v25_cut.late_fork_decided`, `v25_runtime.collect_late_forks`). If it is
+decided, drift alone clears the bar and the irreducibility line fails; a
+sweep that did not read it fails the line as well. Merged shards count as
+decided if any shard's late fork was.
 
 ### What counts
 
