@@ -1537,6 +1537,23 @@
         "name": "doctor",
         "why": "Runs the self-test over the Python version, the checkout and the production dependencies, each failing with its reason. None of the three decides SLOs and error budgets, privacy-safe incident bundles, runbooks, symptom-to-cause guidance, or an observed recovery transition."
       }
+    ],
+    "ENTERPRISE-CONTROL-001": [
+      {
+        "kind": "test",
+        "name": "tests/test_standing_authority.py",
+        "why": "Decides standing authority without approval theatre: each autonomous lease is bound to its exact origin, receipted and closed, a child lease rejects argument, effect or tool substitution, raw scope cannot bypass a grant, the budget is atomic and survives a manager restart, and revocation is durable, immediate and owner-authenticated."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_audit_chain.py",
+        "why": "Decides the tamper-evident audit export: a modified receipt body or chain entry, a broken link, a deleted entry and a missing body are each detected, the head advances monotonically and persists across restart, and export produces a portable bundle."
+      },
+      {
+        "kind": "test",
+        "name": "tests/test_device_pairing.py",
+        "why": "Decides paired-device roles: a device token reaches the conversation surface and never the control surface, and revoked or forged tokens are refused. None of the three decides retention and telemetry controls, managed configuration, emergency stop, or separation of duties for consequential effects."
+      }
     ]
   }
 }
