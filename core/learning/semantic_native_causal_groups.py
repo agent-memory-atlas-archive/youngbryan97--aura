@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from core.learning.semantic_native_program import NativeProgramSequence
 from core.verify.invariants import invariant
@@ -45,8 +46,9 @@ def native_causal_groups(sequences: tuple[NativeProgramSequence, ...]) -> tuple[
                  for key, members in grouped.items())
 
 
-def score_native_causal_groups(prefix, suffix, sequences: tuple[NativeProgramSequence, ...],
-                               *, branches=None):
+def score_native_causal_groups(prefix: Any, suffix: Any,
+                               sequences: tuple[NativeProgramSequence, ...],
+                               *, branches: Any = None) -> tuple[tuple[float, ...], dict[str, Any]]:
     """Score each original target with shared full-shape causal logits.
 
     Callers must qualify this path on the real decoder before using it in a
