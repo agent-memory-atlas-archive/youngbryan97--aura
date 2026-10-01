@@ -76,6 +76,7 @@ def build_signed_migration_authorities(
     *,
     descriptor_sha256: str,
     state_root: Path,
+    vector_names: tuple[str, ...] = ("caa-vector.safetensors",),
 ) -> dict[str, dict[str, Any]]:
     """Build closed-schema authorities under an isolated owner-private root."""
 
@@ -105,17 +106,21 @@ def build_signed_migration_authorities(
     receipt_path, receipt_bytes = _write_json(custody, "fusion-receipt", receipt)
 
     extraction = {"extraction_contract_sha256": _sha("extraction-contract")}
-    vector_bytes = b"test-vector-basis"
-    vector_path = custody / "caa-vector.safetensors"
-    vector_path.write_bytes(vector_bytes)
-    os.chmod(vector_path, 0o600)
-    vector_manifest = [
-        {
-            "name": vector_path.name,
-            "size_bytes": len(vector_bytes),
-            "sha256": hashlib.sha256(vector_bytes).hexdigest(),
-        }
-    ]
+    vector_evidence: dict[str, tuple[Path, bytes]] = {}
+    vector_manifest = []
+    for index, name in enumerate(vector_names):
+        vector_bytes = b"test-vector-basis" if index == 0 else f"test-vector-basis-{index}".encode()
+        vector_path = custody / name
+        vector_path.write_bytes(vector_bytes)
+        os.chmod(vector_path, 0o600)
+        vector_evidence[f"vector:{name}"] = (vector_path, vector_bytes)
+        vector_manifest.append(
+            {
+                "name": name,
+                "size_bytes": len(vector_bytes),
+                "sha256": hashlib.sha256(vector_bytes).hexdigest(),
+            }
+        )
     generation_sha256 = _sha(
         {
             "extraction_contract_sha256": extraction["extraction_contract_sha256"],
@@ -198,7 +203,7 @@ def build_signed_migration_authorities(
             "metadata": (steering_path, steering_bytes),
             "causal_evaluation": (evaluation_path, evaluation_bytes),
             "independent_verifier": (independent_path, independent_bytes),
-            f"vector:{vector_path.name}": (vector_path, vector_bytes),
+            **vector_evidence,
         },
         "expert_adapters": {
             "migration_inventory": (inventory_path, inventory_bytes),
