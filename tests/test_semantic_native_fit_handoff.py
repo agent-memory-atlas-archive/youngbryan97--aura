@@ -192,7 +192,8 @@ def test_preparation_uses_its_declared_numerical_receipt_not_native_json_hash(tm
         verified_preparation_document(path)
 
 
-@pytest.mark.parametrize("fault", [None, "unfitted", "preflight", "fit_failed", "verify_failed", "upstream_failed"])
+@pytest.mark.parametrize("fault", [None, "unfitted", "preflight", "fit_failed", "verify_failed",
+                                  "upstream_failed", "launch_environment"])
 def test_supervised_fit_sequence_stops_at_the_failed_prerequisite(prepared, monkeypatch, fault):
     import json
     from types import SimpleNamespace
@@ -229,6 +230,11 @@ def test_supervised_fit_sequence_stops_at_the_failed_prerequisite(prepared, monk
 
     monkeypatch.setattr(stages, "wait_for_fit", wait)
     monkeypatch.setattr(broker, "run_brokered_process", invoke)
+    monkeypatch.setenv("MLX_ENABLE_TF32", "0")
+    if fault == "launch_environment":
+        monkeypatch.delenv("MLX_ENABLE_TF32")
+        monkeypatch.setattr(stages, "wait_for_fit", lambda *_args, **_kwargs: pytest.fail(
+            "invalid arithmetic must be caught before waiting for preparation"))
     native = paths["native"]
     plan = json.loads((native / "plan.json").read_bytes())
     checkpoint = {"receipt_sha256": "d" * 64, "step": 0 if fault == "unfitted" else 303}
@@ -252,5 +258,5 @@ def test_supervised_fit_sequence_stops_at_the_failed_prerequisite(prepared, monk
         with pytest.raises((ValueError, FileNotFoundError)):
             module.main()
         assert len(calls) == {"fit_failed": 1, "verify_failed": 2,
-                              "preflight": 0, "upstream_failed": 0}[fault]
+                              "preflight": 0, "upstream_failed": 0, "launch_environment": 0}[fault]
         assert not (directory / "fit-completion.json").exists()

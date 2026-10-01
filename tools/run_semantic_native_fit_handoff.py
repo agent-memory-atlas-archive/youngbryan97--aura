@@ -148,6 +148,9 @@ def main() -> int:
         raise ValueError("native fit handoff belongs to another preparation supervisor")
     handoff = verified_preparation_document(preparation / "handoff.json")
     paths = preparation_paths(handoff)
+    from tools.run_semantic_source_handoff import verify_native_launch_environment
+
+    verify_native_launch_environment(paths["command"])
     jobs = fit_jobs(paths, directory, python=sys.executable)
     body = {"schema": "aura.semantic_native_fit_handoff_plan.v1",
             "preparation_plan_sha256": supervised["plan_sha256"],

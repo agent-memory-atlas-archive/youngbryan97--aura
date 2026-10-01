@@ -1467,6 +1467,10 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Native launch environment](evidence/G03_NATIVE_LAUNCH_ENVIRONMENT_2026-09-30.md)
+  records completed source fitting and the diagnostic bank, then repairs a
+  missing launch-time arithmetic setting before native prerequisite waiting.
+  No model weights were loaded by the failed preparation; G03 remains open.
   [Reboot recovery](evidence/G03_REBOOT_RECOVERY_2026-09-30.md)
   preserves the interrupted supervisors and resumes the unchanged source
   objective from verified archives. Four replacement supervisors continue

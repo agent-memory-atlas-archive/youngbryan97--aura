@@ -19,6 +19,7 @@ from tools.run_semantic_source_handoff import (
     native_preparation_jobs,
     source_bank_directory,
     verify_source_bank,
+    verify_native_launch_environment,
 )
 
 
@@ -169,6 +170,63 @@ def test_native_preparation_keeps_one_protocol_without_loading_or_repeating_a_fi
         assert left[left.index(flag) + 1] == value
     assert left.count("--bundle") == len(paths["bundles"])
     assert "--reuse-prefix-from" not in left
+
+
+@pytest.mark.parametrize("value", [None, "1", "false"])
+def test_native_launch_refuses_wrong_arithmetic_without_repairing_environment(monkeypatch, value):
+    import os
+
+    if value is None:
+        monkeypatch.delenv("MLX_ENABLE_TF32", raising=False)
+    else:
+        monkeypatch.setenv("MLX_ENABLE_TF32", value)
+    with pytest.raises(ValueError, match="process launch"):
+        verify_native_launch_environment(["python", "train.py", "--precision", "float32",
+                                          "--prefix-strategy", "trie"])
+    assert os.environ.get("MLX_ENABLE_TF32") == value
+
+
+def test_native_launch_uses_the_same_cpu_only_execution_contract(monkeypatch):
+    from tools.semantic_native_execution import execution_contract
+
+    monkeypatch.setenv("MLX_ENABLE_TF32", "0")
+    assert verify_native_launch_environment(["python", "train.py", "--precision", "float32",
+        "--prefix-strategy", "trie"]) == execution_contract(precision="float32", prefix_strategy="trie")
+
+
+@pytest.mark.parametrize("options", [[], ["--precision", "float32"],
+    ["--precision", "float32", "--precision", "float32", "--prefix-strategy", "trie"],
+    ["--precision", "--prefix-strategy", "trie"]])
+def test_native_launch_does_not_guess_missing_or_repeated_arithmetic(options):
+    with pytest.raises(ValueError, match="explicit arithmetic"):
+        verify_native_launch_environment(["python", "train.py", *options])
+
+
+@pytest.mark.parametrize("policy_only", [False, True])
+def test_preparation_rejects_bad_launch_before_waiting_or_freezing_jobs(tmp_path, monkeypatch, policy_only):
+    from tools import run_detached_step, run_semantic_native_micro_stages, run_semantic_source_handoff
+    from tools.probe_semantic_proposer_crossfit import _save_if_absent
+
+    source = tmp_path / "source-supervisor"
+    bank = tmp_path / "bank-supervisor"
+    _save_if_absent(source / run_detached_step.PLAN_FILE, _plan())
+    _save_if_absent(bank / run_detached_step.PLAN_FILE, {"cwd": str(tmp_path), "command": [
+        "python", "-u", "tools/run_semantic_source_handoff.py", "--source-fit-supervisor",
+        str(source), "--directory", str(tmp_path / "bank")]})
+    monkeypatch.setattr(run_detached_step, "_verify_plan", lambda *_args: None)
+    monkeypatch.setattr(run_semantic_native_micro_stages, "wait_for_fit",
+        lambda *_args, **_kwargs: pytest.fail("bad arithmetic cannot wait for a fit"))
+    monkeypatch.delenv("MLX_ENABLE_TF32", raising=False)
+    directory = tmp_path / "preparation"
+    command = ["handoff", "--source-fit-supervisor", str(source), "--wait-bank-supervisor",
+        str(bank), "--native-directory", str(tmp_path / "native"), "--directory", str(directory)]
+    if policy_only:
+        command += ["--policy-output", str(directory / "broker-policy.json")]
+    monkeypatch.setattr(run_semantic_source_handoff.sys, "argv", command)
+    with pytest.raises(ValueError, match="process launch"):
+        run_semantic_source_handoff.main()
+    assert not (directory / "handoff.json").exists()
+    assert not (directory / "broker-policy.json").exists()
 
 
 def test_source_bank_supervisor_binds_the_original_fit_and_output(tmp_path):

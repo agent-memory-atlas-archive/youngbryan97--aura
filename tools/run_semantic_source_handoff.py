@@ -117,6 +117,21 @@ def native_preparation_jobs(paths: dict[str, Any], bank_root: Path, native: Path
             job("native-supervision", [*command, "--supervision-only"], directory, timeout=3600.)]
 
 
+def verify_native_launch_environment(command: list[str]) -> dict | None:
+    """Check the child's declared arithmetic before freezing jobs or waiting."""
+    from tools.semantic_native_execution import execution_contract
+
+    def option(flag: str) -> str:
+        indices = [index for index, value in enumerate(command) if value == flag]
+        if (len(indices) != 1 or indices[0] + 1 == len(command)
+                or command[indices[0] + 1].startswith("--")):
+            raise ValueError("native launch requires explicit arithmetic options")
+        return command[indices[0] + 1]
+
+    return execution_contract(precision=option("--precision"),
+                              prefix_strategy=option("--prefix-strategy"))
+
+
 def verify_source_bank(bank_root: Path, paths: dict[str, Any], verification: dict) -> dict:
     from tools.train_nested_semantic_ranker import _verified_pair
 
@@ -194,6 +209,8 @@ def main() -> int:
     jobs = (handoff_jobs(paths, directory, python=sys.executable) if bank_supervisor is None else
             native_preparation_jobs(paths, bank_root, args.native_directory.resolve(), directory,
                                     python=sys.executable))
+    if bank_supervisor is not None:
+        verify_native_launch_environment(jobs[0]["command"])
     body = {"schema": "aura.semantic_source_handoff_plan.v1",
             "source_fit_plan_sha256": source_plan["plan_sha256"],
             "source_fit_supervisor": str(supervisor), "jobs": jobs,
