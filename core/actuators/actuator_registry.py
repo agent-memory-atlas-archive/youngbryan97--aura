@@ -186,6 +186,11 @@ class BaseActuator(ABC):
     # Evolved immune rules run repeatedly in cloned world models. They may
     # only target actuators that explicitly opt into that narrower contract.
     immune_rule_compatible: bool = False
+    #: What this actuator changes: "observed" (the host and the runtime she
+    #: runs in) or "simulated" (the shipping network in world_model). Every
+    #: result carries it, so a remedy tried on the simulation is never told as
+    #: something done in the world.
+    plant: str = "observed"
 
     @property
     @abstractmethod
@@ -548,6 +553,8 @@ class SandboxedSynthesizedActuator(BaseActuator):
 class RerouteVesselActuator(BaseActuator):
     """Actuator to adjust headings and speeds of maritime vessel edges."""
 
+    plant = "simulated"
+
     # In-memory simulation only (mutates the physics world model, no external
     # effect) — explicitly opts out of the governed-by-default policy.
     requires_authority = False
@@ -607,14 +614,14 @@ class RerouteVesselActuator(BaseActuator):
             )
 
             logger.info(
-                "Executed Actuator: reroute_vessel %s to heading=%s, speed=%s",
+                "Executed Actuator: reroute_vessel %s to heading=%s, speed=%s in the simulated plant",
                 vessel_id,
                 heading,
                 speed,
             )
             return ActuatorResult(
                 success=True,
-                message=f"Vessel '{vessel_id}' successfully rerouted.",
+                message=f"Vessel '{vessel_id}' rerouted in the simulated shipping network.",
                 updates={vessel_id: {"heading": heading, "speed": speed}},
             )
 
@@ -624,6 +631,8 @@ class RerouteVesselActuator(BaseActuator):
 
 class ReallocateFlowActuator(BaseActuator):
     """Actuator to transfer assets/cargo from one inventory node to another."""
+
+    plant = "simulated"
 
     # In-memory simulation only — explicitly opts out of governed-by-default.
     requires_authority = False
@@ -776,13 +785,14 @@ class ReallocateFlowActuator(BaseActuator):
                 )
 
             logger.info(
-                "Executed Actuator: reallocate_flow transferred %s from %s to %s",
+                "Executed Actuator: reallocate_flow transferred %s from %s to %s in the simulated plant",
                 moved,
                 source_id,
                 target_id,
             )
             message = (
-                f"Flow of {moved} successfully reallocated from '{source_id}' to '{target_id}'."
+                f"Flow of {moved} reallocated from '{source_id}' to '{target_id}' "
+                "in the simulated shipping network."
             )
             partial = moved + 1e-9 < requested
             if partial:
@@ -793,6 +803,7 @@ class ReallocateFlowActuator(BaseActuator):
                 updates={
                     source_id: {"load": source.load},
                     target_id: {"load": target.load},
+                    "_plant": self.plant,
                     "_measured": {
                         "moved": moved,
                         "received": received,

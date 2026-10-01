@@ -304,7 +304,7 @@ class OutputReceptor:
                 return
             registry = get_sensor_registry()
             registry.sync_from_world_model()
-            loop._simulated_expectations = registry.read_all()
+            loop._simulated_expectations = registry.read_observed()
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
             _emit_closed_loop_fault(
                 exc,
@@ -493,8 +493,14 @@ class SelfPredictiveCore:
 
                 registry = get_sensor_registry()
                 registry.sync_from_world_model()
-                actual_sensors = registry.read_all()
+                # Only what was measured on this host. The shipping simulation
+                # is not her world, and an unread sensor is not a zero.
+                actual_sensors = registry.read_observed()
                 reliability = registry.get_reliability_vector()
+                spread = {
+                    sid: float(np.std(list(registry.sensors[sid].history)))
+                    for sid in actual_sensors
+                }
             except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
                 _emit_closed_loop_fault(
                     exc,
@@ -504,27 +510,22 @@ class SelfPredictiveCore:
                 )
                 actual_sensors = {}
                 reliability = {}
+                spread = {}
 
             if simulated_expectations is None:
                 simulated_expectations = actual_sensors
 
-            norm_factors = {
-                "port_east_load": 1000.0,
-                "port_west_load": 1200.0,
-                "port_east_latency": 10.0,
-                "port_west_latency": 10.0,
-                "vessel_alpha_speed": 40.0,
-                "warehouse_load": 5000.0,
-                "warehouse_latency": 10.0,
-                "system_cpu_usage": 100.0,
-            }
-
+            # Each surprise in the unit of that sensor's own variation. A
+            # sensor that has not varied yet gives no scale to measure one by,
+            # and sits out until it has.
             physical_errors = []
             for sid, actual_val in actual_sensors.items():
+                scale = spread.get(sid, 0.0)
+                if scale <= 0.0:
+                    continue
                 expected_val = simulated_expectations.get(sid, actual_val)
                 rel = reliability.get(sid, 1.0)
-                norm = norm_factors.get(sid, 1.0)
-                err = (actual_val - expected_val) / norm
+                err = (actual_val - expected_val) / scale
                 physical_errors.append((err**2) * rel)
 
             physical_free_energy = float(np.mean(physical_errors)) if physical_errors else 0.0
@@ -792,7 +793,7 @@ class ClosedCausalLoop:
 
             registry = get_sensor_registry()
             registry.sync_from_world_model()
-            self._simulated_expectations = registry.read_all()
+            self._simulated_expectations = registry.read_observed()
         except (AttributeError, ImportError, RuntimeError, TypeError, ValueError) as exc:
             _emit_closed_loop_fault(
                 exc,

@@ -36,6 +36,7 @@ from typing import Any
 
 import numpy as np
 
+from core.adaptation.immune_rule_vocabulary import _live_rule_vocabulary  # noqa: F401 (re-exported)
 from core.adaptation.immune_state_writer import (
     ImmuneStatePersistence,
     SingleSlotStateWriter,
@@ -821,64 +822,6 @@ def simulation_isolation_active() -> bool:
 _VOCABULARY_UNSET: Any = object()
 
 
-def _live_rule_vocabulary() -> dict[str, Any] | None:
-    """Sensors and actuators that ACTUALLY exist in this runtime.
-
-    CP126 956ba926: rule generation drew from a hardcoded maritime vocabulary
-    — port_east_load, vessel_alpha_speed, reallocate_flow(Port_East,
-    Port_West). The immune system exists to repair Aura's subsystems, so a
-    learning lane that can only express opinions about a logistics toy was
-    optimizing something unrelated to its purpose and reporting the result as
-    repair fitness.
-
-    Returns None when neither registry can be read, which is the honest answer
-    and makes the caller refuse to author a rule rather than fall back to the
-    toy.
-    """
-    sensors: list[str] = []
-    sensor_values: dict[str, float] = {}
-    actuators: list[str] = []
-    action_templates: dict[str, dict[str, Any]] = {}
-    try:
-        from core.sensors.sensor_registry import get_sensor_registry
-
-        readings = get_sensor_registry().read_all()
-        sensors = sorted(str(name) for name in readings)
-        for name, value in readings.items():
-            try:
-                number = float(value)
-            except (TypeError, ValueError):
-                continue
-            if math.isfinite(number):
-                sensor_values[str(name)] = number
-    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-        logger.debug("Immune rule vocabulary: sensors unavailable: %s", exc)
-    try:
-        from core.actuators.actuator_registry import get_actuator_registry
-
-        registry = get_actuator_registry()
-        for name, actuator in registry.actuators.items():
-            if not bool(getattr(actuator, "immune_rule_compatible", False)):
-                continue
-            if bool(getattr(actuator, "requires_authority", True)):
-                continue
-            params = actuator.immune_rule_seed_params()
-            if not isinstance(params, dict) or not actuator.validate_params(params):
-                continue
-            normalized_name = str(name)
-            actuators.append(normalized_name)
-            action_templates[normalized_name] = copy.deepcopy(params)
-        actuators.sort()
-    except (ImportError, RuntimeError, AttributeError, TypeError, ValueError) as exc:
-        logger.debug("Immune rule vocabulary: actuators unavailable: %s", exc)
-    if not sensors or not actuators:
-        return None
-    return {
-        "sensors": sensors,
-        "sensor_values": sensor_values,
-        "actuators": actuators,
-        "action_templates": action_templates,
-    }
 
 
 def _system_pressure(model: Any) -> float | None:

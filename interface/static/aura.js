@@ -4022,8 +4022,12 @@ const PLAIN_LANGUAGE_RULES = [
      (m) => `Confirmed her mind is running on the ${/metal/i.test(m[1]) ? 'graphics processor' : m[1]}, not the slow path.`],
     [/^Diagnosing pattern ([0-9a-f]{8})[0-9a-f]* \((\d+) occurrences?\)/i,
      (m) => `Looking into a fault she has now seen ${humanTimes(+m[2])} (pattern ${m[1]}).`],
-    [/^Executed Actuator: (\w+) transferred ([\d.]+) from (\w+) to (\w+)/i,
-     (m) => `Moved ${(+m[2]).toFixed(1)} of load from ${humanOrgan(m[3])} to ${humanOrgan(m[4])}.`],
+    // The shipping network is a simulation she practises remedies on, and a
+    // card that read like a real move of real cargo told the viewer otherwise.
+    [/^Executed Actuator: (\w+) transferred ([\d.]+) from (\w+) to (\w+) in the simulated plant/i,
+     (m) => `In the shipping simulation she practises on, moved ${(+m[2]).toFixed(1)} of load from ${humanOrgan(m[3])} to ${humanOrgan(m[4])}.`],
+    [/^Executed Actuator: reroute_vessel (\w+) to heading=([\d.-]+), speed=([\d.]+) in the simulated plant/i,
+     (m) => `In the shipping simulation she practises on, turned ${humanOrgan(m[1])} to heading ${Math.round(+m[2])} at ${(+m[3]).toFixed(1)} knots.`],
     [/^Router: Queueing background inference until admission clears/i,
      () => 'Holding a background thought so the conversation keeps priority.'],
     [/Phase '([^']+)' timed out after (\d+)s/i,
