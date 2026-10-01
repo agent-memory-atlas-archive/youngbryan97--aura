@@ -1,10 +1,28 @@
 """A question about what she remembers, answered from the record.
 
-Recall here is scored rather than searched: a candidate episode is ranked on
-how distinctive the words it shares with the question are, so a match on "the"
-counts for nothing and a match on a name counts for a lot. What comes back is
-composed from the episodes that scored, with nothing added — a recalled answer
-that has been smoothed is a confabulation with good manners.
+Candidates come from episodic memory, long-term memory and the turns still in
+working memory. They are ranked by MEANING: the cosine between the question and
+each remembered sentence, from the runtime's one shared sentence encoder.
+
+Measured 30 September on twelve question-and-memory pairs set among each
+other's memories and six same-topic near misses: ranked by meaning, the memory
+that answers came first for 11 of 12. Ranked by the word scorer below, 1 of
+12, because a length bonus let any sentence of 12 to 220 characters clear its
+bar, so the direct answer quoted whichever memory scored top, often the wrong
+one. The one miss by meaning is a paraphrase beaten by a near miss on the same
+topic ("where I said I was going on holiday": "I took last year's holiday at
+home" over "We're flying to Lisbon in October"), and it was also the match that
+stood out most, so no margin can catch it.
+
+So a memory is quoted back without the model only when the best by meaning is
+also ANCHORED: it shares a distinctive word with the question, matched as a
+word. On the twelve that quotes six correctly, quotes the holiday miss, and
+leaves five to her cortex, which answers from the same memories ordered by
+meaning and can see that flying to Lisbon is going on holiday. Without an
+encoder the word scorer ranks and the same anchor decides.
+
+What comes back is a remembered sentence with nothing added. A recalled
+answer that has been smoothed is a confabulation with good manners.
 """
 from __future__ import annotations
 
@@ -13,7 +31,8 @@ import logging
 import re
 from typing import Any
 
-from core.conversation.word_markers import names_any
+from core.conversation.word_markers import names_any, names_marker
+from core.language.learned_matcher import cosine, embed_sentences
 from core.state.aura_state import AuraState
 from core.utils.intent_normalization import normalize_memory_intent_text
 
@@ -369,26 +388,33 @@ class _AnswersFromWhatSheRemembers:
 
         return score
 
+    #: Verbs that name the act of remembering. A question asks "what did I tell
+    #: you to remember" of a sentence that said "remember this", so the shared
+    #: verb points at that sentence even though recall questions all use it.
+    _MEMORY_ACTS: tuple[str, ...] = ("remember", "forget")
+
+    #: Text that is the runtime talking to itself, never something said.
+    _NOT_SAID: tuple[str, ...] = (
+        "silent auto-fix",
+        "traceback",
+        "task exception",
+        "background cognitive state",
+        "background_consolidation",
+        "return only the json",
+        "cognitive baseline tick",
+        "future: <task finished",
+    )
+
     @classmethod
-    def _compose_memory_recall_answer(
+    def _recall_candidates(
         cls,
         objective: str,
         state: AuraState,
         episodic_matches: list[Any] | None = None,
-    ) -> str | None:
+    ) -> list[tuple[str, str]]:
+        """Every remembered sentence that could answer, with who said it."""
         candidates: list[tuple[str, str]] = []
         objective_norm = normalize_memory_intent_text(cls._normalize_text(objective)).rstrip("?")
-        if "conversation lane" in objective_norm and names_any(
-            objective_norm, ("died", "dead")
-        ):
-            return (
-                "You meant the live conversation path had stopped behaving like a real conversation: "
-                "the backend could still produce richer answers, but the GUI/API lane was surfacing retries, "
-                "stale repair text, thin fragments, or tool-ish artifacts instead of a coherent reply. "
-                "The practical fix is to keep the live turn in the chat lane, preserve continuity context, "
-                "block broken recovery messages from counting as success, and prove it through the same /api/chat path the UI uses."
-            )
-
         for ep in episodic_matches or []:
             for raw in (
                 getattr(ep, "context", ""),
@@ -398,12 +424,10 @@ class _AnswersFromWhatSheRemembers:
                 utterance = cls._extract_user_utterance(raw)
                 if utterance:
                     candidates.append(("user", utterance))
-
         for item in list(getattr(state.cognition, "long_term_memory", []) or []):
             utterance = cls._extract_user_utterance(item)
             if utterance:
                 candidates.append(("user", utterance))
-
         for item in reversed(list(getattr(state.cognition, "working_memory", []) or [])[-24:]):
             if not isinstance(item, dict):
                 continue
@@ -414,90 +438,142 @@ class _AnswersFromWhatSheRemembers:
             if content:
                 candidates.append((role, content))
 
-        def _role_recall_bias(role: str) -> float:
-            asks_aura_words = any(
-                marker in objective_norm
-                for marker in (
-                    "what did you say",
-                    "what were your exact words",
-                    "what was your answer",
-                    "what did your reply",
-                    "what did you tell me",
-                )
-            )
-            asks_user_words = any(
-                marker in objective_norm
-                for marker in (
-                    "what did i say",
-                    "what did i tell",
-                    "what was my",
-                    "what were my exact words",
-                    "what do you remember i said",
-                    "do you remember what i",
-                )
-            )
-            if asks_aura_words:
-                return 4.0 if role == "assistant" else -1.0
-            if asks_user_words:
-                return 4.0 if role == "user" else -1.0
-            return 0.0
-
-        filtered: list[tuple[str, str]] = []
+        kept: list[tuple[str, str]] = []
         seen: set[str] = set()
         for role, candidate in candidates:
             normalized = cls._normalize_text(candidate).lower().rstrip("?")
-            if not normalized or len(normalized) < 8:
+            if not normalized or len(normalized) < 8 or normalized == objective_norm:
                 continue
-            if normalized == objective_norm:
+            if cls._looks_like_meta_recall_query(candidate):
                 continue
-            if cls._looks_like_meta_recall_query(candidate) and not (
-                any(
-                    phrase in normalized
-                    for phrase in ("conversation lane was dying", "conversation lane died")
-                )
-                and "conversation lane" in objective_norm
-            ):
+            if any(marker in normalized for marker in cls._NOT_SAID):
                 continue
-            seen_key = f"{role}:{normalized}"
-            if seen_key in seen:
-                continue
-            seen.add(seen_key)
-            filtered.append((role, candidate))
+            key = f"{role}:{normalized}"
+            if key not in seen:
+                seen.add(key)
+                kept.append((role, candidate))
+        return kept
 
-        if not filtered:
-            return None
-
-        ranked = sorted(
-            filtered,
-            key=lambda candidate: (
-                cls._score_memory_candidate(candidate[1], objective)
-                + _role_recall_bias(candidate[0])
-            ),
-            reverse=True,
-        )
-        chosen_role, chosen = ranked[0]
-        if cls._score_memory_candidate(chosen, objective) + _role_recall_bias(chosen_role) < 1.0:
-            return None
+    @classmethod
+    def _speaker_asked_about(cls, objective: str) -> str:
+        """"assistant" or "user" when the question names who said it, else ""."""
+        objective_norm = normalize_memory_intent_text(cls._normalize_text(objective))
         if any(
-            marker in objective_norm for marker in ("exact phrase", "exact words", "exact wording")
-        ):
-            if chosen_role == "assistant":
-                return f'I said: "{chosen}"'
-            return f'You told me: "{chosen}"'
-        if "conversation lane" in objective_norm and (
-            "stay with me" in objective_norm
-            or names_any(objective_norm, ("died", "dying", "dead"))
-        ):
-            return (
-                "I remember you were worried that the conversation lane was dying. "
-                "I would stay with you now by answering this turn directly, avoiding raw tool or memory artifacts, "
-                "and making any repair visible instead of pretending a broken fragment was a real reply."
+            marker in objective_norm
+            for marker in (
+                "what did you say",
+                "what were your exact words",
+                "what was your answer",
+                "what did your reply",
+                "what did you tell me",
             )
+        ):
+            return "assistant"
+        if any(
+            marker in objective_norm
+            for marker in (
+                "what did i say",
+                "what did i tell",
+                "what was my",
+                "what were my exact words",
+                "what do you remember i said",
+                "do you remember what i",
+            )
+        ):
+            return "user"
+        return ""
+
+    @classmethod
+    def _anchor(cls, candidate: str, objective: str) -> float:
+        """How much the question's own words point at this sentence, as words."""
+        objective_lower = normalize_memory_intent_text(cls._normalize_text(objective))
+        anchor = 0.0
+        for token in set(re.findall(r"[a-z0-9:]+", objective_lower)):
+            if names_marker(candidate, token):
+                anchor += cls._token_distinctiveness(token)
+        for act in cls._MEMORY_ACTS:
+            if names_marker(objective_lower, act) and names_marker(candidate, act):
+                anchor += 1.0
+        return anchor
+
+    @staticmethod
+    def _meaning_of(objective: str, texts: list[str]) -> dict[str, float]:
+        """Cosine from the question to each text, or {} with no encoder.
+
+        Synchronous and slow: one encoder pass per sentence. Callers on the
+        event loop run it through off_the_loop.
+        """
+        unique = list(dict.fromkeys(text for text in texts if text))
+        if not unique:
+            return {}
+        vectors = embed_sentences([objective, *unique])
+        if len(vectors) != len(unique) + 1:
+            return {}
+        return {text: cosine(vectors[0], vector) for text, vector in zip(unique, vectors[1:], strict=True)}
+
+    async def _recall_by_meaning(
+        self,
+        objective: str,
+        state: AuraState,
+        episodic_matches: list[Any],
+    ) -> tuple[str | None, list[Any]]:
+        """The direct answer if one is warranted, and the episodes by meaning.
+
+        The episodes come back reordered so the evidence handed to her cortex,
+        which takes the first few, is the closest in meaning rather than the
+        first retrieved.
+        """
+        from core.runtime.executors import off_the_loop
+
+        candidates = self._recall_candidates(objective, state, episodic_matches)
+        meaning = await off_the_loop(self._meaning_of, objective, [text for _role, text in candidates])
+        if meaning:
+            def _closeness(ep: Any) -> float:
+                said = (
+                    self._extract_user_utterance(getattr(ep, field, ""))
+                    for field in ("context", "description", "full_description")
+                )
+                return max((meaning.get(text, -1.0) for text in said), default=-1.0)
+
+            episodic_matches = sorted(episodic_matches, key=_closeness, reverse=True)
+        answer = self._compose_memory_recall_answer(
+            objective, state, episodic_matches, meaning=meaning, candidates=candidates
+        )
+        return answer, episodic_matches
+
+    @classmethod
+    def _compose_memory_recall_answer(
+        cls,
+        objective: str,
+        state: AuraState,
+        episodic_matches: list[Any] | None = None,
+        *,
+        meaning: dict[str, float] | None = None,
+        candidates: list[tuple[str, str]] | None = None,
+    ) -> str | None:
+        """A remembered sentence quoted back, or None to let her cortex answer."""
+        pool = candidates if candidates is not None else cls._recall_candidates(
+            objective, state, episodic_matches
+        )
+        speaker = cls._speaker_asked_about(objective)
+        if speaker:
+            pool = [(role, text) for role, text in pool if role == speaker]
+        if not pool:
+            return None
+        if meaning:
+            chosen_role, chosen = max(pool, key=lambda item: meaning.get(item[1], -1.0))
+        else:
+            chosen_role, chosen = max(
+                pool, key=lambda item: cls._score_memory_candidate(item[1], objective)
+            )
+        if cls._anchor(chosen, objective) <= 0.0:
+            return None
+        objective_norm = normalize_memory_intent_text(cls._normalize_text(objective))
+        if any(marker in objective_norm for marker in ("exact phrase", "exact words", "exact wording")):
+            return f'I said: "{chosen}"' if chosen_role == "assistant" else f'You told me: "{chosen}"'
         if chosen_role == "assistant":
             return f'I remember saying: "{chosen}"'
-        if chosen_role == "user":
-            return f'I remember you saying: "{chosen}"'
-        return f'I remember this: "{chosen}"'
+        return f'I remember you saying: "{chosen}"'
 
     @classmethod
     def _build_idle_trace_text(cls, state: AuraState) -> str:

@@ -315,14 +315,13 @@ def test_memory_recall_answer_sanitizes_raw_prior_tool_artifacts():
 
     class Episode:
         context = (
-            "Earlier I was worried the conversation lane was dying. What do you remember about that worry, "
-            "and what would you do differently now? | conversation_reply | Found 0 artifacts."
+            "I was worried the conversation lane was dying. | conversation_reply | Found 0 artifacts."
         )
         description = ""
         full_description = ""
 
     answer = UnitaryResponsePhase._compose_memory_recall_answer(
-        "Earlier I was worried the conversation lane was dying. What do you remember about that concern, and how would you stay with me now?",
+        "What did I tell you I was worried about with the conversation lane?",
         state,
         [Episode()],
     )
@@ -330,20 +329,21 @@ def test_memory_recall_answer_sanitizes_raw_prior_tool_artifacts():
     assert answer is not None
     assert "Found 0 artifacts" not in answer
     assert "conversation lane was dying" in answer
-    assert "stay with you" in answer
 
 
-def test_memory_recall_answer_handles_conversation_lane_died_without_llm():
+def test_memory_recall_answer_does_not_script_what_was_never_said():
+    """It used to return a paragraph written in advance for this question.
+
+    A recalled answer comes from the record or not at all; with nothing
+    remembered, her cortex answers.
+    """
     answer = UnitaryResponsePhase._compose_memory_recall_answer(
         "What did I mean when I said the conversation lane died? Keep continuity with this debugging session.",
         AuraState.default(),
         [],
     )
 
-    assert answer is not None
-    assert "live conversation path" in answer
-    assert "/api/chat" in answer
-    assert "stale repair text" in answer
+    assert answer is None
 
 
 def test_memory_recall_answer_uses_recent_user_working_memory_without_llm():
