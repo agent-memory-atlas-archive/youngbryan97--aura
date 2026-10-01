@@ -534,6 +534,10 @@ CONTINUITY_SAFE_REASONS: frozenset[str] = frozenset(
         "reply_abandons_thread",
         "pseudo_internal_jargon",
         "function_word_starvation",
+        # Asked for a number about herself, she answered in words. The words
+        # are her answer, and the exchange is kept with the number said to be
+        # missing from it.
+        "missing_requested_scale_placement",
     }
 )
 

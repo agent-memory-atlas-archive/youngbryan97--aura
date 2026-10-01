@@ -9,9 +9,19 @@ from __future__ import annotations
 import re
 import time
 
+from core.conversation.word_markers import names_any
+
 
 class _ReadsTheObjective:
     """Lifted whole out of DesktopTaskSkill; see desktop_task.py."""
+
+    @staticmethod
+    def _names_web_content(segment: str) -> bool:
+        """Does this part of the objective name something read on the web?
+
+        As words: "resources" is not a source, "particles" not an article.
+        """
+        return names_any(segment, ("browser", "web", "article", "source", "news"))
 
     @staticmethod
     def _extract_folder_name(objective: str) -> str:
@@ -170,9 +180,9 @@ class _ReadsTheObjective:
         )
 
         lowered = _PATHS_IN_TEXT_RE.sub(" ", str(objective or "")).lower()
-        has_source_markers = any(
-            marker in lowered
-            for marker in (
+        has_source_markers = names_any(
+            lowered,
+            (
                 "article",
                 "articles",
                 "sources",
@@ -181,16 +191,16 @@ class _ReadsTheObjective:
                 "research",
                 "report",
                 "reports",
-            )
+            ),
         )
         visual_reference_only = (
             mentions_object_class(lowered, "image") and not has_source_markers
         )
         if visual_reference_only:
             return False
-        wants_research = any(
-            marker in lowered
-            for marker in (
+        wants_research = names_any(
+            lowered,
+            (
                 "article",
                 "articles",
                 "sources",
@@ -200,7 +210,7 @@ class _ReadsTheObjective:
                 "look up",
                 "search",
                 "find",
-            )
+            ),
         )
         wants_written_output = any(
             marker in lowered

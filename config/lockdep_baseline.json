@@ -507,7 +507,6 @@
   "core/runtime/taint.py::TaintRegister.__init__::threading.Lock",
   "core/sandbox/bash_daemon.py::PersistentBashSession.__init__::asyncio.Lock",
   "core/scheduler.py::Scheduler._ensure_async_primitives::asyncio.Lock",
-  "core/security/audit_trail.py::AuditTrail.__init__::threading.Lock",
   "core/security/defensive_runtime.py::::threading.Lock",
   "core/security/deletion_guard.py::::threading.Lock",
   "core/security/deletion_guard.py::DeletionGuard.__init__::threading.RLock",

@@ -303,33 +303,37 @@ def test_legacy_resource_facade_never_reaches_sabotaged_host_apis(
     def host_access_forbidden(*_args, **_kwargs):
         raise AssertionError("simulated policy reached a host resource API")
 
-    monkeypatch.setattr("core.runtime.resource_observation.psutil.virtual_memory", host_access_forbidden)
-    monkeypatch.setattr("core.runtime.resource_observation.psutil.process_iter", host_access_forbidden)
-    monkeypatch.setattr("core.runtime.resource_observation.shutil.disk_usage", host_access_forbidden)
-    monkeypatch.setattr("core.runtime.resource_observation.os.getloadavg", host_access_forbidden)
-    monkeypatch.setattr("core.runtime.resource_observation.psutil.sensors_battery", host_access_forbidden)
-    monkeypatch.setattr("core.runtime.resource_psutil._psutil.disk_io_counters", host_access_forbidden)
-    monkeypatch.setattr("core.runtime.resource_psutil._psutil.net_io_counters", host_access_forbidden)
-    monkeypatch.setattr("core.runtime.resource_psutil._psutil.net_if_addrs", host_access_forbidden)
+    # Armed only around the calls under test. conftest's teardown reads the
+    # host after the test body and before a plain monkeypatch is undone, and
+    # met this tripwire there.
+    with monkeypatch.context() as tripwire:
+        tripwire.setattr("core.runtime.resource_observation.psutil.virtual_memory", host_access_forbidden)
+        tripwire.setattr("core.runtime.resource_observation.psutil.process_iter", host_access_forbidden)
+        tripwire.setattr("core.runtime.resource_observation.shutil.disk_usage", host_access_forbidden)
+        tripwire.setattr("core.runtime.resource_observation.os.getloadavg", host_access_forbidden)
+        tripwire.setattr("core.runtime.resource_observation.psutil.sensors_battery", host_access_forbidden)
+        tripwire.setattr("core.runtime.resource_psutil._psutil.disk_io_counters", host_access_forbidden)
+        tripwire.setattr("core.runtime.resource_psutil._psutil.net_io_counters", host_access_forbidden)
+        tripwire.setattr("core.runtime.resource_psutil._psutil.net_if_addrs", host_access_forbidden)
 
-    memory = resource_psutil.virtual_memory()
-    disk = resource_psutil.disk_usage("/")
+        memory = resource_psutil.virtual_memory()
+        disk = resource_psutil.disk_usage("/")
 
-    assert memory.total == 48 * GIB
-    assert memory.available == 24 * GIB
-    assert memory.percent == 50.0
-    assert disk.free == 300 * GIB
-    assert resource_psutil.cpu_percent() == 12.5
-    assert resource_psutil.cpu_count() == 6
-    assert resource_psutil.sensors_battery().percent == 42.0
-    assert resource_psutil.disk_io_counters().read_bytes == 0
-    assert resource_psutil.net_io_counters().bytes_recv == 0
-    assert resource_psutil.net_if_addrs() == {}
-    process = resource_psutil.Process(os.getpid())
-    assert process.memory_info().rss == 321 * 1024**2
-    assert process.cpu_times().user == 12.0
-    assert process.num_threads() == 9
-    assert process.num_fds() == 4
+        assert memory.total == 48 * GIB
+        assert memory.available == 24 * GIB
+        assert memory.percent == 50.0
+        assert disk.free == 300 * GIB
+        assert resource_psutil.cpu_percent() == 12.5
+        assert resource_psutil.cpu_count() == 6
+        assert resource_psutil.sensors_battery().percent == 42.0
+        assert resource_psutil.disk_io_counters().read_bytes == 0
+        assert resource_psutil.net_io_counters().bytes_recv == 0
+        assert resource_psutil.net_if_addrs() == {}
+        process = resource_psutil.Process(os.getpid())
+        assert process.memory_info().rss == 321 * 1024**2
+        assert process.cpu_times().user == 12.0
+        assert process.num_threads() == 9
+        assert process.num_fds() == 4
 
 
 def test_virtual_memory_fast_path_skips_recursive_process_accounting(

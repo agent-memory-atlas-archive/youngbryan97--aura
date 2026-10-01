@@ -3337,6 +3337,27 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  2026-09-30, afternoon. The other session's full run at 308d623df failed
+  files that, rerun alone on main, failed the same way: none was an order
+  effect, so they belong here. Seventeen are fixed in one commit, each at its
+  cause: nine campaign switches and five somatic-noise knobs read raw (flag
+  ratchet, now 567); four locks built only to name their class (lock
+  coverage, lockdep); class names in the plain-English prose read as words
+  by the marker vocabulary (414 findings to 346), and five matchers that met
+  real words ("cytochrome" for chrome) now match words; a scale placement
+  made advisory but not continuity-safe; three model loads outside the
+  ownership inventory, the Whisper transcriber outside any lane; five tests
+  behind code that moved on purpose, one of them the size batch's own
+  dropped re-export; 20 audit labels a reopened gap-atlas section shifted by
+  a line, and its five reopened cards now carry open review decisions under
+  authority and security; and two teardown errors. Later chunks of that run
+  found 29 more, fixed in 7c83db971 and 63176c28c: two learning modules
+  rendering their own transcripts, a fabricated-conclusion contract reading
+  a file the code had left, 16 tests whose faked pid outlived them into
+  teardown, and 11 tests whose git fakes predated the fsmonitor flag (that
+  commit's message miscounts them). Still red: reachability (Codex's three
+  modules), the two decode canaries that need her cortex, and the reqproof
+  receipts, recaptured next.
   2026-09-30. On this commit, run on it: compile, lint, smoke, layering,
   deps-check, governance-lint, security, enterprise-gate, production-gate,
   doc-drift, writing, typed-surface, swallowed, epistemic-independence,

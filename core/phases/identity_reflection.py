@@ -175,9 +175,14 @@ class IdentityReflectionPhase(BasePhase):
         written here; the neuron is signed and rests at zero, so it is mapped the
         way the steering channel maps the same block back.
         """
-        import os
+        from core.runtime.flags import env_str
 
-        if os.environ.get("AURA_SELF_DOMINANCE", "").strip().lower() not in {
+        switch = env_str(
+            "AURA_SELF_DOMINANCE",
+            description="On writes identity stability into the substrate's dominance neuron.",
+            owner="core.phases.identity_reflection",
+        )
+        if switch.strip().lower() not in {
             "1",
             "true",
             "yes",

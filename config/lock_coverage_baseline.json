@@ -1,7 +1,7 @@
 {
-  "raw_lock_calls": 655,
-  "files_with_raw_locks": 411,
-  "files_using_checked_locks": 283,
+  "raw_lock_calls": 654,
+  "files_with_raw_locks": 410,
+  "files_using_checked_locks": 288,
   "raw_by_file": {
     "core/actuators/actuator_registry.py": 3,
     "core/actuators/actuator_synthesis.py": 2,
@@ -346,7 +346,6 @@
     "core/runtime/taint.py": 1,
     "core/sandbox/bash_daemon.py": 1,
     "core/scheduler.py": 1,
-    "core/security/audit_trail.py": 1,
     "core/security/defensive_runtime.py": 1,
     "core/security/deletion_guard.py": 2,
     "core/security/device_pairing.py": 1,

@@ -3,13 +3,13 @@
 import hashlib
 import math
 import sys
+from collections.abc import Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
 from pathlib import Path
-
-import numpy as np
 from typing import Any
 
+import numpy as np
 
 BOUNDED_BINARY_FIT_CONTRACT = {
     "schema": "aura.semantic_binary_fit_execution.v1",
@@ -25,7 +25,7 @@ _CHECKPOINT_SCOPE = ContextVar("semantic_binary_fit_checkpoint_scope", default=N
 
 
 @contextmanager
-def binary_fit_checkpoint_scope(directory, context_identity):
+def binary_fit_checkpoint_scope(directory: Any, context_identity: Any) -> Iterator[dict[str, Any]]:
     """Bind reusable iterates to one caller's unchanged source/partition custody."""
     if (not isinstance(context_identity, str) or len(context_identity) != 64
             or any(char not in "0123456789abcdef" for char in context_identity)):
@@ -39,7 +39,7 @@ def binary_fit_checkpoint_scope(directory, context_identity):
         _CHECKPOINT_SCOPE.reset(token)
 
 
-def binary_fit_checkpoint_receipt():
+def binary_fit_checkpoint_receipt() -> Any:
     from core.learning.semantic_fit_checkpoint import fit_identity
 
     state = _CHECKPOINT_SCOPE.get()
@@ -55,7 +55,7 @@ def binary_fit_checkpoint_receipt():
     return {**body, "receipt_sha256": fit_identity(body)}
 
 
-def _objective_checkpoint(features, labels, sample_weight, tolerance):
+def _objective_checkpoint(features: Any, labels: Any, sample_weight: Any, tolerance: float) -> Any:
     from core.learning.semantic_fit_checkpoint import ObjectiveFitCheckpoint, fit_identity
 
     state = _CHECKPOINT_SCOPE.get()

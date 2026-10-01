@@ -497,9 +497,13 @@ def close_leaked_sqlite_connections(leaked_files: set[str]) -> list[str]:
     # test did, and printing it would send readers to the wrong place.
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        connections: list[Any] = [
-            obj for obj in gc.get_objects() if isinstance(obj, sqlite3.Connection)
-        ]
+        connections: list[Any] = []
+        for obj in gc.get_objects():
+            # A weakref.proxy whose referent has gone raises ReferenceError
+            # when isinstance asks its class. It holds no connection either way.
+            with contextlib.suppress(ReferenceError):
+                if isinstance(obj, sqlite3.Connection):
+                    connections.append(obj)
     for connection in connections:
         try:
             rows = connection.execute("PRAGMA database_list").fetchall()

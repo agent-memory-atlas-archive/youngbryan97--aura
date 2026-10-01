@@ -67,7 +67,7 @@ def prose_vocabulary() -> collections.Counter[str]:
     sources = list((ROOT / "docs").rglob("*.md")) + list(ROOT.glob("*.md"))
     for path in sources:
         try:
-            text = path.read_text(encoding="utf-8", errors="ignore").lower()
+            text = path.read_text(encoding="utf-8", errors="ignore")
         except OSError:
             continue
         # Code is not prose. Without this, `FileWriteGateway` becomes the
@@ -76,7 +76,12 @@ def prose_vocabulary() -> collections.Counter[str]:
         text = re.sub(r"```.*?```", " ", text, flags=re.DOTALL)
         text = re.sub(r"`[^`]*`", " ", text)
         text = re.sub(r"\S*[/\\._]\S*", " ", text)
-        for word in re.findall(r"[a-z][a-z'-]{2,}", text):
+        # Nor is a class name written without its backticks. Its capitals say
+        # what it is (RuntimeError, AuraRuntime, CPython), and they are gone
+        # once the text is lowercased, when auraruntime would be a collision
+        # for "runtime" too short for the length test below to catch.
+        text = re.sub(r"\b\w*(?:[a-z][A-Z]|[A-Z]{2}[a-z])\w*\b", " ", text)
+        for word in re.findall(r"[a-z][a-z'-]{2,}", text.lower()):
             words[word] += 1
     return words
 

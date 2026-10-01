@@ -6,7 +6,6 @@ import inspect
 import json
 import logging
 import math
-import os
 import random
 import time
 from collections import deque
@@ -19,7 +18,7 @@ from typing import TYPE_CHECKING, Any, cast
 from core.container import ServiceContainer
 from core.memory.retention_policy import working_history_retention_policy
 from core.runtime.errors import Severity, record_degradation
-from core.runtime.flags import FlagKind, declare
+from core.runtime.flags import FlagKind, declare, env_str
 from core.runtime.receipts import WorkspaceGateReceipt, get_receipt_store
 from core.runtime.the_laboratory import seeded
 from core.utils.task_tracker import get_task_tracker
@@ -431,26 +430,27 @@ class SomaticNoiseInjector:
     ) -> None:
         self.rng = rng or seeded("global_workspace")
         self.rate = self._bounded_float(
-            os.environ.get("AURA_SOMATIC_NOISE_RATE"),
+            env_str("AURA_SOMATIC_NOISE_RATE", description="Chance of a somatic impulse a tick.", owner=__name__),
             0.035 if rate is None else rate,
             minimum=0.0,
             maximum=0.35,
         )
         self.max_priority = self._bounded_float(
-            os.environ.get("AURA_SOMATIC_NOISE_MAX_PRIORITY"),
+            env_str("AURA_SOMATIC_NOISE_MAX_PRIORITY", description="Top somatic bid.", owner=__name__),
             0.72 if max_priority is None else max_priority,
             minimum=0.05,
             maximum=0.9,
         )
         self.min_ticks_between = int(
             self._bounded_float(
-                os.environ.get("AURA_SOMATIC_NOISE_MIN_TICKS"),
+                env_str("AURA_SOMATIC_NOISE_MIN_TICKS", description="Ticks between impulses.", owner=__name__),
                 30 if min_ticks_between is None else min_ticks_between,
                 minimum=1,
                 maximum=10_000,
             )
         )
-        self.enabled = os.environ.get("AURA_SOMATIC_NOISE", "1").strip().lower() not in {"0", "false", "off", "no"}
+        enabled = env_str("AURA_SOMATIC_NOISE", default="1", description="0 stops somatic impulses.", owner=__name__)
+        self.enabled = enabled.strip().lower() not in {"0", "false", "off", "no"}
         self.last_impulse: SomaticImpulse | None = None
         self.injected_count = 0
         self._last_injected_tick = 0
@@ -468,7 +468,8 @@ class SomaticNoiseInjector:
             return None
         if "somatic_noise" in inhibited_sources:
             return None
-        force = os.environ.get("AURA_SOMATIC_NOISE_FORCE", "0").strip().lower() in {"1", "true", "on", "yes"}
+        force = env_str("AURA_SOMATIC_NOISE_FORCE", default="0", description="1 forces an impulse.", owner=__name__)
+        force = force.strip().lower() in {"1", "true", "on", "yes"}
         if not force and tick - self._last_injected_tick < self.min_ticks_between:
             return None
         if not force and self.rng.random() > self.rate:
@@ -572,7 +573,7 @@ def _pool_is_on() -> bool:
     mechanism, or a campaign that moves a criterion cannot say which change
     moved it.
     """
-    raw = os.environ.get("AURA_WORKSPACE_POOL", "").strip().lower()
+    raw = env_str("AURA_WORKSPACE_POOL", description="On divides each bid by its pool.", owner=__name__).strip().lower()
     return raw in {"1", "true", "yes", "on"}
 
 

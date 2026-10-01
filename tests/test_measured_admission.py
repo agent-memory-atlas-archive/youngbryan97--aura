@@ -406,14 +406,24 @@ def test_the_decision_carries_the_reasoning_to_argue_with_it():
 
 
 def test_the_mlx_client_samples_every_completed_generation():
-    """AST, not grep: a comment mentioning it must not satisfy this."""
+    """AST, not grep: a comment mentioning it must not satisfy this.
+
+    The client is `mlx_client.py` and the modules lifted out of it
+    (`mlx_client_*.py`); the sampler went to `mlx_client_recording.py` on 21
+    September, so reading the one file found nothing.
+    """
     import ast
     from pathlib import Path
 
-    source = (
-        Path(__file__).resolve().parents[1] / "core" / "brain" / "llm" / "mlx_client.py"
-    ).read_text("utf-8")
-    tree = ast.parse(source)
+    llm = Path(__file__).resolve().parents[1] / "core" / "brain" / "llm"
+    tree = ast.Module(
+        body=[
+            node
+            for path in (llm / "mlx_client.py", *sorted(llm.glob("mlx_client_*.py")))
+            for node in ast.parse(path.read_text("utf-8")).body
+        ],
+        type_ignores=[],
+    )
 
     sampler = next(
         (

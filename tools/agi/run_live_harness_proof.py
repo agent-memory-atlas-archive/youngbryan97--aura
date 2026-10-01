@@ -413,7 +413,9 @@ async def main():
             cls = getattr(module, meta.class_name)
             skill = cls()
             skill_res = await skill.safe_execute({}, {})
-            skill_res = cap_engine._apply_action_expectation_result(
+            # A coroutine since 21 August (CP889); without the await the probe
+            # read `.get` off the coroutine and failed every run since.
+            skill_res = await cap_engine._apply_action_expectation_result(
                 "clock",
                 skill_res,
                 {},

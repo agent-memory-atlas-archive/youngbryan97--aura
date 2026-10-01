@@ -41,11 +41,12 @@ from __future__ import annotations
 
 import logging
 import math
-import os
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 import numpy as np
+
+from core.runtime.flags import env_str
 
 logger = logging.getLogger("Aura.DomainRelay")
 
@@ -58,7 +59,11 @@ DOMAINS: tuple[str, ...] = ("P", "I", "A", "G", "C", "S", "M", "W", "D", "N")
 
 def relay_strength() -> float:
     """How hard the relay drives the shared block. Zero is off."""
-    raw = os.environ.get("AURA_DOMAIN_RELAY", "")
+    raw = env_str(
+        "AURA_DOMAIN_RELAY",
+        description="How hard the domain relay drives the shared block, 0 to 1; unset is off.",
+        owner="core.consciousness.domain_relay",
+    )
     if not raw.strip():
         return 0.0
     try:

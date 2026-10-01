@@ -25,10 +25,10 @@ Off unless `AURA_AFFERENT_TURNS` asks for it.
 from __future__ import annotations
 
 import logging
-import os
 
 import numpy as np
 
+from core.runtime.flags import env_str
 from core.runtime.temporal_depth import Membrane
 
 logger = logging.getLogger("Aura.Afferent")
@@ -60,7 +60,11 @@ def organ_sourced() -> dict[str, frozenset[str]]:
 
 def afferent_turns() -> float:
     """How many turns of history a sensed reading holds. Zero is off."""
-    raw = os.environ.get("AURA_AFFERENT_TURNS", "")
+    raw = env_str(
+        "AURA_AFFERENT_TURNS",
+        description="Turns of history a sensed organ reading holds; unset is off.",
+        owner="core.subject.afferent",
+    )
     if not raw.strip():
         return 0.0
     try:

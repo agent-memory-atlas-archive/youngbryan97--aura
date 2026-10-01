@@ -26,7 +26,6 @@ from core.brain.llm.mlx_worker import (
     _repair_live_user_surface_operational_status,
     _repair_live_user_surface_self_claims,
     _repair_live_user_surface_truncated_tail,
-    _restore_surface_generation_controls,
     _self_claim_retry_uses_original_context,
     _surface_control_alpha,
     _surface_generation_contract_enabled,
@@ -36,6 +35,7 @@ from core.brain.llm.mlx_worker import (
     _surface_retry_is_futile,
     _with_initial_user_surface_guidance,
 )
+from core.brain.llm.mlx_worker_surface_quality import _restore_surface_generation_controls
 
 
 def test_strict_contracts_enable_surface_clamp():

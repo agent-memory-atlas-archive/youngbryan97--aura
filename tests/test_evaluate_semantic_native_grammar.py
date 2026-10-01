@@ -53,9 +53,12 @@ def test_opt_in_causal_group_execution_matches_original_decision_scores():
     assert original == grouped
     assert branches is None and grouped_branches is None and old_count is None and group_count == 1
     assert mx.isfinite(mx.array(grouped)).all().item()
-    with pytest.raises(ValueError, match="full-prefix"):
+    # The trie path joined causal groups on 29 September (d8845d34c) and is
+    # tested in test_semantic_native_causal_groups; a prefix path nobody
+    # declared is still refused.
+    with pytest.raises(ValueError, match="declared prefix path"):
         score_grammar_choices(prefix, suffix, model, sequences, split_at=split,
-            max_tokens=16, strategy="trie", execution="causal_groups", branches=None)
+            max_tokens=16, strategy="undeclared", execution="causal_groups", branches=None)
 
 
 def test_source_control_mode_must_match_the_plan_report_and_each_row():

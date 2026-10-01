@@ -179,6 +179,13 @@ _FLAG_MODEL = _declare_flag(
     description="Migrated from a raw environment read; see owner for the lane.",
     owner="flag-migration",
 )
+_FLAG_CORTEX_AUTHORITY_KEY_FILE = _declare_flag(
+    "AURA_CORTEX_AUTHORITY_KEY_FILE",
+    kind=_FlagKind.STRING,
+    default="",
+    description="A pinned key for the cortex's promotion evidence; unset means the installation default.",
+    owner="core.brain.llm.model_registry",
+)
 
 LOCAL_BACKEND = str(_FLAG_LOCAL_BACKEND.value()).strip().lower()
 
@@ -279,7 +286,7 @@ def _pointer_failure_is_worth_reporting(exc: BaseException) -> bool:
     """
     if str(exc) != "migration_authority_key_unavailable":
         return True
-    return bool(os.environ.get("AURA_CORTEX_AUTHORITY_KEY_FILE", "").strip())
+    return bool(str(_FLAG_CORTEX_AUTHORITY_KEY_FILE.value() or "").strip())
 
 
 def _read_active_cortex_spec(
