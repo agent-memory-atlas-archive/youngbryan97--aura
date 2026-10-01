@@ -165,7 +165,7 @@ class RapidAdaptationEngine:
                 score += SIGNAL_WEIGHTS["very_short"]
 
         # Follow-up questions
-        if "?" in message and any(w in words for w in ("why", "how", "what", "tell", "more", "elaborate")):
+        if "?" in message and not {"why", "how", "what", "tell", "more", "elaborate"}.isdisjoint(words):
             score += SIGNAL_WEIGHTS["follow_up"]
 
         # Positive language

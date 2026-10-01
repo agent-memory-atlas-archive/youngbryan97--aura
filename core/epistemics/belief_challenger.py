@@ -23,6 +23,7 @@ import random
 import time
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.runtime.errors import FallbackClassification, record_degradation
 from core.utils.concurrency import cancel_and_join
 from core.utils.task_tracker import get_task_tracker
@@ -324,7 +325,7 @@ Be intellectually honest. Growth requires being wrong sometimes."""
                 "valid point",
                 "blind spot",
             )
-            is_revision = any(m in response.lower() for m in revision_markers)
+            is_revision = names_any(response, revision_markers)
             if is_revision:
                 if self._beliefs:
                     await _maybe_await(

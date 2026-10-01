@@ -16,11 +16,13 @@ so the LLM speaks from state — not from instruction.
 """
 from __future__ import annotations
 
+import logging
 import re
 import time
-import logging
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Tuple
+
+from core.conversation.word_markers import names_any
 
 logger = logging.getLogger("Aura.ConversationalDynamics")
 
@@ -510,11 +512,11 @@ class ConversationalDynamicsEngine:
     def _detect_epistemic_mode(self, message: str) -> str:
         """Detect what epistemic mode the partner is in."""
         msg_lower = message.lower()
-        if any(x in msg_lower for x in ["i know", "trust me", "definitely", "for sure", "i'm telling you"]):
+        if names_any(msg_lower, ["i know", "trust me", "definitely", "for sure", "i'm telling you"]):
             return "claiming"
         if "?" in message or any(x in msg_lower for x in ["i think", "maybe", "not sure", "could be"]):
             return "questioning"
-        if any(x in msg_lower for x in ["no", "actually", "that's not", "wrong", "nope", "i don't think so"]):
+        if names_any(msg_lower, ["no", "actually", "that's not", "wrong", "nope", "i don't think so"]):
             return "defending"
         return "sharing"
 

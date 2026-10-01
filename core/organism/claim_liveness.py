@@ -188,10 +188,19 @@ def _a_publisher_ran_for(channel: str) -> bool:
     claim bound to that channel is unevidenced here rather than refuted.
     """
     try:
+        from core.fsw.telemetry_dictionary import get_telemetry
         from core.fsw.telemetry_samplers import samplers_report
 
+        # A run into a dictionary that has been emptied since wrote nothing
+        # that is still there to read. Counting it made a test that cleared
+        # telemetry leave every later claim reading "never written".
+        current = get_telemetry().generation
         for row in samplers_report()["samplers"]:
-            if row["runs"] and channel in (row.get("channels") or ()):
+            if (
+                row["runs"]
+                and row.get("generation") == current
+                and channel in (row.get("channels") or ())
+            ):
                 return True
     except (ImportError, AttributeError, KeyError, TypeError) as exc:
         logger.debug("sampler register unreadable: %s", exc)

@@ -5,8 +5,6 @@
     "core/adaptation/adaptive_immunity.py": 1,
     "core/adaptation/finetune_pipe.py": 2,
     "core/advanced_cognition/evidence_deliberation.py": 4,
-    "core/advanced_cognition/ontology_invention.py": 5,
-    "core/advanced_cognition/physical_grounding.py": 2,
     "core/agency/goal_planner.py": 2,
     "core/architect/code_graph.py": 10,
     "core/architect/mutation_classifier.py": 1,
@@ -32,7 +30,6 @@
     "core/consciousness/somatic_marker_gate.py": 9,
     "core/conversation/demo_support.py": 3,
     "core/conversation/grounded_claim_guard.py": 5,
-    "core/conversational/dynamics.py": 2,
     "core/coordinators/knowledge_extractor.py": 1,
     "core/environment/modal.py": 2,
     "core/evaluation/live_conversation_probe.py": 1,
@@ -41,9 +38,7 @@
     "core/governance/will.py": 4,
     "core/identity/heartstone.py": 1,
     "core/identity/identity_guard.py": 1,
-    "core/identity/rapid_adaptation.py": 2,
     "core/introspection/source_model.py": 3,
-    "core/memory/knowledge_compression.py": 5,
     "core/memory/memory_write_gateway.py": 1,
     "core/memory/vector_memory_engine.py": 3,
     "core/morality/aggregate_harm.py": 1,
@@ -56,7 +51,6 @@
     "core/perception/nethack_parser.py": 1,
     "core/perception/observation_evidence.py": 1,
     "core/perception/reflex_layer.py": 1,
-    "core/perception/screen_perception.py": 2,
     "core/phases/action_grounding.py": 4,
     "core/phases/affect_update.py": 6,
     "core/phases/dialogue_policy.py": 2,
@@ -100,5 +94,5 @@
     "interface/routes/chat_preflight.py": 4,
     "interface/routes/subsystems.py": 1
   },
-  "total": 346
+  "total": 328
 }

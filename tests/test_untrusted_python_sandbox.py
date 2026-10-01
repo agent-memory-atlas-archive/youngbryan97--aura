@@ -184,7 +184,12 @@ def test_coroutine_warning_promoted_to_exception_still_fails():
 
 @_needs_boundary
 def test_registered_async_execution_claim_is_measured_off_the_boot_path():
-    from core.organism.model_validation import Outcome, RuntimeModel, get_suite, install_runtime_validation
+    from core.organism.model_validation import (
+        Outcome,
+        RuntimeModel,
+        get_suite,
+        install_runtime_validation,
+    )
 
     install_runtime_validation()
     check = get_suite()._tests["sandbox_awaitables_are_completed"]

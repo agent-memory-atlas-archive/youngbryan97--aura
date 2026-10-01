@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from core.container import ServiceContainer
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.state_ownership import state_root
 from core.runtime.subprocess_gateway import get_subprocess_gateway
@@ -358,12 +359,8 @@ class ScreenPerception:
 
         # Modal/loading detection from window title heuristics
         title_lower = snap.window_title.lower()
-        snap.has_modal = any(
-            kw in title_lower for kw in ("alert", "error", "warning", "permission", "allow")
-        )
-        snap.has_loading = any(
-            kw in title_lower for kw in ("loading", "saving", "progress", "processing")
-        )
+        snap.has_modal = names_any(title_lower, ("alert", "error", "warning", "permission", "allow"))
+        snap.has_loading = names_any(title_lower, ("loading", "saving", "progress", "processing"))
 
         self._last_hash = snap.text_hash
         return snap
