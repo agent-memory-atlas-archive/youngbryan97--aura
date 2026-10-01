@@ -750,6 +750,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  2026-09-30, evening. The next by count of the same class: StabilityGuardian
+  warned "DEGRADED" and recorded a degraded event on every check interval for
+  as long as one check stayed unhealthy, 249 times for a slow tick rate and
+  29 in one hour of 29 September. It now warns when a check starts failing,
+  says at info when one recovers, and keeps the passes in between at debug.
+  The homeostasis line above it in the count (947) predates its own fix of
+  26 September.
   2026-09-30, the next three by count in the live log of 24-29 September, one
   cause: a standing condition warned again on every pass of its loop. "HIGH
   MEMORY PRESSURE" 574 times on 26 September, 471 and 259 the days after;
