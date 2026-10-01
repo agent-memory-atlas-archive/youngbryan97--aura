@@ -252,6 +252,40 @@ def test_a_block_that_returns_early_is_moved_into_a_nested_function(tmp_path):
     assert "nonlocal" in body
 
 
+OWN_MARKER_SAMPLE = '''"""Sample."""
+
+from typing import Any
+
+
+def serve(flag, text, status):
+    from typing import Any as _SEAM_FELL_THROUGH
+    text = text.strip()
+    if flag:
+        status = "refused"
+        return status, text
+    text = text.upper()
+    status = "served"
+    return status, text
+'''
+
+
+def test_a_function_with_its_own_marker_is_refused(tmp_path):
+    """The helper would return the module's marker; the caller compares with its own.
+
+    `latent_reason_async` imports the marker from `mlx_client`, and its cut
+    block returned `mlx_latent_reasoning`'s, so a check that passed came back
+    as an early return: every latent run answered with a bare object().
+    """
+    module = tmp_path / "sample_own_marker.py"
+    module.write_text(OWN_MARKER_SAMPLE, encoding="utf-8")
+    extractor = _load(EXTRACTOR, "_aura_extract_seam_test")
+    code = extractor.extract(
+        module, "serve", 9, 11, "_refusal", is_async=False, apply=True
+    )
+    assert code != 0
+    assert module.read_text("utf-8") == OWN_MARKER_SAMPLE
+
+
 ESCAPING_EARLY_SAMPLE = '''"""Sample."""
 
 from typing import Any

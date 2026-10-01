@@ -523,6 +523,18 @@ def extract(
             "would shadow the first and rebind its callers"
         )
 
+    if nested and _binds_locally(fn, _SENTINEL):
+        # The helper returns the module's marker and the caller compares what
+        # it gets with whatever the name means inside the caller. A function
+        # that imports the marker itself, as one lifted out of another module
+        # does, compares with that module's marker, so a block that fell
+        # through came back as an early return. latent_reason_async returned
+        # a bare object() for every call from 29 September to 1 October.
+        refusals.append(
+            f"{fn.name} binds {_SENTINEL} itself, so its marker is not the "
+            "module's; the helper would return the wrong one"
+        )
+
     if refusals:
         print(f"refusing to extract {start}-{end}:")
         for refusal in refusals:
@@ -853,6 +865,18 @@ def _finish(
             + " — check whether the caller's local import is now unused"
         )
     return 0
+
+
+def _binds_locally(fn: ast.AST, name: str) -> bool:
+    """Whether the function gives ``name`` a meaning of its own."""
+    for node in ast.walk(fn):
+        if isinstance(node, (ast.Import, ast.ImportFrom)) and any(
+            (alias.asname or alias.name.split(".")[0]) == name for alias in node.names
+        ):
+            return True
+        if isinstance(node, ast.Name) and node.id == name and isinstance(node.ctx, ast.Store):
+            return True
+    return False
 
 
 def _add_sentinel(source: str) -> str:
