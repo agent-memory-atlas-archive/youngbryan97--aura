@@ -218,6 +218,6 @@ These items require more time, dedicated hardware, or outside verification. None
 **Closed since the last pass**
 
 * The ~15-turn endurance ceiling. Root-caused to an uninitialized prompt cache that was being reset on every conversational turn, and fixed (`artifacts/closeout/endurance_ceiling/ROOT_CAUSE.md`).
-* Test-suite scale. The earlier target was 100,000 tests with over 95% mutation score (tests that catch intentional bugs); the repository now collects **~45,600** across 4,097 files (as of 2026-09-15). Restating the target honestly: mutation scoring has not been run, and maximizing raw test counts was never the right metric to pursue.
+* Test-suite scale. The earlier target was 100,000 tests with over 95% mutation score (tests that catch intentional bugs); the repository now collects **60,348** across 4,457 files (recorded 2026-09-30). Restating the target honestly: mutation scoring has not been run, and maximizing raw test counts was never the right metric to pursue.
 
 Each item is tracked in the project ledger and on the web dashboard's "Open Items" tab.

@@ -12,7 +12,7 @@ This rule applies universally. There is no special "safe" category of tools that
 
 ## Principles
 
-1. **No tool runs without Will authorization:** Every tool call must pass through Aura's decision engine (the Unified Will) and generate a signed audit record (`WillReceipt`).
+1. **No tool runs without Will authorization:** Every tool call must pass through Aura's decision engine (the Unified Will), which records its decision as a `WillDecision` with its own `receipt_id`.
 2. **All tool output is untrusted:** Data returned by any tool is treated as external, untrusted input. It is sanitized and checked before it can influence Aura's decisions.
 3. **Least privilege:** Skills only receive the minimum permissions needed to do their specific job.
 4. **Fail closed (default to deny):** If the authorization system is unavailable or cannot make a decision, the tool is blocked from running.

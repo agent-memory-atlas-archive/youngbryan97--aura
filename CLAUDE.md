@@ -26,7 +26,7 @@ fixes reach the live instance only when the user restarts it themselves.
 make compile      # syntax sweep (core + tests)
 make lint         # ruff, three passes (surface E9, critical F-codes, curated files)
 make smoke        # ~100 contract tests, <10s — run after every change
-make test         # FULL offline suite (~45,600 tests) in 6 bounded process chunks
+make test         # FULL offline suite (60,331 tests, 2026-09-30) in 6 bounded process chunks
 make governance-lint  security  enterprise-gate  # scrutiny gates
 make layering     # DEPS include-rule gate; baseline in config/ only shrinks
 ```
@@ -35,14 +35,15 @@ make layering     # DEPS include-rule gate; baseline in config/ only shrinks
   Use `--continue-on-failure` to collect everything, `--only-chunks 5,6` to
   resume a partial run. One pytest process on the whole suite gets
   OOM-killed (~83%); always use the chunk runner.
-- **Chunk count is a memory budget, not a constant.** 6 chunks (≈353 files
+- **Chunk count is a memory budget, not a constant.** 6 chunks (≈743 files
   per pytest process) is right on an idle host and gets the *runner itself*
   killed when something else holds ~18GB — the resident 27B, a training sweep.
   The symptom is a log containing only the chunk header, because
   `capture_output=True` buffers the chunk's output in a parent that is then
-  gone. Check `free` first; with the 27B up, use `--chunks 40` (≈54 files,
-  ~70s each). `/tmp/aura_test_chunks_progress.log` names the chunk that was
-  in flight, and `--min-free-gb N` refuses rather than gambles.
+  gone. Check `free` first; with the 27B up, use `--chunks 40` (≈112 files,
+  a median of 15 minutes each on 30 September).
+  `/tmp/aura_test_chunks_progress.log` names the chunk that was in flight,
+  and `--min-free-gb N` refuses rather than gambles.
 - A test failing in-chunk but passing alone is an ORDER-DEPENDENCE defect —
   the runner's isolated-retry pass reports these separately.
 - Never launch test chunks while editing Python files: chunks spawn fresh

@@ -182,6 +182,174 @@ description is that document's own title.
 | `G08_VALIDATION_SOURCE_IDENTITY_2026-09-19.md` | Validation cache source identity |
 | `G_RUNTIME_WATCH_AND_RESIDUAL_2026-09-16.md` | Runtime recovery and residual sampling |
 | `TERNARY_BONSAI_2_27B_2026-09-17.md` | Ternary Bonsai 2 27B on this host, 2026-09-17 |
+| `G03_EXPANDED_FUNCTION_TRIAL_2026-09-19.md` | Expanded function-coordinate trial |
+| `G03_CANDIDATE_BANK_DIAGNOSIS_2026-09-20.md` | Candidate reachability and selection diagnosis |
+| `G03_COHORT_REPAIR_PROTOCOL_2026-09-20.md` | Cohort diagnosis before further training |
+| `G03_CONDITIONAL_PILOT_RESULT_2026-09-20.md` | Conditional graph learning pilot |
+| `G03_CONDITIONAL_SEARCH_BOUND_2026-09-20.md` | Conditional fit search interruption |
+| `G03_CONDITIONAL_SELECTION_2026-09-20.md` | Conditional semantic selection |
+| `G03_CONTRAST_CONSTRUCTION_REPLAY_2026-09-20.md` | Construct training margins with the fitter's replay |
+| `G03_EARLY_JOINT_RESTORATION_2026-09-20.md` | Restore omitted curved faces before expanding the working set |
+| `G03_FIT_CAPTURE_STORAGE_2026-09-20.md` | Deduplicate fit evidence storage |
+| `G03_ITERATIVE_POLICY_RESULT_2026-09-20.md` | Re-mining the actual decoder's competitor |
+| `G03_JOINT_CURVATURE_RESTORATION_2026-09-20.md` | Joint restoration of retained graph margins |
+| `G03_MARGIN_ACCUMULATION_2026-09-20.md` | Complete-graph margin accumulation |
+| `G03_OPERATION_RETENTION_POLICY_2026-09-20.md` | Operation retention policy |
+| `G03_OPERATION_RETENTION_RESULT_2026-09-20.md` | Operation retention result |
+| `G03_PARTIAL_TARGET_PROGRESS_2026-09-20.md` | An unreachable target does not stop independent learning |
+| `G03_POLICY_ALIGNED_LEARNING_2026-09-20.md` | Training the decoder's actual selection policy |
+| `G03_POLICY_COEFFICIENT_CONTROLS_2026-09-20.md` | G03 policy and coefficient controls |
+| `G03_REPLAYABLE_FIT_INPUTS_2026-09-20.md` | Preserve the numerical problem before the first update |
+| `G03_RESTORATION_WORKING_SET_2026-09-20.md` | Keep repaired faces in the restoration problem |
+| `G03_RESTORED_FULL_SOURCE_2026-09-20.md` | Full restored-source replay |
+| `G03_RESTORED_LATENT_DECODE_2026-09-20.md` | Restored latent decode |
+| `G03_ROUND_CANDIDATES_2026-09-20.md` | Decode each accepted training round |
+| `G03_SHARED_CHOICE_EVIDENCE_2026-09-20.md` | Shared conditional evidence |
+| `G03_SOURCE_ERROR_ACQUISITION_2026-09-20.md` | Source-wide error acquisition |
+| `G09_CLOSED_PROCEDURE_TYPES_2026-09-20.md` | Closed structural procedure execution |
+| `G09_FEEDBACK_EXECUTION_TYPES_2026-09-20.md` | Structural checks survive procedure feedback |
+| `G_LEDGER_REFERENCE_REVIEW_2026-09-20.md` | Verified reasoning reference review |
+| `G03_ADDITIONAL_CONTINUATION_REVIEW_2026-09-21.md` | Additional continuation report: checked against current code |
+| `G03_ARCHITECTURE_RESET_2026-09-21.md` | G03 Architecture Reset |
+| `G03_BOUNDARY_INTERVENTION_2026-09-21.md` | Exposed failure boundary intervention |
+| `G03_COMPLETE_LITERAL_AND_PAIRED_BOUNDARY_RESULT_2026-09-21.md` | Completed Literal and Paired Boundary Results |
+| `G03_CONTEXT_AND_PORTFOLIO_2026-09-21.md` | G03: request context, constrained decoding, and retained alternatives |
+| `G03_DIAGNOSTIC_SEARCH_COST_2026-09-21.md` | Diagnose Reachability Without Enumerating Past Its Witness |
+| `G03_EXACT_SEARCH_STATE_REUSE_2026-09-21.md` | Reuse operation feasibility states |
+| `G03_EXISTING_CHANNEL_RECOGNITION_2026-09-21.md` | Recognition evidence already present in the resident sequence |
+| `G03_EXPANDED_SEARCH_REGRESSIONS_2026-09-21.md` | Expanded search regressions |
+| `G03_FACTORED_BOUNDARY_MEANING_2026-09-21.md` | Separate boundary evidence from operation meaning |
+| `G03_FACTORIZED_RECOGNITION_RESULT_2026-09-21.md` | Factorized recognition: measured result |
+| `G03_FIXED_BANK_REPLAY_2026-09-21.md` | Fixed-bank semantic replay |
+| `G03_FULL_COHORT_ATTRIBUTION_2026-09-21.md` | Full development cohort attribution |
+| `G03_FULL_CONTEXT_AND_COORDINATES_2026-09-21.md` | Full-source context and common input coordinates |
+| `G03_FULL_SOURCE_DECISION_RESULT_2026-09-21.md` | Complete source-decision audit |
+| `G03_JOINT_TRANSITION_PILOT_2026-09-21.md` | Joint transition-feature and span-set learning |
+| `G03_LABELED_SPAN_OBJECTIVE_2026-09-21.md` | Joint labeled span-set experiment |
+| `G03_LITERAL_GRAMMAR_IDENTITY_2026-09-21.md` | Literal grammar aliases retain their input identity |
+| `G03_OBSERVATION_IDENTITY_AND_FEATURE_OVERLAP_2026-09-21.md` | Observation identity and operation-feature overlap |
+| `G03_OPERATION_NEIGHBORHOOD_2026-09-21.md` | Source-only neighborhood diagnostic |
+| `G03_PAIRED_SPAN_SET_OBJECTIVE_2026-09-21.md` | Learn paired boundaries in the complete span-set objective |
+| `G03_PREFIX_DIFFERENCED_RECOGNITION_2026-09-21.md` | Prefix-differenced operation recognition |
+| `G03_REQUEST_CONTEXT_PILOT_2026-09-21.md` | Complete-request operation evidence: development pilot |
+| `G03_RUNTIME_RECOGNITION_OBJECTIVE_2026-09-21.md` | Recognition evidence overruled by binding scores |
+| `G03_SECOND_REVIEW_DISPOSITION_2026-09-21.md` | Second advisory batch: source checks and counterexamples |
+| `G03_SOURCE_COMPETITOR_PROBE_2026-09-21.md` | Source-selected competitor probe |
+| `G03_SOURCE_DECISION_PILOT_2026-09-21.md` | Source decision retention pilot |
+| `G03_SPAN_FIT_RECOVERY_2026-09-21.md` | G03 Span Fit Recovery |
+| `G03_SPAN_SET_OBJECTIVE_2026-09-21.md` | Complete span-set boundary learning |
+| `G09_BOUNDED_REACH_CRITERION_2026-09-21.md` | Bounded reach and developmental gain |
+| `G09_GROUNDED_OPERATOR_INVENTION_2026-09-21.md` | Grounded Operator Invention |
+| `G09_OPERATOR_CAUSAL_INVENTORY_2026-09-21.md` | Operator interventions and trial restoration |
+| `G09_OPERATOR_RETENTION_2026-09-21.md` | Retained operator semantics |
+| `G09_SHARED_SEQUENCE_REACH_2026-09-21.md` | Shared retained-sequence reach |
+| `G11_REQUALIFICATION_CONTINUITY_2026-09-21.md` | Qualified package continuity and replay |
+| `G_LEDGER_SCREENSHOT_REVIEW_2026-09-21.md` | September 21 screenshot review |
+| `G03_CONDITION_ABLATION_2026-09-22.md` | Condition ablation in shared procedural learning |
+| `G03_DIRECT_MIXED_GAP_ATTRIBUTION_2026-09-22.md` | Direct and mixed method attribution on the exposed G03 gap |
+| `G03_INQUIRY_AND_SHARED_RULES_2026-09-22.md` | Discriminating inquiry and shared rule evidence |
+| `G03_INQUIRY_FEEDBACK_2026-09-22.md` | Observed inquiry feedback reaches program selection |
+| `G03_INQUIRY_RETENTION_2026-09-22.md` | Retaining unresolved program distinctions |
+| `G03_METHOD_OVERLAP_AND_ADVISORY_REVIEW_2026-09-22.md` | G03 paired methods and advisory review |
+| `G03_MIXED_CANDIDATE_BANK_2026-09-22.md` | Mixed candidate bank on the exposed development misses |
+| `G03_MIXED_METHOD_PROPOSALS_2026-09-22.md` | Mixed semantic proposals and durable feedback |
+| `G03_OPERATION_EVIDENCE_PROBE_2026-09-22.md` | Source-trained operation evidence probe |
+| `G03_OPERATION_SPAN_VIEW_DIAGNOSIS_2026-09-22.md` | G03 operation-span view diagnosis |
+| `G03_PORTFOLIO_GAP_ATTRIBUTION_2026-09-22.md` | Source-verified portfolio gap attribution |
+| `G03_RELATIONAL_AND_DIRECT_DECODER_2026-09-22.md` | Relational evidence and direct decoding |
+| `G03_ROLE_ALIAS_COUNTERFACTUAL_2026-09-22.md` | G03 role-alias counterfactual |
+| `G03_ROLE_ALIAS_FIT_NEGATIVE_2026-09-22.md` | G03 role-alias fit: no gain |
+| `G03_SOURCE_TRAINED_CANDIDATE_SELECTOR_2026-09-22.md` | Source-trained selection against a retained program bank |
+| `G03_SUGGESTIONS2_DISPOSITION_2026-09-22.md` | G03 Suggestions2 review |
+| `G_HUMAN_RELATIONAL_CRITERIA_2026-09-22.md` | Human relational criteria for the G ledger |
+| `G03_ARCHITECTURE_REUSE_2026-09-23.md` | G03 architecture reuse before another fit |
+| `G03_PDF_ARCHITECTURE_DISPOSITION_2026-09-23.md` | G03 external architecture proposals: disposition before broad evaluation |
+| `G03_SEARCH_INTERRUPTION_AND_SOURCE_RANKER_2026-09-23.md` | G03 search interruption and source-trained ranker, 2026-09-23 |
+| `G03_SEMANTIC_BELIEF_REVIEW_2026-09-23.md` | G03 semantic belief proposal review, 2026-09-23 |
+| `G03_CAUSAL_MEANING_AND_EPISTEMIC_CONTROL_2026-09-24.md` | G03: Causal meaning and epistemic control |
+| `G03_DIRECT_BEAM_ALTERNATIVES_2026-09-24.md` | G03: target-blind direct-program alternatives |
+| `G03_PROJECTED_TRIADIC_BINDING_2026-09-24.md` | G03: projected triadic binding remains diagnostic |
+| `G03_REPRESENTATION_ONLY_CONTROL_2026-09-24.md` | G03 representation-only binding control, 2026-09-24 |
+| `G03_TRIADIC_FULL_FOLD_ADDENDUM_2026-09-24.md` | G03: full-fold triadic replay reverses the pilot |
+| `G03_TRIADIC_GRAPH_FOLD0_FALSIFICATION_2026-09-24.md` | G03: graph-scale transfer fails on fold 0 |
+| `G03_TRIADIC_GRAPH_REFIT_2026-09-24.md` | G03: graph-level fitting recovers a held arithmetic gain |
+| `CONTEXTUAL_PRAGMATICS_2026-09-25.md` | Scoped pragmatic evidence inside the existing language substrate |
+| `G03_DIRECT_BANK_REFIT_2026-09-25.md` | Direct decoder bank-contrast refit: source gain did not transfer |
+| `G03_NATIVE_DECODER_SEMANTICS_2026-09-25.md` | Native decoder semantic pilot |
+| `G03_NESTED_SELECTOR_AND_RESEARCH_2026-09-25.md` | G03 nested selection and research, 2026-09-25 |
+| `G03_ORPHAN_LAUNCH_RETIREMENT_2026-09-25.md` | Orphaned launch agents during semantic replay |
+| `G03_SOURCE_MISS_PROFILE_2026-09-25.md` | G03 source-fold misses: reach, interruption, and selection are separate |
+| `G03_NATIVE_RETAINED_CANARY_2026-09-26.md` | Native retained development canary |
+| `G03_NATIVE_RETAINED_SOURCE_CONNECTION_2026-09-26.md` | Native retained-source connection, 2026-09-26 |
+| `G04_NATIVE_BINDING_CONTROL_PLAN_2026-09-26.md` | Native role and dependency controls, 2026-09-26 |
+| `G04_NATIVE_FORM_CANARY_PLAN_2026-09-26.md` | Native source-form canary plan |
+| `G04_NATIVE_FORM_CANARY_RESULT_2026-09-26.md` | Native source-form canary result |
+| `G04_NATIVE_FRESH_SCHEMA_2026-09-26.md` | Native selection on withheld three-step schemas |
+| `G04_NATIVE_RELATIVE_GRAMMAR_FULL_2026-09-26.md` | Target-blind three-step development result |
+| `G04_NATIVE_TARGET_BLIND_PROPOSALS_2026-09-26.md` | Native proposal boundary |
+| `G06_NATIVE_BASE_CONTROL_2026-09-26.md` | Unfitted native grammar control |
+| `G06_NATIVE_DEPTH_CONTROL_2026-09-26.md` | Native grammar depth control |
+| `G06_NATIVE_SOURCE_ERASURE_PLAN_2026-09-26.md` | Native source-erasure control, 2026-09-26 |
+| `G06_NATIVE_SOURCE_ERASURE_RESULT_2026-09-26.md` | Matched native fitting-source erasure |
+| `G06_NATIVE_SOURCE_INTERVENTION_CANARY_2026-09-26.md` | Native source-operation canary |
+| `G06_NATIVE_SOURCE_INTERVENTION_PLAN_2026-09-26.md` | Native source intervention plan, before model evaluation |
+| `G_MODEL_LANE_COORDINATION_2026-09-26.md` | One model-memory ledger for live-profile research |
+| `G_NATIVE_BRANCH_FP32_RESULT_2026-09-26.md` | FP32 source-cache arithmetic |
+| `G_NATIVE_BRANCH_PRECISION_PLAN_2026-09-26.md` | Precision-controlled source-cache probe |
+| `G_NATIVE_CODEC_AND_SEARCH_2026-09-26.md` | Native codec and search checkpoint |
+| `G_NATIVE_GRAMMAR_CHOICE_CANARY_RESULT_2026-09-26.md` | Grammar-choice canary: fit verified, generated answer regressed |
+| `G_NATIVE_GRAMMAR_CHOICE_OBJECTIVE_2026-09-26.md` | Native grammar-choice training |
+| `G_NATIVE_PREFIX_BRANCH_REJECTION_2026-09-26.md` | Resident prefix branch reuse rejected |
+| `G_NATIVE_PREFIX_BRANCH_REUSE_PLAN_2026-09-26.md` | Frozen native prefix branches, 2026-09-26 |
+| `G_NATIVE_PREFIX_GROUPING_2026-09-26.md` | Real prefix grouping measurement |
+| `G_NATIVE_RELATIVE_FIT_2026-09-26.md` | Role-relative native fit |
+| `G_NATIVE_SUPERVISION_IDENTIFIABILITY_2026-09-26.md` | Native supervision identifiability, 2026-09-26 |
+| `G_NATIVE_TRIE_ARITHMETIC_2026-09-26.md` | Shared causal-prefix computation |
+| `SUBPROCESS_PIPE_OWNERSHIP_2026-09-26.md` | Exited-child pipe ownership |
+| `G03_NATIVE_SOURCE_CONTROL_2026-09-27.md` | Native source-content controls, 2026-09-27 |
+| `G03_PAIRED_SOURCE_FIT_2026-09-27.md` | Paired source-choice fit on the exposed bank |
+| `G10_BALANCED_POLARITY_CONTROLS_2026-09-27.md` | Balanced polarity controls for 27B CAA development |
+| `G10_CONTRASTIVE_DEVELOPMENT_PIPELINE_2026-09-27.md` | CAA contrastive development path (not a qualification) |
+| `G_NATIVE_GRAMMAR_FULL_EPOCH_2026-09-27.md` | Native grammar complete-epoch result |
+| `G03_COMPLETE_PATH_OPTIMIZATION_2026-09-28.md` | Complete native paths and optimization |
+| `G03_DEVELOPMENT_WINDOW_EXECUTION_2026-09-28.md` | G03 complete development windows, 2026-09-28 |
+| `G03_JOINT_GRAPH_SELECTION_2026-09-28.md` | G03 joint graph checkpoint selection, 2026-09-28 |
+| `G03_RETAINED_NATIVE_GENERATION_2026-09-28.md` | Retained native generation, fitted versus base |
+| `G03_TYPED_PARAMETER_ISOLATION_2026-09-28.md` | Native parameter isolation by decision type |
+| `G03_TYPED_SOURCE_CONTRAST_COVERAGE_2026-09-28.md` | Typed source contrast coverage |
+| `G03_V6_TYPED_SOURCE_RESULT_2026-09-28.md` | V6 typed source fit and generated result |
+| `G03_V7_MICRO_PROBE_PROTOCOL_2026-09-28.md` | G03 v7 micro-probe protocol, 2026-09-28 |
+| `G03_V7_PARTIAL_PREFIX_REUSE_2026-09-28.md` | G03 v7 partial frozen-prefix reuse, 2026-09-28 |
+| `G04_CONDITIONAL_NATIVE_BINDING_2026-09-28.md` | Conditional native binding measurement |
+| `G04_NATIVE_DEPENDENCY_SOURCE_CONTROL_2026-09-28.md` | Native dependency source-control result |
+| `G04_NATIVE_ROLE_SOURCE_CONTROL_2026-09-28.md` | Native role source-control result |
+| `G04_V7_RELATION_MECHANISM_MICRO_PROTOCOL_2026-09-28.md` | V7 relation mechanism micro-probe, 2026-09-28 |
+| `G04_V7_TARGET_BLIND_MICRO_PROTOCOL_2026-09-28.md` | G04 v7 target-blind micro-probe, 2026-09-28 |
+| `G_MODEL_LANE_HANDOFF_2026-09-28.md` | Model-lane handoff on 28 September |
+| `G03_CACHED_GROUPED_SEARCH_2026-09-29.md` | Cached grouped native search, 2026-09-29 |
+| `G03_COUNTERFACTUAL_ACQUISITION_PREFLIGHT_2026-09-29.md` | G03 counterfactual acquisition preflight, 2026-09-29 |
+| `G03_EARLY_STOP_CONTRAST_2026-09-29.md` | G03 early-stop contrast, 2026-09-29 |
+| `G03_FIT_ONLY_TERMINATION_CONTRAST_2026-09-29.md` | G03 fit-only termination contrast, 2026-09-29 |
+| `G03_NATIVE_BUDGET_FRONTIER_2026-09-29.md` | G03 native budget frontier, 2026-09-29 |
+| `G03_POSTFIX_DEFINITION_WORDING_2026-09-29.md` | G03 postfix definition wording, 2026-09-29 |
+| `G03_PROSPECTIVE_REFERENCE_SCREEN_2026-09-29.md` | G03 prospective reference screen, 2026-09-29 |
+| `G03_REAL_TOKENIZER_PAIR_AUDIT_2026-09-29.md` | G03 real-tokenizer pair audit, 2026-09-29 |
+| `G03_RESIDUAL_SCALE_ORACLE_CEILING_2026-09-29.md` | V7 source-calibration scale ceiling, 2026-09-29 |
+| `G03_SOURCE_ROLE_RULE_PROBE_2026-09-29.md` | G03 source-role rule probe, 2026-09-29 |
+| `G03_V7_CAUSAL_GROUP_RECOVERY_2026-09-29.md` | G03 v7 micro recovery, 2026-09-29 |
+| `G03_V7_FIT_MATCHED_RESIDUAL_2026-09-29.md` | G03 v7 fit-matched residual, 2026-09-29 |
+| `G03_VIDEO_REASONING_IMPLEMENTATION_2026-09-29.md` | Source-indexed reasoning review, 2026-09-29 |
+| `G03_BINARY_ITERATE_RESUME_2026-09-30.md` | G03 binary iterate resume, 2026-09-30 |
+| `G03_BOUNDED_NATIVE_FIT_2026-09-30.md` | G03 bounded native fit, 2026-09-30 |
+| `G03_BOUNDED_SOURCE_HEAD_FIT_2026-09-30.md` | G03 bounded source-head fitting, 2026-09-30 |
+| `G03_COMPUTED_CONSTRAINTS_AND_NATIVE_REJECTION_2026-09-30.md` | G03 computed constraints and native rejection, 2026-09-30 |
+| `G03_MIXED_COMPUTATION_ENTRY_2026-09-30.md` | G03 mixed computation entry, 2026-09-30 |
+| `G03_NATIVE_IDENTIFIABILITY_PREFLIGHT_2026-09-30.md` | Exact-path identifiability before model loading, 2026-09-30 |
+| `G03_NATIVE_PREPARATION_HANDOFF_2026-09-30.md` | Source bank to native preparation, 2026-09-30 |
+| `G03_OBSERVATION_RECOMPUTATION_2026-09-30.md` | G03 observation-driven recomputation, 2026-09-30 |
+| `G03_PREPARED_NATIVE_FIT_HANDOFF_2026-09-30.md` | Prepared native fit continuation, 2026-09-30 |
+| `G03_SOURCE_FIT_HANDOFF_2026-09-30.md` | G03 source-fit handoff, 2026-09-30 |
+| `G03_STOP_SOURCE_REACQUISITION_2026-09-30.md` | G03 stop-source reacquisition, 2026-09-30 |
 
 Machine-generated proof bundles live under `artifacts/` (see
 [ARTIFACT_INDEX.md](../../ARTIFACT_INDEX.md)); test standards live in

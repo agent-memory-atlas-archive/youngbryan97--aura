@@ -28,7 +28,7 @@ make run          # foreground launch
 Two specific checks are especially important:
 
 - `make layering` — Enforces architectural boundaries defined in `DEPS` files. Low-level components (`core/runtime` and `core/observability`) are strictly forbidden from importing high-level cognitive or autonomous agent modules. Any legacy exceptions listed in `config/layering_baseline.json` can only be removed over time, never added.
-- `make test` — Runs the full test suite split into 6 separate worker processes via `tools/run_test_chunks.py`. As of 2026-09-15, the test suite contains **approximately 45,600 tests across 4,097 files**. Running all tests in a single `pytest` process runs out of system memory (OOM crash) at about 83% completion, so you must always use the chunk runner.
+- `make test` — Runs the full test suite split into 6 separate worker processes via `tools/run_test_chunks.py`. As recorded in `config/test_inventory.json` on 2026-09-30, the test suite contains **60,348 tests across 4,457 files**. Running all tests in a single `pytest` process runs out of system memory (OOM crash) at about 83% completion, so you must always use the chunk runner.
 
 ## Backup & restore
 - Backup: `tar czf aura-backup.tar.gz ~/.aura/data ~/.aura/live-source`
