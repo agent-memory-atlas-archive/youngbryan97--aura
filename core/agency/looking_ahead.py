@@ -25,6 +25,7 @@ from collections.abc import Collection
 from typing import Any, Sequence
 
 from core.agency.how_good_is_this import how_good, why
+from core.agency.the_steps_between import within_one_view
 
 __all__ = [
     "forget_how_far_she_saw",
@@ -307,6 +308,7 @@ def whether_to_take_the_wide_option(
     return 0.0
 
 
+@within_one_view
 def look_ahead(
     knows: Any,
     state: Any,

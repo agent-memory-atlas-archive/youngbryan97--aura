@@ -104,13 +104,15 @@ class WorkedOut:
         return f"played out {self.games} game(s) in my own model: {moved}. Judging by {weights}"
 
 
-def _how_far_it_got(played: Any, toward: str) -> float:
+def _how_far_it_got(played: Any, toward: str, ladder: Any = None) -> float:
     """One game's outcome on one scale: how near it got, and how soon if it arrived.
 
     Nearness is her own measure of the goal. A game that arrived is worth
     one, plus a share that shrinks with its length, so between two that both
     arrive the quicker counts for more. Where the goal names nothing she can
-    measure, the largest thing the game made is all there is to go on.
+    measure, the largest thing the game made is all there is to go on, in
+    the steps this world takes between the amounts its games reached (see
+    core/agency/the_steps_between.py), not in doublings.
     """
     from core.agency.what_she_is_after import goal_in  # noqa: PLC0415
 
@@ -120,7 +122,7 @@ def _how_far_it_got(played: Any, toward: str) -> float:
     if goal_in(toward).names_something():
         return float(getattr(played, "nearest", 0.0) or 0.0)
     furthest = float(getattr(played, "furthest", 0.0) or 0.0)
-    return math.log2(furthest) if furthest > 1.0 else 0.0
+    return ladder.place(furthest) if ladder is not None else 0.0
 
 
 def _terms_that_can_matter(
@@ -199,8 +201,9 @@ def _paired(
 ) -> tuple[str, int, int]:
     """Play pairs until they tell the two apart or run out. (verdict, pairs, games)."""
     from core.agency.rehearsing_in_her_model import played_out  # noqa: PLC0415
+    from core.agency.the_steps_between import ladder_of  # noqa: PLC0415
 
-    differences: list[float] = []
+    played_pairs: list[tuple[Any, Any]] = []
     games = 0
     for seed in range(MOST_PAIRS):
         how = dict(toward=toward, seed=seed, until=until, looks_ahead=looks_ahead)
@@ -213,10 +216,19 @@ def _paired(
         after = played_out(knows, world, start, actions, weights=dict(trying), **how)
         games += 1
         if before is None or after is None:
-            return "out of time", len(differences), games
-        differences.append(_how_far_it_got(after, toward) - _how_far_it_got(before, toward))
-        if len(differences) not in LOOKS_AT:
+            return "out of time", len(played_pairs), games
+        played_pairs.append((before, after))
+        if len(played_pairs) not in LOOKS_AT:
             continue
+        # Every difference in the current ladder's steps, recomputed at each
+        # look, so a later game that shows a new amount rescales them all alike.
+        ladder = ladder_of(
+            float(getattr(game, "furthest", 0.0) or 0.0) for pair in played_pairs for game in pair
+        )
+        differences = [
+            _how_far_it_got(a, toward, ladder) - _how_far_it_got(b, toward, ladder)
+            for b, a in played_pairs
+        ]
         pairs = len(differences)
         last_look = pairs == MOST_PAIRS
         mean = sum(differences) / pairs
@@ -236,7 +248,7 @@ def _paired(
             return "kept", pairs, games
         if mean < -line:
             return "worse", pairs, games
-    return "could not tell", len(differences), games
+    return "could not tell", len(played_pairs), games
 
 
 def work_out_what_matters(

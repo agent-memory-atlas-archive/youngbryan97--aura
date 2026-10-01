@@ -35,7 +35,6 @@ from __future__ import annotations
 
 import functools
 import logging
-import math
 import re
 from collections.abc import Mapping
 from typing import Any, Sequence
@@ -409,10 +408,10 @@ def why(state: Any, *, toward: str = "", approach: str = "") -> str:
 def _nearness(state: Any, toward: str) -> float:
     """How near this is to what she was asked for, where that is computable.
 
-    On a scale where reaching it is one. A number to reach is counted in
-    doublings, because doubling is the step that matters in anything built by
-    combining; a layout to make is counted in steps each thing is from its
-    place. See core/agency/what_she_is_after.py.
+    On a scale where reaching it is one. A number to reach is counted in the
+    steps this world takes (core/agency/the_steps_between.py); a layout to
+    make is counted in steps each thing is from its place. See
+    core/agency/what_she_is_after.py.
     """
     from core.agency.what_she_is_after import goal_in  # noqa: PLC0415
 
@@ -508,7 +507,7 @@ def _order(state: Any) -> float:
 
 
 def _smoothness(state: Any) -> float:
-    """How near neighbouring things are to each other in value, on a doubling scale.
+    """How near neighbouring things are to each other in value, in this world's steps.
 
     A thing can be perfectly ordered and impossible to work with: 2, 32, 4,
     64 runs one way along no line, and 2, 4, 512, 1024 runs one way along
@@ -516,23 +515,25 @@ def _smoothness(state: Any) -> float:
     workable is that the things beside each other are CLOSE — one step apart
     rather than eight — because that is what lets them come together at all.
 
-    Counted in doublings, like nearness is, because in anything built by
-    combining a step is a doubling and a plain difference makes every gap
-    among small things look like nothing.
+    Counted in this world's own steps, like nearness is: doublings where the
+    world doubles, ones where it adds one, read off the amounts it shows (see
+    core/agency/the_steps_between.py). A plain difference would make every
+    gap among small things on a doubling board look like nothing.
     """
+    from core.agency.the_steps_between import ladder_here  # noqa: PLC0415
+
     lines = _lines_of(state)
     if not lines:
         return 0.0
+    ladder = ladder_here(value for line in lines for value in line)
     apart: list[float] = []
     for line in lines:
         for one, other in zip(line, line[1:]):
-            if one <= 0 or other <= 0:
-                continue
-            apart.append(abs(math.log2(one) - math.log2(other)))
+            apart.append(ladder.apart(one, other) if ladder is not None else 0.0)
     if not apart:
         return 0.0
-    # One doubling apart is as close as two different things can be, so that
-    # is the scale a gap is measured against.
+    # One step apart is as close as two different things can be, so that is
+    # the scale a gap is measured against.
     return 1.0 / (1.0 + sum(apart) / len(apart))
 
 
