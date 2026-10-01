@@ -4,6 +4,9 @@
   "modules": {
     "core.learning.procedure_induction": "Enumerative procedure synthesis for the compiler-free acquisition experiment. Run deliberately by tests and by tools; nothing in the response path calls it, and wiring it in to satisfy a counter would be worse than leaving it out.",
     "core.learning.compiler_free_experiment": "The held-out-family experiment with its lesion and null arms. An experiment, not a capability: its result is a verdict about Aura, not a behaviour of Aura.",
-    "core.learning.induced_neural_procedure": "Experimental bridge from family-blind induced programs into qualified semantic neural tissue; it remains outside serving until powered transfer and resident-decode controls pass."
+    "core.learning.induced_neural_procedure": "Experimental bridge from family-blind induced programs into qualified semantic neural tissue; it remains outside serving until powered transfer and resident-decode controls pass.",
+    "core.learning.semantic_computation_loop": "G03's grounded semantic computation loop: one entry from a source-grounded candidate union through scoped computation, observation, recomputation and recipe retention. Measured on development cohorts by tests/test_semantic_mixed_computation_loop.py; docs/evidence/G03_MIXED_COMPUTATION_ENTRY_2026-09-30.md states it is not installed as a serving policy, and G03 is open.",
+    "core.reasoning.computational_models": "The reviewed model cells (physics, chemistry, kinetics) the G03 computation loop formulates against, each with premises, units and a cited reference. Reached through the experimental computation loop and its tests; no runtime path formulates with it yet.",
+    "core.reasoning.scoped_logical_computation": "Derives scoped facts through the existing proof kernel for the G03 computation loop's model guards. Part of the same experiment; no runtime caller until G03's computation path is joined to reasoning."
   }
 }
