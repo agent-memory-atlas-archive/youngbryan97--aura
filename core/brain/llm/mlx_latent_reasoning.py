@@ -48,10 +48,6 @@ from .mlx_worker import (
     _HIDDEN_SEQUENCE_MAX_WIDTH,
 )
 
-#: Returned by an extracted block that did NOT return early. A unique
-#: object, so no value a block legitimately returns can be mistaken for it.
-_SEAM_FELL_THROUGH = object()
-
 #: What an extracted block returns when it fell through to the code after it.
 _FALL_THROUGH = object()
 

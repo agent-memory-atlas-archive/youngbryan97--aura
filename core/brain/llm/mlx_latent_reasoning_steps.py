@@ -96,7 +96,11 @@ def _check_the_operation_authority(
     means it finished instead. It reads 10 name(s) and hands back
     1.
     """
-    from .mlx_latent_reasoning import (
+    # The marker latent_reason_async compares with, which it imports from
+    # mlx_client. This read mlx_latent_reasoning's own marker, a different
+    # object, so a check that passed came back as an early return and every
+    # latent run answered with a bare object() (29 September to 1 October).
+    from .mlx_client import (
         _SEAM_FELL_THROUGH,
     )
 
