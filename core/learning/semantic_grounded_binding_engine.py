@@ -20,7 +20,7 @@ from types import MappingProxyType
 
 import mlx.core as mx
 import mlx.nn as nn
-from mlx.utils import tree_flatten, tree_map
+from mlx.utils import tree_flatten, tree_map, tree_unflatten
 
 from core.governance_context import local_internal_governed_scope
 from core.learning.semantic_context_binding import bind_context_roles, candidate_cost
@@ -31,6 +31,7 @@ from core.learning.semantic_relational_pointer import (
     pointer_role_margin_loss,
     semantic_role_features,
 )
+from core.runtime.file_read_gateway import open_stable_readonly_binary
 from core.runtime.file_write_gateway import get_file_write_gateway
 
 IMPLEMENTATION_PATHS = (
@@ -65,13 +66,165 @@ def implementation_receipt():
 
 def _write_binding_artifact(path, payload):
     path = Path(path)
-    if (path.name not in {"selected.safetensors", "training-nuisance.safetensors", "report.json"}
-            and re.fullmatch(r"checkpoint-(0|[1-9][0-9]*)\.safetensors", path.name) is None):
+    if (path.name not in {"selected.safetensors", "training-nuisance.safetensors", "report.json", "resume.json"}
+            and re.fullmatch(r"checkpoint-(0|[1-9][0-9]*)\.safetensors", path.name) is None
+            and re.fullmatch(r"resume-[a-f0-9]{64}\.safetensors", path.name) is None):
         raise ValueError("grounded fit artifact is outside its fixed schema namespace")
     if not (path.parent / "fit-owner.json").is_file():
         raise ValueError("grounded fit artifact has no claimed fresh run namespace")
     with local_internal_governed_scope("grounded_binding_source_fit", domain="file_write"):
         get_file_write_gateway().write_bytes(path, payload, source="grounded_binding_source_fit")
+
+
+def _save_grounded_restart(directory, state, model, optimizer, selected):
+    """Publish one complete optimizer generation before moving its pointer."""
+    tensors = {"model/" + key: value for key, value in tree_flatten(model.trainable_parameters())}
+    tensors.update({"optimizer/" + key: value for key, value in tree_flatten(optimizer.state)})
+    tensors.update({"selected/" + key: value for key, value in selected.items()})
+    tensors.update({"rng/" + str(index): value for index, value in enumerate(mx.random.state)})
+    mx.eval(tensors)
+    if any(not mx.all(mx.isfinite(value)).item() for value in tensors.values()):
+        raise ValueError("grounded restart contains nonfinite state")
+    body = {**state, "schema": "aura.grounded_optimizer_restart.v1",
+            "inventory": {key: [list(value.shape), str(value.dtype)] for key, value in tensors.items()}}
+    stream = io.BytesIO()
+    mx.save_safetensors(stream, tensors, metadata={"state": json.dumps(body, sort_keys=True, allow_nan=False)})
+    payload = stream.getvalue()
+    sha = hashlib.sha256(payload).hexdigest()
+    name = f"resume-{sha}.safetensors"
+    path = directory / name
+    if path.exists():
+        if path.read_bytes() != payload:
+            raise ValueError("grounded restart generation collision")
+    else:
+        _write_binding_artifact(path, payload)
+    _write_binding_artifact(directory / "resume.json", json.dumps({
+        "schema": "aura.grounded_restart_pointer.v1", "file": name, "sha256": sha,
+        "identity": state["identity"], "step": state["step"]}, sort_keys=True).encode())
+
+
+def _load_grounded_restart(directory, identity, model, optimizer, artifact):
+    def read(path, bound):
+        with open_stable_readonly_binary(path, max_bytes=bound) as (handle, observed):
+            payload = handle.read(bound + 1)
+            if len(payload) != observed.size or len(payload) > bound:
+                raise ValueError("grounded restart file changed or exceeded its bound")
+            return payload
+
+    pointer = json.loads(read(directory / "resume.json", 16384))
+    if (set(pointer) != {"schema", "file", "sha256", "identity", "step"}
+            or pointer["schema"] != "aura.grounded_restart_pointer.v1"
+            or pointer["identity"] != identity
+            or re.fullmatch(r"[a-f0-9]{64}", pointer["sha256"]) is None
+            or pointer["file"] != f"resume-{pointer['sha256']}.safetensors"):
+        raise ValueError("grounded restart pointer or fit identity differs")
+    expected_partitions = {
+        "model": dict(tree_flatten(model.trainable_parameters())),
+        "optimizer": dict(tree_flatten(optimizer.state)),
+        "selected": dict(tree_flatten(artifact.trainable_parameters())),
+        "rng": {str(index): value for index, value in enumerate(mx.random.state)},
+    }
+    payload_bound = sum(value.nbytes for partition in expected_partitions.values()
+                        for value in partition.values()) + 8 * 1024 ** 2
+    payload = read(directory / pointer["file"], payload_bound)
+    if hashlib.sha256(payload).hexdigest() != pointer["sha256"]:
+        raise ValueError("grounded restart generation checksum differs")
+    tensors, metadata = mx.load(io.BytesIO(payload), format="safetensors", return_metadata=True)
+    state = json.loads(metadata["state"])
+    if (state.get("schema") != "aura.grounded_optimizer_restart.v1" or state.get("identity") != identity
+            or state.get("step") != pointer["step"] or type(state["step"]) is not int
+            or set(tensors) != set(state["inventory"])
+            or any([list(value.shape), str(value.dtype)] != state["inventory"][key]
+                   or not mx.all(mx.isfinite(value)).item() for key, value in tensors.items())):
+        raise ValueError("grounded restart state or tensor inventory differs")
+    partitions = {name: {key[len(name) + 1:]: value for key, value in tensors.items()
+                        if key.startswith(name + "/")} for name in ("model", "optimizer", "selected", "rng")}
+    if sum(map(len, partitions.values())) != len(tensors):
+        raise ValueError("grounded restart has undeclared tensor ownership")
+    for name, expected in expected_partitions.items():
+        actual = partitions[name]
+        if (set(actual) != set(expected)
+                or any(actual[key].shape != value.shape or actual[key].dtype != value.dtype
+                       for key, value in expected.items())):
+            raise ValueError("grounded restart model or optimizer geometry differs")
+    if int(partitions["optimizer"]["step"].item()) != state["step"]:
+        raise ValueError("grounded restart optimizer update count differs")
+    model.update(tree_unflatten(partitions["model"]))
+    optimizer.state = tree_unflatten(partitions["optimizer"])
+    mx.random.state = [partitions["rng"][str(index)] for index in range(len(partitions["rng"]))]
+    return state, partitions["selected"], pointer
+
+
+def verify_grounded_fit_checkpoint(directory):
+    """Check saved source custody and selection without allocating a backbone.
+
+    This checks artifact integrity. It makes no language-correctness claim.
+    """
+    directory = Path(directory)
+    def read(path, bound):
+        with open_stable_readonly_binary(path, max_bytes=bound) as (handle, identity):
+            payload = handle.read(bound + 1)
+            if len(payload) != identity.size or len(payload) > bound:
+                raise ValueError("grounded fit artifact read exceeded its bound")
+            return payload
+
+    report = json.loads(read(directory / "report.json", 64 * 1024 ** 2))
+    body = {key: value for key, value in report.items() if key != "receipt_sha256"}
+    if (report.get("schema") != "aura.grounded_binding_fit.v1"
+            or hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+               != report.get("receipt_sha256")
+            or report.get("implementation") != implementation_receipt()
+            or report.get("semantic_success") is not None or report.get("serving_authority") is not False
+            or report.get("inference_family_labels") is not False):
+        raise ValueError("grounded fit report integrity or authority differs")
+    owner = json.loads(read(directory / "fit-owner.json", 1024 ** 2))
+    observation_ids = {name: [item["source_id"] for item in report["observations"][name]]
+                       for name in ("training", "calibration")}
+    if (owner.get("schema") != "aura.grounded_binding_owner.v2"
+            or owner.get("identity") != report["fit_identity"]
+            or owner.get("fit_ids") != observation_ids["training"]
+            or owner.get("calibration_ids") != observation_ids["calibration"]
+            or any(not values or len(values) != len(set(values)) for values in observation_ids.values())
+            or set(observation_ids["training"]) & set(observation_ids["calibration"])
+            or any([item["source_id"] for item in report["supervision"][name]] != values
+                   for name, values in observation_ids.items())
+            or hashlib.sha256(json.dumps({"observations": report["observations"],
+                "supervision": report["supervision"]}, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+               != report["source_receipt_sha256"]):
+        raise ValueError("grounded fit source custody differs")
+    pointer = json.loads(read(directory / "resume.json", 16384))
+    if (pointer.get("schema") != "aura.grounded_restart_pointer.v1"
+            or pointer.get("identity") != report["fit_identity"] or pointer.get("step") != report["steps"]
+            or re.fullmatch(r"[a-f0-9]{64}", pointer.get("sha256", "")) is None
+            or pointer.get("file") != f"resume-{pointer['sha256']}.safetensors"):
+        raise ValueError("grounded fit terminal restart identity differs")
+    generation = read(directory / pointer["file"], 4 * 1024 ** 3)
+    if hashlib.sha256(generation).hexdigest() != pointer["sha256"]:
+        raise ValueError("grounded fit terminal generation checksum differs")
+    tensors, metadata = mx.load(io.BytesIO(generation), format="safetensors", return_metadata=True)
+    state = json.loads(metadata["state"])
+    if (state.get("schema") != "aura.grounded_optimizer_restart.v1"
+            or state.get("identity") != report["fit_identity"] or state.get("step") != report["steps"]
+            or state.get("history") != report["history"]
+            or state.get("best") != [report["source_calibration_loss"], report["selected_step"]]
+            or tensors["optimizer/step"].item() != report["steps"]
+            or set(tensors) != set(state["inventory"])
+            or any([list(value.shape), str(value.dtype)] != state["inventory"][key]
+                   or not mx.all(mx.isfinite(value)).item() for key, value in tensors.items())):
+        raise ValueError("grounded fit terminal optimizer or selection differs")
+    weights = read(directory / "selected.safetensors", 1024 ** 3)
+    if hashlib.sha256(weights).hexdigest() != report["weights_sha256"]:
+        raise ValueError("grounded fit selected weights checksum differs")
+    selected = mx.load(io.BytesIO(weights), format="safetensors")
+    saved = {key[len("selected/"):]: value for key, value in tensors.items() if key.startswith("selected/")}
+    checkpoint = mx.load(io.BytesIO(read(directory / f"checkpoint-{report['selected_step']}.safetensors",
+                                        1024 ** 3)), format="safetensors")
+    for actual in (saved, checkpoint):
+        if (set(actual) != set(selected) or any(actual[key].dtype != value.dtype
+                or actual[key].shape != value.shape or not mx.array_equal(actual[key], value).item()
+                for key, value in selected.items())):
+            raise ValueError("grounded fit selected checkpoint differs from terminal generation")
+    return report
 
 
 @dataclass(frozen=True)
@@ -514,7 +667,7 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
                          retention_weight=0., stationarity_weight=0., nuisance_projection=None,
                          domain_reversal=0., equivariance_pairs=(), equivariance_weight=1.,
                          native_suffix=None, native_captures=None, native_contract=None, role_margin=0.,
-                         training_schedule=None, sampling_receipt=None):
+                         training_schedule=None, sampling_receipt=None, resume=False):
     """Fit observed role identities, select only on disjoint source calibration.
 
     Environment labels affect training weights only, never pointer features.
@@ -539,6 +692,11 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
         raise ValueError("grounded binding fit needs disjoint sources and bounded complete checkpoints")
     if not math.isfinite(role_margin) or role_margin < 0:
         raise ValueError("grounded role margin must be finite and nonnegative")
+    deadline = time.monotonic() + max_seconds
+    def check_bound():
+        if time.monotonic() >= deadline:
+            raise TimeoutError("grounded binding fit reached its declared resource bound")
+
     schedule = tuple(training_schedule) if training_schedule is not None else tuple(
         train_ids[step % len(train_ids)] for step in range(steps))
     if len(schedule) != steps or not set(schedule) <= set(train_ids):
@@ -566,9 +724,11 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
     examples = {item.evidence.source_id: item for item in training}
     all_examples = {item.evidence.source_id: item for item in (*training, *calibration)}
     for item in all_examples.values():
+        check_bound()
         if not isinstance(item.environment, str) or not item.environment:
             raise ValueError("grounded source environment must be explicit")
         item.indices()
+    initial_native_observations = {}
     if native_suffix is not None:
         if (not isinstance(native_contract, dict) or not native_contract
                 or not isinstance(native_captures, Mapping) or set(native_captures) != set(all_examples)
@@ -576,6 +736,7 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
                 or any("lora_" not in name for name, _value in tree_flatten(native_suffix.trainable_parameters()))):
             raise ValueError("joint grounded fit needs exact native captures, contract and adapter-only suffix")
         for identity, capture in native_captures.items():
+            check_bound()
             capture.validate()
             current = capture.capture(native_suffix)
             old = all_examples[identity].evidence
@@ -583,6 +744,10 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
                     or current.roles != old.roles or current.relations != old.relations):
                 raise ValueError("native grounded capture changed public source identities or roles")
             replace(all_examples[identity], evidence=current).indices()
+            initial_native_observations[identity] = project_grounded_evidence(current, nuisance_projection).receipt()
+            print(json.dumps({"stage": "grounded_initial_source_observed", "source": identity,
+                              "completed": len(initial_native_observations), "population": len(all_examples)}), flush=True)
+            del current
     elif native_captures is not None or native_contract is not None:
         raise ValueError("native capture custody requires an attached suffix")
     pairs_by_source = {identity: [] for identity in train_ids}
@@ -594,14 +759,14 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
     environments = sorted({item.environment for item in training})
     if domain_reversal and len(environments) < 2:
         raise ValueError("domain-adversarial binding needs multiple source environments")
-    if directory.exists():
+    if type(resume) is not bool:
+        raise ValueError("grounded resume must be explicitly boolean")
+    if directory.exists() and not resume:
         raise FileExistsError(directory)
-    with local_internal_governed_scope("grounded_binding_source_fit", domain="file_write"):
-        if not get_file_write_gateway().write_bytes_if_absent(directory / "fit-owner.json",
-            json.dumps({"schema": "aura.grounded_binding_owner.v1", "fit_ids": train_ids, "calibration_ids": calibration_ids}).encode(),
-            source="grounded_binding_source_fit", mode=0o400):
-            raise FileExistsError(directory)
-    deadline = time.monotonic() + max_seconds
+    if resume and not directory.is_dir():
+        raise ValueError("grounded resume needs an existing complete generation")
+    if resume and (directory / "report.json").exists():
+        raise ValueError("grounded fit is already complete; do not repeat it")
     optimizer = optim.Adam(learning_rate=learning_rate)
     model = nn.Module()
     model.pointer = pointer
@@ -613,6 +778,7 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
         artifact = pointer
     if domain_reversal:
         model.nuisance = nn.Linear(pointer.feature_blocks * pointer.relation_width, len(environments))
+    optimizer.init(model.trainable_parameters())
     counts = {key: sum(item.environment == key for item in training) for key in environments}
     log_weights = {key: 0. for key in environments}
     def current_example(item, owner=None):
@@ -627,10 +793,6 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
         mx.save_safetensors(stream, dict(tree_flatten(artifact.trainable_parameters())))
         _write_binding_artifact(path, stream.getvalue())
 
-    def check_bound():
-        if time.monotonic() >= deadline:
-            raise TimeoutError("grounded binding fit reached its declared resource bound")
-
     def measure():
         losses = []
         for example in calibration:
@@ -642,8 +804,9 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
             losses.append(value)
         return sum(losses) / len(losses)
 
-    observations = {"training": [current_example(item).evidence.receipt() for item in training],
-                    "calibration": [current_example(item).evidence.receipt() for item in calibration]}
+    observations = {split: [initial_native_observations[item.evidence.source_id] if native_suffix is not None
+                            else item.evidence.receipt() for item in examples]
+                    for split, examples in (("training", training), ("calibration", calibration))}
     supervision = {split: [{"source_id": item.evidence.source_id, "positives": item.positives,
                             "graphs": item.graphs, "positive_graphs": item.positive_graphs,
                             "environment": item.environment,
@@ -652,11 +815,56 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
                    for split, examples in (("training", training), ("calibration", calibration))}
     source_receipt = hashlib.sha256(json.dumps({"observations": observations, "supervision": supervision},
         sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-    best = (measure(), 0)
-    save_weights(directory / "checkpoint-0.safetensors")
-    save_weights(directory / "selected.safetensors")
-    history = []
-    for step in range(1, steps + 1):
+    identity_body = {"source_receipt": source_receipt, "pointer": pointer.to_contract(),
+        "implementation": implementation_receipt(), "native_contract": native_contract,
+        "steps": steps, "save_every": save_every, "schedule": schedule,
+        "learning_rate": learning_rate, "group_eta": group_eta, "domain_reversal": domain_reversal,
+        "retention_weight": retention_weight, "stationarity_weight": stationarity_weight,
+        "role_margin": role_margin, "equivariance_weight": equivariance_weight,
+        "equivariance_pairs": [{"left": pair.left, "right": pair.right,
+            "role_pairs": pair.role_pairs, "candidate_pairs": pair.candidate_pairs} for pair in equivariance_pairs],
+        "nuisance_projection": nuisance_projection.to_dict() if nuisance_projection is not None else None}
+    fit_identity = hashlib.sha256(json.dumps(identity_body, sort_keys=True, separators=(",", ":"),
+                                            allow_nan=False).encode()).hexdigest()
+    owner = {"schema": "aura.grounded_binding_owner.v2", "fit_ids": train_ids,
+             "calibration_ids": calibration_ids, "identity": fit_identity}
+    if resume:
+        if json.loads((directory / "fit-owner.json").read_bytes()) != owner:
+            raise ValueError("grounded resume owner or source evidence differs")
+        state, selected, resumed_pointer = _load_grounded_restart(directory, fit_identity, model, optimizer, artifact)
+        start_step, history = state["step"], state["history"]
+        best, log_weights = tuple(state["best"]), state["log_weights"]
+        if (not 0 <= start_step <= steps or start_step % save_every
+                or set(log_weights) != set(environments)
+                or any(not math.isfinite(v) for v in log_weights.values())
+                or type(best[1]) is not int or not 0 <= best[1] <= start_step
+                or not math.isfinite(best[0])
+                or [row["step"] for row in history] != list(range(save_every, start_step + 1, save_every))
+                or any(not math.isfinite(row["calibration_loss"]) for row in history)):
+            raise ValueError("grounded restart progress differs from declared updates")
+        stream = io.BytesIO()
+        mx.save_safetensors(stream, selected)
+        _write_binding_artifact(directory / "selected.safetensors", stream.getvalue())
+    else:
+        with local_internal_governed_scope("grounded_binding_source_fit", domain="file_write"):
+            if not get_file_write_gateway().write_bytes_if_absent(directory / "fit-owner.json",
+                json.dumps(owner).encode(), source="grounded_binding_source_fit", mode=0o400):
+                raise FileExistsError(directory)
+        best = (measure(), 0)
+        save_weights(directory / "checkpoint-0.safetensors")
+        save_weights(directory / "selected.safetensors")
+        start_step, history, resumed_pointer = 0, [], None
+
+    def restart_generation(step):
+        selected = mx.load(str(directory / "selected.safetensors"))
+        _save_grounded_restart(directory, {"identity": fit_identity, "step": step, "history": history,
+            "best": best, "log_weights": log_weights}, model, optimizer, selected)
+        print(json.dumps({"stage": "grounded_restart_saved", "step": step,
+                          "fit_identity": fit_identity}), flush=True)
+
+    if not resume:
+        restart_generation(0)
+    for step in range(start_step + 1, steps + 1):
         check_bound()
         example = examples[schedule[step - 1]]
         mass = mx.softmax(mx.array([log_weights[key] for key in environments]))
@@ -703,6 +911,7 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
             if (calibration_loss, step) < best:
                 best = calibration_loss, step
                 save_weights(directory / "selected.safetensors")
+            restart_generation(step)
     artifact.load_weights(str(directory / "selected.safetensors"), strict=native_suffix is None)
     weights = (directory / "selected.safetensors").read_bytes()
     nuisance_hash = None
@@ -713,6 +922,8 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
         nuisance_hash = hashlib.sha256((directory / "training-nuisance.safetensors").read_bytes()).hexdigest()
     report = {"schema": "aura.grounded_binding_fit.v1", "pointer_contract": pointer.to_contract(),
         "implementation": implementation_receipt(),
+        "fit_identity": fit_identity, "resume_from_step": start_step,
+        "resumed_generation": resumed_pointer,
         "selected_step": best[1], "source_calibration_loss": best[0], "steps": steps,
         "training_schedule": schedule, "training_schedule_sha256": schedule_sha,
         "sampling_receipt": sampling_receipt,

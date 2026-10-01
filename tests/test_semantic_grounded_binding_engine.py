@@ -202,3 +202,145 @@ def test_research_artifact_writer_rejects_unowned_namespaces_and_publication_nam
         with pytest.raises(ValueError, match="fixed schema namespace"):
             _write_binding_artifact(tmp_path / name, b"unowned")
     assert not tuple(tmp_path.iterdir())
+
+
+def test_exact_restart_matches_uninterrupted_adam_group_and_adversary_updates(tmp_path, monkeypatch):
+    from mlx.utils import tree_flatten
+
+    import core.learning.semantic_grounded_binding_engine as module
+
+    training = (source("fit1", environment="a"), source("fit2", environment="b"))
+    calibration = (source("cal"),)
+    options = dict(steps=8, save_every=2, learning_rate=.02, max_seconds=30., group_eta=.1, domain_reversal=.2)
+    mx.random.seed(49)
+    _engine, complete = fit_grounded_binding(RelationalBindingPointer(4, relation_width=4),
+        training, calibration, tmp_path / "complete", **options)
+    original = module._save_grounded_restart
+
+    def interrupt(directory, state, *args):
+        original(directory, state, *args)
+        if state["step"] == 4:
+            raise RuntimeError("simulated process loss after durable update")
+
+    monkeypatch.setattr(module, "_save_grounded_restart", interrupt)
+    mx.random.seed(49)
+    with pytest.raises(RuntimeError, match="process loss"):
+        fit_grounded_binding(RelationalBindingPointer(4, relation_width=4), training, calibration,
+                             tmp_path / "recovered", **options)
+    monkeypatch.setattr(module, "_save_grounded_restart", original)
+    mx.random.seed(900)  # Recovery must restore the actual RNG, not use this initialization.
+    engine, recovered = fit_grounded_binding(RelationalBindingPointer(4, relation_width=4), training,
+        calibration, tmp_path / "recovered", resume=True, **options)
+    assert recovered["resume_from_step"] == 4 and recovered["history"] == complete["history"]
+    assert recovered["selected_step"] == complete["selected_step"]
+    expected = mx.load(str(tmp_path / "complete" / "checkpoint-8.safetensors"))
+    actual = mx.load(str(tmp_path / "recovered" / "checkpoint-8.safetensors"))
+    assert all(mx.array_equal(actual[key], value).item() for key, value in expected.items())
+    selected = GroundedBindingEngine.load(tmp_path / "recovered")
+    assert all(mx.array_equal(value, dict(tree_flatten(selected.pointer.parameters()))[key]).item()
+               for key, value in tree_flatten(engine.pointer.parameters()))
+
+
+def test_restart_rejects_changed_source_schedule_and_corrupted_generation(tmp_path, monkeypatch):
+    import core.learning.semantic_grounded_binding_engine as module
+
+    training, calibration = (source("fit"),), (source("cal"),)
+    options = dict(steps=4, save_every=2, learning_rate=.02, max_seconds=30.)
+    original = module._save_grounded_restart
+
+    def interrupt(directory, state, *args):
+        original(directory, state, *args)
+        if state["step"] == 2:
+            raise RuntimeError("interrupted")
+
+    monkeypatch.setattr(module, "_save_grounded_restart", interrupt)
+    with pytest.raises(RuntimeError, match="interrupted"):
+        fit_grounded_binding(RelationalBindingPointer(4, relation_width=4), training, calibration,
+                             tmp_path / "fit", **options)
+    monkeypatch.setattr(module, "_save_grounded_restart", original)
+    with pytest.raises(ValueError, match="owner or source"):
+        fit_grounded_binding(RelationalBindingPointer(4, relation_width=4), training, calibration,
+            tmp_path / "fit", resume=True, **{**options, "learning_rate": .01})
+    with pytest.raises(ValueError, match="existing complete"):
+        fit_grounded_binding(RelationalBindingPointer(4, relation_width=4), training, calibration,
+                             tmp_path / "absent", resume=True, **options)
+    pointer = json.loads((tmp_path / "fit" / "resume.json").read_bytes())
+    generation = tmp_path / "fit" / pointer["file"]
+    generation.write_bytes(generation.read_bytes() + b"corrupt")
+    with pytest.raises(ValueError, match="checksum"):
+        fit_grounded_binding(RelationalBindingPointer(4, relation_width=4), training, calibration,
+                             tmp_path / "fit", resume=True, **options)
+
+
+def test_restart_uses_previous_complete_generation_after_pointer_publication_failure(tmp_path, monkeypatch):
+    import core.learning.semantic_grounded_binding_engine as module
+
+    training, calibration = (source("fit"),), (source("cal"),)
+    options = dict(steps=4, save_every=2, learning_rate=.02, max_seconds=30.)
+    mx.random.seed(71)
+    _engine, expected = fit_grounded_binding(RelationalBindingPointer(4, relation_width=4),
+        training, calibration, tmp_path / "complete", **options)
+    original = module._write_binding_artifact
+    publications = []
+
+    def fail_publication(path, payload):
+        if path.name == "resume.json":
+            publications.append(json.loads(payload)["step"])
+            if publications[-1] == 2:
+                raise OSError("lost before pointer publication")
+        return original(path, payload)
+
+    monkeypatch.setattr(module, "_write_binding_artifact", fail_publication)
+    mx.random.seed(71)
+    with pytest.raises(OSError, match="pointer publication"):
+        fit_grounded_binding(RelationalBindingPointer(4, relation_width=4), training, calibration,
+                             tmp_path / "fit", **options)
+    assert json.loads((tmp_path / "fit" / "resume.json").read_bytes())["step"] == 0
+    assert len(tuple((tmp_path / "fit").glob("resume-*.safetensors"))) == 2
+    # The mutable selection may already have changed; the generation owns it.
+    (tmp_path / "fit" / "selected.safetensors").write_bytes(b"partial selection")
+    monkeypatch.setattr(module, "_write_binding_artifact", original)
+    _engine, recovered = fit_grounded_binding(RelationalBindingPointer(4, relation_width=4),
+        training, calibration, tmp_path / "fit", resume=True, **options)
+    assert recovered["resume_from_step"] == 0 and recovered["history"] == expected["history"]
+    assert recovered["weights_sha256"] == expected["weights_sha256"]
+    assert module.verify_grounded_fit_checkpoint(tmp_path / "fit")["receipt_sha256"] == recovered["receipt_sha256"]
+    from tools.verify_semantic_grounded_fit import verify
+    receipt = verify(tmp_path / "fit")
+    assert receipt["artifacts_verified"] and receipt["completed_updates"] == 4
+    assert receipt["source_fit_count"] == receipt["source_calibration_count"] == 1
+    assert not receipt["model_weights_loaded"] and not receipt["qualification_evidence"]
+    checkpoint = tmp_path / "fit" / f"checkpoint-{recovered['selected_step']}.safetensors"
+    checkpoint.write_bytes((tmp_path / "fit" / "checkpoint-0.safetensors").read_bytes())
+    if recovered["selected_step"] > 0:
+        with pytest.raises(ValueError, match="selected checkpoint"):
+            module.verify_grounded_fit_checkpoint(tmp_path / "fit")
+    with pytest.raises(ValueError, match="already complete"):
+        fit_grounded_binding(RelationalBindingPointer(4, relation_width=4), training, calibration,
+                             tmp_path / "fit", resume=True, **options)
+
+
+def test_restart_refuses_symlinked_generation_before_model_update(tmp_path):
+    import mlx.nn as nn
+    import mlx.optimizers as optim
+
+    import core.learning.semantic_grounded_binding_engine as module
+    from core.runtime.file_read_gateway import StableFileReadError
+
+    model = nn.Module()
+    model.pointer = RelationalBindingPointer(4, relation_width=4)
+    optimizer = optim.Adam(learning_rate=.02)
+    optimizer.init(model.trainable_parameters())
+    owner = tmp_path / "fit"
+    owner.mkdir()
+    (owner / "fit-owner.json").write_text("{}")
+    from mlx.utils import tree_flatten
+    module._save_grounded_restart(owner, {"identity": "a" * 64, "step": 0}, model, optimizer,
+                                  dict(tree_flatten(model.pointer.trainable_parameters())))
+    receipt = json.loads((owner / "resume.json").read_bytes())
+    path = owner / receipt["file"]
+    external = tmp_path / "external.safetensors"
+    path.rename(external)
+    path.symlink_to(external)
+    with pytest.raises(StableFileReadError, match="symlink_rejected"):
+        module._load_grounded_restart(owner, "a" * 64, model, optimizer, model.pointer)

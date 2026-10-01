@@ -1474,6 +1474,11 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Grounded fit restart](evidence/G03_GROUNDED_FIT_RESTART_2026-10-01.md)
+  preserves the joint pointer/native optimizer, selected candidate and source
+  schedule in one checked generation. Interrupted small fits reproduce every
+  tensor; lost completion receipts reconcile without another model load.
+  Independent artifact verification grants no semantic qualification.
   [Binding build register](evidence/G03_BINDING_BUILD_REGISTER_2026-09-30.md)
   maps 28 fully read advisory inputs to corrected math, hybrid-aware mixed
   adapters, native/pointer joint training, ordinary chart integration,

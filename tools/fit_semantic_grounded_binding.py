@@ -36,6 +36,7 @@ def main():
     parser.add_argument("--source-equivariance", action="store_true")
     parser.add_argument("--seed", type=int, default=20260930)
     parser.add_argument("--native", action="store_true")
+    parser.add_argument("--resume", action="store_true")
     parser.add_argument("--authority-key-file", type=Path)
     parser.add_argument("--native-rank", type=int, default=32)
     parser.add_argument("--native-layers", type=int, default=8)
@@ -104,11 +105,12 @@ def main():
         _engine, report = fit_native_grounded_sources(training, calibration, (*fit, *calibration_items), args.directory,
             spec=spec, rank=args.native_rank, layers=args.native_layers, max_tokens=args.native_max_tokens,
             cache_bytes=args.native_cache_mib * 1024 ** 2, seed=args.seed,
-            relation_width=args.relation_width, rounds=args.rounds, fit_options=fit_options)
+            relation_width=args.relation_width, rounds=args.rounds, fit_options=fit_options, resume=args.resume)
     else:
         pointer = RelationalBindingPointer(geometry[1], depths=geometry[0], relation_width=args.relation_width,
                                           rounds=args.rounds)
-        _engine, report = fit_grounded_binding(pointer, training, calibration, args.directory, **fit_options)
+        _engine, report = fit_grounded_binding(pointer, training, calibration, args.directory,
+                                               resume=args.resume, **fit_options)
     acquisition = {"parent_sha256": hashlib.sha256(raw["parent"]).hexdigest(),
         "source_report_sha256": hashlib.sha256(raw["source"]).hexdigest(),
         "folds_sha256": hashlib.sha256(raw["folds"]).hexdigest(), "bank_plan_sha256": outer["plan_sha256"],

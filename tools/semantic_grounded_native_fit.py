@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import json
 import math
 import time
+import traceback
 from collections.abc import Mapping
 from dataclasses import asdict
 from pathlib import Path
@@ -48,7 +50,7 @@ def native_capture_template(item, evidence, depths):
 
 def fit_native_grounded_sources(training, calibration, source_items, directory, *, spec, rank=32, layers=8,
                                max_tokens=512, cache_bytes=512 * 1024 ** 2, seed=20260930,
-                               relation_width=128, rounds=2, fit_options=None):
+                               relation_width=128, rounds=2, fit_options=None, resume=False):
     """Load one authorized model; recompute actual suffix states in gradients.
 
     Prefixes are immutable complete source-only sequences, sharded on disk.
@@ -86,7 +88,8 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
     items = {item.ir.source_text_sha256: item for item in source_items}
     if (not training or not calibration or len(examples) != len(training) + len(calibration)
             or set(items) != set(examples) or any(item.split != "train" for item in items.values())
-            or directory.exists()
+            or type(resume) is not bool or directory.exists() and not resume
+            or resume and not (directory / "resume.json").is_file()
             or any(not item.ir.source_token_ids or len(item.ir.source_token_ids) > max_tokens for item in items.values())):
         raise ValueError("native grounded source custody, token bound or fresh fit directory differs")
     adaptation = adapter_contract(rank=rank, layers=layers, sites="native_topology_v1",
@@ -107,18 +110,21 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
     if projection is None:
         raise ValueError("native grounded adapter topology has no measured parameter projection")
     custody = directory.parent / (directory.name + "-native-custody")
-    if custody.exists():
+    if custody.exists() and not resume:
         raise FileExistsError(custody)
-    with local_internal_governed_scope("grounded_native_fit_plan", domain="file_write"):
-        if not get_file_write_gateway().write_bytes_if_absent(custody / "plan.json",
-            json.dumps({**plan, "plan_sha256": plan_hash}, indent=2).encode(),
-            source="grounded_native_fit_plan", mode=0o400):
-            raise FileExistsError(custody / "plan.json")
+    if resume:
+        if json.loads((custody / "plan.json").read_bytes()) != {**plan, "plan_sha256": plan_hash}:
+            raise ValueError("native grounded restart plan differs")
+        if (custody / "completion.json").exists():
+            raise ValueError("native grounded fit is already complete; do not repeat it")
+    else:
+        with local_internal_governed_scope("grounded_native_fit_plan", domain="file_write"):
+            if not get_file_write_gateway().write_bytes_if_absent(custody / "plan.json",
+                json.dumps({**plan, "plan_sha256": plan_hash}, indent=2).encode(),
+                source="grounded_native_fit_plan", mode=0o400):
+                raise FileExistsError(custody / "plan.json")
     started = time.monotonic()
-    with (standalone_model_lane(owner_id=f"grounded-native:{directory.name}", model_path=str(spec.model_path),
-            purpose="training", preemptible=False, require_exclusive=True, allow_owner_eviction=False,
-            metadata={"tool": "fit_semantic_grounded_binding", "production_effect": False}),
-          mlx_memory_envelope(fraction=.80) as envelope):
+    def execute(envelope):
         if require_native_cortex_spec().descriptor_sha256 != spec.descriptor_sha256:
             raise ValueError("native grounded descriptor changed before model acquisition")
         model, tokenizer = load(str(spec.model_path))
@@ -133,16 +139,23 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
             raise ValueError("native grounded adapter ownership differs from its projected sites")
         if mx.get_active_memory() + projection["five_float32_copies_bytes"] + cache_bytes > envelope.memory_bytes:
             raise MemoryError("native grounded fixed residency exceeds the host envelope")
-        store = FrozenStateStore(custody / "prefixes", plan_sha256=plan_hash, max_resident_bytes=cache_bytes)
+        sequence_digests = {(identity, 0, 0): hashlib.sha256(json.dumps(item.ir.source_token_ids).encode()).hexdigest()
+                            for identity, item in items.items()}
+        store = (FrozenStateStore.open_existing(custody / "prefixes", plan_sha256=plan_hash,
+                    max_resident_bytes=cache_bytes, sequence_digests=sequence_digests) if resume else
+                 FrozenStateStore(custody / "prefixes", plan_sha256=plan_hash, max_resident_bytes=cache_bytes))
         templates = {}
         for identity, item in sorted(items.items()):
             if time.monotonic() - started >= max_seconds:
                 raise TimeoutError("native grounded acquisition reached its declared bound")
             source_text_from_tokens(item, tokenizer)
-            tokens = mx.array([item.ir.source_token_ids], dtype=mx.int32)
-            hidden = prefix.capture(tokens)
-            digest = hashlib.sha256(json.dumps(item.ir.source_token_ids).encode()).hexdigest()
-            store.write_source(identity, {(identity, 0, 0): hidden}, sequence_digests={(identity, 0, 0): digest})
+            if resume:
+                hidden = store[identity, 0, 0]
+            else:
+                tokens = mx.array([item.ir.source_token_ids], dtype=mx.int32)
+                hidden = prefix.capture(tokens)
+                store.write_source(identity, {(identity, 0, 0): hidden},
+                    sequence_digests={(identity, 0, 0): sequence_digests[identity, 0, 0]})
             templates[identity] = native_capture_template(item, examples[identity].evidence, tuple(range(layers)))
             print(json.dumps({"stage": "grounded_prefix_captured", "source": identity,
                               "source_tokens": len(item.ir.source_token_ids), "active_bytes": mx.get_active_memory()}), flush=True)
@@ -152,7 +165,7 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
         pointer = RelationalBindingPointer(hidden.shape[-1], depths=layers, relation_width=relation_width, rounds=rounds)
         engine, report = fit_grounded_binding(pointer, training, calibration, directory,
             native_suffix=suffix, native_captures=NativeCaptureBank(store, templates), native_contract=plan,
-            **{**fit_options, "max_seconds": remaining})
+            **{**fit_options, "max_seconds": remaining, "resume": resume})
         if require_native_cortex_spec().descriptor_sha256 != spec.descriptor_sha256 or implementation_receipt() != plan["implementation"]:
             raise ValueError("native grounded model or implementation changed during source fitting")
         receipt = {"schema": "aura.grounded_native_acquisition.v1", "plan_sha256": plan_hash,
@@ -160,12 +173,62 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
             "observed_adapter_parameters": observed, "state_store": store.receipt(),
             "memory_envelope": envelope.to_receipt(), "peak_memory_bytes": mx.get_peak_memory(),
             "held_sources_scored": False, "serving_authority": False}
-        with local_internal_governed_scope("grounded_native_fit_receipt", domain="file_write"):
-            if not get_file_write_gateway().write_bytes_if_absent(custody / "completion.json",
-                json.dumps(receipt, indent=2).encode(), source="grounded_native_fit_receipt", mode=0o400):
-                raise FileExistsError(custody / "completion.json")
-        # The offline tool must not hand a model to a caller after releasing
-        # ownership. Only source-fit artifacts and receipts leave this scope.
-        del engine, model, suffix, prefix, hidden, store
+        return report, receipt
+
+    if resume and (directory / "report.json").exists():
+        from core.learning.semantic_grounded_binding_engine import (
+            NativeGroundedCapture,
+            verify_grounded_fit_checkpoint,
+        )
+        report = verify_grounded_fit_checkpoint(directory)
+        if (report.get("native_contract") != plan
+                or require_native_cortex_spec().descriptor_sha256 != spec.descriptor_sha256):
+            raise ValueError("completed native fit recovery changed its model or source contract")
+        supervision = {split: [{"source_id": item.evidence.source_id, "positives": item.positives,
+            "graphs": item.graphs, "positive_graphs": item.positive_graphs, "environment": item.environment,
+            "retention_scores": item.retention_scores.tolist() if item.retention_scores is not None else None}
+            for item in examples] for split, examples in (("training", training), ("calibration", calibration))}
+        if json.loads(json.dumps(supervision)) != report["supervision"]:
+            raise ValueError("completed native fit recovery changed its source supervision")
+        selected = mx.load(str(directory / "selected.safetensors"))
+        observed = sum(value.size for key, value in selected.items() if key.startswith("native_suffix."))
+        if (observed != projection["trainable_parameters"]
+                or any("lora_" not in key for key in selected if key.startswith("native_suffix."))):
+            raise ValueError("completed native fit recovery changed its adapter inventory")
+        sequence_digests = {(identity, 0, 0): hashlib.sha256(json.dumps(item.ir.source_token_ids).encode()).hexdigest()
+                            for identity, item in items.items()}
+        store = FrozenStateStore.open_existing(custody / "prefixes", plan_sha256=plan_hash,
+            max_resident_bytes=cache_bytes, sequence_digests=sequence_digests)
+        captures = [NativeGroundedCapture(hidden=store[identity, 0, 0],
+            **native_capture_template(items[identity], examples[identity].evidence, tuple(range(layers)))).receipt()
+            for identity in sorted(items)]
+        if json.loads(json.dumps(captures)) != report["native_captures"]:
+            raise ValueError("completed native fit recovery changed its retained prefixes or public spans")
+        receipt = {"schema": "aura.grounded_native_acquisition.v1", "plan_sha256": plan_hash,
+            "fit_receipt_sha256": report["receipt_sha256"], "adapter_projection": projection,
+            "observed_adapter_parameters": observed, "state_store": store.receipt(),
+            "memory_envelope": None, "peak_memory_bytes": None,
+            "completion_recovery": "verified_saved_fit_without_model_loading",
+            "held_sources_scored": False, "serving_authority": False}
+        del store, captures, selected
+        gc.collect()
         mx.clear_cache()
+    else:
+        with (standalone_model_lane(owner_id=f"grounded-native:{directory.name}", model_path=str(spec.model_path),
+                purpose="training", preemptible=False, require_exclusive=True, allow_owner_eviction=False,
+                metadata={"tool": "fit_semantic_grounded_binding", "production_effect": False}),
+              mlx_memory_envelope(fraction=.80) as envelope):
+            try:
+                report, receipt = execute(envelope)
+            except BaseException as error:
+                # Completed traceback frames can retain the entire native model.
+                traceback.clear_frames(error.__traceback__)
+                raise
+            finally:
+                gc.collect()
+                mx.clear_cache()
+    with local_internal_governed_scope("grounded_native_fit_receipt", domain="file_write"):
+        if not get_file_write_gateway().write_bytes_if_absent(custody / "completion.json",
+            json.dumps(receipt, indent=2).encode(), source="grounded_native_fit_receipt", mode=0o400):
+            raise FileExistsError(custody / "completion.json")
     return None, report
