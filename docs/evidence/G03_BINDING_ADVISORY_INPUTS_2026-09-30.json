@@ -1,0 +1,175 @@
+{
+  "schema": "aura.binding_advisory_inputs.v1",
+  "date": "2026-09-30",
+  "scope": "latest two binding batches and LoRA question; not all historical attachments",
+  "inputs": [
+    {
+      "sha256": "3e1241f54e275bfcec1e5630ffa15c567bff43df05cf2f99a4b5ea2440f1e3d5",
+      "path": "/Users/bryan/Downloads/role_binder_report.json",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "6222d51a54b1a02e231b4686924a4723af8fb3e1ce4064ff9d9ea6b99e6d3071",
+      "path": "/Users/bryan/Downloads/semantic_binder.py",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "8be7619f534e7f9090d5ee3d992daa332dea97cdf1ed99d6954acf74e7420e3c",
+      "path": "/Users/bryan/Downloads/Tesb.py",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "436b3b97b66aa9dc4b7c576e2e51027af26b4d807119fcfaaf298733c22c0068",
+      "path": "/Users/bryan/Downloads/Binding-Results.json",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "29d4e27f26396559bb33be3f1a8864eb30cd2ad186412d1878f60e1a21316ffc",
+      "path": "/Users/bryan/Downloads/Proof.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "6f41bd36aa7dac0536a92e55093e19f78192cbfbd9fd6a5bf801cb4ad422c6d2",
+      "path": "/Users/bryan/Downloads/Falsifiable-Predictions.json",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "6045e2299baae3ad98ecc2568b482559839bc33af6a5c2e9026a915c3aba1393",
+      "path": "/Users/bryan/Downloads/binding_adapter_results.json",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "d5e6fd70707b057ba27367f1d07843d7bd58b9b7247e130a218e003b331f18d3",
+      "path": "/Users/bryan/Downloads/prove_binding.py",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "924c3723634073f0b35a3a607d669db2755646eb667a56e92857eb40370fd035",
+      "path": "/Users/bryan/Downloads/aura_binding_upgrade_executed_report.md",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "83daf0e6d092ae306979c2b5e7ba58033b667b715a9d1e67bbe1fe18cc62583a",
+      "path": "/Users/bryan/Downloads/aura_rank_barrier_results.csv",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "e3357ded7eef349b5ec1a6df242f1e53fbaab665cb0a23eb6a3aa8bc71c66c32",
+      "path": "/Users/bryan/Downloads/aura_binding_upgrade_experiment_full.py",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "6456d0d4f637d2b257a7d6b8d33e2e812dc999ff6058b24f5559a6fd8ecbbb9b",
+      "path": "/Users/bryan/Downloads/aura_binding_benchmark_results.csv",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "6a11d0aad142c77b8e94719b299e94cddd11b602ba7b91ac12498fad2c4099eb",
+      "path": "/Users/bryan/.codex/attachments/7559cadb-f213-4b0d-9fc9-1ac306677186/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "f8c2f0501ca68ccdc2208cec91c0ca4e4adf53a00182b01f80d622362d2dbf6f",
+      "path": "/Users/bryan/.codex/attachments/8ceffdce-fe17-4c4b-81eb-6274e33ed99d/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "63cb8879ee8aa14a0bea273a1d7b76f7cae7f44abf0e995b05a82c85dc035bf8",
+      "path": "/Users/bryan/.codex/attachments/4f5c4b2f-6997-4b1c-bc2c-2af00e491271/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "63cb8879ee8aa14a0bea273a1d7b76f7cae7f44abf0e995b05a82c85dc035bf8",
+      "path": "/Users/bryan/.codex/attachments/dadc4b66-dbb7-4b41-a793-5762d3467b40/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "b907417dc3c435ff361fb70467b2651123c091986d786f07b348deb2d95a8b71",
+      "path": "/Users/bryan/.codex/attachments/ac963511-512b-4417-beff-8e29b9f0ce4a/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "1904858aebe298f70636ab7779cdac09a62860848b248c37709d27858d8de517",
+      "path": "/Users/bryan/.codex/attachments/6f9f934c-320e-4bb2-9cf5-d4e588aa61d9/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "3bf621222ec101c5d18620b78e096f883237f6b15acdc1f07edc48bc09086021",
+      "path": "/Users/bryan/.codex/attachments/d8ed87eb-d8f9-47c9-aeba-681a22529d9a/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "a7bdf570ba9a1c445a5060fc2b0c4128e3cb738c94b5ce7067334bff804fbc57",
+      "path": "/Users/bryan/.codex/attachments/ec4c11a0-a755-45ab-be22-cbbb383abd2c/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "8f8bcfbc668b003ae8c159547ffaaca054517051c6181f0f1b20e6a93beb151a",
+      "path": "/Users/bryan/.codex/attachments/c7e127fd-468a-4878-a786-60c4dd4bd1e7/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "76d83c7ac1f30de08374d5c086dab1d4b29867296b37a72d8f8b9ffc71949be5",
+      "path": "/Users/bryan/.codex/attachments/8769ab0d-ab9b-4d0e-b208-6459394ee95c/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "48e7a0c528d76f90dabcbbfb49bb5c00c92af3f13dd34b976b94b5827957befd",
+      "path": "/Users/bryan/.codex/attachments/05c6967e-d580-4ee1-b9fd-60ad2651c2da/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "e1f15a0f5519c27b7ffdf7e5895dfe227decfe212274f1fb31a9000203869893",
+      "path": "/Users/bryan/.codex/attachments/e23c9cb6-9fd1-4bc5-a3cd-f66df0394e45/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "28347d06cfa5c45ef3f2d3386bb55e9979677287d550382336db100f89641e6d",
+      "path": "/Users/bryan/.codex/attachments/ba9ae7d2-64c5-44c6-88dc-62148fcc4cdb/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "81c8281ff2354664ef0838f4b1f30d4e05036fd5149f2159ea306be3c85e83d7",
+      "path": "/Users/bryan/.codex/attachments/89ef8781-a44f-4aad-b7b6-79d929c36259/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "e1d8d4d726cef74bcfe395d712c0ce15a94dbc2ee07e7bd6b59e515e2653b4e4",
+      "path": "/Users/bryan/.codex/attachments/bfdf9eb7-df59-4397-b82f-799b5c86011c/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "sha256": "4ee88da99cd0850319c32e202b8a85d9399c93f007d13ccb84b1329ad3aad6b3",
+      "path": "/Users/bryan/.codex/attachments/c608ba85-4468-42d8-acdb-120516f547a2/Pasted text.txt",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    }
+  ]
+}

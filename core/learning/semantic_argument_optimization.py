@@ -124,6 +124,7 @@ def optimize_argument_chart(
     excluded_graphs: Sequence[Sequence[Sequence[int]]]=(),
     time_limit_s: float | None=None,
     selection_observer: Any=None,
+    option_pair_factors: Sequence[tuple[tuple[int, int, int], tuple[int, int, int], float | None]]=(),
 ) -> ArgumentAssignment | None:
     """Return an optimal feasible assignment within solver precision, or none.
 
@@ -180,7 +181,7 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
     ):
         raise ValueError("definition options differ from argument chart")
     incumbent = None
-    if prune_dominated:
+    if prune_dominated and not option_pair_factors:
         short, names = _shortlist_mentions(options, definition_options)
         try:
             incumbent = optimize_argument_chart(short, n_inputs=n_inputs, contract=contract,
@@ -214,6 +215,19 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
                     tokens[token].append(index)
 
     count = len(choices)
+    addresses = {(node, position, index): offset
+                 for (node, position), indices in slots.items()
+                 for index, offset in enumerate(indices)}
+    pairs, seen_pairs = [], set()
+    for left, right, contribution in option_pair_factors:
+        if (left not in addresses or right not in addresses or left[:2] == right[:2]
+                or (contribution is not None and not math.isfinite(contribution))):
+            raise ValueError("invalid joint argument pair factor")
+        key = tuple(sorted((left, right)))
+        if key in seen_pairs:
+            raise ValueError("duplicate joint argument pair factor")
+        seen_pairs.add(key)
+        pairs.append((addresses[left], addresses[right], contribution))
     if definition_scores is not None and (
         definition_options is None
         or any(key not in definition_scores for key in definition_uses)
@@ -222,12 +236,15 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
         raise ValueError("definition attachment scores do not cover the chart")
     definition_offset = count
     sink_offset = count + len(definition_uses)
-    order_offset = sink_offset + operation_count
+    pair_offset = sink_offset + operation_count
+    scored_pairs = [(left, right, score) for left, right, score in pairs if score is not None]
+    order_offset = pair_offset + len(scored_pairs)
     width = order_offset + operation_count
     objective = np.zeros(width)
     objective[:count] = [-choice[2] for choice in choices]
     if definition_scores is not None:
         objective[definition_offset:sink_offset] = [-definition_scores[key] for key in definition_uses]
+    objective[pair_offset:order_offset] = [-score for _left, _right, score in scored_pairs]
     lower = np.zeros(width)
     upper = np.ones(width)
     upper[order_offset:] = operation_count - 1
@@ -248,6 +265,13 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
 
     for indices in slots.values():
         constraint(dict.fromkeys(indices, 1.0), 1.0, 1.0)
+    for left, right, score in pairs:
+        if score is None:
+            constraint({left: 1., right: 1.}, -np.inf, 1.)
+    for offset, (left, right, _score) in enumerate(scored_pairs, start=pair_offset):
+        constraint({offset: 1., left: -1.}, -np.inf, 0.)
+        constraint({offset: 1., right: -1.}, -np.inf, 0.)
+        constraint({offset: 1., left: -1., right: -1.}, -1., np.inf)
     for graph in excluded:
         # One no-good covers every mention/definition realization of this graph.
         matching = {index: 1.0 for index, (node, position, _score, register, _span)
@@ -338,6 +362,8 @@ DAG connected to a single sink. Limits never masquerade as an optimum.
     if definition_scores is not None:
         score += sum(definition_scores[key] for index, key in enumerate(definition_uses)
                      if values[definition_offset + index] > 0.5)
+    score += sum(contribution for index, (_left, _right, contribution) in enumerate(scored_pairs)
+                 if values[pair_offset + index] > 0.5)
     if selection_observer is not None:
         selection_observer(tuple(selected_indices))
     return score, tuple(arguments), tuple(spans), dependencies

@@ -65,6 +65,7 @@ from core.learning.semantic_program_transducer import (
 )
 from core.learning.semantic_relation_tissue import valid_relation_rank_contract
 from core.learning.semantic_triadic_binding import TriadicBindingHead
+from core.learning.semantic_binding_residual import NonlinearBindingResidual
 
 from .semantic_program_transducer_amendments import _CarriesItsAmendments
 from .semantic_program_transducer_fitting import (
@@ -1032,6 +1033,7 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         source_text_sha256: str,
         model_basis_sha256: str,
         search_time_limit_s: float | None = None,
+        binding_chart_solver: Any = None,
     ) -> SemanticTransductionOutcome:
         if search_time_limit_s is not None and (
             type(search_time_limit_s) not in (int, float)
@@ -1039,6 +1041,10 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
         ):
             raise ValueError("decode search allowance must be positive and finite")
         deadline = None if search_time_limit_s is None else time.monotonic() + search_time_limit_s
+        if binding_chart_solver is not None and self.training_receipt.get("argument_search_strategy") != "global_constraint_v1":
+            raise ValueError("grounded binding integration requires the complete global argument chart")
+        if binding_chart_solver is not None and self.training_receipt.get("operation_assignment_policy") != "joint_factor_score_v2":
+            raise ValueError("grounded binding integration requires joint operation-argument selection")
         if model_basis_sha256 != self.model_basis_sha256:
             return SemanticTransductionOutcome(None, "model_basis_mismatch", {}, {})
         if not _is_sha256(source_text_sha256):
@@ -1089,6 +1095,8 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                     relation_vector_cache=relation_vector_cache,
                     definition_pointer_scores=definition_pointer_scores,
                     time_limit_s=remaining(),
+                    binding_chart_solver=binding_chart_solver,
+                    source_text_sha256=source_text_sha256,
                 ),
                 length_penalty=self.operation_length_penalty,
                 joint=self.training_receipt.get("operation_assignment_policy") == "joint_factor_score_v2",
@@ -1101,6 +1109,8 @@ class CompositionalSemanticProgramTransducer(_CarriesItsAmendments):
                     relation_vector_cache=relation_vector_cache,
                     definition_pointer_scores=definition_pointer_scores,
                     time_limit_s=remaining(),
+                    binding_chart_solver=binding_chart_solver,
+                    source_text_sha256=source_text_sha256,
                 ),
             )
         except (ArgumentOptimizationIncompleteError, OperationSearchIncompleteError) as exc:
@@ -1593,7 +1603,9 @@ def compositional_semantic_program_transducer_from_dict(
                                      (np.asarray(value["query_projection"], dtype=np.float32)
                                       if "query_projection" in value else None),
                                      (np.asarray(value["definition_projection"], dtype=np.float32)
-                                      if "definition_projection" in value else None))
+                                      if "definition_projection" in value else None),
+                                     (NonlinearBindingResidual.from_dict(value["nonlinear"])
+                                      if "nonlinear" in value else None))
                   for value in payload["triadic_binding_heads"])
             if payload.get("triadic_binding_heads") is not None else None
         ),

@@ -1,0 +1,28 @@
+{
+  "schema": "aura.binding_advisory_inputs.v1",
+  "date": "2026-09-30",
+  "scope": "three Arrival and nonlinear-meaning advisory attachments; additive to the prior binding and role-query batches",
+  "inputs": [
+    {
+      "path": "/Users/bryan/.codex/attachments/5c6d3f6a-5ca8-47eb-8bfe-f9e33958644a/Pasted text.txt",
+      "sha256": "8396e8570d53afb419d6fdc0f88c81a139d901654140036d29ad6efef584399b",
+      "newline_count": 68,
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "path": "/Users/bryan/.codex/attachments/b67de851-8e08-4154-ade8-f25be7e5702c/Pasted text.txt",
+      "sha256": "22c8097b19b0780facf35277ac27b9295aa8fbf3f20c5f779c1fa59fc9a4b96a",
+      "newline_count": 744,
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "path": "/Users/bryan/.codex/attachments/d5206167-7ea2-4dcd-ba25-f14de756dd5f/Pasted text.txt",
+      "sha256": "f64d7abdeaa2f72a90080cad32038b79e55420f6c0c38459fcbdf2fa5a4fec53",
+      "newline_count": 823,
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    }
+  ]
+}

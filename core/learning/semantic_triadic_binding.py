@@ -10,6 +10,7 @@ import numpy as np
 
 from core.learning.semantic_program_floor import semantic_primitive_type_signature
 from core.learning.semantic_program_ir import TokenSpan
+from core.learning.semantic_binding_residual import NonlinearBindingResidual, fit_binding_residual
 from core.learning.semantic_program_shared_transducer import (
     _geometry,
     _normalized_weights,
@@ -136,6 +137,7 @@ class TriadicBindingHead:
     feature_schema: str = "triple_product_v1"
     query_projection: np.ndarray | None = None
     definition_projection: np.ndarray | None = None
+    nonlinear: NonlinearBindingResidual | None = None
 
     def __post_init__(self) -> None:
         weight = np.asarray(self.weight, dtype=np.float32).reshape(-1)
@@ -166,6 +168,10 @@ class TriadicBindingHead:
                 or not np.all(np.isfinite(weight)) or not np.isfinite(self.bias)):
             raise ValueError("triadic binding head is invalid")
         object.__setattr__(self, "weight", weight)
+        if self.nonlinear is not None and (
+                not isinstance(self.nonlinear, NonlinearBindingResidual)
+                or self.nonlinear.center.size != weight.size):
+            raise ValueError("nonlinear triadic binding width differs")
 
     @property
     def channel_width(self) -> int:
@@ -198,7 +204,8 @@ class TriadicBindingHead:
             feature = triadic_binding_feature(operation, mention, definition)
         if feature.shape != self.weight.shape:
             raise ValueError("triadic binding feature width differs")
-        return float(feature @ self.weight + self.bias)
+        return float(feature @ self.weight + self.bias) + (
+            self.nonlinear.score(feature) if self.nonlinear is not None else 0.)
 
     def to_dict(self) -> dict:
         body = {"weight": self.weight.tolist(), "bias": float(self.bias)}
@@ -207,20 +214,24 @@ class TriadicBindingHead:
         if self.feature_schema == "projected_joint_v4":
             body["query_projection"] = self.query_projection.tolist()
             body["definition_projection"] = self.definition_projection.tolist()
+        if self.nonlinear is not None:
+            body["nonlinear"] = self.nonlinear.to_dict()
         return body
 
     def score_lesion(self) -> TriadicBindingHead:
         return TriadicBindingHead(np.zeros_like(self.weight), 0.0,
             self.feature_schema,
             (np.zeros_like(self.query_projection) if self.query_projection is not None else None),
-            (np.zeros_like(self.definition_projection) if self.definition_projection is not None else None))
+            (np.zeros_like(self.definition_projection) if self.definition_projection is not None else None),
+            self.nonlinear.scaled(0.) if self.nonlinear is not None else None)
 
     def scaled(self, factor: float) -> TriadicBindingHead:
         if not np.isfinite(factor) or factor < 0:
             raise ValueError("triadic factor scale must be finite and nonnegative")
         return TriadicBindingHead(self.weight * factor, self.bias * factor,
                                   self.feature_schema, self.query_projection,
-                                  self.definition_projection)
+                                  self.definition_projection,
+                                  self.nonlinear.scaled(factor) if self.nonlinear is not None else None)
 
     def role_lesion(self, removed: str) -> TriadicBindingHead:
         """Remove one role's evidence without refitting the other coefficients."""
@@ -235,8 +246,11 @@ class TriadicBindingHead:
             raise ValueError("unknown triadic role")
         weights = self.weight.reshape(8, -1).copy()
         weights[list(groups[removed])] = 0
+        indices = [index for group in groups[removed]
+                   for index in range(group * weights.shape[1], (group + 1) * weights.shape[1])]
         return TriadicBindingHead(weights.reshape(-1), self.bias, self.feature_schema,
-                                  self.query_projection, self.definition_projection)
+                                  self.query_projection, self.definition_projection,
+                                  self.nonlinear.feature_lesion(indices) if self.nonlinear is not None else None)
 
     def component_lesion(self, retained: str) -> TriadicBindingHead:
         """Keep one fitted evidence component without retraining either arm."""
@@ -248,7 +262,9 @@ class TriadicBindingHead:
             weight[:-8] = 0.0
         else:
             weight[-8:] = 0.0
-        return TriadicBindingHead(weight, self.bias, self.feature_schema)
+        indices = range(len(weight) - 8) if retained == "geometry" else range(len(weight) - 8, len(weight))
+        return TriadicBindingHead(weight, self.bias, self.feature_schema,
+                                  nonlinear=self.nonlinear.feature_lesion(indices) if self.nonlinear is not None else None)
 
 
 def fit_triadic_binding_heads(
@@ -256,11 +272,14 @@ def fit_triadic_binding_heads(
     hidden_channels: Sequence[str], hidden_channel_widths: Sequence[int],
     feature_schema: str = "triple_product_v1",
     projection_basis: tuple[np.ndarray, np.ndarray] | None = None,
+    nonlinear_width: int = 0, nonlinear_steps: int = 200, nonlinear_seed: int = 0,
 ) -> tuple[tuple[TriadicBindingHead, ...], dict]:
     """Learn slot-local contrasts; every negative preserves the source request."""
     examples = tuple(examples)
     if not examples or any(item.split != "train" for item in examples):
         raise ValueError("triadic fit needs source-only training examples")
+    if type(nonlinear_width) is not int or nonlinear_width < 0:
+        raise ValueError("invalid nonlinear triadic width")
     if feature_schema not in {"triple_product_v1", "joint_source_v2",
                               "joint_representation_v3", "projected_joint_v4"}:
         raise ValueError("triadic feature schema is unsupported")
@@ -339,14 +358,20 @@ def fit_triadic_binding_heads(
         weight, bias = _fit_binary_head(
             np.stack(features), np.asarray(labels, dtype=np.int8),
             sample_weight=_normalized_weights(weights), max_iter=400, tolerance=1e-5)
+        nonlinear = (fit_binding_residual(np.stack(features), labels, _normalized_weights(weights),
+            np.stack(features) @ weight + bias, width=nonlinear_width,
+            steps=nonlinear_steps, seed=nonlinear_seed + position) if nonlinear_width else None)
         heads.append(TriadicBindingHead(weight, bias, feature_schema,
-            *(projection_basis if projection_basis is not None else (None, None))))
+            *(projection_basis if projection_basis is not None else (None, None)), nonlinear))
         support.append({"role": position, "positive": sum(labels),
                         "negative": len(labels) - sum(labels)})
     return tuple(heads), {"algorithm": "source_balanced_binary_contrasts_v1",
                           "feature_schema": feature_schema,
                           "support": support, "source_count": len(sources),
-                          "training_views": len(examples)}
+                          "training_views": len(examples),
+                          **({"nonlinear_residual": {"width": nonlinear_width, "steps": nonlinear_steps,
+                             "seed": nonlinear_seed, "candidate_order_feature": False,
+                             "source_fit_only": True}} if nonlinear_width else {})}
 
 
 def evaluate_triadic_gold_binding(

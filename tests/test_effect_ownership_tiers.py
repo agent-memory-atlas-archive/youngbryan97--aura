@@ -123,6 +123,7 @@ def test_gateway_categories_name_real_gateways():
         "direct_atomic_file_write": "core/runtime/atomic_writer.py",
         "subprocess_gateway": "core/runtime/subprocess_gateway.py",
         "network_gateway": "core/runtime/network_gateway.py",
+        "state_gateway": "core/state/state_gateway.py",
     }
     for category, module in expected_modules.items():
         assert category in GATEWAY_CATEGORIES

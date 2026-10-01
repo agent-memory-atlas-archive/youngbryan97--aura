@@ -35,12 +35,27 @@ class NativeDecoderSuffix(nn.Module):
 
     def normalized_states(self, hidden: mx.array) -> mx.array:
         """Expose causal suffix states before vocabulary projection."""
+        return self.layer_states(hidden, (len(self.layers) - 1,))[0]
+
+    def layer_states(self, hidden: mx.array, depths: tuple[int, ...]) -> tuple[mx.array, ...]:
+        """Expose explicitly selected causal depths without pooling them away.
+
+        Normalization is a read-only tap; intermediate normalized values are
+        never fed back into the next block. Callers must bind taps to model,
+        token alignment and checkpoint custody before fitting a pointer.
+        """
         if hidden.ndim != 3 or hidden.shape[1] < 1:
             raise ValueError("native suffix requires a complete hidden sequence")
+        if (not isinstance(depths, tuple) or not depths or len(set(depths)) != len(depths)
+                or any(type(depth) is not int or not 0 <= depth < len(self.layers) for depth in depths)):
+            raise ValueError("native binding depths must name distinct suffix layers")
         masks = decoder_layer_masks(self, hidden)
-        for layer, mask in zip(self.layers, masks, strict=True):
+        states = {}
+        for depth, (layer, mask) in enumerate(zip(self.layers, masks, strict=True)):
             hidden = layer(hidden, mask=mask, cache=None)
-        return self.norm(hidden)
+            if depth in depths:
+                states[depth] = self.norm(hidden)
+        return tuple(states[depth] for depth in depths)
 
     def __call__(
         self, hidden: mx.array, *, logit_positions: tuple[int, ...] | list[int] | None = None

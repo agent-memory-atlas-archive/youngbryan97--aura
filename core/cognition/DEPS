@@ -32,6 +32,7 @@ include_rules = [
     "+core.introspection",
     "+core.knowledge",
     "+core.language",
+    "+core.learning",
     "+core.memory",
     "+core.runtime",
     "+core.security",

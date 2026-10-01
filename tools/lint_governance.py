@@ -179,6 +179,15 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
     ),
     "file_write_gateway": frozenset(
         {
+            # Rigid memory owns one schema-bound snapshot filename beneath
+            # its configured state root. Tests inject the root, not a runtime
+            # filename or arbitrary payload; writes use a memory-write scope.
+            "core/cognition/rigid_object_memory.py",
+            # Offline grounded fitting claims a fresh operator-selected run
+            # namespace and publishes only fixed checkpoints/report names.
+            # These source-fit bytes remain research-only, use a named scope
+            # and cannot publish a production adapter or serving pointer.
+            "core/learning/semantic_grounded_binding_engine.py",
             # Search priors own one numeric-history file beneath the runtime
             # state root. Callers supply word names, never paths; writes still
             # cross the gateway inside a named internal governance scope.
@@ -296,7 +305,13 @@ CANONICAL_PRIMITIVE_OWNERS: dict[str, frozenset[str]] = {
     ),
     "desktop_action_gateway": frozenset({"core/runtime/action_executor.py"}),
     "memory_write_gateway": frozenset({"core/runtime/action_executor.py"}),
-    "state_gateway": frozenset({"core/runtime/action_executor.py"}),
+    "state_gateway": frozenset({
+        "core/runtime/action_executor.py",
+        # These owners retain only schema-bound interpreted graphs and symbol
+        # inquiry receipts in fixed domains. Neither grants serving authority.
+        "core/learning/semantic_diagram_workspace.py",
+        "core/learning/semantic_symbol_inquiry.py",
+    }),
     "will_decision": frozenset(
         {
             "core/runtime/action_executor.py",
@@ -719,6 +734,9 @@ class EffectVisitor(ast.NodeVisitor):
 
     def _classify_call(self, node: ast.Call, callee: str) -> str | None:
         method = callee.rsplit(".", 1)[-1] if callee else ""
+
+        if method == "mutate" and self._open_receiver_type(node) == "core.runtime.gateways.StateGateway":
+            return "state_gateway"
 
         for category, methods in _GATEWAY_METHODS.items():
             if method not in methods:

@@ -67,6 +67,28 @@ def test_prefix_rejects_training_or_unfrozen_parameters_after_construction():
         prefix.capture(mx.array([[1, 2]]))
 
 
+@pytest.mark.parametrize("hybrid", [False, True])
+def test_multidepth_readonly_taps_preserve_native_suffix_computation(hybrid):
+    from core.brain.llm.decoder_topology import decoder_layer_masks
+
+    model = _model(hybrid=hybrid)
+    suffix = NativeDecoderSuffix(model, split_at=1)
+    hidden = FrozenDecoderPrefix(model, split_at=1).capture(mx.array([[1, 2, 3, 4]]))
+    depths = tuple(reversed(range(len(suffix.layers))))
+    states = suffix.layer_states(hidden, depths)
+    expected = []
+    value = hidden
+    for layer, mask in zip(suffix.layers, decoder_layer_masks(suffix, hidden), strict=True):
+        value = layer(value, mask=mask, cache=None)
+        expected.append(suffix.norm(value))
+    assert all(mx.array_equal(actual, expected[depth]).item()
+               for actual, depth in zip(states, depths, strict=True))
+    assert mx.array_equal(suffix.normalized_states(hidden), expected[-1]).item()
+    for bad in ((), (0, 0), (True,), (-1,), (len(suffix.layers),)):
+        with pytest.raises(ValueError, match="depths"):
+            suffix.layer_states(hidden, bad)
+
+
 def test_prefix_rejects_nested_training_after_construction():
     model = _model()
     prefix = FrozenDecoderPrefix(model, split_at=2)

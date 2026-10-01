@@ -414,6 +414,24 @@ def build_native_supervision(items, texts, tokenizer, identities, plan, peer_pro
     return sequences, groups, graph_groups, {**supervision, "receipt_sha256": _digest(supervision)}
 
 
+def require_native_cortex_spec(authority_key_file=None):
+    """Verify the signed descriptor with explicit custody under isolated state."""
+    import os
+
+    from core.brain.llm.model_registry import get_active_cortex_spec
+
+    if authority_key_file is not None:
+        path = str(Path(authority_key_file).expanduser().absolute())
+        existing = os.environ.get("AURA_CORTEX_AUTHORITY_KEY_FILE", "").strip()
+        if existing and Path(existing).expanduser().absolute() != Path(path):
+            raise ValueError("native authority key differs from the supervised environment")
+        os.environ["AURA_CORTEX_AUTHORITY_KEY_FILE"] = path
+    spec = get_active_cortex_spec(force_refresh=True)
+    if spec is None or not spec.exact_identity:
+        raise ValueError("native fit needs the exact signed resident descriptor; pin its existing authority key before isolation")
+    return spec
+
+
 def main():
     from core.learning.semantic_native_codec import REGISTER_ENCODINGS
 
@@ -421,11 +439,31 @@ def main():
     for name in ("parent", "source-report", "folds", "bank", "directory"):
         parser.add_argument("--" + name, type=Path, required=True)
     parser.add_argument("--feature-root", type=Path)
+    parser.add_argument("--authority-key-file", type=Path,
+                        help="existing signed-cortex authority key; never created or copied by this tool")
     parser.add_argument("--bundle", action="append", metavar="NAME=PATH")
     parser.add_argument("--steps", type=int, default=64)
     parser.add_argument("--save-every", type=int, default=32)
     parser.add_argument("--rank", type=int, default=8)
     parser.add_argument("--layers", type=int, default=1)
+    from tools.semantic_native_adapters import (
+        ADAPTER_IMPLEMENTATION_PATHS,
+        ADAPTER_KINDS,
+        ADAPTER_SITES,
+        SCALING_POLICIES,
+        adapter_contract,
+        native_adapter_parameter_estimate,
+    )
+
+    parser.add_argument("--adapter-sites", choices=ADAPTER_SITES, default="binding_v1")
+    parser.add_argument("--adapter-scaling", choices=SCALING_POLICIES, default="direct_v1")
+    parser.add_argument("--adapter-alpha", type=float, default=16.)
+    parser.add_argument("--adapter-kind", choices=ADAPTER_KINDS, default="lora")
+    parser.add_argument("--adapter-layer-ranks", help="comma-separated ranks, earliest to latest suffix layer")
+    parser.add_argument("--adapter-layer-kinds", help="comma-separated function classes, earliest to latest suffix layer")
+    parser.add_argument("--adapter-experts", type=int, default=1)
+    parser.add_argument("--adapter-b-learning-rate-ratio", type=float, default=1.)
+    parser.add_argument("--adapter-router-balance-weight", type=float, default=0.)
     parser.add_argument("--prefix-batch-size", type=int, default=1)
     parser.add_argument("--precision", choices=("native", "float32"), default="native")
     parser.add_argument("--prefix-strategy", choices=("full", "trie"), default="full")
@@ -467,6 +505,20 @@ def main():
     parser.add_argument("--require-identifiable-supervision", action="store_true",
                         help="reject conflicting exact-path targets before loading model weights")
     args = parser.parse_args()
+    adaptation = adapter_contract(rank=args.rank, layers=args.layers, sites=args.adapter_sites,
+                                  scaling=args.adapter_scaling, alpha=args.adapter_alpha,
+                                  kind=args.adapter_kind, experts=args.adapter_experts,
+                                  layer_kinds=(args.adapter_layer_kinds.split(",") if args.adapter_layer_kinds else None),
+                                  layer_ranks=([int(value) for value in args.adapter_layer_ranks.split(",")]
+                                               if args.adapter_layer_ranks is not None else None))
+    if not math.isfinite(args.adapter_b_learning_rate_ratio) or args.adapter_b_learning_rate_ratio <= 0:
+        parser.error("adapter B learning-rate ratio must be positive and finite")
+    if args.adapter_b_learning_rate_ratio != 1. and args.adapter_kind in {"square", "dense"}:
+        parser.error("single-matrix adapters do not have a B-factor learning rate")
+    if (not math.isfinite(args.adapter_router_balance_weight) or args.adapter_router_balance_weight < 0
+            or args.adapter_router_balance_weight and
+               "routed" not in adaptation.get("layer_kinds", [args.adapter_kind])):
+        parser.error("router balancing needs a routed adapter and a finite nonnegative weight")
     from tools.semantic_native_execution import (
         EXECUTION_PATHS,
         execution_contract,
@@ -520,7 +572,7 @@ def main():
         source_bundle_arguments,
     )
     configure_refit_environment(args.directory / "report.json")
-    from core.brain.llm.model_registry import get_active_cortex_spec
+    spec = require_native_cortex_spec(args.authority_key_file)
     from core.learning.semantic_counterfactual_corpus import (
         cross_construction_relation_partners,
         cross_construction_relation_triplets,
@@ -606,15 +658,13 @@ def main():
                               | {row["partner"] for row in pair_rows}
                               | {source for pair in scheduled_triplets.values() for source in pair})
     peer_programs = {item.ir.to_program().sha(): item.ir.to_program() for item in fit}
-    spec = get_active_cortex_spec(force_refresh=True)
-    if spec is None or not spec.exact_identity:
-        raise ValueError("native fit needs the exact current resident descriptor")
     for value in bundles:
         manifest = json.loads((Path(value.partition("=")[2]) / "manifest.json").read_bytes())
         if Path(manifest["exact_model_path"]).resolve() != spec.model_path.resolve():
             raise ValueError("source features came from a different resident model")
     implementation_paths = [ROOT / name for name in (
-        "tools/train_semantic_native_program.py", "core/learning/frozen_decoder_prefix.py",
+        "tools/train_semantic_native_program.py", *ADAPTER_IMPLEMENTATION_PATHS,
+        "core/learning/frozen_decoder_prefix.py",
         "core/learning/semantic_native_program.py", "core/brain/llm/decoder_topology.py",
         "core/learning/semantic_native_source_control.py",
         "core/learning/semantic_program_feature_materialization.py",
@@ -663,13 +713,17 @@ def main():
             path = ROOT / name
             implementation_paths.append(path)
             implementation[name] = hashlib.sha256(path.read_bytes()).hexdigest()
+    model_config = json.loads((spec.model_path / "config.json").read_text(encoding="utf-8"))
+    adapter_memory = native_adapter_parameter_estimate(model_config, adaptation)
     plan = {"schema": "aura.semantic_native_fit_plan.v1", "steps": args.steps,
             "save_every": args.save_every, "rank": args.rank, "suffix_layers": args.layers,
             "prefix_batch_size": args.prefix_batch_size,
             "prefix_padding": False,
             "prefix_equivalence_policy": "complete_and_selected_logits_per_observed_batch_size",
-            "adapter_keys": ["self_attn.q_proj", "self_attn.v_proj", "self_attn.o_proj",
-                             "mlp.down_proj"],
+            "adapter_keys": adaptation["keys"], "adapter_contract": adaptation,
+            "adapter_b_learning_rate_ratio": args.adapter_b_learning_rate_ratio,
+            "adapter_router_balance_weight": args.adapter_router_balance_weight,
+            "adapter_memory_projection": adapter_memory,
             "learning_rate": 1e-4, "weight_decay": .01, "seed": 20260925,
             "loss_scope": args.loss_scope,
             "semantic_decision_basis": "program_atoms_and_graph_termination_v1",
@@ -803,6 +857,7 @@ def main():
     _save_if_absent(args.directory / "plan.json", plan)
     if args.plan_only:
         print(json.dumps({"stage": "plan_only", "plan_sha256": plan["plan_sha256"],
+                          "adapter_memory_projection": adapter_memory,
                           "fit": len(fit), "calibration": len(calibration_ids),
                           "schedule_coverage": plan["schedule_coverage"],
                           "held": len(held_ids), "model_weights_loaded": False}), flush=True)
@@ -823,7 +878,6 @@ def main():
         plan, tuple(peer_programs[key] for key in sorted(peer_programs)))
     projected_shards = None
     if args.prefix_storage == "source_shards":
-        model_config = json.loads((spec.model_path / "config.json").read_text(encoding="utf-8"))
         geometry = model_config.get("text_config", model_config)
         if not isinstance(geometry, dict):
             raise ValueError("native source shard hidden geometry is undeclared")
@@ -865,10 +919,8 @@ def main():
 
     import mlx.core as mx
     import mlx.nn as nn
-    import mlx.optimizers as optim
     from mlx.utils import tree_flatten, tree_map
     from mlx_lm import load
-    from mlx_lm.tuner.utils import linear_to_lora_layers
 
     from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
     from core.learning.semantic_native_codec import native_sequence_for_encoding
@@ -877,6 +929,7 @@ def main():
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
     from core.runtime.model_lane_control import standalone_model_lane
     from tools.evaluate_semantic_candidate_ranker import _rankable_or_none, _read_bank
+    from tools.semantic_native_adapters import install_native_adapters
 
     def check_bound():
         if time.monotonic() - started > args.max_seconds:
@@ -890,6 +943,8 @@ def main():
         print(json.dumps({"stage": "load", "descriptor": spec.descriptor_sha256,
                           "memory_envelope": envelope.to_receipt()}), flush=True)
         model, loaded_tokenizer = load(str(spec.model_path))
+        if adapter_memory is not None and _active_bytes() + adapter_memory["five_float32_copies_bytes"] > envelope.memory_bytes:
+            raise MemoryError("backbone residency plus adapter state alone exceeds the host envelope")
         if any(loaded_tokenizer.encode(texts[identity], add_special_tokens=False)
                != tokenizer.encode(texts[identity], add_special_tokens=False) for identity in supervised_ids):
             raise ValueError("native model load changed the preflight tokenizer")
@@ -899,11 +954,16 @@ def main():
         prefix = FrozenDecoderPrefix(model, split_at=split)
         suffix = NativeDecoderSuffix(model, split_at=split)
         mx.random.seed(plan["seed"])
-        linear_to_lora_layers(model, args.layers, {
-            "rank": args.rank, "scale": 16., "dropout": 0., "keys": plan["adapter_keys"]})
+        install_native_adapters(model, plan)
         from tools.semantic_native_execution import apply_execution, source_sequence_groups
         precision_receipt = apply_execution(model, plan)
         trainable = tree_flatten(suffix.trainable_parameters())
+        observed_parameter_count = sum(value.size for _name, value in trainable)
+        if adapter_memory is not None and observed_parameter_count != adapter_memory["trainable_parameters"]:
+            raise ValueError("loaded native adapter geometry differs from its pre-load projection")
+        print(json.dumps({"stage": "adapter_residency", "trainable_parameters": observed_parameter_count,
+                          "projected_state": adapter_memory, "active_memory_bytes": _active_bytes(),
+                          "activation_peak_measured": False}), flush=True)
         if not trainable or any("lora_" not in name for name, _value in trainable):
             raise ValueError("native suffix adaptation escaped its declared LoRA sites")
         if any("lora_" not in name for name, _value in tree_flatten(model.trainable_parameters())):
@@ -1176,13 +1236,20 @@ def main():
             return weight_path, row
 
         baseline = measure_calibration(captured)
-        optimizer = optim.AdamW(learning_rate=plan["learning_rate"], weight_decay=plan["weight_decay"])
+        from tools.semantic_native_adapters import native_optimizer
+        optimizer = native_optimizer(plan)
         zero_path, zero = save_checkpoint(0, baseline)
         best, checkpoints, history = (baseline, 0, zero_path), [zero], []
         for step, identity in enumerate(schedule, 1):
             check_bound()
-            loss, gradients = nn.value_and_grad(suffix, lambda tail, source=identity, states=captured:
-                source_objective(tail, source, states) * weights[source])(suffix)
+            def training_objective(tail, source=identity, states=captured):
+                from tools.semantic_native_adapters import native_router_regularized_objective
+
+                return native_router_regularized_objective(tail,
+                    lambda: source_objective(tail, source, states) * weights[source],
+                    weight=plan["adapter_router_balance_weight"])
+
+            loss, gradients = nn.value_and_grad(suffix, training_objective)(suffix)
             norm = mx.sqrt(sum(mx.sum(value.astype(mx.float32) ** 2)
                                for _name, value in tree_flatten(gradients)))
             if not math.isfinite(norm.item()):
@@ -1267,7 +1334,7 @@ def main():
             _save_if_absent(args.directory / "rows" / f"{identity}.json", row)
             print(json.dumps({"stage": "held", "observed": len(rows), "population": len(held_ids)}),
                   flush=True)
-        current_spec = get_active_cortex_spec(force_refresh=True)
+        current_spec = require_native_cortex_spec(args.authority_key_file)
         execution_from_plan(plan, check_installed=True)
         if (current_spec is None or current_spec.descriptor_sha256 != spec.descriptor_sha256
                 or current_spec.pointer_sha256 != spec.pointer_sha256

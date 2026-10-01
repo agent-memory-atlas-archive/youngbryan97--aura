@@ -21,6 +21,7 @@ if str(ROOT) not in sys.path:
 
 SCHEMA = "aura.semantic_native_fresh_schema_plan.v1"
 IMPLEMENTATION = (
+    "tools/semantic_native_adapters.py", "tools/semantic_native_adapter_layers.py",
     "tools/evaluate_semantic_native_fresh_schema.py",
     "tools/evaluate_semantic_native_checkpoint.py",
     "tools/train_semantic_native_program.py",
@@ -163,7 +164,7 @@ def main() -> None:
     import mlx.core as mx
     from mlx.utils import tree_map
     from mlx_lm import load
-    from mlx_lm.tuner.utils import linear_to_lora_layers
+    from tools.semantic_native_adapters import install_native_adapters
 
     from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
     from core.learning.semantic_native_codec import (
@@ -187,9 +188,7 @@ def main() -> None:
         prefix = FrozenDecoderPrefix(model, split_at=split)
         suffix = NativeDecoderSuffix(model, split_at=split)
         mx.random.seed(training["seed"])
-        linear_to_lora_layers(model, training["suffix_layers"], {
-            "rank": training["rank"], "scale": 16., "dropout": 0.,
-            "keys": training["adapter_keys"]})
+        install_native_adapters(model, training)
         baseline = tree_map(lambda value: mx.array(value), suffix.trainable_parameters())
         mx.eval(baseline)
         model.load_weights(str(args.training_directory /

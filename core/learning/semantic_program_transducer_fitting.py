@@ -1494,9 +1494,13 @@ def _assign_typed_arguments(
     build_only: bool = False,
     time_limit_s: float | None = None,
     source_token_ids: Sequence[int] | None = None,
+    binding_chart_solver: Any = None,
+    source_text_sha256: str | None = None,
 ) -> _TypedArgumentAssignment | None:
     import time
 
+    if binding_chart_solver is not None and model.training_receipt.get("argument_search_strategy") != "global_constraint_v1":
+        raise ValueError("grounded binding requires the complete global argument chart")
     deadline = None if time_limit_s is None else time.monotonic() + time_limit_s
     literal_bindings = {span: tuple(index for index, anchor in enumerate(input_spans) if anchor == span)
                         for span in input_spans}
@@ -1802,7 +1806,7 @@ def _assign_typed_arguments(
             chart_observer(chart)
         if build_only:
             return None
-        if minimum_score is not None and chart.score_upper_bound() < minimum_score - 1e-8:
+        if binding_chart_solver is None and minimum_score is not None and chart.score_upper_bound() < minimum_score - 1e-8:
             return None
         remaining = None if deadline is None else deadline - time.monotonic()
         if remaining is not None and remaining <= 0:
@@ -1811,7 +1815,9 @@ def _assign_typed_arguments(
             )
 
             raise ArgumentOptimizationIncompleteError("argument_chart_construction_budget_exhausted")
-        optimized = chart.solve(time_limit_s=remaining)
+        optimized = (chart.solve(time_limit_s=remaining) if binding_chart_solver is None else
+            binding_chart_solver(chart, operation_nodes=operation_nodes, input_spans=input_spans, inputs=inputs,
+                                 source_id=source_text_sha256, time_limit_s=remaining))
         states = [optimized] if optimized is not None else []
     valid: list[_TypedArgumentAssignment] = []
     for score, arguments, spans, dependencies in states:

@@ -220,6 +220,7 @@ def refit_compositional_triadic_bindings(
     runtime_operation_view_charts: int = 0,
     feature_schema: str = "triple_product_v1",
     calibrate_score: bool = False,
+    nonlinear_width: int = 0, nonlinear_steps: int = 200, nonlinear_seed: int = 0,
     progress: Any = None,
 ) -> CompositionalSemanticProgramTransducer:
     """Fit operation-conditioned mention/definition links on source-only views."""
@@ -266,7 +267,8 @@ def refit_compositional_triadic_bindings(
         views, max_arity=len(model.argument_role_heads),
         hidden_channels=model.hidden_channels,
         hidden_channel_widths=model.hidden_channel_widths,
-        feature_schema=feature_schema, projection_basis=projection_basis)
+        feature_schema=feature_schema, projection_basis=projection_basis,
+        nonlinear_width=nonlinear_width, nonlinear_steps=nonlinear_steps, nonlinear_seed=nonlinear_seed)
     if calibrate_score:
         return calibrate_compositional_triadic_score(
             model, heads, validation,

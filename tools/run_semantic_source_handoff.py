@@ -96,7 +96,7 @@ def source_bank_directory(plan: dict[str, Any], source_fit_supervisor: Path) -> 
 
 
 def native_preparation_jobs(paths: dict[str, Any], bank_root: Path, native: Path,
-                            directory: Path, *, python: str) -> list[dict[str, Any]]:
+                            directory: Path, *, python: str, authority_key_file: Path | None = None) -> list[dict[str, Any]]:
     from tools.run_semantic_native_micro_stages import job
 
     bundles = [part for bundle in paths["bundles"] for part in ("--bundle", bundle)]
@@ -113,6 +113,8 @@ def native_preparation_jobs(paths: dict[str, Any], bank_root: Path, native: Path
         "--schedule-policy", "construction_depth_balanced_v1",
         "--calibration-per-construction", "1", "--held-per-construction", "1",
         "--require-identifiable-supervision", *bundles]
+    if authority_key_file is not None:
+        command += ["--authority-key-file", str(authority_key_file.expanduser().absolute())]
     return [job("native-plan", [*command, "--plan-only"], directory, timeout=1800.),
             job("native-supervision", [*command, "--supervision-only"], directory, timeout=3600.)]
 
@@ -182,9 +184,12 @@ def main() -> int:
     parser.add_argument("--policy-output", type=Path)
     parser.add_argument("--wait-bank-supervisor", type=Path)
     parser.add_argument("--native-directory", type=Path)
+    parser.add_argument("--authority-key-file", type=Path)
     args = parser.parse_args()
     if (args.wait_bank_supervisor is None) != (args.native_directory is None):
         parser.error("native preparation needs both the source-bank supervisor and a fresh output directory")
+    if args.authority_key_file is not None and args.native_directory is None:
+        parser.error("cortex key custody belongs only to native preparation")
     from core.learning.semantic_fit_checkpoint import fit_identity
     from tools.probe_semantic_proposer_crossfit import _digest, _save_if_absent
     from tools.refit_semantic_argument_proposals import configure_refit_environment
@@ -208,7 +213,7 @@ def main() -> int:
         bank_root = source_bank_directory(bank_plan, supervisor)
     jobs = (handoff_jobs(paths, directory, python=sys.executable) if bank_supervisor is None else
             native_preparation_jobs(paths, bank_root, args.native_directory.resolve(), directory,
-                                    python=sys.executable))
+                                    python=sys.executable, authority_key_file=args.authority_key_file))
     if bank_supervisor is not None:
         verify_native_launch_environment(jobs[0]["command"])
     body = {"schema": "aura.semantic_source_handoff_plan.v1",

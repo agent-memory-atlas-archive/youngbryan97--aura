@@ -101,6 +101,7 @@ def main() -> None:
             or spec.model_path.resolve() != Path(training["model_path"]).resolve()):
         raise ValueError("fresh-generation resident identity differs")
     paths = ("tools/evaluate_semantic_native_fresh_generation.py",
+             "tools/semantic_native_adapters.py", "tools/semantic_native_adapter_layers.py",
              "tools/evaluate_semantic_native_fresh_schema.py",
              "tools/evaluate_semantic_native_checkpoint.py",
              "core/learning/semantic_native_program.py",
@@ -130,7 +131,7 @@ def main() -> None:
 
     import mlx.core as mx
     from mlx_lm import load, stream_generate
-    from mlx_lm.tuner.utils import linear_to_lora_layers
+    from tools.semantic_native_adapters import install_native_adapters
 
     from core.learning.semantic_program_corpus_natural import (
         build_semantic_program_natural_request_corpus,
@@ -151,9 +152,7 @@ def main() -> None:
         model.freeze()
         model.eval()
         mx.random.seed(training["seed"])
-        linear_to_lora_layers(model, training["suffix_layers"], {
-            "rank": training["rank"], "scale": 16., "dropout": 0.,
-            "keys": training["adapter_keys"]})
+        install_native_adapters(model, training)
         model.load_weights(str(args.training_directory /
                                f"checkpoint-{selected['step']}.safetensors"), strict=False)
         for case in active_cases:

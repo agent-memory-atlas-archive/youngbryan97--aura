@@ -63,11 +63,12 @@ def main():
             or spec.pointer_sha256 != plan["pointer_sha256"]):
         raise ValueError("prefix grouping probe model differs from training")
     paths = ("tools/probe_semantic_native_prefix_grouping.py", "tools/train_semantic_native_program.py",
+             "tools/semantic_native_adapters.py", "tools/semantic_native_adapter_layers.py",
              "core/learning/frozen_decoder_prefix.py", "core/brain/llm/decoder_topology.py")
     implementation = {name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in paths}
     import mlx.core as mx
     from mlx_lm import load
-    from mlx_lm.tuner.utils import linear_to_lora_layers
+    from tools.semantic_native_adapters import install_native_adapters
 
     from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
@@ -83,8 +84,7 @@ def main():
         split = len(model.layers) - plan["suffix_layers"]
         prefix, suffix = FrozenDecoderPrefix(model, split_at=split), NativeDecoderSuffix(model, split_at=split)
         mx.random.seed(plan["seed"])
-        linear_to_lora_layers(model, plan["suffix_layers"], {
-            "rank": plan["rank"], "scale": 16., "dropout": 0., "keys": plan["adapter_keys"]})
+        install_native_adapters(model, plan)
         sequence = sequences[batch[0]]
         positions = tuple(index - 1 for index in native_prediction_positions(sequence, scope=plan["loss_scope"]))
         individual = None

@@ -1252,6 +1252,57 @@ def _install_runtime_audit_tests(suite) -> None:
 
 
 def _install_semantic_composition_tests(suite) -> None:
+    def diagram_custody_contract(_model):
+        from core.learning.semantic_semasiographic import diagram_role_contract
+        from core.learning.semantic_temporal_constraints import temporal_custody_contract
+
+        return diagram_role_contract() == () and temporal_custody_contract() == ()
+
+    suite.add_test(ValidationTest(
+        name="meaning_diagram_preserves_roles_and_evidence_clock",
+        description="declared diagrams preserve role identity under layout changes and exclude future observations",
+        required_capability="",
+        observation=Observation(name="meaning_diagram_contract", value=True,
+                                source="tests/test_semantic_semasiographic.py"),
+        predict=diagram_custody_contract,
+        score=lambda prediction, observation: boolean_score(bool(prediction),
+            expected=bool(observation.value), subject="Meaning diagram and temporal custody contract"),
+        owner="core/learning/semantic_semasiographic.py",
+    ))
+
+    def rigid_memory_contract(_model):
+        from core.cognition.rigid_object_memory import rigid_permanence_contract
+
+        return rigid_permanence_contract() == ()
+
+    suite.add_test(ValidationTest(
+        name="rigid_memory_preserves_observed_intrinsics",
+        description="declared rigid memory retains measured shape and hidden surface observations across viewpoint changes",
+        required_capability="",
+        observation=Observation(name="rigid_memory_contract", value=True,
+                                source="tests/test_rigid_object_memory.py"),
+        predict=rigid_memory_contract,
+        score=lambda prediction, observation: boolean_score(bool(prediction),
+            expected=bool(observation.value), subject="Declared rigid object memory contract"),
+        owner="core/cognition/rigid_object_memory.py",
+    ))
+
+    def contextual_source_identity_contract(_model):
+        from core.learning.semantic_context_binding import source_identity_is_not_denotation
+
+        return source_identity_is_not_denotation() == ()
+
+    suite.add_test(ValidationTest(
+        name="contextual_binding_preserves_source_identity",
+        description="explicit source-qualified identities are not replaced by equal-valued or aliased distractors",
+        required_capability="",
+        observation=Observation(name="source_identity_contract", value=True,
+                                source="tests/test_semantic_context_binding.py"),
+        predict=contextual_source_identity_contract,
+        score=lambda prediction, observation: boolean_score(bool(prediction),
+            expected=bool(observation.value), subject="Contextual source identity contract"),
+        owner="core/learning/semantic_context_binding.py",
+    ))
     suite.add_test(
         ValidationTest(
             name="reality_metrology_contract_separates_sources",

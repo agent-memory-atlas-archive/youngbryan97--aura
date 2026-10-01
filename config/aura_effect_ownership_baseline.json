@@ -3985,6 +3985,14 @@
       "scope": "<module>.RelationLanguage.save"
     },
     {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_json",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/cognition/rigid_object_memory.py",
+      "scope": "<module>.RigidObjectMemory.save"
+    },
+    {
       "callee": "<file_write_gateway>.ensure_directory",
       "canonical_owner": false,
       "category": "file_write_gateway",
@@ -4951,6 +4959,14 @@
       "count": 1,
       "path": "core/learning/semantic_fit_checkpoint.py",
       "scope": "<module>.write_fit_archive"
+    },
+    {
+      "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_bytes",
+      "canonical_owner": true,
+      "category": "file_write_gateway",
+      "count": 1,
+      "path": "core/learning/semantic_grounded_binding_engine.py",
+      "scope": "<module>._write_binding_artifact"
     },
     {
       "callee": "core.runtime.file_write_gateway.get_file_write_gateway().write_text",
@@ -14617,6 +14633,54 @@
       "scope": "<module>._names_that_are_not_defined"
     },
     {
+      "callee": "gateway.mutate",
+      "canonical_owner": true,
+      "category": "state_gateway",
+      "count": 1,
+      "path": "core/learning/semantic_diagram_workspace.py",
+      "scope": "<module>.retain_diagram_choice"
+    },
+    {
+      "callee": "gateway.mutate",
+      "canonical_owner": false,
+      "category": "state_gateway",
+      "count": 1,
+      "path": "core/learning/semantic_meaning_hypothesis.py",
+      "scope": "<module>.MeaningStageInquiry.retain"
+    },
+    {
+      "callee": "gateway.mutate",
+      "canonical_owner": false,
+      "category": "state_gateway",
+      "count": 1,
+      "path": "core/learning/semantic_meaning_hypothesis.py",
+      "scope": "<module>.ObservedMeaningStageInquiry.retain"
+    },
+    {
+      "callee": "gateway.mutate",
+      "canonical_owner": false,
+      "category": "state_gateway",
+      "count": 1,
+      "path": "core/learning/semantic_program_inquiry.py",
+      "scope": "<module>.ObservedProgramInquiry.retain"
+    },
+    {
+      "callee": "gateway.mutate",
+      "canonical_owner": false,
+      "category": "state_gateway",
+      "count": 1,
+      "path": "core/learning/semantic_program_inquiry.py",
+      "scope": "<module>.ProgramInquiry.retain"
+    },
+    {
+      "callee": "gateway.mutate",
+      "canonical_owner": true,
+      "category": "state_gateway",
+      "count": 1,
+      "path": "core/learning/semantic_symbol_inquiry.py",
+      "scope": "<module>.SymbolInquiry.retain"
+    },
+    {
       "callee": "<state_gateway>.mutate",
       "canonical_owner": true,
       "category": "state_gateway",
@@ -16570,6 +16634,6 @@
     }
   ],
   "description": "Exact AST effect-ownership debt ratchet; refresh only after reviewed change",
-  "inventory_sha256": "763e3b81a2328b49ad0b8b7e2bdf0b5cd415cfa12ca01ac9407f86b6006b3f6d",
+  "inventory_sha256": "ea86ad4538b64e276bd4a4c3987fd8f96a924fa53512fb577207feee82cdfafb",
   "schema_version": 1
 }

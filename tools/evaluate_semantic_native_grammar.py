@@ -362,6 +362,7 @@ def main():
                                           held_source_sha256s=tuple(sources))
         role_rule_bank = RoleRuleBank.from_dict(role_rule_fit["bank"])
     paths = ("tools/evaluate_semantic_native_grammar.py",
+             "tools/semantic_native_adapters.py", "tools/semantic_native_adapter_layers.py",
              "core/learning/semantic_native_grammar.py",
              "core/learning/semantic_native_search.py",
              "core/learning/semantic_native_program.py",
@@ -486,7 +487,7 @@ def main():
 
     import mlx.core as mx
     from mlx_lm import load
-    from mlx_lm.tuner.utils import linear_to_lora_layers
+    from tools.semantic_native_adapters import install_native_adapters, native_adapter_scale
 
     from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
     from core.learning.semantic_native_codec import native_sequence_for_encoding
@@ -519,8 +520,7 @@ def main():
         prefix, suffix = FrozenDecoderPrefix(model, split_at=split), NativeDecoderSuffix(model, split_at=split)
         if args.weight_mode in {"fitted", "residual", "factorized"}:
             mx.random.seed(training["seed"])
-            linear_to_lora_layers(model, training["suffix_layers"], {
-                "rank": training["rank"], "scale": 16., "dropout": 0., "keys": training["adapter_keys"]})
+            install_native_adapters(model, training)
             model.load_weights(str(args.training_directory /
                                    f"checkpoint-{scored_checkpoint['step']}.safetensors"), strict=False)
         from tools.semantic_native_execution import apply_execution
@@ -533,7 +533,7 @@ def main():
             sites = native_lora_sites(model, training)
             if residual is not None:
                 for site in sites:
-                    site.scale = 16. * residual["selected_scale"]
+                    site.scale = native_adapter_scale(training, site) * residual["selected_scale"]
         for example, identity in zip(examples, sources, strict=True):
             public_inputs, types = source_input_types(example.source_text)
             scored_source = (source_text_by_sha256[source_pair_map[identity]]
@@ -562,8 +562,8 @@ def main():
                     kind = native_competition_kind(choices)
                     scale = factorized["selected_scales"][kind]
                     for site in sites:
-                        site.scale = 16. * scale
-                    if any(site.scale != 16. * scale for site in sites):
+                        site.scale = native_adapter_scale(training, site) * scale
+                    if any(site.scale != native_adapter_scale(training, site) * scale for site in sites):
                         raise ValueError("native factorization did not isolate every suffix adapter")
                     scales.append({"kind": kind, "scale": scale,
                                    "adapter_sites": len(sites)})

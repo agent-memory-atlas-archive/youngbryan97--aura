@@ -154,6 +154,34 @@ def test_scanner_resolves_aliases_factories_and_path_mutations() -> None:
     assert all(key[2] == "<module>.perform" for key in buckets)
 
 
+def test_injected_nominal_state_gateway_mutations_are_inventoried() -> None:
+    tree = ast.parse(textwrap.dedent('''
+        from core.runtime.gateways import StateGateway as SG
+
+        async def retain(gateway: SG, request):
+            await gateway.mutate(request)
+            await gateway.read("key")
+
+        def unrelated(gateway: object, request):
+            gateway.mutate(request)
+    '''))
+    buckets = _scan_tree_scoped(tree, "core/synthetic.py")
+    assert sum(buckets.values()) == 1
+    assert {key[0] for key in buckets} == {"state_gateway"}
+    assert {key[2] for key in buckets} == {"<module>.retain"}
+
+
+def test_diagram_and_symbol_retention_own_only_governed_state_effects() -> None:
+    for path in ("core/learning/semantic_diagram_workspace.py",
+                 "core/learning/semantic_symbol_inquiry.py"):
+        assert _canonical_owner("state_gateway", path)
+        assert not _canonical_owner("raw_file_mutation", path)
+        tree = ast.parse((REPO / path).read_text(encoding="utf-8"))
+        buckets = _scan_tree_scoped(tree, path)
+        assert sum(buckets.values()) == 1
+        assert {key[0] for key in buckets} == {"state_gateway"}
+
+
 def test_progress_aware_subprocess_calls_remain_in_effect_and_declaration_inventory() -> None:
     for declaration in ("", ', accelerator_capability="none"'):
         tree = ast.parse(textwrap.dedent(f'''

@@ -187,6 +187,9 @@ def main() -> int:
                                                            "joint_representation_v3", "projected_joint_v4"),
                         default="triple_product_v1")
     parser.add_argument("--calibrate-triadic-score", action="store_true")
+    parser.add_argument("--triadic-nonlinear-width", type=int, default=0)
+    parser.add_argument("--triadic-nonlinear-steps", type=int, default=200)
+    parser.add_argument("--triadic-nonlinear-seed", type=int, default=0)
     parser.add_argument("--preserve-coreferent-mentions", action="store_true")
     parser.add_argument("--operation-view-mode", action="append",
                         help="operation_views only: explicitly select candidate feature modes")
@@ -255,6 +258,9 @@ def main() -> int:
         parser.error("triadic feature schema requires triadic_bindings")
     if args.calibrate_triadic_score and args.objective != "triadic_bindings":
         parser.error("triadic score calibration requires triadic_bindings")
+    if (args.triadic_nonlinear_width < 0 or args.triadic_nonlinear_steps < 1
+            or (args.triadic_nonlinear_width and args.objective != "triadic_bindings")):
+        parser.error("nonlinear triadic capacity requires the triadic binding objective")
     if args.preserve_coreferent_mentions and args.objective != "pairwise_arguments":
         parser.error("coreferent mention preservation requires pairwise_arguments")
     if args.operation_view_mode and args.objective != "operation_views":
@@ -378,6 +384,9 @@ def main() -> int:
     if args.objective == "triadic_bindings":
         options["feature_schema"] = args.triadic_feature_schema
         options["calibrate_score"] = args.calibrate_triadic_score
+        options.update(nonlinear_width=args.triadic_nonlinear_width,
+                       nonlinear_steps=args.triadic_nonlinear_steps,
+                       nonlinear_seed=args.triadic_nonlinear_seed)
     if args.objective == "span_set_pointer":
         options["learn_pair"] = args.learn_span_pairs
         options["checkpoint_path"] = (

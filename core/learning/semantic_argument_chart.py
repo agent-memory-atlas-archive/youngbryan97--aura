@@ -164,6 +164,12 @@ class ScoredArgumentChart:
         return result, tuple(math.fsum(row[column] for row in rows)
                              for column in range(len(rows[0])))
 
+    def solve_grounded(self, context, roles, register_keys, **options):
+        """Resolve contextual identities with the chart's existing graph constraints."""
+        from core.learning.semantic_context_binding import solve_grounded_argument_chart
+
+        return solve_grounded_argument_chart(self, context, roles, register_keys, **options)
+
     def restrict_arguments(self, targets: Sequence[Sequence[int]]) -> ScoredArgumentChart:
         """Keep every mention realizing a supplied training/diagnostic graph."""
         if len(targets) != len(self.options) or any(

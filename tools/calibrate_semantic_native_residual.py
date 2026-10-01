@@ -149,16 +149,17 @@ def residual_admission(rows_by_scale: dict[float, list[dict]], sources: list[str
 
 def native_lora_sites(model, training) -> tuple:
     from mlx_lm.tuner.lora import LoRALinear
+    from tools.semantic_native_adapters import native_adapter_scale, native_adapter_keys_by_layer
 
     sites = []
-    for layer in model.layers[-training["suffix_layers"]:]:
-        for name in training["adapter_keys"]:
+    for layer, keys in zip(model.layers[-training["suffix_layers"]:],
+                           native_adapter_keys_by_layer(model, training), strict=True):
+        for name in keys:
             parent, target = name.split(".")
             module = getattr(getattr(layer, parent, None), target, None)
-            if module is not None:
-                if not isinstance(module, LoRALinear) or module.scale != 16.:
-                    raise ValueError("native residual adapter geometry differs")
-                sites.append(module)
+            if not isinstance(module, LoRALinear) or module.scale != native_adapter_scale(training, module):
+                raise ValueError("native residual adapter geometry differs")
+            sites.append(module)
     if not sites:
         raise ValueError("native residual has no measured LoRA sites")
     return tuple(sites)
@@ -234,6 +235,7 @@ def run(args) -> None:
             or spec.model_path.resolve() != Path(training["model_path"]).resolve()):
         raise ValueError("native residual checkpoint identity differs")
     paths = ("tools/calibrate_semantic_native_residual.py",
+             "tools/semantic_native_adapters.py", "tools/semantic_native_adapter_layers.py",
              "tools/audit_semantic_native_path_calibration.py",
              "tools/train_semantic_native_program.py",
              "core/learning/frozen_state_store.py",
@@ -270,7 +272,7 @@ def run(args) -> None:
 
     import mlx.core as mx
     from mlx_lm import load
-    from mlx_lm.tuner.utils import linear_to_lora_layers
+    from tools.semantic_native_adapters import install_native_adapters, native_adapter_scale
 
     from core.learning.frozen_decoder_prefix import NativeDecoderSuffix
 
@@ -285,9 +287,7 @@ def run(args) -> None:
         model.freeze()
         model.eval()
         mx.random.seed(training["seed"])
-        linear_to_lora_layers(model, training["suffix_layers"], {
-            "rank": training["rank"], "scale": 16., "dropout": 0.,
-            "keys": training["adapter_keys"]})
+        install_native_adapters(model, training)
         apply_execution(model, training)
         sites = native_lora_sites(model, training)
         model.load_weights(str(args.training_directory /
@@ -295,7 +295,7 @@ def run(args) -> None:
         suffix = NativeDecoderSuffix(model, split_at=len(model.layers) - training["suffix_layers"])
         for scale in scales:
             for site in sites:
-                site.scale = 16. * scale
+                site.scale = native_adapter_scale(training, site) * scale
             measured = []
             for source in sources:
                 if time.monotonic() - started > args.max_seconds:

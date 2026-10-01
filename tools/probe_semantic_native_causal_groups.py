@@ -219,6 +219,7 @@ def main():
             or generation["residual_calibration"]["selected_scale"] != residual["selected_scale"]):
         raise ValueError("causal probe residual differs from generated search")
     paths = ("core/learning/semantic_native_causal_groups.py",
+             "tools/semantic_native_adapters.py", "tools/semantic_native_adapter_layers.py",
              "tools/probe_semantic_native_causal_groups.py") + ((
              "core/learning/frozen_prefix_branches.py",) if args.cached_groups else ())
     body = {"schema": "aura.native_causal_group_probe_plan.v2",
@@ -238,7 +239,7 @@ def main():
 
     import mlx.core as mx
     from mlx_lm import load
-    from mlx_lm.tuner.utils import linear_to_lora_layers
+    from tools.semantic_native_adapters import install_native_adapters, native_adapter_scale
 
     from core.learning.frozen_decoder_prefix import FrozenDecoderPrefix, NativeDecoderSuffix
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
@@ -259,16 +260,14 @@ def main():
         model.freeze()
         model.eval()
         mx.random.seed(training["seed"])
-        linear_to_lora_layers(model, training["suffix_layers"], {
-            "rank": training["rank"], "scale": 16., "dropout": 0.,
-            "keys": training["adapter_keys"]})
+        install_native_adapters(model, training)
         model.load_weights(str(args.training_directory /
                                f"checkpoint-{residual['candidate_step']}.safetensors"), strict=False)
         apply_execution(model, training)
         model.eval()
         sites = native_lora_sites(model, training)
         for site in sites:
-            site.scale = 16. * residual["selected_scale"]
+            site.scale = native_adapter_scale(training, site) * residual["selected_scale"]
         split = len(model.layers) - training["suffix_layers"]
         prefix, suffix = FrozenDecoderPrefix(model, split_at=split), NativeDecoderSuffix(model, split_at=split)
         measured = score_probe_cases(cases, args.generation_directory, training,

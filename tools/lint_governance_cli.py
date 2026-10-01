@@ -292,6 +292,7 @@ GATEWAY_CATEGORIES = frozenset(
         "subprocess_gateway",
         "network_gateway",
         "memory_write_gateway",
+        "state_gateway",
         "will_decision",
     }
 )

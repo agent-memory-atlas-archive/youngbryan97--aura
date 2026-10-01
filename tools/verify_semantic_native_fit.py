@@ -511,6 +511,8 @@ def verify_fit(directory, bank_directory, items, *, tokenizer=None):
     from tools.train_nested_semantic_ranker import _verified_pair
 
     plan, selected = selected_checkpoint(directory)
+    from tools.semantic_native_adapters import adapter_config_from_plan
+    adapter_config_from_plan(plan)
     report = verified_document(directory / "report.json")
     from tools.semantic_native_execution import execution_from_plan
     execution = execution_from_plan(plan)

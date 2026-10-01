@@ -1,0 +1,55 @@
+{
+  "schema": "aura.binding_advisory_inputs.v1",
+  "date": "2026-09-30",
+  "scope": "role-query batch; supplements the 28-file binding manifest, not all historical attachments",
+  "inputs": [
+    {
+      "path": "/Users/bryan/Downloads/Binding-Report.pdf",
+      "sha256": "56b082b690e302fb45824c45b0ca710d51576845cce3ea88055c8b19713c69f8",
+      "review_scope": "all_10_pages_extracted_and_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "path": "/Users/bryan/Downloads/Role-Gap-Fix.json",
+      "sha256": "84fe2b6f26313676cc0db4b0a001b51b7f4008fee60ec240cdae8fb70f2c0dcc",
+      "review_scope": "full_content_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "path": "/Users/bryan/Downloads/Tesb (1).py",
+      "sha256": "8be7619f534e7f9090d5ee3d992daa332dea97cdf1ed99d6954acf74e7420e3c",
+      "review_scope": "full_356_lines_read_and_reference_executed",
+      "external_claims_independently_verified": false
+    },
+    {
+      "path": "/Users/bryan/Downloads/Tesb-V2 (1).py",
+      "sha256": "25870f2b3c9cafb39e80aa5059810f505bd3fa0c583483e3359bad91ba8f51dd",
+      "review_scope": "byte_identical_to_fully_read_237_line_reference",
+      "external_claims_independently_verified": false
+    },
+    {
+      "path": "/Users/bryan/Downloads/Tesb-V2.py",
+      "sha256": "25870f2b3c9cafb39e80aa5059810f505bd3fa0c583483e3359bad91ba8f51dd",
+      "review_scope": "full_237_lines_read_and_reference_executed",
+      "external_claims_independently_verified": false
+    },
+    {
+      "path": "/Users/bryan/.codex/attachments/2d0e3d52-1a24-4b28-9396-632efac2dd39/Pasted text.txt",
+      "sha256": "e2fd794140fd6021e74abcc0dcbbbb9dbce85703716878a73e3d56e77d757944",
+      "review_scope": "full_699_lines_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "path": "/Users/bryan/.codex/attachments/10cbbd6c-7f47-4b78-b3ee-4b0431c6bd98/Pasted text.txt",
+      "sha256": "a69d9abd3c84b11c850894fc9c1664e3392f7299d3284663aa9999f91c8f689e",
+      "review_scope": "full_150_lines_read_in_current_task",
+      "external_claims_independently_verified": false
+    },
+    {
+      "path": "/Users/bryan/.codex/attachments/4006ea20-7913-48d1-8bd1-da84476b09a4/Pasted text.txt",
+      "sha256": "bf3ef6a64852edfc35408684f539ce022aab90d1cbab537fc6dc068cef328272",
+      "review_scope": "full_565_lines_read_in_current_task",
+      "external_claims_independently_verified": false
+    }
+  ]
+}

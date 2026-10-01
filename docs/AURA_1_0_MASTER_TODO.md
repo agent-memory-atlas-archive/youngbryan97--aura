@@ -1467,6 +1467,20 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   Runtime was stopped at the current observation, so G11 is not closed.
   Focused checks: 40 passed; smoke: 164 passed, one skipped.
 - [ ] G03 Close learned semantic binding/composition failures on development cohorts.
+  [Binding build register](evidence/G03_BINDING_BUILD_REGISTER_2026-09-30.md)
+  maps 28 fully read advisory inputs to corrected math, hybrid-aware mixed
+  adapters, native/pointer joint training, ordinary chart integration,
+  contextual identity constraints and rigid object permanence. These are
+  builds, not G03 acceptance evidence; broad tests remain paused pending
+  integration QA and fresh acquisition/custody. Alternative algorithm and
+  episodic/parser integration obligations remain explicitly open.
+  [Nonlinear meaning integration](evidence/G03_NONLINEAR_MEANING_BUILD_2026-09-30.md)
+  adds source-addressed meaning diagrams, contextual symbol acquisition,
+  whole-assignment endpoint admission in the existing solver, available-time
+  constraints, discourse smoothing and independently replayable governed
+  snapshots. All three new advisory attachments are fully read and hashed;
+  their synthetic results are not Aura receipts. This remains an opt-in
+  research path, not a G03 closure or live serving promotion.
   [Native launch environment](evidence/G03_NATIVE_LAUNCH_ENVIRONMENT_2026-09-30.md)
   records completed source fitting and the diagnostic bank, then repairs a
   missing launch-time arithmetic setting before native prerequisite waiting.
