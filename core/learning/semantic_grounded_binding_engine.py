@@ -35,6 +35,10 @@ from core.runtime.file_read_gateway import open_stable_readonly_binary
 from core.runtime.file_write_gateway import get_file_write_gateway
 
 IMPLEMENTATION_PATHS = (
+    "core/brain/llm/decoder_topology.py",
+    "core/learning/procedure_induction.py",
+    "core/learning/semantic_program_floor.py",
+    "core/learning/semantic_native_fit_sampling.py",
     "core/learning/semantic_grounded_binding_engine.py",
     "core/learning/semantic_relational_pointer.py",
     "core/learning/semantic_binding_invariance.py",
@@ -56,6 +60,8 @@ IMPLEMENTATION_PATHS = (
     "tools/semantic_native_adapters.py",
     "tools/semantic_native_adapter_layers.py",
     "tools/semantic_grounded_native_fit.py",
+    "tools/semantic_native_execution.py",
+    "tools/probe_semantic_native_prefix_branches.py",
 )
 
 
@@ -662,20 +668,12 @@ class GroundedBindingEngine:
         return cls(pointer, nuisance_projection=projection, native_suffix=native_suffix)
 
 
-def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128,
+def validate_grounded_fit_inputs(training, calibration, *, steps=128,
                          learning_rate=.001, save_every=16, max_seconds=1800., group_eta=0.,
                          retention_weight=0., stationarity_weight=0., nuisance_projection=None,
                          domain_reversal=0., equivariance_pairs=(), equivariance_weight=1.,
-                         native_suffix=None, native_captures=None, native_contract=None, role_margin=0.,
-                         training_schedule=None, sampling_receipt=None, resume=False):
-    """Fit observed role identities, select only on disjoint source calibration.
-
-    Environment labels affect training weights only, never pointer features.
-    The optional exponentiated group update emphasizes observed weak groups;
-    it is not a guarantee of unseen-environment invariance.
-    """
-    import mlx.optimizers as optim
-
+                         role_margin=0., training_schedule=None, sampling_receipt=None):
+    """Reject impossible source contracts without acquiring native model weights."""
     training, calibration = tuple(training), tuple(calibration)
     train_ids = [item.evidence.source_id for item in training]
     calibration_ids = [item.evidence.source_id for item in calibration]
@@ -692,11 +690,6 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
         raise ValueError("grounded binding fit needs disjoint sources and bounded complete checkpoints")
     if not math.isfinite(role_margin) or role_margin < 0:
         raise ValueError("grounded role margin must be finite and nonnegative")
-    deadline = time.monotonic() + max_seconds
-    def check_bound():
-        if time.monotonic() >= deadline:
-            raise TimeoutError("grounded binding fit reached its declared resource bound")
-
     schedule = tuple(training_schedule) if training_schedule is not None else tuple(
         train_ids[step % len(train_ids)] for step in range(steps))
     if len(schedule) != steps or not set(schedule) <= set(train_ids):
@@ -713,6 +706,48 @@ def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128
                 or hashlib.sha256(json.dumps(body, sort_keys=True, separators=(",", ":"),
                     ensure_ascii=True, allow_nan=False).encode("ascii")).hexdigest() != expected):
             raise ValueError("grounded sampling receipt differs from its actual updates")
+    if nuisance_projection is not None and (not set(nuisance_projection.training_ids) <= set(train_ids)
+            or set(nuisance_projection.training_ids) & set(calibration_ids)):
+        raise ValueError("binding nuisance projection consumed a non-fit source")
+    examples = {item.evidence.source_id: item for item in training}
+    for item in (*training, *calibration):
+        if not isinstance(item.environment, str) or not item.environment:
+            raise ValueError("grounded source environment must be explicit")
+        item.indices()
+    for pair in equivariance_pairs:
+        pair.orders(examples)
+    if domain_reversal and len({item.environment for item in training}) < 2:
+        raise ValueError("domain-adversarial binding needs multiple source environments")
+    return schedule, schedule_sha
+
+
+def fit_grounded_binding(pointer, training, calibration, directory, *, steps=128,
+                         learning_rate=.001, save_every=16, max_seconds=1800., group_eta=0.,
+                         retention_weight=0., stationarity_weight=0., nuisance_projection=None,
+                         domain_reversal=0., equivariance_pairs=(), equivariance_weight=1.,
+                         native_suffix=None, native_captures=None, native_contract=None, role_margin=0.,
+                         training_schedule=None, sampling_receipt=None, resume=False):
+    """Fit observed identities; select only on disjoint source calibration.
+
+    Environment labels affect training weights, never pointer features. Group
+    weighting does not guarantee unseen-environment invariance.
+    """
+    import mlx.optimizers as optim
+
+    started = time.monotonic()
+    training, calibration = tuple(training), tuple(calibration)
+    train_ids = [item.evidence.source_id for item in training]
+    calibration_ids = [item.evidence.source_id for item in calibration]
+    schedule, schedule_sha = validate_grounded_fit_inputs(training, calibration, steps=steps,
+        learning_rate=learning_rate, save_every=save_every, max_seconds=max_seconds, group_eta=group_eta,
+        retention_weight=retention_weight, stationarity_weight=stationarity_weight,
+        nuisance_projection=nuisance_projection, domain_reversal=domain_reversal,
+        equivariance_pairs=equivariance_pairs, equivariance_weight=equivariance_weight,
+        role_margin=role_margin, training_schedule=training_schedule, sampling_receipt=sampling_receipt)
+    deadline = started + max_seconds
+    def check_bound():
+        if time.monotonic() >= deadline:
+            raise TimeoutError("grounded binding fit reached its declared resource bound")
     if nuisance_projection is not None:
         if (not set(nuisance_projection.training_ids) <= set(train_ids)
                 or set(nuisance_projection.training_ids) & set(calibration_ids)):

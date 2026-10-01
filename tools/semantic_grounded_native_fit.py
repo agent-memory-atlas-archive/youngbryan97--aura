@@ -50,7 +50,8 @@ def native_capture_template(item, evidence, depths):
 
 def fit_native_grounded_sources(training, calibration, source_items, directory, *, spec, rank=32, layers=8,
                                max_tokens=512, cache_bytes=512 * 1024 ** 2, seed=20260930,
-                               relation_width=128, rounds=2, fit_options=None, resume=False):
+                               relation_width=128, rounds=2, fit_options=None, resume=False,
+                               prepare_only=False, adapter_options=None):
     """Load one authorized model; recompute actual suffix states in gradients.
 
     Prefixes are immutable complete source-only sequences, sharded on disk.
@@ -66,12 +67,14 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
     from core.learning.semantic_grounded_binding_engine import (
         fit_grounded_binding,
         implementation_receipt,
+        validate_grounded_fit_inputs,
     )
     from core.learning.semantic_native_program import source_text_from_tokens
     from core.learning.semantic_relational_pointer import RelationalBindingPointer
     from core.runtime.file_write_gateway import get_file_write_gateway
     from core.runtime.mlx_memory_guard import mlx_memory_envelope
     from core.runtime.model_lane_control import standalone_model_lane
+    from tools.probe_semantic_native_prefix_branches import installed_arithmetic_basis
     from tools.semantic_native_adapters import (
         adapter_contract,
         install_native_adapters,
@@ -80,9 +83,15 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
     from tools.train_semantic_native_program import require_native_cortex_spec
 
     directory, fit_options = Path(directory), dict(fit_options or {})
+    training, calibration, source_items = tuple(training), tuple(calibration), tuple(source_items)
+    validate_grounded_fit_inputs(training, calibration, **fit_options)
+    adapter_options = dict(adapter_options or {})
     max_seconds = fit_options.get("max_seconds", 1800.)
     if (any(type(value) is not int or value < 1 for value in (rank, layers, max_tokens, cache_bytes))
-            or not math.isfinite(max_seconds) or not 0 < max_seconds <= 14400):
+            or not math.isfinite(max_seconds) or not 0 < max_seconds <= 14400
+            or type(seed) is not int or not 0 <= seed < 2 ** 32
+            or type(prepare_only) is not bool or prepare_only and resume
+            or not set(adapter_options) <= {"kind", "layer_ranks", "layer_kinds", "experts", "scaling", "alpha"}):
         raise ValueError("native grounded fit needs bounded source geometry")
     examples = {item.evidence.source_id: item for item in (*training, *calibration)}
     items = {item.ir.source_text_sha256: item for item in source_items}
@@ -93,15 +102,38 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
             or any(not item.ir.source_token_ids or len(item.ir.source_token_ids) > max_tokens for item in items.values())):
         raise ValueError("native grounded source custody, token bound or fresh fit directory differs")
     adaptation = adapter_contract(rank=rank, layers=layers, sites="native_topology_v1",
-                                  scaling="alpha_over_sqrt_rank_v1", alpha=float(rank))
+        **{"scaling": "alpha_over_sqrt_rank_v1", "alpha": float(rank), **adapter_options})
+    arithmetic = installed_arithmetic_basis()
+    if arithmetic.get("MLX_ENABLE_TF32") != "0":
+        raise ValueError("native grounded fitting requires MLX_ENABLE_TF32=0 at process launch")
+    if require_native_cortex_spec().descriptor_sha256 != spec.descriptor_sha256:
+        raise ValueError("native grounded descriptor changed before preparation")
+    sources = []
+    for identity, item in sorted(items.items()):
+        template = native_capture_template(item, examples[identity].evidence, tuple(range(layers)))
+        spans = {name: sorted((key, span.start, span.end) for key, span in template[name].items())
+                 for name in ("operation_spans", "mention_spans", "candidate_spans")}
+        for name in ("operation_spans", "mention_spans", "candidate_spans"):
+            for span in template[name].values():
+                span.validate_bound(len(item.ir.source_token_ids))
+        example = examples[identity]
+        sources.append({"source_id": identity, "source_tokens_sha256": hashlib.sha256(
+            json.dumps(item.ir.source_token_ids).encode()).hexdigest(), "spans": spans,
+            "source_observation": example.evidence.receipt(), "positives": example.positives,
+            "graphs": example.graphs, "positive_graphs": example.positive_graphs,
+            "environment": example.environment,
+            "retention_scores": example.retention_scores.tolist() if example.retention_scores is not None else None})
     plan = {"rank": rank, "suffix_layers": layers, "adapter_keys": adaptation["keys"],
         "adapter_contract": adaptation, "model_descriptor_sha256": spec.descriptor_sha256,
         "model_path": str(spec.model_path), "pointer_sha256": spec.pointer_sha256,
         "source_token_only": True, "implementation": implementation_receipt(), "seed": seed,
+        "installed_arithmetic": arithmetic, "precision": "native", "prefix_strategy": "full",
         "fit_ids": sorted(item.evidence.source_id for item in training),
         "calibration_ids": sorted(item.evidence.source_id for item in calibration),
         "max_tokens": max_tokens, "prefix_cache_bytes": cache_bytes,
         "relation_width": relation_width, "rounds": rounds,
+        "source_supervision_sha256": hashlib.sha256(json.dumps(sources, sort_keys=True,
+            separators=(",", ":"), allow_nan=False).encode()).hexdigest(),
         "fit_options": {**fit_options, "equivariance_pairs": [asdict(pair) for pair in fit_options.get("equivariance_pairs", ())]}}
     plan = json.loads(json.dumps(plan, allow_nan=False))
     plan_hash = hashlib.sha256(json.dumps(plan, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
@@ -109,12 +141,18 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
     projection = native_adapter_parameter_estimate(config, adaptation)
     if projection is None:
         raise ValueError("native grounded adapter topology has no measured parameter projection")
+    geometry = config.get("text_config", config)
+    pointer_geometry = RelationalBindingPointer(geometry["hidden_size"], depths=layers,
+        relation_width=relation_width, rounds=rounds)
+    pointer_parameters = sum(value.size for _, value in tree_flatten(pointer_geometry.trainable_parameters()))
+    nuisance_parameters = ((pointer_geometry.feature_blocks * relation_width + 1)
+        * len({item.environment for item in training}) if fit_options.get("domain_reversal", 0.) else 0)
+    trainable_bytes = projection["five_float32_copies_bytes"] + 20 * (pointer_parameters + nuisance_parameters)
+    del pointer_geometry
     custody = directory.parent / (directory.name + "-native-custody")
-    if custody.exists() and not resume:
-        raise FileExistsError(custody)
-    if resume:
+    if custody.exists():
         if json.loads((custody / "plan.json").read_bytes()) != {**plan, "plan_sha256": plan_hash}:
-            raise ValueError("native grounded restart plan differs")
+            raise ValueError("native grounded restart plan or source supervision differs")
         if (custody / "completion.json").exists():
             raise ValueError("native grounded fit is already complete; do not repeat it")
     else:
@@ -123,9 +161,22 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
                 json.dumps({**plan, "plan_sha256": plan_hash}, indent=2).encode(),
                 source="grounded_native_fit_plan", mode=0o400):
                 raise FileExistsError(custody / "plan.json")
+    if prepare_only:
+        body = {"schema": "aura.grounded_native_preparation.v1", "plan_sha256": plan_hash,
+            "adapter_projection": projection, "pointer_parameters": pointer_parameters,
+            "nuisance_parameters": nuisance_parameters,
+            "trainable_five_float32_copies_bytes": trainable_bytes,
+            "activation_memory_is_measured": False,
+            "fit_source_count": len(training), "calibration_source_count": len(calibration),
+            "maximum_source_tokens": max(len(item.ir.source_token_ids) for item in items.values()),
+            "model_weights_loaded": False, "held_sources_scored": False,
+            "semantic_success": None, "qualification_evidence": False, "serving_authority": False}
+        return None, {**body, "receipt_sha256": hashlib.sha256(json.dumps(body, sort_keys=True,
+            separators=(",", ":")).encode()).hexdigest()}
     started = time.monotonic()
     def execute(envelope):
-        if require_native_cortex_spec().descriptor_sha256 != spec.descriptor_sha256:
+        if (require_native_cortex_spec().descriptor_sha256 != spec.descriptor_sha256
+                or installed_arithmetic_basis() != arithmetic):
             raise ValueError("native grounded descriptor changed before model acquisition")
         model, tokenizer = load(str(spec.model_path))
         model.freeze()
@@ -137,7 +188,7 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
         observed = sum(value.size for _, value in tree_flatten(suffix.trainable_parameters()))
         if observed != projection["trainable_parameters"] or any("lora_" not in key for key, _ in tree_flatten(model.trainable_parameters())):
             raise ValueError("native grounded adapter ownership differs from its projected sites")
-        if mx.get_active_memory() + projection["five_float32_copies_bytes"] + cache_bytes > envelope.memory_bytes:
+        if mx.get_active_memory() + trainable_bytes + cache_bytes > envelope.memory_bytes:
             raise MemoryError("native grounded fixed residency exceeds the host envelope")
         sequence_digests = {(identity, 0, 0): hashlib.sha256(json.dumps(item.ir.source_token_ids).encode()).hexdigest()
                             for identity, item in items.items()}
@@ -166,7 +217,8 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
         engine, report = fit_grounded_binding(pointer, training, calibration, directory,
             native_suffix=suffix, native_captures=NativeCaptureBank(store, templates), native_contract=plan,
             **{**fit_options, "max_seconds": remaining, "resume": resume})
-        if require_native_cortex_spec().descriptor_sha256 != spec.descriptor_sha256 or implementation_receipt() != plan["implementation"]:
+        if (require_native_cortex_spec().descriptor_sha256 != spec.descriptor_sha256
+                or implementation_receipt() != plan["implementation"] or installed_arithmetic_basis() != arithmetic):
             raise ValueError("native grounded model or implementation changed during source fitting")
         receipt = {"schema": "aura.grounded_native_acquisition.v1", "plan_sha256": plan_hash,
             "fit_receipt_sha256": report["receipt_sha256"], "adapter_projection": projection,

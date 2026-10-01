@@ -34,7 +34,7 @@ def test_native_capture_span_contract_is_blind_to_teacher_references():
     assert native_capture_template(item, evidence, (0, 1)) == native_capture_template(changed, evidence, (0, 1))
 
 
-@pytest.mark.parametrize("interrupted", [False, "update", "completion"])
+@pytest.mark.parametrize("interrupted", [False, "update", "completion", "prepared", "mixed"])
 def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_release(monkeypatch, tmp_path, interrupted):
     import mlx_lm
     from mlx_lm.models.qwen2 import Model, ModelArgs
@@ -78,6 +78,20 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
     examples = tuple(grounded_supervision_from_source_example(item) for item in items)
     options = dict(spec=spec, rank=2, layers=2, max_tokens=64, cache_bytes=8192, relation_width=8,
         fit_options={"steps": 4, "save_every": 2, "learning_rate": .01, "max_seconds": 30., "role_margin": .25})
+    if interrupted == "mixed":
+        options["adapter_options"] = {"layer_kinds": ["lora", "product"], "layer_ranks": [2, 3]}
+    if interrupted == "prepared":
+        engine, prepared = fit_native_grounded_sources(examples[:1], examples[1:], items,
+            tmp_path / "fit", prepare_only=True, **options)
+        assert engine is None and not loads and not calls
+        assert not prepared["model_weights_loaded"] and prepared["semantic_success"] is None
+        assert not prepared["activation_memory_is_measured"]
+        assert not (tmp_path / "fit").exists()
+        assert not (tmp_path / "fit-native-custody" / "prefixes").exists()
+        with pytest.raises(ValueError, match="plan"):
+            fit_native_grounded_sources(examples[:1], examples[1:], items, tmp_path / "fit",
+                **{**options, "rounds": 3})
+        assert not loads and not calls
     if interrupted == "update":
         _unused, uninterrupted = fit_native_grounded_sources(examples[:1], examples[1:], items,
             tmp_path / "uninterrupted", **options)
@@ -150,6 +164,34 @@ def test_bad_source_population_or_token_bound_fails_before_model_loading(tmp_pat
     item = sources()[0]
     example = grounded_supervision_from_source_example(item)
     spec = SimpleNamespace(model_path=tmp_path, descriptor_sha256="a" * 64, pointer_sha256="b" * 64)
-    with pytest.raises(ValueError, match="custody"):
+    with pytest.raises(ValueError, match="disjoint"):
         fit_native_grounded_sources((example,), (example,), (item,), tmp_path / "unused", spec=spec)
+    assert not (tmp_path / "unused-native-custody").exists()
+
+
+@pytest.mark.parametrize("options,match", [
+    ({"fit_options": {"steps": 3, "save_every": 2}}, "checkpoints"),
+    ({"fit_options": {"training_schedule": ["held-source"]}}, "schedule"),
+    ({"fit_options": {"domain_reversal": .1}}, "multiple source"),
+    ({"prepare_only": True, "resume": True}, "geometry"),
+])
+def test_preparation_rejects_invalid_fit_contract_without_acquiring_model(tmp_path, options, match):
+    items = sources()
+    examples = tuple(grounded_supervision_from_source_example(item) for item in items)
+    spec = SimpleNamespace(model_path=tmp_path, descriptor_sha256="a" * 64, pointer_sha256="b" * 64)
+    with pytest.raises(ValueError, match=match):
+        fit_native_grounded_sources(examples[:1], examples[1:], items, tmp_path / "unused",
+            spec=spec, **options)
+    assert not (tmp_path / "unused-native-custody").exists()
+
+
+def test_missing_launch_arithmetic_rejected_before_preparation(monkeypatch, tmp_path):
+    import tools.probe_semantic_native_prefix_branches as arithmetic
+    monkeypatch.setattr(arithmetic, "installed_arithmetic_basis", lambda: {"MLX_ENABLE_TF32": None})
+    items = sources()
+    examples = tuple(grounded_supervision_from_source_example(item) for item in items)
+    spec = SimpleNamespace(model_path=tmp_path, descriptor_sha256="a" * 64, pointer_sha256="b" * 64)
+    with pytest.raises(ValueError, match="process launch"):
+        fit_native_grounded_sources(examples[:1], examples[1:], items, tmp_path / "unused",
+            spec=spec, prepare_only=True)
     assert not (tmp_path / "unused-native-custody").exists()

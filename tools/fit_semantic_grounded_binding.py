@@ -36,13 +36,23 @@ def main():
     parser.add_argument("--source-equivariance", action="store_true")
     parser.add_argument("--seed", type=int, default=20260930)
     parser.add_argument("--native", action="store_true")
+    parser.add_argument("--prepare-only", action="store_true")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--authority-key-file", type=Path)
     parser.add_argument("--native-rank", type=int, default=32)
     parser.add_argument("--native-layers", type=int, default=8)
     parser.add_argument("--native-max-tokens", type=int, default=512)
     parser.add_argument("--native-cache-mib", type=int, default=512)
+    parser.add_argument("--native-kind", choices=("lora", "silu", "product", "routed", "dora", "square", "dense"), default="lora")
+    parser.add_argument("--native-layer-kinds", help="comma-separated suffix function classes")
+    parser.add_argument("--native-layer-ranks", help="comma-separated suffix ranks")
+    parser.add_argument("--native-experts", type=int, default=1)
     args = parser.parse_args()
+    if args.prepare_only and (not args.native or args.resume):
+        parser.error("prepare-only requires a fresh native source fit")
+    if not args.native and (args.native_kind != "lora" or args.native_layer_kinds
+            or args.native_layer_ranks or args.native_experts != 1):
+        parser.error("native adapter topology requires --native")
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
         load_source_examples,
@@ -105,7 +115,13 @@ def main():
         _engine, report = fit_native_grounded_sources(training, calibration, (*fit, *calibration_items), args.directory,
             spec=spec, rank=args.native_rank, layers=args.native_layers, max_tokens=args.native_max_tokens,
             cache_bytes=args.native_cache_mib * 1024 ** 2, seed=args.seed,
-            relation_width=args.relation_width, rounds=args.rounds, fit_options=fit_options, resume=args.resume)
+            relation_width=args.relation_width, rounds=args.rounds, fit_options=fit_options, resume=args.resume,
+            prepare_only=args.prepare_only, adapter_options={"kind": args.native_kind, "experts": args.native_experts,
+                **({"layer_kinds": args.native_layer_kinds.split(",")} if args.native_layer_kinds else {}),
+                **({"layer_ranks": [int(value) for value in args.native_layer_ranks.split(",")]} if args.native_layer_ranks else {})})
+        if args.prepare_only:
+            print(json.dumps({"stage": "grounded_source_prepared", **report}), flush=True)
+            return 0
     else:
         pointer = RelationalBindingPointer(geometry[1], depths=geometry[0], relation_width=args.relation_width,
                                           rounds=args.rounds)
