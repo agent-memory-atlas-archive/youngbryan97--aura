@@ -263,6 +263,10 @@ class TelemetryDictionary:
         self._log: deque[Event] = deque(maxlen=EVENT_LOG_CAPACITY)
         self._transition_listeners: list[Any] = []
         self.events_emitted = 0
+        #: Which emptying of the dictionary this is. A publisher's run counts as
+        #: a reading only in the generation it wrote into; see
+        #: core/organism/claim_liveness.py.
+        self.generation = 0
 
     # ── declaration ───────────────────────────────────────────────────
     def declare_channel(self, spec: ChannelSpec, *, history: int = DEFAULT_HISTORY) -> ChannelSpec:
@@ -609,6 +613,7 @@ class TelemetryDictionary:
             self._log.clear()
             self._transition_listeners.clear()
             self.events_emitted = 0
+            self.generation += 1
 
 
 _DICTIONARY = TelemetryDictionary()

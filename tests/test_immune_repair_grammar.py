@@ -49,7 +49,11 @@ def test_the_maritime_sensors_are_not_the_whole_vocabulary(registry):
     assert len(names - maritime) > len(maritime)
 
 
-def test_seeded_rules_reach_aura_subsystems():
+def test_seeded_rules_measure_only_a_plant_they_can_act_on():
+    """30 September: a rule reading her event loop and "treating" it by moving
+    simulated cargo scored a simulated move as a real repair. Every actuator a
+    rule may evolve with acts on the simulated shipping network, so the seeded
+    rules measure that network and nothing else."""
     vocabulary = _live_rule_vocabulary()
     assert vocabulary is not None
 
@@ -60,8 +64,40 @@ def test_seeded_rules_reach_aura_subsystems():
         if rule:
             sensors.add(rule["conditions"][0]["sensor"])
 
-    runtime = {s for s in sensors if not s.startswith(_MARITIME)}
-    assert runtime, "the seeded population can only talk about shipping"
+    assert sensors and all(s.startswith(_MARITIME) for s in sensors), sensors
+
+
+def test_a_real_immune_actuator_brings_her_runtime_sensors_back(monkeypatch):
+    """The vocabulary is not maritime by design: it follows the actuators."""
+    from core.actuators.actuator_registry import ActuatorResult, BaseActuator, get_actuator_registry
+
+    class SheddingProbe(BaseActuator):
+        immune_rule_compatible = True
+        requires_authority = False
+        plant = "observed"
+
+        @property
+        def name(self) -> str:
+            return "test_observed_remedy"
+
+        @property
+        def description(self) -> str:
+            return "A remedy on the observed plant, for this test."
+
+        def validate_params(self, params):
+            return True
+
+        def execute(self, params):
+            return ActuatorResult(True, "noted", {})
+
+        def immune_rule_seed_params(self):
+            return {"level": 1.0}
+
+    registry = get_actuator_registry()
+    monkeypatch.setitem(registry.actuators, "test_observed_remedy", SheddingProbe())
+    vocabulary = _live_rule_vocabulary()
+    assert vocabulary is not None
+    assert any(not s.startswith(_MARITIME) for s in vocabulary["sensors"])
 
 
 def test_the_population_is_not_one_rule_family():

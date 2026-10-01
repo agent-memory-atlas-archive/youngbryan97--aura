@@ -4686,7 +4686,7 @@ class UnitaryResponsePhase(_ShapesTheReply, _AmplifiesTheDraft, _AnswersFromWhat
                 recent_episodic_matches = await self._recent_episodic_matches(limit=120)
                 if recent_episodic_matches:
                     direct_episodic_matches.extend(recent_episodic_matches)
-                direct_memory_answer = self._compose_memory_recall_answer(
+                direct_memory_answer, direct_episodic_matches = await self._recall_by_meaning(
                     objective,
                     new_state,
                     direct_episodic_matches,

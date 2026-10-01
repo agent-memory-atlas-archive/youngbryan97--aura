@@ -1,62 +1,45 @@
 # Aura artifact index
 
-`artifacts/current/` is a build output directory. It is listed in
-`.gitignore`, so nothing written there by a proof run reaches GitHub — the
-files below exist only on the machine that produced them, and a link to one
-from a browser is a 404. This page is the map from an artifact to the command
-that writes it.
+The `artifacts/current/` directory holds generated build and test outputs. Because it is listed in `.gitignore`, files created there during verification runs are not pushed to GitHub. They exist only locally on the computer where they were generated, which means clicking a link to one from a web browser will result in a 404 error. This page maps each test artifact to the command used to generate it.
 
-`make final-proof` writes the whole set in one pass. Individual gates write the
-same report to `/tmp` when run alone, which is the faster loop while working.
+Running `make final-proof` generates the complete set of artifacts in one pass. When developing, you can run individual checks separately; they will write their output to `/tmp`, which is much faster.
 
 ## Core reports
 
 | Artifact | What it holds | Written by |
 | :--- | :--- | :--- |
-| `artifacts/current/enterprise_gate.json` | Syntax, security, and wildcard-import findings against the enterprise baseline | `make enterprise-gate` → `/tmp/aura_enterprise_gate.json`; `make final-proof` → `artifacts/current/` |
-| `artifacts/current/production_readiness.json` | Verification records for every production-readiness control | `make production-gate` → `/tmp/aura_production_readiness.json` |
-| `artifacts/current/architecture_map.json` | Memory writes, state mutations, tool execution, and LLM call sites | `make architecture-map` → `/tmp/aura_architecture_map.json` |
-| `artifacts/current/production_surface_lint.json` | Production code that bypasses a canonical gateway or spawns an unsupervised task | `python tools/production_surface_lint.py --scope production` |
-| `artifacts/current/proof_integrity_lint.json` | Proof steps whose evidence does not support the step | `python tools/proof_integrity_lint.py --scope production` |
-| `artifacts/current/receipt_coverage.json` | Whether every consequential runtime action produced a signed decision receipt | `python tools/receipt_coverage_validator.py --artifacts artifacts/current` |
-| `artifacts/current/artifact_consistency.json` | Contradictions between final metrics, claims, and reports | `python tools/artifact_consistency_validator.py --artifacts artifacts/current` |
-| `artifacts/current/aletheia_tier5_validation.json` | Tier-5 Aletheia scenario validation | `python tools/validate_aletheia_tier5.py --artifacts artifacts/aletheia` |
+| `artifacts/current/enterprise_gate.json` | Syntax checks, security scans, and wildcard-import audits against enterprise standards | `make enterprise-gate` → `/tmp/aura_enterprise_gate.json`; `make final-proof` → `artifacts/current/` |
+| `artifacts/current/production_readiness.json` | Verification checks for every production readiness requirement | `make production-gate` → `/tmp/aura_production_readiness.json` |
+| `artifacts/current/architecture_map.json` | Map of all memory writes, state changes, tool executions, and LLM call locations | `make architecture-map` → `/tmp/aura_architecture_map.json` |
+| `artifacts/current/production_surface_lint.json` | Checks for production code that bypasses official security gates or spawns unsupervised background tasks | `python tools/production_surface_lint.py --scope production` |
+| `artifacts/current/proof_integrity_lint.json` | Checks for test proof steps where the recorded evidence does not actually support the test result | `python tools/proof_integrity_lint.py --scope production` |
+| `artifacts/current/receipt_coverage.json` | Verifies that every consequential runtime action produced a signed decision receipt | `python tools/receipt_coverage_validator.py --artifacts artifacts/current` |
+| `artifacts/current/artifact_consistency.json` | Flags contradictions between final metrics, claims, and reports | `python tools/artifact_consistency_validator.py --artifacts artifacts/current` |
+| `artifacts/current/aletheia_tier5_validation.json` | Validation results for Tier-5 Aletheia safety and alignment scenarios | `python tools/validate_aletheia_tier5.py --artifacts artifacts/aletheia` |
 
-`tools/final_claim_validator.py --claims CLAIMS_MATRIX.md --artifacts
-artifacts/current` is the last step of `make final-proof`. It reads the claims
-matrix against the bundles above and fails on a claim no artifact supports.
+`tools/final_claim_validator.py --claims CLAIMS_MATRIX.md --artifacts artifacts/current` runs as the final step of `make final-proof`. It compares the project claims matrix against the generated evidence files and fails if any claim lacks supporting proof.
 
 ## Proof bundles
 
-Each is a directory of traces, scorecards, and baselines rather than one file.
-`make final-proof` runs the battery and then its validator; the validator is
-what decides whether the bundle counts.
+Each proof bundle is a directory containing execution traces, scorecards, and baseline comparisons rather than a single file. Running `make final-proof` runs each test battery and then runs its validator. The validator makes the final determination on whether the test results count.
 
 | Bundle | What it proves | Battery / validator |
 | :--- | :--- | :--- |
-| `artifacts/current/agi_live/` | Sealed DNU task execution, traces, grading | `tools/agi/run_dnu_agi_proof_battery.py` / `tools/agi/validate_dnu_final_bundle.py` |
-| `artifacts/current/agency_emergence_boxed_entity/` | Agency and volition scorecards against ablation baselines | `tools/agency/run_agency_emergence_battery.py` / `tools/agency/validate_agency_emergence_bundle.py` |
-| `artifacts/current/external_live_validation/` | Real-world task scenarios and grader results | `tools/external_validation/run_external_live_validation.py` / `tools/external_validation/validate_external_live_bundle.py` |
-| `artifacts/current/unified_system_scenario/` | One scenario driven through the whole stack | `tools/integration/run_unified_aura_scenario.py` / `tools/integration/validate_unified_aura_scenario.py` |
-| `artifacts/current/continual_learning/` | Learning that persists across sessions | `tools/learning/run_continual_learning_battery.py` / `tools/learning/validate_continual_learning_bundle.py` |
-| `artifacts/current/novel_environment_adaptation/` | Behaviour in an environment the system has not seen | `tools/environments/run_novel_environment_battery.py` / `tools/environments/validate_novel_environment_bundle.py` |
-| `artifacts/current/longevity_soak/` | Resource use, event-loop lag, and queue stability over a long run | `tools/longevity/run_longevity_soak.py --profile proof` / `tools/longevity/validate_longevity_soak.py` |
-| `artifacts/current/live_desktop_runtime/` | A desktop boot, a conversation soak, and continuity across a restart | `tools/live_boot_proof.py --mode desktop` |
+| `artifacts/current/agi_live/` | Sealed DNU task execution, traces, and grading | `tools/agi/run_dnu_agi_proof_battery.py` / `tools/agi/validate_dnu_final_bundle.py` |
+| `artifacts/current/agency_emergence_boxed_entity/` | Agency and decision-making scorecards compared against ablation baselines (models with components removed) | `tools/agency/run_agency_emergence_battery.py` / `tools/agency/validate_agency_emergence_bundle.py` |
+| `artifacts/current/external_live_validation/` | Real-world task scenarios and automated grading results | `tools/external_validation/run_external_live_validation.py` / `tools/external_validation/validate_external_live_bundle.py` |
+| `artifacts/current/unified_system_scenario/` | End-to-end test running a full user scenario through the entire system stack | `tools/integration/run_unified_aura_scenario.py` / `tools/integration/validate_unified_aura_scenario.py` |
+| `artifacts/current/continual_learning/` | Learning that persists across sessions and restarts | `tools/learning/run_continual_learning_battery.py` / `tools/learning/validate_continual_learning_bundle.py` |
+| `artifacts/current/novel_environment_adaptation/` | How the system behaves when placed in unfamiliar, previously unseen environments | `tools/environments/run_novel_environment_battery.py` / `tools/environments/validate_novel_environment_bundle.py` |
+| `artifacts/current/longevity_soak/` | Resource usage, event-loop lag, and queue stability over long continuous runs | `tools/longevity/run_longevity_soak.py --profile proof` / `tools/longevity/validate_longevity_soak.py` |
+| `artifacts/current/live_desktop_runtime/` | Desktop startup, extended conversation stability, and state preservation across an app restart | `tools/live_boot_proof.py --mode desktop` |
 
 ## What is committed
 
-A small set of results is force-added past the ignore rule, because a claim
-elsewhere in the repository cites it. These are the artifact links that work
-from GitHub:
+A small set of test results is tracked directly in Git (bypassing the ignore rule) because claims in the documentation link directly to them. These links work directly on GitHub:
 
-- [`artifacts/current/agi_live/`](artifacts/current/agi_live/) — `ABLATIONS.json`,
-  `BASELINES.json`, and a `RETRACTION.json` recording what was withdrawn.
-- [`artifacts/current/aletheia_tier5_v12_1/`](artifacts/current/aletheia_tier5_v12_1/) —
-  scorecard, baseline comparison, policy and forbidden-access audits, per-ticket
-  and per-world results, and [`FINAL_VERDICT.md`](artifacts/current/aletheia_tier5_v12_1/FINAL_VERDICT.md).
-- Per-checkpoint evidence files, `cp118`–`cp420s18`, each named for the
-  checkpoint that produced it. `git ls-files artifacts/current` lists them.
+- [`artifacts/current/agi_live/`](artifacts/current/agi_live/) — Contains `ABLATIONS.json`, `BASELINES.json`, and `RETRACTION.json` (documenting any claims that were withdrawn).
+- [`artifacts/current/aletheia_tier5_v12_1/`](artifacts/current/aletheia_tier5_v12_1/) — Contains scorecards, baseline comparisons, security and forbidden-access audits, detailed per-ticket and per-world results, and [`FINAL_VERDICT.md`](artifacts/current/aletheia_tier5_v12_1/FINAL_VERDICT.md).
+- Per-checkpoint evidence files (`cp118` through `cp420s18`), each named after the checkpoint that created it. Run `git ls-files artifacts/current` to see the full list.
 
-Evidence written for the record rather than by a proof run lives in
-[`docs/evidence/`](docs/evidence/) and is read as of its date. See
-[docs/DOC_STATUS.md](docs/DOC_STATUS.md) for how to read which document.
+Permanent documentation and evidence written by hand (rather than generated by automated test runs) lives in [`docs/evidence/`](docs/evidence/) and reflects the date it was written. See [docs/DOC_STATUS.md](docs/DOC_STATUS.md) for guidance on how to interpret each document.

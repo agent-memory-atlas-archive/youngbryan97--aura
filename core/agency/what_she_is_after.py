@@ -9,8 +9,10 @@ the thing she was asked for.
 Two kinds of goal can be measured without knowing anything about the world
 they are in.
 
-A thing to make, named by its value. Near in doublings of the largest thing
-there, because in anything built by combining a step is a doubling.
+A thing to make, named by its value. Near in the steps this world takes,
+counted from the largest thing there: doublings on a 2048 board, ones in a
+world that adds one at a time, read off the amounts the world shows. See
+core/agency/the_steps_between.py.
 
 A layout to make: rows of what goes where, written the way a person writes a
 grid, with "/" between rows and "_" for a place left empty —
@@ -26,7 +28,6 @@ guessing.
 from __future__ import annotations
 
 import functools
-import math
 import re
 from dataclasses import dataclass
 from typing import Any
@@ -34,7 +35,7 @@ from typing import Any
 from core.utils.written_layout import EMPTY_MARKS as _EMPTY
 from core.utils.written_layout import written_layout
 
-__all__ = ["Goal", "goal_in"]
+__all__ = ["Goal", "goal_in", "numeric_nearness"]
 
 #: A target written as a number.
 _A_NUMBER = re.compile(r"^\d[\d,]*(?:\.\d+)?$")
@@ -68,12 +69,32 @@ class Goal:
                 return 0.0
             if biggest >= self.number:
                 return 1.0
-            if self.number <= 1.0:
-                return 0.0
-            return max(0.0, min(1.0, math.log2(max(1.0, biggest)) / math.log2(self.number)))
+            numbers = getattr(state, "numbers", None)
+            shown = [v for v in (numbers() if callable(numbers) else ()) if v is not None]
+            return numeric_nearness(biggest, self.number, shown)
         if self.layout:
             return _how_near_the_layout(state, self.layout)
         return 0.0
+
+
+def numeric_nearness(biggest: float, target: float, shown: list[float]) -> float:
+    """How near ``biggest`` is to ``target``, in the steps the world shows; reaching it is one.
+
+    The step is read off what the world shows. The target joins the reading
+    only when the world shows too little to read a step from: a far target is
+    one large gap, and would read an adding world as a multiplying one.
+    """
+    from core.agency.the_steps_between import ladder_here  # noqa: PLC0415
+
+    if biggest <= 0.0:
+        return 0.0
+    if biggest >= target:
+        return 1.0
+    ladder = ladder_here(shown) or ladder_here([*shown, target])
+    whole_way = ladder.place(target) if ladder is not None else 0.0
+    if whole_way <= 0.0:
+        return 0.0
+    return max(0.0, min(1.0, ladder.place(biggest) / whole_way))
 
 
 def _biggest(state: Any) -> float:

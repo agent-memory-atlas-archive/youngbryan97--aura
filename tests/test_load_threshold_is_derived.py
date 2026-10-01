@@ -61,10 +61,17 @@ class TestTheDerivedRequirement:
         _fake_measure(monkeypatch, 60.0)
         assert _model_load_min_available_gb("/models/Aura-32B-cortex") <= 24.0
 
-    def test_a_tiny_measurement_cannot_fall_through_the_floor(self, monkeypatch):
+    def test_a_small_measured_checkpoint_is_held_to_its_own_size(self, monkeypatch):
+        """The 16GB floor is for a checkpoint that could not be measured.
+
+        Until 19 September (94945a573) it was applied to a measured one as
+        well, and an 8GB brainstem was held to twice its footprint: 222 spawns
+        refused on one boot. A directory too small to be a model reads as
+        unmeasured, not as tiny (the near-empty case above).
+        """
         monkeypatch.delenv("AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB", raising=False)
         _fake_measure(monkeypatch, 2.0)
-        assert _model_load_min_available_gb("/models/Aura-32B-cortex") >= 16.0
+        assert _model_load_min_available_gb("/models/Aura-32B-cortex") == pytest.approx(2.0 * 1.20 + 1.0)
 
     def test_an_unmeasurable_model_keeps_the_conservative_default(self, monkeypatch):
         monkeypatch.delenv("AURA_MLX_32B_LOAD_MIN_AVAILABLE_GB", raising=False)

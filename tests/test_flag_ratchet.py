@@ -25,8 +25,11 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 # after core/architect/config.py declared its ten AURA_ASA_* knobs, which also
 # retired the last caller of its own _env_bool; 571 after EventLoopMonitor
 # declared its seven AURA_EVENT_LOOP_* knobs, each of which had arrived with
-# its own try/except and its own idea of what "true" looks like.
-RAW_ENV_READ_BUDGET = 571
+# its own try/except and its own idea of what "true" looks like; 567 on
+# 30 September, when nine campaign switches added on 28-29 September (the
+# relay, the membrane, the pool, the estimator's workers and more) and the
+# workspace's five somatic-noise knobs were declared.
+RAW_ENV_READ_BUDGET = 567
 
 # The flag layer, settings store, and state-root bootstrap are sanctioned readers.
 # model_lane_control's AURA_MODEL_LANE_* vars are parent->child process

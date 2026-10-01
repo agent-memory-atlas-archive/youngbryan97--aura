@@ -24,6 +24,8 @@ from typing import Any, Dict, List, Optional
 
 import numpy as np
 
+from core.conversation.word_markers import names_any
+
 logger = logging.getLogger("Aura.KnowledgeCompression")
 
 
@@ -251,18 +253,18 @@ class KnowledgeCompressor:
             return "question"
         if any(w in all_text for w in ("please", "can you", "help me", "i need")):
             return "request"
-        if any(w in all_text for w in ("feel", "feeling", "sad", "happy", "rough", "scared")):
+        if names_any(all_text, ("feel", "feeling", "sad", "happy", "rough", "scared")):
             return "emotional"
         return "statement"
 
     def _classify_stance(self, aura_msgs: List[str]) -> str:
         """Classify Aura's dominant stance in the exchange."""
         all_text = " ".join(aura_msgs).lower()
-        if any(w in all_text for w in ("agree", "right", "exactly", "yes")):
+        if names_any(all_text, ("agree", "right", "exactly", "yes")):
             return "agreed"
-        if any(w in all_text for w in ("disagree", "no", "wrong", "actually")):
+        if names_any(all_text, ("disagree", "no", "wrong", "actually")):
             return "disagreed"
-        if any(w in all_text for w in ("sorry", "tough", "rough", "sucks")):
+        if names_any(all_text, ("sorry", "tough", "rough", "sucks")):
             return "supported"
         return "engaged"
 

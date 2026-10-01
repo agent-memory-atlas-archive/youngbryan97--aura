@@ -91,15 +91,17 @@ def _binding_bytes(binding: Mapping[str, Any], *, role: str) -> bytes:
     return payload
 
 
-def materialize_qualified_generation(
+def _qualified_manifest(
     authority: Mapping[str, Any],
     *,
     descriptor_sha256: str,
-    model_cache_root: Path,
     authority_key_path: Path | None = None,
-) -> Path:
-    """Publish only the signed generation's exact bytes into its model cache."""
+) -> tuple[Mapping[str, Any], bytes, str, list[Any]]:
+    """The signed generation's evidence, metadata bytes, id and vector list.
 
+    Raises unless the authority validates for this exact cortex, is
+    qualified, and its metadata names the generation its claims sign.
+    """
     validated = validate_component_authority(
         authority,
         component="steering",
@@ -123,6 +125,53 @@ def materialize_qualified_generation(
     vectors = metadata.get("vector_files")
     if not isinstance(vectors, list) or not vectors:
         raise ModelBoundSteeringError("steering_vector_manifest_invalid")
+    return evidence, metadata_payload, generation, vectors
+
+
+def qualified_generation_vector_names(
+    authority: Mapping[str, Any],
+    *,
+    descriptor_sha256: str,
+    authority_key_path: Path | None = None,
+) -> tuple[str, ...]:
+    """The vector files a signed generation binds to this cortex, each verified.
+
+    The same checks materialization makes, and every vector's bytes against
+    its signed hash, without writing anything: what a readiness report needs
+    to count the tissue the steering engine attaches.
+    """
+    evidence, _metadata, _generation, vectors = _qualified_manifest(
+        authority,
+        descriptor_sha256=descriptor_sha256,
+        authority_key_path=authority_key_path,
+    )
+    names = []
+    for vector in vectors:
+        if not isinstance(vector, Mapping) or not isinstance(vector.get("name"), str):
+            raise ModelBoundSteeringError("steering_vector_manifest_invalid")
+        name = vector["name"]
+        binding = evidence.get(f"vector:{name}")
+        if Path(name).name != name or not isinstance(binding, Mapping):
+            raise ModelBoundSteeringError("steering_vector_binding_missing")
+        _binding_bytes(binding, role=f"steering_vector:{name}")
+        names.append(name)
+    return tuple(names)
+
+
+def materialize_qualified_generation(
+    authority: Mapping[str, Any],
+    *,
+    descriptor_sha256: str,
+    model_cache_root: Path,
+    authority_key_path: Path | None = None,
+) -> Path:
+    """Publish only the signed generation's exact bytes into its model cache."""
+
+    evidence, metadata_payload, generation, vectors = _qualified_manifest(
+        authority,
+        descriptor_sha256=descriptor_sha256,
+        authority_key_path=authority_key_path,
+    )
 
     target = model_cache_root.expanduser().absolute() / f"qualified_{generation[:16]}"
     gateway = get_file_write_gateway()
@@ -246,6 +295,7 @@ __all__ = [
     "ModelBoundSteeringError",
     "SteeringGenerationResolution",
     "materialize_qualified_generation",
+    "qualified_generation_vector_names",
     "resolve_active_generation",
     "resolve_active_qualified_generation",
 ]

@@ -2995,7 +2995,7 @@ class DesktopTaskSkill(_ReadsTheObjective, _ResearchesBeforeItWrites, BaseSkill)
                     self._extract_search_query(resolved_segment)
                     or self._extract_image_query(resolved_segment)
                     or self._web_document_url(resolved_segment)
-                    or any(token in resolved_segment.lower() for token in ("browser", "web", "article", "source", "news"))
+                    or self._names_web_content(resolved_segment)
                 )
             ):
                 resolved_segment = f"{resolved_segment.rstrip(' .')}, using {global_preferred_browser}."

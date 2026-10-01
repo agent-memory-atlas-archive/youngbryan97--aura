@@ -8,6 +8,7 @@ import time
 from collections import deque
 from dataclasses import asdict, dataclass
 from typing import Any
+from core.conversation.word_markers import names_any
 from core.runtime.lockdep import LockRank, checked_lock
 
 #: How far above the room's own noise floor speech has to sit before it counts
@@ -142,7 +143,7 @@ def classify_audio_attention(
     normalized = " ".join(str(text or "").split())
     app = str(active_app or "").strip().lower()
     addressed = bool(_DIRECT_ADDRESS_RE.search(normalized))
-    media_context = any(marker in app for marker in _MEDIA_APP_MARKERS)
+    media_context = names_any(app, _MEDIA_APP_MARKERS)
     long_narrative = duration_s >= 7.0 and len(normalized.split()) >= 8
     # Loudness relative to THIS room and THIS microphone, falling back to the
     # absolute level only until enough audio has been heard to know the room.

@@ -109,7 +109,9 @@ def test_she_will_not_borrow_from_a_world_shaped_differently() -> None:
     from core.skills import screen_pursuit
 
     text = pursuit_source()
-    at = text.index("_no_more_than_a_fresh_one_is_worth(elsewhere")
+    # The borrowing itself moved into _carry_rules_from_a_world_like_it on 29
+    # September; the shape check stays with its caller, just before the call.
+    at = text.index("_carry_rules_from_a_world_like_it(\n                elsewhere=elsewhere")
     near = text[at - 900 : at]
     assert "read_through" in near
     assert "elsewhere = {}" in near

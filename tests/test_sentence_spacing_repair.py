@@ -78,9 +78,14 @@ def test_it_runs_before_the_reply_is_judged() -> None:
     """
     from pathlib import Path
 
-    src = Path("core/brain/cognitive_engine.py").read_text(encoding="utf-8")
+    # The quick reply path left cognitive_engine for its own module in the
+    # size lifts; the ordering is checked where the code now is.
+    src = Path("core/brain/cognitive_engine_quick_reply.py").read_text(encoding="utf-8")
     restored = src.index("_restore_sentence_spacing(text)")
     judged = src.index("surface_quality_gate_reasons", restored)
     assert restored < judged
-    # And the trimmer stays off this path.
+    # And the trimmer stays off this path, in either module.
     assert "_complete_reply_tail(text)" not in src
+    assert "_complete_reply_tail(text)" not in Path("core/brain/cognitive_engine.py").read_text(
+        encoding="utf-8"
+    )

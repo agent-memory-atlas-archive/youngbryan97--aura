@@ -308,6 +308,8 @@ class SubjectiveChoiceEngine:
         self._load()
 
     def is_alive(self) -> bool:
+        # Substring, deliberately: not text at all. `_preferences` is a dict,
+        # and this asks whether every preference key is stored in it.
         return bool(self._preferences) and all(key in self._preferences for key in PREFERENCE_KEYS)
 
     def preferences(self) -> dict[str, float]:

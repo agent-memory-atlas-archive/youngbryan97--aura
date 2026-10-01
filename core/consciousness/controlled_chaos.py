@@ -544,11 +544,13 @@ def declare_the_machine(signals: Optional[Callable[[], List[float]]], seed: Opti
     global _DECLARED_SIGNALS, _DECLARED_SEED
     _DECLARED_SIGNALS = signals
     _DECLARED_SEED = seed
-    if seed is None:
-        return
     for engine in _engines():
-        engine._seed_bytes = seed
+        # The next step reads whichever source is now in force. Released, an
+        # engine kept the declared run's vector for five seconds of a clock the
+        # run had been rewinding.
         engine._last_somatic_poll = 0.0
+        if seed is not None:
+            engine._seed_bytes = seed
 
 
 def _engines() -> List[ChaosEngine]:

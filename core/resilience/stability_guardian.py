@@ -169,6 +169,8 @@ class StabilityGuardian(_ChecksEachSubsystem):
         self._last_tick_at:   float = time.time()
         self._extra_checks:   list[Callable] = []
         self._last_repair_at: dict[str, float] = {}
+        #: Checks failing on the last pass; a warning is for a check that starts.
+        self._failing_checks: frozenset[str] = frozenset()
 
         try:
             from core.config import config
@@ -408,9 +410,21 @@ class StabilityGuardian(_ChecksEachSubsystem):
                 self._report_history.append(report)
                 await asyncio.to_thread(self._persist_report, report)
 
-                if not report.overall_healthy:
-                    unhealthy = [c for c in report.checks if not c.healthy]
+                unhealthy = [c for c in report.checks if not c.healthy]
+                failing = frozenset(c.name for c in unhealthy)
+                started = failing - self._failing_checks
+                for name in sorted(self._failing_checks - failing):
+                    logger.info("StabilityGuardian: %s is healthy again.", name)
+                self._failing_checks = failing
+                if unhealthy:
                     summary = "; ".join(f"{c.name}:{c.message}" for c in unhealthy[:3])
+                    if not started:
+                        # The same checks failing on every pass: a standing
+                        # condition, warned when each one started. Until 30
+                        # September this warned every interval, 29 times in one
+                        # hour of the 29th for one slow tick rate.
+                        logger.debug("StabilityGuardian: still degraded. %s", summary)
+                        continue
                     logger.warning(
                         "StabilityGuardian: DEGRADED — %d issue(s) detected. %s",
                         len(unhealthy),

@@ -105,6 +105,36 @@ async def test_clean_code_verifies(tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_amplifier_repairs_unawaited_work_through_real_sandbox():
+    from core.brain.symbolic_sandbox import SymbolicSandbox
+    from core.brain.verifiers.code_engine import CodeTruthEngine
+
+    body = "async def compute():\n    print(sum(range(10)))\n"
+    broken = body + "jobs = [compute()]\nassert len(jobs) == 1\n"
+    fixed = "import asyncio\n" + body + "asyncio.run(compute())\nassert 2 + 2 == 4\n"
+    answer = "Here is the calculation:\n```python\n" + broken.strip() + "\n```\nDone."
+    repair_calls = []
+
+    async def generate(prompt, temperature):
+        assert "never awaited" in prompt
+        repair_calls.append(prompt)
+        return fixed
+
+    sandbox = SymbolicSandbox(timeout=15.0)
+    verifier = CodeTruthEngine(run_ruff=False, sandbox=sandbox)
+    before = await verifier.verify(answer)
+    assert not before.ok
+    assert any("runtime failure" in issue for issue in before.issues)
+
+    amp = ReasoningAmplifierV2(generate, sandbox=sandbox)
+    repaired = await amp._sandbox_repair(answer, normalize_problem("compute this", task_type="code"))
+    assert len(repair_calls) == 1
+    assert repaired == answer.replace(broken.strip(), fixed.strip())
+    after = await verifier.verify(repaired)
+    assert after.ok and after.detail["executed_ok"] == 1
+
+
+@pytest.mark.asyncio
 async def test_receipt_is_complete(tmp_path):
     amp = _amp(_gen("The answer is 4."), tmp_path)
     req = AmplificationRequest(objective="2+2", task_type="math", mode=ReasoningMode.NORMAL)

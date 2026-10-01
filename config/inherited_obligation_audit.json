@@ -1564,114 +1564,102 @@
       "sha256": "398fd1f266567027ef60711ea786c3892a277cd6f03235d3f2c23fb391fde1c5",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2058": {
-      "carries_obligation": false,
-      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
-      "sha256": "610af3023dd6ddcf0441510350fb93a1ee4ee8adc7b7244357c735921522de7e",
-      "stratum": "rule:atlas_card_closed"
-    },
-    "docs/gap_atlas/TODO.md:2074": {
-      "carries_obligation": false,
-      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
-      "sha256": "78f2673419c9a233105d1edcea981744087763aab047ca4a61117fbe5af5bfe7",
-      "stratum": "rule:atlas_card_closed"
-    },
-    "docs/gap_atlas/TODO.md:2113": {
+    "docs/gap_atlas/TODO.md:2112": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "bc9be53488d26e28830b384b634c15e343a1212c8292e81fd63fc65c8815b00b",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2155": {
+    "docs/gap_atlas/TODO.md:2154": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "04155f9b2b55601f0809f50bd53b5f98793b90c80cebde4995fe4104547bb23d",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2178": {
+    "docs/gap_atlas/TODO.md:2177": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "e6c320cff0fcd607a8569f1ec6c2cf957ef07a4696cce72e86845e7231251f3c",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2187": {
+    "docs/gap_atlas/TODO.md:2186": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "28aba2e16ee67674a45677af524493e0c084dac681ad70d385eb65d5e565bbd0",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2193": {
+    "docs/gap_atlas/TODO.md:2192": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "832bc2b14e3d8e020935e5bd204162224295815ae785ea0024ff342fb2828275",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2199": {
+    "docs/gap_atlas/TODO.md:2198": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "817b9f3a773497fcea1bf58dd0ba8039e78bfb0ecea81583514266d5d48a777f",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2287": {
+    "docs/gap_atlas/TODO.md:2286": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "31fde1287ee680fbb0c236460ec4c79e4e8a2887a9124f54d8f8df5ea40c153a",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2316": {
+    "docs/gap_atlas/TODO.md:2315": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "5eee1b1cead502d059cc1637c38e02bfb5210358980616f2858a0a5bb7e15b2f",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2334": {
+    "docs/gap_atlas/TODO.md:2333": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "36d26842f813b8d6da544d2a2725be015a21278d4e5236975788ac66c1df1436",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2407": {
+    "docs/gap_atlas/TODO.md:2406": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "8490609747a674dcdc2106a790f49e49067fdbf307316f252524f5ae6e130497",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2431": {
+    "docs/gap_atlas/TODO.md:2430": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "6819f02b259d8e2136f92e2af33b00e96ebf50c2e4adcc1b3985484e6a664f40",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2449": {
+    "docs/gap_atlas/TODO.md:2448": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "0bf4a6651295d8542545ce8d2c165ad0b66dea43f01df7793f6446ba432b9a63",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2485": {
+    "docs/gap_atlas/TODO.md:2484": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "1e99ea6af65c2ed7e176369eb4e74eebc6c4cd0c9f25f33deec6d770880da0fd"
     },
-    "docs/gap_atlas/TODO.md:2499": {
+    "docs/gap_atlas/TODO.md:2498": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "022d7dce15dc3844e16dc0fe9f64ea0445d4b09918c6cb9dc21f61d08ea037a1",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2505": {
+    "docs/gap_atlas/TODO.md:2504": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "49926de72e8646cc64d44eaf931631315e44382b7416a7d223fef913d8a3a90a",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2547": {
+    "docs/gap_atlas/TODO.md:2546": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "21ce5781aaf9d223458a9c96d82d7b72c59f419fc8d2fea415ce10d2efa95226",
       "stratum": "rule:atlas_card_closed"
     },
-    "docs/gap_atlas/TODO.md:2558": {
+    "docs/gap_atlas/TODO.md:2557": {
       "carries_obligation": false,
       "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
       "sha256": "1149f13dff3e2e03032a00de8caec8ad54081ee9cda26f4605031e195a9c1e58",
@@ -1997,7 +1985,7 @@
       "sha256": "01a40f86966e2a3364583277ba205c19ca4e4858d1599b46e72a3d85f7332aef",
       "stratum": "rule:all_boxes_checked"
     },
-    "docs/gap_atlas/TODO.md:2469": {
+    "docs/gap_atlas/TODO.md:2468": {
       "carries_obligation": false,
       "reason": "Checked atlas card with a stated bar and the board that refuses a claim; the card's own status is the record.",
       "sha256": "ee822f56b9e1a79e03f15cdf231e1574f4aa23b88afdf7a5c46edf52489fc07e",
@@ -2031,6 +2019,102 @@
       "carries_obligation": false,
       "reason": "Every checkbox in the block is checked and the closure reference it cites resolves to a file in the tree.",
       "sha256": "dae47bc8f54c68263faa20f8ede6ffbf82326a9ef2d900204d53f51bc61c5982"
+    },
+    "docs/gap_atlas/TODO.md:2078": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "5204f011b0878932d561fd017ef2bd6353efa11e6249c2283f4c60dffbb859a6",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:2100": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "617dad61efec55f3664f44202657b5678b39796385a7fd820cc6c42bd166cb9e",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:2218": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "69ce353f3baa0a130b376dc4773ed76c5897671bcc3425d469c7a166e3af764b",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:2224": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "63864af11aa03c9e3c9bbd8033ff7160bc94568d7a3de49f71d13c171071bde4",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:2230": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "229f2c6ab323af6775858e3d06e7e199490ef9826ce585beff06b1386316c473",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:2236": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "02e0dd2fac3200f64fc8ebe7a2db204cf1c9dfa16c003135ff30e9aaf25f83ec",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:2346": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "29f749c52722e955d1a3ff434a55d06b6a4d4ab34d7fb12967d7886adfb63b22",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:2364": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "52e31fdcea9dd88ec1d61987473d9b232c5833b8427796040ee0342d24d78af1",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:2436": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "e0f5f1f93743984d1954e874e691c581327fed78bbce56fc3045fff7ef4f4d65",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:2492": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "f4b6dcd8f1a9dbbc64cdce4d4d6865b168234383b4be7e734666adbed671e7d9",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:2510": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "349f593542a7f6667205cc92c95c210c44b64672b82588228181d153bbc3f507",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:2528": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "7a83ac13aa381dff7f1139e917c07b3d2ac49ed0480ada674f9d65fc2a1ff026",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:2534": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "7d193e535ffc1e455bb2e7cdb85c2bedb4257e2d675147c5cdeb0c9a1592d409",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:292": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "fad4cc88cdea3658488d8d6709fd44c739cf0fed2314f72126018733d3c5e9cf",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:311": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "35c4d4667f3fae88c85fdb918d8fcdccf0c92077198e23b9465fa31ab990d56d",
+      "stratum": "rule:atlas_card_closed"
+    },
+    "docs/gap_atlas/TODO.md:481": {
+      "carries_obligation": false,
+      "reason": "The Gap Atlas adjudication entry for this card is closed with nothing outstanding; the card names the code and tests that closed it.",
+      "sha256": "53e934f85386af1a7267a87cd3cb7d20f2fc6a256ee7a313bd8598917bde71df",
+      "stratum": "rule:atlas_card_closed"
     }
   },
   "note": "Hand labels for the audit of every dismissed population. Each sampled block was read. carries_obligation true means the partition missed a live obligation and the detector must be repaired, not the label changed.",

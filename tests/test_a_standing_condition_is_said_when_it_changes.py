@@ -110,3 +110,42 @@ def test_the_memory_guard_warns_on_the_first_strike_and_the_climb(
     with caplog.at_level(logging.DEBUG, logger="Aura.MemoryGuard"):
         asyncio.run(guard._watch_loop())
     assert _warnings(caplog, "RAM CRITICAL") == 2  # 86, then 90
+
+
+def test_the_stability_guardian_warns_when_a_check_starts_failing(
+    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from core.resilience import stability_guardian as module
+    from core.resilience.stability_guardian import HealthCheckResult, StabilityGuardian, SystemHealthReport
+
+    def report(*failing: str) -> SystemHealthReport:
+        checks = [HealthCheckResult(name, name not in failing, "slow") for name in ("tick_rate", "memory")]
+        return SystemHealthReport(0.0, not failing, checks, 0.0, 0.0, 0, 0.0, 0.0)
+
+    passes = iter([report("tick_rate"), report("tick_rate"), report("tick_rate"),
+                   report("tick_rate", "memory"), report(), report("tick_rate")])
+    guardian = StabilityGuardian.__new__(StabilityGuardian)
+    guardian._failing_checks = frozenset()
+    guardian._report_history = __import__("collections").deque(maxlen=10)
+    guardian._loop_lag_samples = __import__("collections").deque(maxlen=10)
+    guardian._running = True
+
+    async def run_checks() -> SystemHealthReport:
+        try:
+            return next(passes)
+        except StopIteration:
+            guardian._running = False
+            return report()
+
+    async def no_wait(_seconds: float) -> None:
+        return None
+
+    guardian.run_checks = run_checks
+    guardian._persist_report = lambda _report: None
+    monkeypatch.setattr(module, "asyncio", types.SimpleNamespace(
+        sleep=no_wait, to_thread=lambda fn, *a: asyncio.sleep(0, fn(*a)), CancelledError=asyncio.CancelledError))
+    with caplog.at_level(logging.DEBUG, logger=module.logger.name):
+        asyncio.run(guardian._loop())
+    # tick_rate starts; memory joins; both clear; tick_rate starts again.
+    assert _warnings(caplog, "StabilityGuardian: DEGRADED") == 3
+    assert any("tick_rate is healthy again" in r.getMessage() for r in caplog.records)

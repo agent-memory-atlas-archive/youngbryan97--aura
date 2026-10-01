@@ -236,7 +236,11 @@ def register_cognitive_services(container, is_proxy: bool = False):
 
         orchestrator = container.get("orchestrator", default=None)
         if orchestrator is None:
-            raise RuntimeError("orchestrator is required before constructing the Soul")
+            # A process that never booted an orchestrator has no Soul: its
+            # drives act through one. The subject harness is such a process,
+            # by design, and asked here several times a turn; raising made each
+            # lookup a degradation record.
+            return None
         soul = getattr(orchestrator, "soul", None)
         if soul is None:
             soul = Soul(orchestrator)
@@ -254,8 +258,10 @@ def register_cognitive_services(container, is_proxy: bool = False):
         from core.brain.personality_engine import PersonalityEngine
 
         soul = container.get("soul", default=None)
-        if soul is None:
+        if soul is None and container.get("orchestrator", default=None) is not None:
             raise RuntimeError("personality engine requires the registered Soul")
+        # With no orchestrator in the process there is no Soul to wait for, and
+        # the engine runs on the metadata proxy, which says so once.
         return PersonalityEngine()
     container.register('personality_engine', create_personality_engine, lifetime=SERVICE_LIFETIME_SINGLETON, required=True)
 
@@ -356,8 +362,16 @@ def register_cognitive_services(container, is_proxy: bool = False):
     # 13. Orchestrator
     if not container.has('orchestrator'):
         def orchestrator_factory():
-            from core.orchestrator import create_orchestrator
-            return create_orchestrator()
+            # An orchestrator is booted, not found. Startup calls
+            # create_orchestrator(), which registers the instance over this
+            # factory; a lookup in a process that never booted one gets None,
+            # which affect, the turn door and the phases already read as "no
+            # orchestrator here". Until 30 September this booted one on any
+            # lookup, so a subject-harness turn built a whole orchestrator and
+            # its state repository replaced the run's.
+            from core.orchestrator import main as orchestrator_main
+
+            return getattr(orchestrator_main, "_orchestrator_instance", None)
         container.register('orchestrator', orchestrator_factory, lifetime=SERVICE_LIFETIME_SINGLETON, required=True)
     else:
         logger.debug("Orchestrator already registered, skipping provider registration.")

@@ -1,8 +1,6 @@
 # Ownership map
 
-Every major concern in the system has exactly one owner. When two modules
-both look like they could own something, one owns it and the other is an
-advisor or sensor.
+Every major responsibility in the system has exactly one owner. If two modules appear to share a responsibility, only one actually owns it; the other acts as an advisor or sensor.
 
 ## Decision authority
 
@@ -12,7 +10,7 @@ advisor or sensor.
 | Tool execution gating | `AuthorityGateway` | delegates to Will first | `core/executive/authority_gateway.py` |
 | Intent formation and coherence | `ExecutiveCore` | internal tracker | `core/executive/executive_core.py` |
 | Constitutional proposals | `ConstitutionalCore` | policy advisor | `core/constitution.py` |
-| Embodied constraints | `SubstrateAuthority` | mandatory advisor (field coherence, somatic veto) | `core/consciousness/substrate_authority.py` |
+| Embodied constraints | `SubstrateAuthority` | mandatory advisor (hardware and state constraints, somatic veto) | `core/consciousness/substrate_authority.py` |
 | Capability tokens | `CapabilityManager` | token issuer under AuthorityGateway | `core/agency/capability_system.py` |
 
 Hierarchy: UnifiedWill > AuthorityGateway > ExecutiveCore > SubstrateAuthority (advisor).
@@ -41,8 +39,8 @@ Hierarchy: UnifiedWill > AuthorityGateway > ExecutiveCore > SubstrateAuthority (
 | Memory health | `MemoryGovernor` | `MemoryGuard` |
 | Token budgets | `TokenGovernor` (`core/utils/context_allocator.py`) | `ContextAssembler` |
 | Background policy | `core/runtime/background_policy.py` (module of decisions, no class) | `CognitiveFlowController` |
-| Admission control | `CognitiveFlowController` | queue depth, thermal |
-| macOS permissions | `PermissionGuard` | TCC (mic, camera, screen) |
+| Admission control | `CognitiveFlowController` | queue depth, thermal load |
+| macOS permissions | `PermissionGuard` | TCC (microphone, camera, screen access) |
 
 ## Security domains
 
@@ -85,10 +83,6 @@ Hierarchy: UnifiedWill > AuthorityGateway > ExecutiveCore > SubstrateAuthority (
 
 ---
 
-The principle: if you need a new governance check, hang it off
-`UnifiedWill` as an advisor, don't add a parallel gate. If you need a new
-sensor, route it to the existing owner for that domain.
+The core rule: if you need a new governance or safety check, attach it to `UnifiedWill` as an advisor rather than creating a parallel decision gate. If you need a new sensor, route its data to the existing owner for that domain.
 
-Tracked skill implementations live under `core/skills/`. The top-level
-`skills/` package is maintained only as a legacy compatibility surface for
-older imports and wrappers.
+Tracked skill implementations live under `core/skills/`. The top-level `skills/` package is maintained only as a legacy compatibility surface for older imports and wrappers.

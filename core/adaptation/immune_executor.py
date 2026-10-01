@@ -237,6 +237,16 @@ class ImmuneHeuristicExecutor:
                 )
         return True, ""
 
+    @staticmethod
+    def _rule_plant_contract(
+        conditions: list[dict[str, Any]],
+        actions: list[dict[str, Any]],
+    ) -> tuple[bool, str]:
+        """A rule may only act on the plant it measures; see immune_rule_vocabulary."""
+        from core.adaptation.immune_rule_vocabulary import plant_contract
+
+        return plant_contract(conditions, actions)
+
     def _authorization_preflight(
         self,
         context: dict[str, Any],
@@ -442,6 +452,10 @@ class ImmuneHeuristicExecutor:
         context = dict(context or {})
         actions = list(rule.get("actions", []) or [])
         contract_ok, contract_message = self._rule_action_contract(actions, context)
+        if contract_ok:
+            contract_ok, contract_message = self._rule_plant_contract(
+                list(rule.get("conditions", []) or []), actions
+            )
         if not contract_ok:
             return {
                 "conditions_met": False,
@@ -562,6 +576,10 @@ class ImmuneHeuristicExecutor:
         context = dict(context or {})
         actions = list(rule.get("actions", []) or [])
         contract_ok, contract_message = self._rule_action_contract(actions, context)
+        if contract_ok:
+            contract_ok, contract_message = self._rule_plant_contract(
+                list(rule.get("conditions", []) or []), actions
+            )
         if not contract_ok:
             return {
                 "conditions_met": False,

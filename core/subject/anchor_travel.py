@@ -54,6 +54,7 @@ def _importable(function: Any) -> bool:
 
 def _infrastructure() -> tuple[type, ...]:
     """Kinds of object that hold a process's resources rather than her state."""
+    import _thread
     import asyncio
     import concurrent.futures
     import contextvars
@@ -69,8 +70,10 @@ def _infrastructure() -> tuple[type, ...]:
     import threading
     import weakref
 
+    # The lock classes by name: building a lock to ask its type is a lock
+    # lockdep counts and never sees used.
     kinds: list[type] = [
-        type(threading.Lock()), type(threading.RLock()), threading.Condition, threading.Event,
+        _thread.LockType, _thread.RLock, threading.Condition, threading.Event,
         threading.Semaphore, threading.Thread, threading.Barrier, type(threading.local()),
         sqlite3.Connection, sqlite3.Cursor, socket.socket, _io.IOBase,
         asyncio.AbstractEventLoop, asyncio.Future, concurrent.futures.Executor, concurrent.futures.Future,
@@ -93,12 +96,13 @@ _INFRASTRUCTURE = _infrastructure()
 
 def _fresh_kinds() -> dict[type, tuple[str, Any]]:
     """Resources with no state worth carrying, which a new one replaces exactly."""
+    import _thread
     import queue
     import threading
 
     return {
-        type(threading.Lock()): ("lock", threading.Lock),
-        type(threading.RLock()): ("rlock", threading.RLock),
+        _thread.LockType: ("lock", threading.Lock),
+        _thread.RLock: ("rlock", threading.RLock),
         threading.Condition: ("condition", threading.Condition),
         threading.Event: ("event", threading.Event),
         threading.Semaphore: ("semaphore", threading.Semaphore),

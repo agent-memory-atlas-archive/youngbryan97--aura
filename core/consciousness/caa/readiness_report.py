@@ -231,11 +231,52 @@ def _active_model(fused_model_dir: Path) -> dict[str, Any]:
                 "identity_error": "",
                 "steering_authority_status": steering_status,
                 "steering_authority_kind": steering_kind,
+                "steering_authority": steering if isinstance(steering, dict) else None,
             }
     except (ImportError, OSError, RuntimeError, ValueError, TypeError) as exc:
         record_degradation("caa_readiness_report", exc)
         return {**unavailable, "identity_error": f"{type(exc).__name__}: {exc}"}
     return unavailable
+
+
+def _signed_generation_details(active: dict[str, Any]) -> list[dict[str, Any]]:
+    """The active cortex's signed steering vectors, as scan entries bound to it.
+
+    The steering engine attaches the generation the cortex's migration
+    contract signs, materialized from custody. This report read only
+    training/vectors, where every vector belongs to an earlier model, so on
+    30 September it said "0/15 bound, 30% (bootstrap)" for a cortex whose
+    steering was qualified and attached. Each vector here is verified against
+    its signed hash before it is counted.
+    """
+    authority = active.get("steering_authority")
+    digest = str(active.get("descriptor_sha256") or "")
+    if active.get("steering_authority_status") != "qualified" or not isinstance(authority, dict) or not digest:
+        return []
+    try:
+        from core.brain.llm.model_bound_steering import qualified_generation_vector_names
+
+        names = qualified_generation_vector_names(authority, descriptor_sha256=digest)
+    except (ImportError, OSError, RuntimeError, TypeError, ValueError) as exc:
+        record_degradation(
+            "caa_readiness_report",
+            exc,
+            action="counted no signed steering vectors for the active cortex",
+        )
+        return []
+    entries = []
+    for name in names:
+        dimension, layer = _parse_vector_stem(Path(name).stem)
+        entries.append({
+            "path": f"signed-generation:{name}",
+            "dimension": dimension,
+            "layer": layer,
+            "extracted": True,
+            "source": "extracted_signed_generation",
+            "model_descriptor_sha256": digest,
+            "derived_at": 0.0,
+        })
+    return entries
 
 
 def _matches_active_model(item: dict[str, Any], active: dict[str, Any]) -> bool:
@@ -259,9 +300,23 @@ def verify_readiness(
     total = scan["files"] or 0
     extracted_ratio = (scan["extracted"] / total) if total else 0.0
     expected_keys = _runtime_expected_keys()
-    expected_layers = _target_layers_for_active_model(active)
+    signed = _signed_generation_details(active)
+    # The engine hooks exactly the layers a signed generation carries
+    # (steering_geometry._qualified_target_layers); the depth band is only
+    # for a cortex with nothing measured.
+    expected_layers = (
+        sorted({item["layer"] for item in signed if item["layer"] >= 0})
+        if signed
+        else _target_layers_for_active_model(active)
+    )
     expected_total = len(expected_keys) * len(expected_layers)
     details = list(scan.get("details") or [])
+    if signed:
+        held = {(item["dimension"], item["layer"]) for item in signed}
+        details = signed + [
+            item for item in details if (item.get("dimension"), item.get("layer")) not in held
+        ]
+        total += len(signed)
     expected_files = [
         item
         for item in details

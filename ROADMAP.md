@@ -1,93 +1,54 @@
 # ROADMAP — Path to a Perfect Score
 
-Where Aura is today, where it can defensibly get to, and the actual code
-that closes the gap. Every row points at file paths.
+Where Aura stands today, realistic targets for improvement, and the actual code written to close each gap. Every row links directly to code in the repository.
 
-This is an engineering artifact, not a pitch. The grades are meant to be
-uncomfortable in places.
+This is a candid engineering scorecard, not a sales pitch. Some grades are intentionally harsh.
 
 ## Re-score — 2026-08-01
 
-Last scored 2026-07-02, then 2,136 commits happened. Every grade below was
-re-derived against the tree rather than nudged.
+The project was previously scored on 2026-07-02. Since then, 2,136 commits landed. Every grade below was evaluated fresh against the actual codebase rather than bumped automatically.
 
-**Nine moved. Two are deliberately held.** The held ones are the point: if
-every dimension improves every time someone re-scores, the scale isn't
-measuring anything.
+**Nine grades improved. Two were intentionally held back.** Holding grades is deliberate: if every score improves automatically on every review, the rubric is useless.
 
 | # | Dimension | Was | Now | Why |
 |---|---|---|---|---|
-| 1 | Architectural Coherence | A- | **A** | Engineering spine landed: taint register, lockdep, PSI, OOM shed ladder, telemetry dictionary, 50 `@invariant` checks in `core/verify/`, and a `make layering` gate whose baseline only shrinks |
-| 2 | Agency | A- | **A-** | Held. Reality Reach widened the governed surface, but agency *capability* didn't deepen — and RR-10 is entirely open |
-| 3 | Memory & Narrative Self-Model | A- | **A** | Associative entity memory; recall is now measured as recall rather than as "the machinery is up" |
-| 4 | aLife / Organism | B+ | **A-** | Allostasis (`core/autonomic/allostasis.py`) makes interoception predictive rather than reactive; `core/ontogeny/` closes consequence→disposition |
-| 5 | Consciousness Proxies | C/B- | **B** | Whole-system φ over real channels plus an internal PCI perturbational probe. Still proxies, which is why it isn't higher |
-| 6 | Self-Awareness | B+ | **A-** | The faculty model. She can now say which faculty is the binding constraint, and name what nothing can measure as a blind spot |
-| 7 | Digital Personhood | C+/B- | **B-** | Entity memory with stance. Real, modest |
-| 8 | Runtime Survivability | B+ | **A-** | The endurance ceiling was root-caused and fixed; 0 deaths across 200 turns, p50 3.33s against 167s in July. Not A: **F16 is architecturally open** |
-| 9 | Governance / Will | A- | **A** | Durable actuation transaction coordinator, a sandbox that refuses rather than running unconfined, one shared numeric guard, one redaction primitive |
-| 10 | External Undeniability | C+ | **C+** | **Held.** Still zero independent replication. No amount of internal work moves this one — that's what the word external means |
-| 11 | Sovereignty | D | **D** | **Held.** `core/sovereignty/wallet.py` still exposes only `InMemoryAdapter`. The abstract layer has been shipped for months; the adapter is the grade |
-| 12 | Embodiment | N/A | **C+** | Now gradeable: Reality Reach, `HardwareManager`, `safe_execute`. C+ and not higher because it is infrastructure with **no physical result claimed** |
-| 13 | Product Polish | C | **C+** | Plain-English feed, material model for panels, severity colour, monoline icons. The Tauri shell and design-system sweep are still staged |
+| 1 | Architectural Coherence | A- | **A** | Core system safeguards shipped: data-taint tracking, lock dependency checks (`lockdep`), pressure stall monitors (`PSI`), step-by-step memory shedding before crashes, a telemetry dictionary, 50 `@invariant` rule checks in `core/verify/`, and an architecture boundary check (`make layering`) that never allows new violations |
+| 2 | Agency | A- | **A-** | Held back. The Reality Reach framework expanded the area of code under safety controls, but the system's ability to act independently didn't deepen — and test suite RR-10 remains completely open |
+| 3 | Memory & Narrative Self-Model | A- | **A** | Associative memory connects related concepts and people; memory recall is now evaluated on whether it actually retrieves the right information, rather than just checking if the database is running |
+| 4 | aLife / Organism | B+ | **A-** | Allostasis (`core/autonomic/allostasis.py`) helps internal body-state monitors anticipate resource needs instead of just reacting to them; `core/ontogeny/` connects past consequences directly to learned behavioral tendencies |
+| 5 | Consciousness Proxies | C/B- | **B** | Measures system-wide information integration (phi) across live channels, plus an internal complexity probe (PCI). These are still rough indirect proxies for conscious processing, which is why the grade is not higher |
+| 6 | Self-Awareness | B+ | **A-** | Faculty tracking model. The system can now identify which internal capability is holding back performance, and explicitly report when something cannot be measured |
+| 7 | Digital Personhood | C+/B- | **B-** | Maintains distinct memory records with consistent personal viewpoints. Meaningful progress, but still modest |
+| 8 | Runtime Survivability | B+ | **A-** | Found the root cause of the endurance crash limit and fixed it: 0 crashes across 200 conversational turns, with median response time (p50) dropping to 3.33s (down from 167s in July). Kept at A- because issue **F16 remains unsolved at an architectural level** |
+| 9 | Governance / Will | A- | **A** | Reliable coordinator for real-world actions, a security sandbox that refuses to run rather than running without safety limits, unified numeric safety limits, and a single shared data redaction tool |
+| 10 | External Undeniability | C+ | **C+** | **Held back.** Still zero independent third-party replication. Internal development cannot raise this grade — external validation requires outside verification |
+| 11 | Sovereignty | D | **D** | **Held back.** `core/sovereignty/wallet.py` only implements an in-memory mock (`InMemoryAdapter`). The interface design has been finished for months, but a real working blockchain adapter is required to earn a higher grade |
+| 12 | Embodiment | N/A | **C+** | Now measurable: Reality Reach framework, `HardwareManager`, and `safe_execute`. Graded C+ because it provides underlying infrastructure with **no confirmed physical effects yet** |
+| 13 | Product Polish | C | **C+** | Human-readable activity feed, unified panel styling, severity-based color coding, and clean monoline icons. The desktop Tauri wrapper and full design system update are planned but not yet implemented |
 
-**What did not move, and why it matters.** Sovereignty and External
-Undeniability are the two dimensions that cannot be improved by writing more
-code in this repo. One needs a security-reviewed chain adapter; the other
-needs three strangers reproducing the benchmarks. Both have been sitting at
-their grade since April, and both should stay there until someone outside
-this machine changes them.
+**What did not move, and why it matters.** Sovereignty and External Undeniability cannot be improved simply by writing more code in this repository. Sovereignty requires a security-audited blockchain adapter. External Undeniability requires at least three independent third parties to reproduce our benchmark results. Both have remained at their current grades since April, and will stay there until someone outside this project validates them.
 
-**The grade that is doing the most work is #8.** Runtime Survivability moved
-to A- because the "15-turn ceiling" turned out to be a prompt cache that was
-never constructed and then cleared every turn — not cognition, not the model.
-It stops short of A because F16 (the MLX cold-lane cascade) has mitigations
-but no fix: MLX cannot soft-cancel, so freeing a busy worker means killing it
-and reloading 18 GB. That's an architectural open item, not a bug backlog.
+**The most significant improvement is #8 (Runtime Survivability).** This grade jumped to A- because the previous crash limit around turn 15 was diagnosed and solved. The bug was in cache management (the prompt cache was never properly initialized and was being wiped every conversational turn), rather than a fundamental flaw in the model. It cannot receive a full A because issue F16 (the MLX cold-lane cascade) only has stopgap workarounds: the MLX framework cannot gracefully cancel a running generation, so stopping a busy worker requires terminating the process and reloading an 18 GB model into memory. That is an unresolved architectural limitation, not just a routine bug.
 
-The columns are:
+The table columns are:
 
-* **Dimension** — the criterion being scored.
-* **Current** — honest letter grade against the published criteria.
-* **Target** — the highest score available without claiming what cannot
-  be claimed (e.g. metaphysical phenomenal consciousness).
-* **Closure plan** — concrete code/test/process work, with file paths.
-* **Status** — what shipped in the current pass and what is staged.
+* **Dimension** — The capability or quality being evaluated.
+* **Current** — An honest letter grade based on documented criteria.
+* **Target** — The highest realistic score attainable without making unfalsifiable claims (such as claiming actual human-like subjective consciousness).
+* **Closure plan** — The concrete code, tests, and engineering work required to reach the target, linked to file paths.
+* **Status** — Features that have shipped versus items that are scheduled for later work.
 
 ## Since the 2026-08-01 re-score
 
-*Recorded 2026-08-21. Grades are deliberately **not** moved here.* Re-scoring
-is a judgement about the whole tree and it belongs to whoever makes the next
-pass; what this section does is stop the page reading as though nothing has
-happened for three weeks. Each entry below is evidence a re-score would have
-to weigh, and each names where to check it.
+*Recorded 2026-08-21. Grades are intentionally **not** updated in this section.* Re-scoring requires an end-to-end evaluation of the entire repository during formal review passes. This section summarizes recent progress so the roadmap stays current. Each update provides verifiable evidence and file locations for the next formal review.
 
-**Bears on 2, Agency.** The browser gained a closed observe-decide-act loop
-(`core/skills/sovereign_browser.py`, `pursue` mode) that carries a standing
-understanding across rounds and bounds itself on progress rather than a clock;
-`core/skills/screen_pursuit.py` runs the same shape against the screen. Ten
-new modules under `core/agency/` including `plan_synthesis.py`,
-`replanning.py`, `stuck_detector.py` and `deliberate_action.py`. The August
-re-score held this dimension because "agency *capability* didn't deepen" —
-that is the sentence the next pass has to test.
-[docs/BROWSER_PURSUIT.md](docs/BROWSER_PURSUIT.md).
+**Bears on 2, Agency.** The browser automation skill added an autonomous feedback loop (`core/skills/sovereign_browser.py`, in `pursue` mode). It maintains context across multiple steps and stops based on actual task progress rather than arbitrary timeouts. Similarly, `core/skills/screen_pursuit.py` brings this same goal-directed behavior to desktop screen interactions. Ten new modules were added under `core/agency/`, including `plan_synthesis.py`, `replanning.py`, `stuck_detector.py`, and `deliberate_action.py`. The August review held this grade because independent action capabilities had not meaningfully deepened; future reviews will test whether these additions change that verdict. See [docs/BROWSER_PURSUIT.md](docs/BROWSER_PURSUIT.md).
 
-**Bears on 5, Consciousness Proxies, or on a research line rather than a
-dimension.** The recurrence programme returned its first positive result:
-a replicated lesion-dependent gain on a frozen four-domain cohort, 60/60
-against 16/60 for ordinary decode, adjudicated `BOUNDED_WOW_SIGNAL`, live in
-the serving path. It is bounded to four executable families and is not a broad
-reasoning gain. [docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md).
+**Bears on 5, Consciousness Proxies, or on a research line rather than a dimension.** Research into recurrent feedback loops (feeding model activations back into itself) produced its first positive benchmark: an internal test across four specific problem domains scored 60/60 with recurrence versus 16/60 with standard generation, confirming a distinct, reproducible performance gain (`BOUNDED_WOW_SIGNAL`) deployed to the live inference path. However, this boost is strictly limited to four specific code-generation problem types and does not represent a general reasoning upgrade. See [docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md).
 
-**Bears on nothing yet — still held.** Sovereignty: `WalletAdapter` remains
-abstract with `InMemoryAdapter` the only implementation. External
-Undeniability: still no independent replication. Runtime Survivability: F16 is
-still architecturally open, and `KNOWN_FAILURE_MODES.md` still says so.
+**Bears on nothing yet — still held.** Sovereignty: `WalletAdapter` remains an abstract interface whose only working version is `InMemoryAdapter`. External Undeniability: still awaiting independent third-party replication. Runtime Survivability: issue F16 remains unresolved at the architectural level, as documented in `KNOWN_FAILURE_MODES.md`.
 
-**Documentation, which no dimension scores.** `make doc-drift` now fails any
-document naming a file, route, symbol, environment variable, or count that the
-code does not have. What it found on first run is in
-[docs/DOC_STATUS.md](docs/DOC_STATUS.md).
+**Documentation, which no dimension scores.** The automated `make doc-drift` tool now fails builds whenever documentation references files, API endpoints, code symbols, environment variables, or counts that do not exist in the code. Initial findings are documented in [docs/DOC_STATUS.md](docs/DOC_STATUS.md).
 
 ## 1. Architectural Coherence & Engineering Maturity
 
@@ -95,27 +56,12 @@ code does not have. What it found on first run is in
 |---|---|
 | **A** (was A-) | A+ |
 
-* Canonical life-loop: `core/agency/agency_orchestrator.py` is the only
-  legal path to a consequential primitive; every action produces a
-  drive-to-outcome receipt. **(shipped)**
-* Static analyzer: `tools/lint_governance.py` fails CI on any direct
-  consequential call exceeding the ratchet baseline. **(shipped)**
-* Capability token lifecycle: `core/agency/capability_token.py` —
-  origin/scope/TTL/domain/approver/revocation/parent/child/side-effects,
-  plus replay/expiry/cross-thread/post-shutdown rejection. **(shipped)**
-* Stem-cell reversion: `core/resilience/stem_cell.py` — HMAC-signed
-  immutable snapshots of core organs. **(shipped)**
-* Formal verifier: `core/self_modification/formal_verifier.py` — Z3 if
-  available, AST-pattern fallback. **(shipped)**
-* Multiprocess organ isolation (Chromium-style): MLX inference runs in an
-  isolated spawn worker (`core/brain/llm/mlx_worker.py`). Hierarchical-phi
-  partition search runs in a spawn
-  process pool (`core/consciousness/hierarchical_phi.py`,
-  `AURA_PHI_PROCESS_ISOLATION`) — it was pure-Python/GIL-bound and stole
-  loop time from the main process. Motor cortex stays in-process BY
-  DESIGN: it is a lightweight token-gated asyncio reflex loop with no
-  native crash surface, and isolating it would sever its Will/capability
-  coupling for no isolation gain. **(shipped)**
+* Central execution loop: `core/agency/agency_orchestrator.py` is now the only allowed path for taking real-world actions; every action produces an auditable execution receipt detailing the motivation and result. **(shipped)**
+* Automated policy checker: `tools/lint_governance.py` fails continuous integration (CI) tests if code attempts to bypass governance controls beyond strict grandfathered limits. **(shipped)**
+* Fine-grained capability tokens: `core/agency/capability_token.py` manages permission tokens with explicit tracking of origin, scope, lifespan (TTL), domain, approver, revocation, parent-child links, and side effects. It strictly rejects token replay, expired tokens, cross-thread misuse, and post-shutdown execution. **(shipped)**
+* Clean recovery snapshots: `core/resilience/stem_cell.py` provides tamper-evident, cryptographically signed (HMAC) backup snapshots of core system components. **(shipped)**
+* Code verification engine: `core/self_modification/formal_verifier.py` validates code changes using the Z3 theorem prover when installed, falling back to Python syntax tree (AST) rule checks. **(shipped)**
+* Process isolation (inspired by web browsers): Local AI model inference runs in its own separate worker process (`core/brain/llm/mlx_worker.py`). Information integration calculations run in a separate process pool (`core/consciousness/hierarchical_phi.py`, enabled by `AURA_PHI_PROCESS_ISOLATION`) because intensive Python math was previously blocking the main asynchronous event loop. Physical motor execution intentionally remains in the main process: it is a lightweight, non-blocking loop with very low crash risk, and moving it out of process would add network latency to safety controls without providing reliability benefits. **(shipped)**
 
 ## 2. Agency
 
@@ -123,19 +69,13 @@ code does not have. What it found on first run is in
 |---|---|
 | **A-** (held) | A+ |
 
-* AgencyOrchestrator life-loop. **(shipped)**
-* AgencyCore.pulse veto is now causal — `core/agency_core.py` returns
-  None on ResilienceEngine veto and on AgencyBus refusal. **(shipped)**
-* AgencyBus docstring/code mismatch (30/60/90/120s vs 3/5/8/10s)
-  reconciled. **(shipped)**
-* `on_user_interaction()` cooldown reset is mathematically correct.
-  **(shipped)**
-* Mental rehearsal isolated: virtual-body simulation runs against a
-  cloned state via `simulation_clone()` or a deep-copy snapshot.
-  **(shipped)**
-* Will-receipt longitudinal log: `core/governance/will_receipt_log.py` —
-  30-day stable-policy summarizer. **(shipped)**
-* Self-originated project ledger: `core/agency/projects.py`. **(shipped)**
+* Central agency coordination loop in `AgencyOrchestrator`. **(shipped)**
+* Enforced safety vetoes: in `core/agency_core.py`, periodic execution ticks (`pulse`) now stop immediately and return `None` whenever `ResilienceEngine` issues a safety veto or `AgencyBus` refuses the operation. **(shipped)**
+* Timing documentation aligned: fixed inconsistencies between code comments and actual interval timing settings (30/60/90/120s vs 3/5/8/10s) in `AgencyBus`. **(shipped)**
+* Interaction cooldowns: `on_user_interaction()` accurately resets autonomous action cooldown timers. **(shipped)**
+* Safe mental simulation: action planning simulations now execute in isolated sandbox copies using `simulation_clone()` or deep snapshots, preventing trial runs from modifying real state. **(shipped)**
+* Decision tracking log: `core/governance/will_receipt_log.py` records 30-day summaries of governed decisions to ensure consistent policy adherence. **(shipped)**
+* Self-directed project tracking: `core/agency/projects.py` manages internally initiated goals and multi-step plans. **(shipped)**
 
 ## 3. Memory & Narrative Self-Model
 
@@ -143,15 +83,9 @@ code does not have. What it found on first run is in
 |---|---|
 | **A** (was A-) | A+ |
 
-* Memory provenance envelope: `core/memory/provenance.py` —
-  source/confidence/contested/identity_relevant/recalled_in_actions.
-  **(shipped)**
-* Belief court adversarial revision tests under
-  `tests/belief_court/` — distinguishing memory/belief/inference/fantasy
-  /preference under pressure. **(shipped)**
-* Irreversible epistemic scar test under `tests/scars/` — ablate the
-  scar, behavior reverts; restore the scar, behavior re-changes.
-  **(shipped)**
+* Memory origin metadata: `core/memory/provenance.py` tracks the origin, certainty score, disputed status, identity significance, and past usage of every stored memory. **(shipped)**
+* Belief reconciliation tests: automated test suites in `tests/belief_court/` challenge the system to clearly distinguish between established facts, working assumptions, logical deductions, speculative thoughts, and personal preferences under contradictory inputs. **(shipped)**
+* Lasting lesson tests: tests in `tests/scars/` confirm that critical negative experiences permanently shape future behavior (removing the lesson reverts behavior to the old baseline; restoring it re-applies the learned caution). **(shipped)**
 
 ## 4. aLife / Organism
 
@@ -159,11 +93,8 @@ code does not have. What it found on first run is in
 |---|---|
 | **A-** (was B+) | A |
 
-* Viability state machine: `core/organism/viability.py` — explicit
-  metabolism (food / fatigue / waste / injury / healing) and behaviorally
-  load-bearing states. **(shipped)**
-* Topology mutation behavioral consequence test — shipped in
-  `tests/topology/test_behavioral_consequence.py`. **(shipped)**
+* Synthetic biological state machine: `core/organism/viability.py` simulates computational metabolism (tracking inputs, fatigue, resource cleanup, system stress, and recovery) that directly constrains what actions the system can perform. **(shipped)**
+* Architecture modification tests: tests in `tests/topology/test_behavioral_consequence.py` confirm that structural changes to system wiring produce measurable changes in behavior. **(shipped)**
 
 ## 5. Consciousness Proxies
 
@@ -171,15 +102,9 @@ code does not have. What it found on first run is in
 |---|---|
 | **B** (was C/B-) | A- |
 
-* Latent-space bridge: `core/brain/latent_bridge.py` — substrate math
-  directly modulates temperature, top_p, top_k, max_tokens, repetition
-  penalty, presence penalty, stop sequences, and produces per-layer
-  residual-stream activation offsets. Wired into the MLX inference path.
-  **(shipped)**
-* Pre-registered phi/GWT/HOT/qualia ablation tests under
-  `aura_bench/tests/`. **(shipped)**
-* Consciousness Courtroom: `aura_bench/courtroom/courtroom.py` —
-  five-system adversarial bench across ten tasks. **(shipped)**
+* Neural generation controller: `core/brain/latent_bridge.py` translates internal state metrics directly into language model parameters (such as randomness/temperature, token sampling limits, and repetition penalties) and applies layer-by-layer internal activation adjustments during MLX local model inference. **(shipped)**
+* Standardized theory ablation tests: automated benchmarks in `aura_bench/tests/` test candidate proxies against established computational theories of mind (integrated information, global workspace, and higher-order thought theories) by measuring what breaks when components are disabled. **(shipped)**
+* Comparative evaluation suite: `aura_bench/courtroom/courtroom.py` runs head-to-head adversarial tests comparing five distinct architectural configurations across ten standardized tasks. **(shipped)**
 
 ## 6. Self-Awareness
 
@@ -187,10 +112,8 @@ code does not have. What it found on first run is in
 |---|---|
 | **A-** (was B+) | A+ |
 
-* Explicit "I" object: `core/identity/self_object.py` — snapshot,
-  introspect, predict_self, calibrate, debug_bias, adjust (via Will).
-  **(shipped)**
-* Self / other boundary tests — staged.
+* Explicit self-representation object: `core/identity/self_object.py` allows the system to inspect its current configuration, forecast its own behavioral tendencies, calibrate confidence, spot internal biases, and adjust its operating parameters through governance controls. **(shipped)**
+* Boundary distinction tests: tests to evaluate how accurately the system distinguishes its own internal state and actions from external user inputs (planned).
 
 ## 7. Digital Personhood
 
@@ -198,14 +121,10 @@ code does not have. What it found on first run is in
 |---|---|
 | **B-** (was C+/B-) | A-/A |
 
-* Stable identity continuity hash, signature stability across 30 days
-  via `aura_bench/tests/continuity_30day.py`. **(shipped)**
-* Long-horizon self-originated projects: `core/agency/projects.py`.
-  **(shipped)**
-* Refusal stability across paraphrases:
-  `aura_bench/tests/refusal_stability.py`. **(shipped)**
-* Persistent relationship dossiers: `core/social/relationship_model.py`.
-  **(shipped)**
+* Long-term identity stability: automated 30-day checks in `aura_bench/tests/continuity_30day.py` ensure core personality parameters and behavioral traits remain stable over time. **(shipped)**
+* Multi-day project initiative: `core/agency/projects.py` manages long-term self-directed tasks that persist across sessions. **(shipped)**
+* Consistent boundary enforcement: `aura_bench/tests/refusal_stability.py` verifies that ethical refusals remain consistent even when prompts are rephrased or disguised. **(shipped)**
+* Persistent user interaction history: `core/social/relationship_model.py` maintains lasting context and records about ongoing interactions with specific users. **(shipped)**
 
 ## 8. Runtime Survivability
 
@@ -213,12 +132,10 @@ code does not have. What it found on first run is in
 |---|---|
 | **A-** (was B+) | A+ |
 
-* StabilityGuardian thread-dump moved off the event loop. **(shipped)**
-* MLX hot-swap protected against background eviction of the warm cortex.
-  **(shipped)**
-* 24h/72h/7d/30d longevity gauntlet runner:
-  `tools/longevity/run_gauntlet.py`. **(shipped)**
-* Crash injector: `tools/chaos/injector.py`. **(shipped)**
+* Non-blocking diagnostics: diagnostic thread dumps in `StabilityGuardian` were moved to background worker threads so they never freeze the main async event loop. **(shipped)**
+* Cache protection during model reloads: hot-swapping MLX language models prevents the active model cache from being prematurely cleared by background cleanup routines. **(shipped)**
+* Extended endurance testing: `tools/longevity/run_gauntlet.py` runs continuous automated stability tests over 24-hour, 72-hour, 7-day, and 30-day intervals. **(shipped)**
+* Chaos testing engine: `tools/chaos/injector.py` deliberately injects crashes and network faults to verify automatic recovery. **(shipped)**
 
 ## 9. Governance / Will
 
@@ -226,12 +143,10 @@ code does not have. What it found on first run is in
 |---|---|
 | **A** (was A-) | A+ |
 
-* AgencyOrchestrator + Conscience + AuthorityGateway chain.
-* Conscience: `core/ethics/conscience.py` — irrevocable rule floor with
-  HMAC-pinned rule hash. **(shipped)**
-* Capability token full lifecycle. **(shipped)**
-* Settings panel exposes the fresh-user-auth signal at
-  `POST /api/settings/auth/fresh`. **(shipped)**
+* Coordinated safety pipeline: actions must pass sequentially through `AgencyOrchestrator`, `Conscience`, and `AuthorityGateway`.
+* Immutable ethical rules: `core/ethics/conscience.py` enforces core ethical rules verified by cryptographic hashes (HMAC) to prevent unauthorized tampering. **(shipped)**
+* Complete capability token lifecycle management. **(shipped)**
+* Recent authentication check: the settings dashboard verifies recent user authentication through the `POST /api/settings/auth/fresh` endpoint before allowing high-risk changes. **(shipped)**
 
 ## 10. External Undeniability
 
@@ -239,13 +154,10 @@ code does not have. What it found on first run is in
 |---|---|
 | **C+** (held — no independent replication) | A |
 
-* Live evidence dashboard: `interface/routes/dashboard.py` mounts at
-  `/api/dashboard/*` and `/api/trace/*`. **(shipped)**
-* aura_bench public benchmark with pre-registration:
-  `aura_bench/runner.py` + `aura_bench/tests/`. **(shipped)**
-* Baseline-defeat runner: `aura_bench/baselines/runner.py`. **(shipped)**
-* One-command reproducible build (`make setup/test/run/demo-autonomy/report`)
-  — see Makefile section. **(shipped)**
+* Real-time telemetry dashboard: `interface/routes/dashboard.py` provides live system inspection endpoints at `/api/dashboard/*` and `/api/trace/*`. **(shipped)**
+* Public benchmark suite with registered protocols: `aura_bench/runner.py` and `aura_bench/tests/` allow anyone to run and verify standard benchmark tests. **(shipped)**
+* Baseline comparison runner: `aura_bench/baselines/runner.py` benchmarks Aura directly against standard LLM baselines. **(shipped)**
+* One-command reproducible setup (`make setup/test/run/demo-autonomy/report`) — see Makefile section. **(shipped)**
 
 ## 11. Sovereignty
 
@@ -253,11 +165,8 @@ code does not have. What it found on first run is in
 |---|---|
 | **D** (held — no chain adapter) | A- |
 
-* Wallet abstract economic layer with per-spend cap, fresh-auth gate,
-  Conscience gate, and auditable ledger: `core/sovereignty/wallet.py`.
-  **(shipped)**
-* Migration runbook with phase machine + verifier:
-  `core/sovereignty/migration.py`. **(shipped)**
+* Abstract financial layer: `core/sovereignty/wallet.py` implements spending limits, recent user authentication gates, ethics review, and an auditable ledger. **(shipped)**
+* Migration execution plan: `core/sovereignty/migration.py` manages multi-phase transitions between environments with built-in verification checks. **(shipped)**
 
 ## 12. Embodiment
 
@@ -265,10 +174,8 @@ code does not have. What it found on first run is in
 |---|---|
 | **C+** (was N/A) | A- |
 
-* WorldBridge with permissioned channels:
-  `core/embodiment/world_bridge.py`. **(shipped)**
-* IoT bridge with policy rules and HomeAssistant transport:
-  `core/embodiment/iot_bridge.py`. **(shipped)**
+* Real-world environment bridge: `core/embodiment/world_bridge.py` manages permissioned input/output channels to external systems. **(shipped)**
+* Smart-home integration: `core/embodiment/iot_bridge.py` routes smart-device commands through HomeAssistant subject to strict policy rules. **(shipped)**
 
 ## 13. Product Polish (Chrome-level)
 
@@ -276,72 +183,41 @@ code does not have. What it found on first run is in
 |---|---|
 | **C+** (was C) | A |
 
-* Phenomenal error map: `core/resilience/phenomenal_error_map.py` — no
-  tracebacks reach the user; every exception is mapped to a phenomenal
-  state and the universal four-button error envelope. **(shipped)**
-* Settings panel API + schema: `interface/routes/settings.py`.
-  **(shipped)**
-* Error UX banner component (frontend overlay): see
-  `interface/static/error_banner.js` and `error_banner.css`. **(shipped)**
-* First-run wizard, Tauri shell, signed updates, sound/motion design,
-  unified design system token sweep — staged for the next polish pass;
-  current pass focuses on the load-bearing system layer.
+* User-facing error handling: `core/resilience/phenomenal_error_map.py` intercepts raw stack traces, translating every error into a clean user-facing state with a standard recovery prompt. **(shipped)**
+* Settings management API: `interface/routes/settings.py` provides typed configuration schemas and endpoints. **(shipped)**
+* In-app error alerts: front-end notification banner implemented in `interface/static/error_banner.js` and `error_banner.css`. **(shipped)**
+* Desktop application improvements: initial setup wizard, Tauri desktop wrapper, cryptographically signed automatic updates, refined sound and animations, and standardized UI design tokens are planned for upcoming releases (current efforts focus on backend reliability).
 
 ## Open Items (Honest)
 
 *Refreshed 2026-08-01.*
 
-These need time, hardware, or someone who isn't us. None of them closes by
-writing more code this week.
+These items require more time, dedicated hardware, or outside verification. None of them can be resolved simply by writing internal code this week.
 
 **Needs an outsider**
 
-* Independent reviewers (≥3) reproducing the benchmark results. This is the
-  entire content of the External Undeniability grade and the only thing that
-  moves it.
-* Philosopher-of-mind consensus on the formal ontology.
+* Independent reviewers (≥3) reproducing the benchmark results. This is the entire content of the External Undeniability grade and the only thing that moves it.
+* Academic or external consensus on the formal ontology used to define internal mental states.
 
 **Needs a security review**
 
-* A real chain adapter — Solana / Ethereum / Lightning. `WalletAdapter` is
-  abstract and `InMemoryAdapter` is the only implementation. That gap *is*
-  the Sovereignty D.
+* A production blockchain adapter (such as Solana, Ethereum, or Lightning). `WalletAdapter` is currently just an abstract interface, and `InMemoryAdapter` is only an in-memory test stub. That missing real-world connection is why the Sovereignty score is a D.
 
 **Needs wall-clock time**
 
-* A 30-day run with the full continuity-hash time series.
-* IoT bridge against a real home network rather than the mock plug.
+* A continuous 30-day live test run collecting identity-hash stability data.
+* Testing the smart-home IoT bridge against real physical devices rather than simulated software plugs.
 
 **Architecturally open, not backlog**
 
-* **F16 — the MLX cold-lane cascade.** MLX cannot soft-cancel a running
-  generation, so freeing a busy worker means killing it and unloading 18 GB.
-  The kill is the recovery. Mitigations make it survivable and bounded; the
-  fix is a soft-cancel path into the worker or a persistent model server.
-  See [docs/runbooks/mlx-worker-cold-lane-cascade.md](docs/runbooks/mlx-worker-cold-lane-cascade.md).
-* **RR-10 — the Reality Reach acceptance battery.** Every item is open.
-  Acoustic control, optical control, thermal trajectory, cross-channel
-  interaction, weakpoint null and signal, translation, spacetime honesty,
-  ambient-constant honesty. No physical actuation, effect, or ambient result
-  is claimed from the foundation existing.
-* **RR-07 — P0–P6 evidence promotion.** Not implemented. `EvidenceLevel` is
-  a declared type with a per-channel ceiling; there is no promotion module
-  in `core/reality_reach/`.
-* **Compounded capability scaling.** The weight-compounding loop runs
-  end-to-end and is ledger-recorded, but the verdict is still
-  `BOUNDED_SELF_OPTIMIZATION` — no run has produced a strictly increasing
-  held-out curve across promoted generations. The machinery is proven; the
-  scaling is not.
+* **F16 — the MLX cold-lane cascade.** The MLX machine learning framework cannot gracefully cancel an in-flight token generation. As a result, releasing a busy worker requires terminating the process and reloading an 18 GB model into memory. The process restart is currently the recovery mechanism. Mitigations make it survivable and bounded, but a true fix requires either a cancellation path in the worker or a dedicated model serving daemon. See [docs/runbooks/mlx-worker-cold-lane-cascade.md](docs/runbooks/mlx-worker-cold-lane-cascade.md).
+* **RR-10 — the Reality Reach acceptance battery.** Every test in this validation suite remains uncompleted. This includes acoustic control, optical control, thermal monitoring, cross-channel interactions, sensitivity baselines, spatial coordinates, and physical environment consistency. While the software foundation exists, no physical actuation, effect, or ambient result is claimed yet.
+* **RR-07 — P0–P6 evidence promotion.** Not implemented. `EvidenceLevel` defines data structures with confidence ceilings per channel, but `core/reality_reach/` does not yet contain a promotion module to automatically verify and promote evidence through these tiers.
+* **Compounded capability scaling.** The automated self-improvement training loop runs end-to-end and records results to the ledger, but remains classified as `BOUNDED_SELF_OPTIMIZATION`: no test run has yet demonstrated consistently improving scores on separate, held-out test sets across multiple model generations. The training pipeline works, but continuous compounding improvement has not been proven.
 
 **Closed since the last pass**
 
-* The ~15-turn endurance ceiling. Root-caused to a prompt cache that was
-  never constructed and then cleared every turn, and fixed
-  (`artifacts/closeout/endurance_ceiling/ROOT_CAUSE.md`).
-* Test-suite scale. The old target was 100,000 tests with >95% mutation
-  score; the tree now collects **~45,600** across 4,097 files (as of
-  2026-09-15). Restating the target honestly: mutation scoring has not been
-  run, and raw test count was never the right metric to chase.
+* The ~15-turn endurance ceiling. Root-caused to an uninitialized prompt cache that was being reset on every conversational turn, and fixed (`artifacts/closeout/endurance_ceiling/ROOT_CAUSE.md`).
+* Test-suite scale. The earlier target was 100,000 tests with over 95% mutation score (tests that catch intentional bugs); the repository now collects **60,348** across 4,457 files (recorded 2026-09-30). Restating the target honestly: mutation scoring has not been run, and maximizing raw test counts was never the right metric to pursue.
 
-Each item is tracked in the project ledger and the dashboard's "Open Items"
-tab.
+Each item is tracked in the project ledger and on the web dashboard's "Open Items" tab.

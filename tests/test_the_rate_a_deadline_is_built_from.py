@@ -135,7 +135,10 @@ def test_a_probe_sized_prompt_teaches_the_clock_nothing() -> None:
     """
     import inspect
 
-    source = inspect.getsource(mc)
+    from core.brain.llm import mlx_client_recording
+
+    # Recording a generation's throughput was lifted out of mlx_client.
+    source = inspect.getsource(mlx_client_recording)
     at = source.index('reported_tps = float(performance.get("prompt_tps") or 0.0)')
     nearby = source[at : at + 1800]
     assert "_BIG_ENOUGH_TO_TIME_TOKENS" in nearby

@@ -51,6 +51,9 @@ class _Sampler:
     last_run: float = 0.0
     last_error: str = ""
     last_wrote: int | None = None
+    #: The telemetry dictionary's generation when this last ran. A dictionary
+    #: emptied since holds nothing this run wrote.
+    generation: int = -1
 
 
 @dataclass
@@ -112,6 +115,7 @@ class SamplerRegister:
                 outcomes[sampler.name] = {"ok": False, "error": sampler.last_error}
                 continue
             sampler.runs += 1
+            sampler.generation = _dictionary_generation()
             sampler.last_error = ""
             sampler.last_run = started
             sampler.last_wrote = _how_many_it_wrote(result)
@@ -139,6 +143,7 @@ class SamplerRegister:
                     "failures": s.failures,
                     "last_run": s.last_run,
                     "wrote": s.last_wrote,
+                    "generation": s.generation,
                 }
                 for s in sorted(samplers, key=lambda s: s.name)
             ],
@@ -147,6 +152,12 @@ class SamplerRegister:
     def reset_for_test(self) -> None:
         with self._lock:
             self._samplers.clear()
+
+
+def _dictionary_generation() -> int:
+    from core.fsw.telemetry_dictionary import get_telemetry
+
+    return int(getattr(get_telemetry(), "generation", 0))
 
 
 def _how_many_it_wrote(result: Any) -> int | None:

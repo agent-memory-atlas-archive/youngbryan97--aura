@@ -394,6 +394,9 @@ _EXPERIMENTS_WITH_THEIR_OWN_TEST = {
     "frozen_semantic_programs_transfer_to_fresh_cohort",
     # Owned by tests/test_no_authored_ceiling_at_any_level.py.
     "test_branching_is_not_something_those_three_could_have_produced",
+    # Owned by tests/test_untrusted_python_sandbox.py, which runs it under the
+    # kernel boundary off the boot path.
+    "sandbox_awaitables_are_completed",
 }
 
 

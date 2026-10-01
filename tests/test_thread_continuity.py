@@ -206,7 +206,6 @@ def test_advisory_membership_stays_narrow():
     from core.conversation.response_reliability import ADVISORY_REASONS
     from core.conversation.surface_disposition import (
         ADVISORY_ONLY_REASONS,
-        SHORTFALL_REASONS,
         UNSPEAKABLE_REASONS,
     )
 
@@ -215,7 +214,11 @@ def test_advisory_membership_stays_narrow():
     )
     assert "reply_abandons_thread" in ADVISORY_REASONS
     assert not ADVISORY_REASONS & UNSPEAKABLE_REASONS
-    assert not ADVISORY_REASONS & SHORTFALL_REASONS
+    # SHORTFALL_REASONS is a record of what the turn wanted more of, and no
+    # disposition reads it, so a reason may be in it and still be advisory:
+    # an answer about herself given without the number she was asked for is
+    # both (test_a_scale_she_was_asked_for_is_a_shortfall). What an advisory
+    # reason must never do is condemn the reply, which is the line above.
 
 
 def test_an_advisory_reason_never_condemns_the_reply():

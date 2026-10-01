@@ -750,6 +750,13 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   wait budget" recurs.
 - [ ] R08 Resolve neural-feed warnings individually by cause; distinguish
   unrun evidence, missing telemetry, real failure, and historical observations.
+  2026-09-30, evening. The next by count of the same class: StabilityGuardian
+  warned "DEGRADED" and recorded a degraded event on every check interval for
+  as long as one check stayed unhealthy, 249 times for a slow tick rate and
+  29 in one hour of 29 September. It now warns when a check starts failing,
+  says at info when one recovers, and keeps the passes in between at debug.
+  The homeostasis line above it in the count (947) predates its own fix of
+  26 September.
   2026-09-30, the next three by count in the live log of 24-29 September, one
   cause: a standing condition warned again on every pass of its loop. "HIGH
   MEMORY PRESSURE" 574 times on 26 September, 471 and 259 the days after;
@@ -2678,6 +2685,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 ## 3. Unified learning, knowledge, and agency
 
 - [ ] L01 Verify persona fusion/continuity and regenerate incompatible steering.
+  2026-09-30. The integrity audit reported "CAA steering at 30.0%
+  (bootstrap)" for the resident cortex, Aura-Qwen3.8-27B-persona-crsm. Its
+  migration contract qualifies a signed steering generation of 80 vectors,
+  five dimensions at sixteen layers, which the steering engine materializes
+  from custody and hooks at the layers it carries. The report read only
+  training/vectors, where all fifteen vectors it expected are bound to an
+  earlier model, and expected layers from a depth band the engine uses only
+  when nothing has been measured. It now verifies the signed generation
+  (authority, metadata, generation claim, each vector's bytes) and counts
+  it: 80 of 80 bound, production (4e39be6da). The vectors in training/vectors
+  are the incompatible set this item names; nothing loads them for this
+  cortex. Whether the attached tissue helps is G10's question, and G10's
+  public comparison is still negative.
 - [ ] L02 Close experience-to-dataset-to-training-to-evaluation-to-publication
   loops; reconcile marker formats, quality metadata, and active model identity.
 - [ ] L03 Use independent correctness/preference evidence, not fluency proxies,
@@ -2701,6 +2721,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   recovery, and rollback on unseen tasks rather than installation counts.
 - [ ] L08 Audit affect, self-state, phi, and consciousness-related claims with
   causal controls; configured priors are not measured subjective experience.
+  2026-09-30, the closed loop. 0.85 of her free energy was "physical"
+  prediction error over a sensor dictionary in which the only readings that
+  moved came from the simulated shipping network, normalized by port
+  capacities, while fourteen declared runtime sensors were never written.
+  Every sensor now names its plant and an unread one is not a zero; the host
+  is read each sync, and physical free energy is computed over observed
+  readings only, each surprise in that sensor's own spread. An immune rule
+  may only act on the plant it measures, and the feed tells a move on the
+  simulation as practice (db975628f).
   2026-09-29, night: the second surface. The phenomenal-now engine writes a
   first-person claim and an interior narrative into
   `cognition.phenomenal_state` every tick, and with nothing read they were
@@ -2732,6 +2761,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 
 - [ ] U01 Natural conversation: direct answers, conversational repair, memory,
   preferences, evidence-grounded self-description, and no canned dead ends.
+  2026-09-30, memory. A question about what was said was answered without
+  her cortex by a word scorer whose length bonus let almost any sentence
+  clear its bar, so it quoted whichever memory scored top: on twelve
+  question-and-memory pairs among each other's memories, the right one once.
+  Ranked by meaning through the runtime's sentence encoder it is the right
+  one eleven times; a memory is quoted directly only when it is also the
+  closest in meaning and shares a distinctive word with the question, and
+  otherwise her cortex answers from the same memories ordered by meaning.
+  Two paragraphs written in advance for one question are gone (2684235a5).
   PARTIAL 2026-09-07. Twenty probes run live across conversation, tools,
   reasoning, self-knowledge and three skeptic angles. Quality is good and the
   voice is consistent: she is honest that "Aura" was assigned rather than
@@ -3359,6 +3397,40 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  2026-10-01. Main at 8ac994342: module size, lint, the strict lint
+  surface, markers and the claim discipline test are green again, each red
+  on main from work that landed after 30 September. The async sandbox claim
+  added 55 lines to `model_validation` (4,333 lines), so its six tool and
+  sandbox predicates moved to `model_validation_contracts`: 125,041 of
+  125,120. The week's docs added words that old substring markers sit inside
+  ("factually", "backdoor", "reprocessing"); seven sites match by word now,
+  346 findings to 328. The two decode canaries were re-sealed in 2bf356926.
+  Still red: the convergence-surface ratchet, 776.25 against the 720.88
+  recorded on 5 September, with most of the growth in
+  `response_reliability` (+8.3), `llm_health_router` (+7.8),
+  `global_workspace` (+4.4) and `runtime.errors` (+3.9); and the reqproof
+  receipts, which wait for the code to stop moving.
+  2026-09-30, afternoon. The other session's full run at 308d623df failed
+  files that, rerun alone on main, failed the same way: none was an order
+  effect, so they belong here. Seventeen are fixed in one commit, each at its
+  cause: nine campaign switches and five somatic-noise knobs read raw (flag
+  ratchet, now 567); four locks built only to name their class (lock
+  coverage, lockdep); class names in the plain-English prose read as words
+  by the marker vocabulary (414 findings to 346), and five matchers that met
+  real words ("cytochrome" for chrome) now match words; a scale placement
+  made advisory but not continuity-safe; three model loads outside the
+  ownership inventory, the Whisper transcriber outside any lane; five tests
+  behind code that moved on purpose, one of them the size batch's own
+  dropped re-export; 20 audit labels a reopened gap-atlas section shifted by
+  a line, and its five reopened cards now carry open review decisions under
+  authority and security; and two teardown errors. Later chunks of that run
+  found 29 more, fixed in 7c83db971 and 63176c28c: two learning modules
+  rendering their own transcripts, a fabricated-conclusion contract reading
+  a file the code had left, 16 tests whose faked pid outlived them into
+  teardown, and 11 tests whose git fakes predated the fsmonitor flag (that
+  commit's message miscounts them). Still red: reachability (Codex's three
+  modules), the two decode canaries that need her cortex, and the reqproof
+  receipts, recaptured next.
   2026-09-30. On this commit, run on it: compile, lint, smoke, layering,
   deps-check, governance-lint, security, enterprise-gate, production-gate,
   doc-drift, writing, typed-surface, swallowed, epistemic-independence,
@@ -3580,6 +3652,37 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     refuses before writing.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-10-01: the late chunks of the run at 308d623df, sixteen failures and
+  two teardown errors, and the arm-order test, which failed on main at
+  0.0952 with the machine to itself. That test was three leaks, each found by
+  naming the first column and frame that moved. The memory gateway's record
+  index is a copy of the disk refreshed on a 15-second timer, so an arm
+  recalled records the restore had deleted and missed one written before the
+  snapshot; the gateway now tells the index what it wrote, the fork re-reads
+  it after a restore, and quarantined records leave it. The binding stamped
+  phase reports on the monotonic clock, so a restored report aged by the real
+  time since the snapshot and synchrony fell to 0.5 in later arms; five
+  seconds of waiting between restore and arm reproduced it in all eight
+  conditions and now moves nothing. And the host a run declares to the chaos
+  engine went in as raw percents, degrees and running counts, so the somatic
+  noise on C had a norm of 762 where the machine gives 0.53. That one is in
+  the instrument: it landed on 29 September in 26bfee6e0, and the seed 23
+  campaign, the only one started since, died in the reboot before it
+  finished. It also made a frozen substrate move after any harness test,
+  which was the tier4 lesion failure.
+  The orchestrator factory booted a whole orchestrator on any lookup, so a
+  harness turn built one and its state repository replaced the run's (the
+  self-model failure); it returns the booted one or None now, and the Soul
+  and personality accept a process with none. The world model's trainer,
+  started in one test, trained and noted effort through every test after it,
+  which tipped an action choice in company; the conftest stops a trainer a
+  test started. Nine test files were behind code that moved on purpose and
+  held the other sixteen. The convergence-surface failure is Q08's. Across
+  the 74 files that import or read a changed module, 1,753 of 1,755 passed,
+  and both of the two are fixed above. Open: beside a second pytest process,
+  `test_no_module_global_grows_from_one_arm_to_the_next` saw
+  `asking_clauses` change in an arm because that module was first imported
+  after the snapshot. It passes without the second process.
   2026-09-30, morning: the `autonomous_rsi` sandbox test that failed in
   loaded chunks and passed alone. Both work-bound runners in the subprocess
   gateway treated a child that had exited as stranded if its exit landed

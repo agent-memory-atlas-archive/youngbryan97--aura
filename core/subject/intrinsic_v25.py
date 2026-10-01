@@ -192,9 +192,14 @@ def _one_signal_once(asked: bool | None) -> bool:
     """Whether to count each signal once: as asked, or as the run's design set it."""
     if asked is not None:
         return bool(asked)
-    import os
+    from core.runtime.flags import env_str
 
-    return os.environ.get("AURA_ESTIMATOR_ONE_SIGNAL", "").strip() == "1"
+    design = env_str(
+        "AURA_ESTIMATOR_ONE_SIGNAL",
+        description="1 keeps one column per signal in the estimator's neighbour distance.",
+        owner="core.subject.intrinsic_v25",
+    )
+    return design.strip() == "1"
 
 
 def one_column_per_signal(x: np.ndarray) -> np.ndarray:

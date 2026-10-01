@@ -38,10 +38,10 @@ now, which is the control arm of the campaign that reads this.
 from __future__ import annotations
 
 import logging
-import os
 from collections.abc import Iterable, Mapping
 from typing import Any
 
+from core.runtime.flags import env_str
 from core.runtime.temporal_depth import Membrane
 
 logger = logging.getLogger("Aura.StateMembrane")
@@ -63,7 +63,11 @@ FRAMES_PER_TURN_DEFAULT: float = 33.0
 
 def membrane_turns() -> float:
     """How many turns a fast channel holds, from the environment. Zero is off."""
-    raw = os.environ.get("AURA_MEMBRANE_TURNS", "")
+    raw = env_str(
+        "AURA_MEMBRANE_TURNS",
+        description="Turns a fast channel holds in the state membrane; unset is off.",
+        owner="core.runtime.state_membrane",
+    )
     if not raw.strip():
         return 0.0
     try:

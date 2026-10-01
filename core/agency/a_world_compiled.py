@@ -167,12 +167,15 @@ class CompiledWorld:
 
     # ── judging ──────────────────────────────────────────────────────────
 
-    def _line_terms(self, line: tuple[int, ...]) -> tuple[float, int, float, int]:
+    def _line_terms(self, line: tuple[int, ...]) -> tuple[float, int, float, float, int]:
         """What one line contributes to order and to smoothness.
 
         The same arithmetic as the authored terms, done once per line: the
         share of its steps that run one way, whether it has steps at all, and
-        how far apart its neighbours are in doublings, with how many pairs.
+        how far apart its neighbours are, with how many pairs. The gaps are
+        kept twice, as logarithms and as differences, each counted from the
+        world's identity the way a ladder counts (core/agency/the_steps_between.py),
+        so the board can divide by whichever step its ladder reads.
         """
         known = self.per_line.get(line)
         if known is not None:
@@ -185,13 +188,14 @@ class CompiledWorld:
             ordered = 1
         else:
             order, ordered = 0.0, 0
+        log_apart = 0.0
         apart = 0.0
         pairs = 0
         for one, other in zip(numbers, numbers[1:], strict=False):
-            if one and other and one > 0 and other > 0:
-                apart += abs(math.log2(one) - math.log2(other))
-                pairs += 1
-        made = (order, ordered, apart, pairs)
+            log_apart += abs(_log_place(one) - _log_place(other))
+            apart += abs(max(0.0, one) - max(0.0, other))
+            pairs += 1
+        made = (order, ordered, log_apart, apart, pairs)
         self.per_line[line] = made
         return made
 
@@ -208,26 +212,34 @@ class CompiledWorld:
         ``freedom`` is left out when the caller is a search that works out
         where every act leads for itself.
         """
-        from core.agency.what_she_is_after import goal_in  # noqa: PLC0415
+        from core.agency.the_steps_between import ladder_here  # noqa: PLC0415
+        from core.agency.what_she_is_after import goal_in, numeric_nearness  # noqa: PLC0415
 
         goal = goal_in(toward)
         target = goal.number
         order_sum = 0.0
         ordered = 0
-        apart = 0.0
+        log_apart = 0.0
+        lin_apart = 0.0
         pairs = 0
         for places in self._lines("left") + self._lines("up"):
-            o, has, a, n = self._line_terms(tuple(board[i] for i in places))
+            o, has, la, a, n = self._line_terms(tuple(board[i] for i in places))
             order_sum += o * has
             ordered += has
-            apart += a
+            log_apart += la
+            lin_apart += a
             pairs += n
         places = len(board)
         free = sum(1 for symbol in board if not symbol)
         numbers = [self.values[s] for s in board if s and self.values[s] is not None]
         biggest = max(numbers) if numbers else 0.0
+        ladder = ladder_here(numbers)
+        if ladder is None:
+            apart = 0.0
+        else:
+            apart = (log_apart if ladder.multiplies else lin_apart) / ladder.step
         if target and biggest > 0:
-            nearness = 1.0 if biggest >= target else max(0.0, min(1.0, math.log2(biggest) / math.log2(target)))
+            nearness = numeric_nearness(biggest, target, numbers)
         elif goal.layout:
             nearness = goal.nearness(self.arrangement(board))
         else:
@@ -272,6 +284,11 @@ class CompiledWorld:
         if self.how_often < 1.0:
             ways.append((board, 1.0 - self.how_often))
         return ways
+
+
+def _log_place(value: float) -> float:
+    """A value's logarithm counted from one, as a multiplying ladder counts it."""
+    return math.log(value) if value > 1.0 else 0.0
 
 
 def compiled(knows: Any, world: Any, state: Any, actions: Sequence[str]) -> CompiledWorld | None:

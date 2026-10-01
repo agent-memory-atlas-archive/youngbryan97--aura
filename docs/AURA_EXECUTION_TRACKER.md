@@ -53090,3 +53090,31 @@ that another owner's identity, events, and callback remain intact.
 Focused and existing connectome tests: 50 passed. These repairs make the
 diagnostic tools coexist; they do not close native reasoning completion,
 executable-answer correctness, live launch attribution, or general RLC transfer.
+
+### 2026-09-28: Resume and Async Execution Repair
+
+- [x] Reconcile the historical private-channel sentence-grace defect with current
+  source. Commits f2ae93de1b and d472d22686 already contain the public-boundary
+  repair. Both focused native-thinking/sentence-grace cases pass at c4be22a1a7.
+  This closes the duplicate code investigation, not the pending live replay.
+- [x] Repair the shared Python runner's false success on unawaited work. Eight
+  real Seatbelt regression cases failed before the repair. Function calls now
+  await their results on a child-owned loop, retaining call order. Coroutine
+  warnings and unraisable exceptions are collected before the verdict, including
+  candidate-global cycles. Ordinary warnings do not make a run fail. No prompt
+  or model budget changed.
+- [x] Exercise repair through SymbolicSandbox and ReasoningAmplifierV2. The
+  broken example creates work without running it; the existing repair callback
+  receives the execution diagnostic, and corrected code runs and prints 45.
+  The code verifier fails the broken candidate and passes the repaired one.
+  The callback in these tests is controlled, not a live model generation.
+- [ ] Repeat the source-matched desktop turn and correlate the neural stream,
+  RLC termination, delivered answer, and executable effects. No desktop runtime
+  or port-8000 listener was present during this repair. Two separate subject-core
+  experiments were running and were left undisturbed.
+
+Focused execution/amplifier suites: 94 passed. Smoke: 164 passed, one skipped.
+The registered async probe runs as an explicit experiment, not during boot.
+This repair covers observed coroutine/finalizer failures; it does not establish
+correctness of arbitrary code, completion of all background tasks, or a reasoning
+gain. The original queue answer's lock/protocol errors still require live replay.

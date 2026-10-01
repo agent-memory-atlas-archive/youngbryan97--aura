@@ -67,6 +67,10 @@ THE_CONSEQUENCES: dict[str, str] = {
     "core/runtime/pressure_stall.py": "what the write cost",
     "core/runtime/service_registry.py": "resolving the gateway",
     "core/observability/histograms.py": "recording how long it took",
+    # A family that widened her language announces it, and the first
+    # announcement declares the channels; seen on 30 September in whichever
+    # family's measured run the growth landed, and not in the other.
+    "core/fsw/telemetry_dictionary.py": "announcing that the language grew",
 }
 
 

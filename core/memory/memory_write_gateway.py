@@ -15,16 +15,18 @@ instead of writing JSON to disk directly.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import hashlib
 import logging
 import os
 import re
 import time
 import uuid
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Any
 
+from core.memory.gateway_record_index import note_gateway_change
 from core.runtime.atomic_writer import (
     async_durable_replace,
     async_durable_unlink,
@@ -128,7 +130,7 @@ class ConcreteMemoryWriteGateway(MemoryWriteGatewayBase):
         schema_version = SCHEMA_VERSIONS.get(family, SCHEMA_VERSIONS["default"])
         from core.runtime.atomic_writer import async_atomic_write_json
 
-        async with self._mutation_lock:
+        async with self._mutation_lock, _recall_follows(self.root, target):
             existed, old_payload = await asyncio.to_thread(_read_memory_payload, target)
             await async_atomic_write_json(
                 target,
@@ -205,7 +207,7 @@ class ConcreteMemoryWriteGateway(MemoryWriteGatewayBase):
                 f"MemoryWriteGateway: governance denied quarantine of '{family}/{record_id}'"
             )
         target = self._quarantine_dir / f"{family}_{record_id}.json"
-        async with self._mutation_lock:
+        async with self._mutation_lock, _recall_follows(self.root, candidate):
             if not candidate.exists():
                 return
             if target.exists():
@@ -360,6 +362,20 @@ def _safe_memory_metadata(metadata: dict[str, Any]) -> dict[str, Any]:
         else:
             safe[label] = f"<{type(value).__qualname__}>"
     return safe
+
+
+@contextlib.asynccontextmanager
+async def _recall_follows(root: Path, path: Path) -> AsyncIterator[None]:
+    """Tell recall what the disk holds at ``path`` once the block ends.
+
+    Written, put back after a failed receipt, or moved to quarantine: the
+    index serves the next search from what is there. See
+    core/memory/gateway_record_index.py.
+    """
+    try:
+        yield
+    finally:
+        await asyncio.to_thread(note_gateway_change, root, path)
 
 
 def _read_memory_payload(path: Path) -> tuple[bool, dict[str, Any]]:

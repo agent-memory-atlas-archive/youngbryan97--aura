@@ -20,6 +20,7 @@ import re
 from pathlib import Path
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.runtime.errors import record_degradation
 from core.runtime.service_registry import get_runtime_service
 from core.skills.fluid_executor import Step
@@ -70,8 +71,8 @@ def is_desktop_goal(goal: str) -> bool:
     gl = g.lower()
     # A URL is a desktop goal only in a browser-open context ("open … in Chrome",
     # "go to …") — "fetch <url>" / "api" is data retrieval, which is reach, not UI.
-    browser_url = bool(_URL_RE.search(g)) and any(
-        w in gl for w in ("open ", "go to", "chrome", "browser", "safari", "in the browser")
+    browser_url = bool(_URL_RE.search(g)) and names_any(
+        gl, ("open ", "go to", "chrome", "browser", "safari", "in the browser")
     )
     return bool(
         browser_url

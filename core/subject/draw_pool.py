@@ -16,10 +16,11 @@ and every draw runs inline, as before.
 from __future__ import annotations
 
 import atexit
-import os
 from collections.abc import Callable, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any
+
+from core.runtime.flags import env_str
 
 __all__ = ["estimator_workers", "evaluate_in_order"]
 
@@ -29,7 +30,11 @@ _POOL_SIZE = 0
 
 def estimator_workers() -> int:
     """How many processes the draws may use, from the environment. At least one."""
-    raw = os.environ.get("AURA_ESTIMATOR_WORKERS", "").strip()
+    raw = env_str(
+        "AURA_ESTIMATOR_WORKERS",
+        description="Processes the estimator's draws may use; unset or 1 spawns none.",
+        owner="core.subject.draw_pool",
+    ).strip()
     try:
         return max(1, int(raw)) if raw else 1
     except ValueError:

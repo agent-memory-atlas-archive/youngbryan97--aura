@@ -143,10 +143,8 @@ def test_a_toy_with_state_outside_k_is_measured_rather_than_assumed() -> None:
 
 
 def test_the_conjunction_asks_whether_the_null_core_is_closed() -> None:
-    source = (
-        __import__("pathlib").Path(__file__).resolve().parents[1]
-        / "tools"
-        / "run_subject_core.py"
-    ).read_text()
-    assert 'row.get("closed", True)' in source
-    assert '"closed": closed' in source
+    root = __import__("pathlib").Path(__file__).resolve().parents[1]
+    # The runner reads the flag; the null table, computed across processes
+    # since 28 September in core/subject/null_table.py, writes it.
+    assert 'row.get("closed", True)' in (root / "tools" / "run_subject_core.py").read_text()
+    assert '"closed": closed' in (root / "core" / "subject" / "null_table.py").read_text()

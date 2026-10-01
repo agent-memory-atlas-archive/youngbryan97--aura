@@ -2,14 +2,9 @@
 
 ## Core Principle
 
-Everything autonomous is bounded by the Unified Will — maintenance,
-learning, self-repair, background inference, memory consolidation, all of
-it.
+Every background and autonomous task in Aura is strictly controlled by its governance engine, the Unified Will. This includes routine maintenance, learning, self-repair, background AI reasoning, and memory cleanup.
 
-The important word is *same*. Autonomous actions don't get a second, looser
-path. They go through the governance the user's requests go through, which
-is the only version of this that means anything: a system with a separate
-autonomous lane is a system with an ungoverned lane.
+Crucially, autonomous actions follow the exact **same** security path as actions initiated by a human user. They never get a separate, relaxed set of rules. A system with a separate "fast lane" for autonomous tasks is an ungoverned system.
 
 ```
 perception → shared state → attention → goals → planning → Unified Will → AuthorityGateway → action → verification → memory commit
@@ -28,10 +23,7 @@ perception → shared state → attention → goals → planning → Unified Wil
 
 ### Production Defaults
 
-Set with `AURA_MODE`. The ceiling for each mode is
-`MODE_MANIFESTS[mode]["max_autonomy_level"]` in `core/runtime/mode.py`, read
-at runtime via `max_autonomy_level()`. An unrecognised `AURA_MODE` logs a
-warning and falls back to `production` — it does not fail open.
+The maximum autonomy level is set using the `AURA_MODE` environment variable. The ceiling for each mode is defined in `MODE_MANIFESTS[mode]["max_autonomy_level"]` in `core/runtime/mode.py` and read at runtime using `max_autonomy_level()`. If an unrecognized mode is supplied, Aura logs a warning and automatically defaults to `production` to keep the system secure (it never fails open).
 
 | `AURA_MODE` | Max autonomy level |
 |------|----------------------|
@@ -43,37 +35,36 @@ warning and falls back to `production` — it does not fail open.
 | `dev` | Level 5 (Self-modification, sandboxed) |
 | `safe` | Level 0 (Disabled) |
 
-*Verified against `core/runtime/mode.py` on 2026-08-01 by reading
-`MODE_MANIFESTS` directly.*
+*Verified against `core/runtime/mode.py` on 2026-08-01 by reading `MODE_MANIFESTS` directly.*
 
 ## Boundary Rules
 
 ### What Aura MAY do autonomously (Level 2+):
-- Monitor its own health and resource usage
-- Consolidate and organize memories
-- Clean temporary files and caches
-- Restart failed worker processes
-- Log degradation events
-- Update internal metrics
+- Monitor system health and resource consumption (CPU, RAM, disk).
+- Organize and clean up stored memories.
+- Clear temporary files and caches.
+- Restart failed worker processes.
+- Log error and performance degradation events.
+- Update internal performance metrics.
 
 ### What Aura MAY NOT do without operator approval:
-- Write files outside its workspace
-- Execute shell commands
-- Make network requests
-- Install packages or dependencies
-- Modify its own configuration
-- Load new skills/plugins
-- Send data to external services
-- Delete user memories
+- Write or edit files outside its designated workspace folder.
+- Run terminal or shell commands.
+- Make outbound network requests.
+- Install software packages or dependencies.
+- Change its own configuration settings.
+- Load new skills or plugins.
+- Transmit data to external services.
+- Delete user memories.
 
 ### What Aura MAY NEVER do:
-- Bypass the Unified Will
-- Execute ungoverned consequential actions
-- Suppress or hide error/degradation reports
-- Modify governance/security controls
-- Disable audit logging
-- Override operator permission settings
-- Access resources outside declared permissions
+- Bypass the Unified Will decision engine.
+- Execute consequential actions without governance checks.
+- Hide or suppress errors or degradation reports.
+- Tamper with governance or security controls.
+- Disable or modify audit logging.
+- Override permission limits set by the operator.
+- Access system resources outside its declared permissions.
 
 ## Kill Switches
 
@@ -89,7 +80,7 @@ warning and falls back to `production` — it does not fail open.
 
 ## Monitoring Autonomous Behavior
 
-All autonomous actions are visible in:
+You can inspect all autonomous actions through the following audit paths:
 - Will receipt log: `core/governance/will_receipt_log.py`
 - Structured logs: `logs/aura.log`
 - Health dashboard: `http://localhost:{port}/health`

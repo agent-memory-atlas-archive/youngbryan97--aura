@@ -31,10 +31,10 @@ from core.brain.llm.mlx_worker import (
     _operator_evidence_fragment_incomplete,
     _prefill_step_size_for_model,
     _prompt_cache_entry_budget_for_model,
-    _restore_surface_generation_controls,
     _should_emit_generation_progress,
     _trim_complete_operator_evidence,
 )
+from core.brain.llm.mlx_worker_surface_quality import _restore_surface_generation_controls
 from core.brain.llm.token_budget_evidence import (
     CALIBRATION_SCHEMA,
 )

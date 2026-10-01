@@ -45,6 +45,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Mapping, Sequence
 
+from core.conversation.word_markers import names_any
 from core.governance_context import local_internal_governed_scope
 from core.runtime.errors import record_degradation
 from core.runtime.file_write_gateway import get_file_write_gateway
@@ -509,13 +510,14 @@ class PhysicalGroundingEngine:
     def _affordances(self, view: _DomainView) -> list[dict[str, Any]]:
         affordances = []
         for object_id, tracked in view.objects.items():
-            attrs = json.dumps(tracked.attributes, sort_keys=True, default=str).lower()
+            # Underscores as breaks, so `door_open` holds the word "open".
+            attrs = json.dumps(tracked.attributes, sort_keys=True, default=str).lower().replace("_", " ")
             action = None
-            if tracked.kind in {"button", "link", "input", "transition"} or any(
-                w in attrs for w in ("click", "open", "submit", "href", "door")
+            if tracked.kind in {"button", "link", "input", "transition"} or names_any(
+                attrs, ("click", "open", "submit", "href", "door")
             ):
                 action = "activate_affordance"
-            elif tracked.kind in {"item", "tool"} or any(w in attrs for w in ("pickup", "use", "apply")):
+            elif tracked.kind in {"item", "tool"} or names_any(attrs, ("pickup", "use", "apply")):
                 action = "inspect_or_use"
             elif "prompt" in attrs or "modal" in attrs:
                 action = "resolve_prompt"

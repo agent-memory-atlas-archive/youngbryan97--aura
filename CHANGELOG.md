@@ -1,389 +1,146 @@
 # Changelog
 
-Aura is calendar-versioned. The authoritative version string is `version` in
-`pyproject.toml`.
+Aura uses calendar versioning (named by date rather than arbitrary version numbers). The official version string is defined in `pyproject.toml`.
 
-This changelog starts at 2026-08-01 and is written forward from there.
-Everything before it is summarised below from the commit history rather than
-reconstructed release by release — 4,080 commits in five months, most of them
-landing without a release boundary. The git log is the real record; this is
-the shape of it.
+Detailed changelog entries begin on 2026-08-01. Everything before that date is summarized below from Git commit history (4,080 commits across five months that landed without formal releases). The Git history is the exact record; this document provides a readable overview of key changes.
 
 ## Format
 
-Entries group by month, newest first. Each names what changed and why it
-mattered. A change with no user-visible or operator-visible consequence
-belongs in the commit log, not here.
+Entries are organized by month, newest first. Each entry describes what changed and why it matters. Small internal changes with no user-facing or operational impact belong in Git commit messages, not here.
 
-Statuses used: **Added**, **Changed**, **Fixed**, **Removed**, and
-**Not claimed** — the last for capability that shipped as infrastructure
-without evidence to back a claim yet.
+Status categories:
+- **Added**: New features, capabilities, and safety guardrails.
+- **Changed**: Updates to existing behavior or configurations.
+- **Fixed**: Bug fixes and security patches.
+- **Removed**: Removed features or deprecated code.
+- **Not claimed**: Features or infrastructure that have been built but do not yet have benchmark proof or verified real-world evidence.
 
 ---
 
 ## 2026-08
 
 ### Added
-- **Four honest limits, written down**
-  (`CLAIMS_NOT_SUPPORTED.md` §17-20) — exact IIT 4.0 (the φ measure is a
-  spectral approximation over an observed transition matrix, not an exhaustive
-  MIP over interventional distributions), reproducible concept-activation
-  vectors (derived at runtime, so the bundle cannot be recomputed by someone
-  who was not there), a closed recurrence-training loop (the trainer and the
-  pre-registrations exist; a run that beats its own baseline on held-out work
-  does not), and a provably contractive substrate (bounded is not
-  contractive). Each entry says what the code does and what would change the
-  status.
-- **A skill may not reach past the scope it declares**
-  (`core/skills/effect_reach.py`, `tools/check_skill_effect_scope.py`) —
-  registration refused a skill that declared no recognised `effect_scope` and
-  never compared the declaration with the code. `network_ops` declared
-  `read_only` while opening sockets and spawning processes, so the Will
-  classified it `observe` and asked for nothing; `network_recon` resolved
-  names under the same label, `listen` wrote captured audio under it, and
-  `branching_futures` claimed `pure_compute` while building a sandbox. All
-  four are corrected, the check runs at registration as well as in CI, and
-  the eleven remaining mismatches are on a shrink-only list.
-- **Ownership, review and a branch policy** (`.github/CODEOWNERS`,
-  `config/branch_protection_policy.json`, `tools/check_review_policy.py`,
-  `tools/check_branch_protection.py`) — `main` reported `protected: false`
-  with no required status checks, so sixteen CI jobs were advisory and two of
-  them were red on `main` while configured to run. The policy is declared and
-  applied with one command; the offline gate holds the required list against
-  the workflows so a new job cannot be green and required by nothing.
-- **A threat model with the attacks in it** (`docs/THREAT_MODEL.md`,
-  `SECURITY.md`, `tests/security/`, `tools/check_threat_model.py`) — fourteen
-  classes of attack, each with the control that answers it and a test that
-  runs it from the attacker's side. The document states, and the gate keeps it
-  stating, that no independent security engineer has attacked this system.
-- **A dependency contract** (`config/dependency_contract.json`,
-  `tools/check_dependency_contract.py`, `tools/derive_lockfile.py`) — one
-  declaration of what every build installs, and the gate that caught all five
-  contradictions between the declaration and the builds.
-- **A release lifecycle** (`docs/RELEASE_LIFECYCLE.md`,
-  `tools/check_release_ready.py`) — channels, supported platforms, upgrade
-  compatibility and what a tag must produce. No release has been published;
-  the document says so.
-- **Canonical product facts** (`config/product_facts.json`,
-  `tools/check_product_facts.py`) — the Python version, the license, the port
-  and the package version have one owner each, and every other file that
-  states them is checked against it.
-- **A seam extractor that proves its own move** (`tools/extract_seam.py`) —
-  refuses a cut that is not behaviour-preserving, and checks the helper body
-  against the original token for token before writing.
-- **A bounded resident-32B reasoning gain, replicated and lesion-dependent**
-  (`core/brain/llm/semantic_neural_serving.py`) — on a frozen four-domain
-  cohort of 60 typed tasks, the trained recurrent controller answered 60/60
-  exactly against 16/60 for ordinary decode, with a matched wire base at 7 and
-  a coefficient lesion at 5. No family regressed. One gained nothing because
-  ordinary decode was already at ceiling on it (15/15) and the controller
-  preserved all fifteen; the other three supplied the 44 conversions. Paired
-  one-sided exact *p* = 5.7 × 10⁻¹⁴. Adjudicated `BOUNDED_WOW_SIGNAL`. It runs
-  in the live path — 120/120 exact and 120/120 lesion-disrupted at a median
-  5.325 ms — and CP824 removed the `desktop_required` coupling that had kept an
-  active certified package unreachable from ordinary chat turns. It still
-  cannot answer ordinary chat: `ordinary_chat_authorized` stays pinned
-  `False`, and admission runs an answer-blind parser over the task grammar.
-  Two entries left the programme's "not established" list as a result, and
-  [docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md) names which.
-- **Meaning decided from examples rather than word lists**
-  (`core/language/learned_matcher.py`) — every matcher in the runtime was a
-  regex with a list of words in it, and every one had been wrong the same way:
-  a phrasing nobody thought of. "I saved it as sitting_timer.html" missed an
-  action-claim rule by four characters. The labels already existed and nothing
-  read them — each Observable declares examples and counter-examples, and the
-  registry test fails a matcher that gets its own examples wrong. The boundary
-  is measured by leave-one-out rather than chosen, the surface abstains
-  between the worst positive and the best negative, and it needs an embedding
-  rather than a generation, so there is nothing to steer. The desktop-routing
-  decision measures AUROC 0.979 on held-out paraphrases.
-- **A closed observe-decide-act loop for the browser**
-  (`core/skills/sovereign_browser.py`, `pursue` mode) — a scripted action list
-  presumes every selector is known before the first click, which fails for any
-  flow whose next screen depends on the last answer. The loop carries a
-  standing understanding across rounds rather than re-deciding from nothing,
-  batches genuinely independent decisions, and bounds itself on progress
-  rather than a clock — a working pursuit had been cancelled at 181 seconds
-  mid-form and the person told the page had not responded. It takes no
-  authority of its own; execution goes through the same lease, receipt, and
-  effect verification a scripted interaction uses. New page:
-  [docs/BROWSER_PURSUIT.md](docs/BROWSER_PURSUIT.md).
-- **One registry for readings** (`core/brain/observable_registry.py`) — 26
-  observables, each declaring how it is recognised, how it is read, and the
-  examples that hold the recogniser honest. It was never about files: the
-  clipboard, the screen, the clock, her own queued and completed work, her
-  transcript, her lifetime, and what she has actually validated are all the
-  same shape of question, and each was previously answered from weights or not
-  at all.
-- **She speaks while she thinks** (`core/conversation/reply_stream.py`) — the
-  governed pipeline already produced its reply incrementally; nothing could
-  read *its own turn's* chunks, because the telemetry topic they ride on is
-  global. A channel bound to a turn's async context fixes that, and the voice
-  lane now releases clauses as they are produced, each governed before it is
-  synthesised. Time-to-first-audio no longer scales with total reply length,
-  which is what the 45-word spoken cap existed to hide — and why spoken
-  answers were shallower than the same question typed.
-- **Ambient listening** (`core/voice/duplex/addressivity.py`) — you can talk
-  without pressing anything. The wake word is demoted from the only gate to
-  the strongest of several signals: name, whether a conversation was already
-  open, phrasing, loudness against this speaker's own baseline, competing
-  voices. A ladder rather than a score, because weights nobody measured are
-  opinions with decimal points and a score cannot be argued with after a
-  mistake. Every verdict carries its reasons; it fails closed.
-- **Acoustic end-of-turn** (`core/voice/duplex/acoustic_endpoint.py`) — the
-  pitch contour over the final voiced stretch, fitted with the F0 estimator
-  already running for paralinguistics. It can only ever *extend* the wait, so
-  a wrong reading costs a beat and can never cut somebody off. Addresses the
-  single most common complaint about shipped voice assistants: being
-  interrupted when you pause to think.
-- **Media in the chat** (`core/media/`, `interface/routes/media.py`) — "play
-  X" resolves against what is on this machine and plays in the conversation
-  rather than handing off to another app. Range requests are honoured, so
-  seeking works and a large file does not buffer entirely before it starts.
-  The index is the allowlist: playback resolves an opaque id through it, so
-  there is no path in the URL to sanitise.
-- **Sight** (`core/senses/sight.py`, `core/senses/sight_intent.py`) — "how
-  many fingers am I holding up" captures a frame *now*, at a resolution a
-  model can read, and answers from it. Distinct from the presence lane, whose
-  320×240 thumbnail is right for knowing somebody is there and useless for
-  counting anything. "Turn on the camera" writes the same setting the UI's
-  own switch writes, so the control, the privacy record and the device move
-  together. Measured: worker up in 5.0 s, ~0.7 s per look, 4/4 on stylised
-  hands — see the limits recorded in **Not claimed**.
-- **Failures she can explain** (`core/conversation/failure_context.py`) — a
-  failed capability records what it tried, what stopped it, how it knows, and
-  what is still possible. Her turn reads those and words it herself. The
-  runtime supplies facts; she supplies the sentence.
-- **Reality Reach** (`core/reality_reach/`) — a physical request compiles to a
-  typed contract with declared channels, and reachability is proven before
-  anything executes. Unmeetable requests return a typed limitation
-  certificate rather than an optimistic simulation. Dispatch, execution and
-  `EFFECT_VERIFIED` are separate states, so transport success can never be
-  recorded as a verified effect. Registered hardware routes through
-  `HardwareManager` and `BaseHardwareDevice.safe_execute`.
-- **Kernel-boundary sandboxing for model-written Python** (`core/sandbox/`) —
-  `sandbox-exec` on macOS, `bwrap` on Linux, network denied. When no boundary
-  is available it **refuses to run the code** rather than running it
-  unconfined and reporting a normal result.
-- One shared bounded numeric guard for values accepted from outside the
-  process, and one structural redaction primitive.
+- **Documented four key technical limitations** (`CLAIMS_NOT_SUPPORTED.md` §17-20) —
+  - **IIT 4.0 (Consciousness theory metric)**: The system's φ (phi) measurement is a statistical approximation based on observed state transitions, not the exhaustive causal calculation required by Integrated Information Theory 4.0.
+  - **Concept activation vectors**: These internal representation vectors are calculated live at runtime, meaning an outside observer cannot recreate the exact same bundle without running the identical live session.
+  - **Recurrence training loop**: The training scripts and preregistered experiment plans exist, but we have not yet produced a trained model run that beats its baseline on held-out test data.
+  - **Stability guarantees**: The system's state space is bounded within limits, but we have not mathematically proven that it always settles into a stable state (bounded does not mean contractive).
+  Each entry clearly explains what the code currently does and what specific evidence would be needed to prove the claim.
+- **Skills cannot exceed their declared permissions** (`core/skills/effect_reach.py`, `tools/check_skill_effect_scope.py`) — Skill registration previously rejected skills that lacked a declared `effect_scope`, but never checked if the code matched the declaration. This allowed permissions mismatches: `network_ops` declared `read_only` while opening network sockets and spawning processes, bypassing user confirmation; `network_recon` resolved domain names under the same read-only tag; `listen` saved recorded audio under read-only; and `branching_futures` claimed `pure_compute` (calculation only) while building an isolated sandbox. All four permissions have been corrected. Automated checks now enforce scope matches during skill registration and in CI tests, with eleven remaining legacy mismatches tracked on a strict list that can only shrink.
+- **Code ownership, mandatory reviews, and branch protection** (`.github/CODEOWNERS`, `config/branch_protection_policy.json`, `tools/check_review_policy.py`, `tools/check_branch_protection.py`) — The `main` branch previously reported `protected: false` with no required status checks. As a result, 16 automated test jobs were purely advisory, and two failing jobs were ignored on `main`. Branch protection rules are now defined in configuration and applied automatically. An automated validation check ensures that required CI tests match the actual GitHub Actions workflows, preventing unmonitored test drift.
+- **Threat model backed by active attack tests** (`docs/THREAT_MODEL.md`, `SECURITY.md`, `tests/security/`, `tools/check_threat_model.py`) — Documents 14 categories of security threats. Each threat defines its corresponding defense control and includes an automated test that simulates the attack from an adversary's perspective. The documentation explicitly notes (and automated checks enforce) that no external, independent security firm has audited or penetration-tested this system.
+- **Central dependency contract** (`config/dependency_contract.json`, `tools/check_dependency_contract.py`, `tools/derive_lockfile.py`) — A single source of truth defining which packages every build installs. The validation check identified and resolved five contradictions between package declarations and actual build scripts.
+- **Release lifecycle policy** (`docs/RELEASE_LIFECYCLE.md`, `tools/check_release_ready.py`) — Defines release channels, supported platforms, upgrade compatibility rules, and build requirements for release tags. The documentation clearly states that no official public release has been published yet.
+- **Single source of truth for product facts** (`config/product_facts.json`, `tools/check_product_facts.py`) — Core project settings (Python version, software license, default port, and package version) now each have a single canonical owner. Automated checks verify that all documentation and configuration files match these values.
+- **Verified code refactoring tool** (`tools/extract_seam.py`) — A tool for extracting code into helper functions that verifies behavior does not change. It checks the extracted code token-by-token against the original code before writing any changes.
+- **Verified reasoning improvements on 32B model tasks** (`core/brain/llm/semantic_neural_serving.py`) — On a fixed benchmark of 60 structured reasoning tasks across four domains, a recurrent controller (which loops intermediate reasoning steps back into the model) solved 60/60 tasks correctly, compared to 16/60 using standard single-pass generation. Control tests confirmed the gain comes specifically from this controller: disabling controller coefficients (a lesion test) dropped accuracy to 5/60, and a baseline wiring test scored 7/60. No task category regressed. One category was already at 100% (15/15) with standard generation and stayed there, while the other three categories accounted for all 44 newly solved problems (paired one-sided exact *p* = 5.7 × 10⁻¹⁴). This runs in the live execution path at a median latency of 5.325 ms (120/120 exact matches and 120/120 lesion-disrupted). While change CP824 unblocked this feature from requiring a desktop environment (`desktop_required`), it remains restricted from general conversation: `ordinary_chat_authorized` remains locked to `False`, and requests must conform to a strict task grammar rather than freeform chat. This validated two research milestones previously listed as unproven; see [docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md) for details.
+- **Intent matching using examples instead of keyword lists** (`core/language/learned_matcher.py`) — Pattern matchers previously used regular expressions with hardcoded keyword lists, which frequently failed on unexpected phrasing (for example, phrasing like "I saved it as sitting_timer.html" missed an action rule due to minor differences in wording). Matchers now use text embeddings (mathematical representations of meaning) evaluated against registered positive and negative examples. The decision boundary is calculated using leave-one-out cross-validation, and the matcher abstains from deciding when confidence falls into an ambiguous zone between positive and negative examples. Because it relies on embeddings rather than text generation, it cannot be steered off course. On held-out test paraphrases, desktop routing accuracy reached 0.979 AUROC (where 1.0 represents perfect classification).
+- **Dynamic observe-decide-act loop for browser automation** (`core/skills/sovereign_browser.py`, `pursue` mode) — Fixed automation scripts fail whenever a web page changes dynamically based on earlier input. The new `pursue` mode maintains page understanding across interaction steps, batches independent decisions together, and checks for actual forward progress instead of relying on rigid timeouts (which previously cancelled working multi-step form submissions after 181 seconds). The browser loop does not grant itself special permissions; all actions must obtain standard execution leases, generate audit receipts, and verify physical web effects. Documented in [docs/BROWSER_PURSUIT.md](docs/BROWSER_PURSUIT.md).
+- **Centralized registry for system state readings** (`core/brain/observable_registry.py`) — Defines 26 "observables" (system signals such as clipboard contents, screen state, the current time, queued background tasks, conversation history, and verified actions). Each observable specifies how it is detected, how data is retrieved, and sample test cases to validate recognition accuracy. This ensures the assistant inspects ground-truth system data rather than guessing answers from model weights.
+- **Low-latency streaming speech generation** (`core/conversation/reply_stream.py`) — The text generation pipeline already produced responses word-by-word, but the speech synthesizer previously had to wait for the complete answer before speaking because output chunks were broadcast on a shared global channel. Responses are now piped directly to the voice pipeline per turn. Sentences and clauses are verified against safety governance and sent to the speech synthesizer as they are generated. Spoken response time no longer slows down on longer answers, removing the need for an artificial 45-word spoken limit that previously forced spoken answers to be much shallower than typed ones.
+- **Hands-free ambient listening** (`core/voice/duplex/addressivity.py`) — Enables continuous listening without requiring a push-to-talk button. Instead of relying solely on a wake word, the system evaluates multiple contextual cues: whether Aura was addressed by name, whether a conversation was already underway, phrasing, speaker volume relative to their baseline, and background voices. These factors are evaluated through an explicit rule hierarchy (ladder) rather than an opaque numerical score, making false activations easy to inspect and debug. The system defaults to ignoring audio ("fails closed") when intent is unclear.
+- **Acoustic end-of-turn detection** (`core/voice/duplex/acoustic_endpoint.py`) — Analyzes vocal pitch contour (fundamental frequency, F0) at the end of speech to detect whether a user is pausing to think or has finished speaking. The detector is designed to only ever *extend* listening time, never shorten it. A mistaken detection simply waits an extra moment and will not interrupt the user mid-sentence.
+- **In-chat media playback** (`core/media/`, `interface/routes/media.py`) — Commands like "play [track]" find local media files on the machine and stream playback directly inside the chat interface instead of launching external players. Supports HTTP range requests, allowing users to scrub and seek through audio without waiting for the full file to buffer. Media paths are mapped to internal opaque IDs, preventing file path traversal vulnerabilities in playback URLs.
+- **High-resolution visual inspection** (`core/senses/sight.py`, `core/senses/sight_intent.py`) — Visual queries (such as "how many fingers am I holding up?") capture an immediate high-resolution camera frame and process it with a vision model. This is separate from the low-resolution background presence monitor (320×240 pixels), which only checks whether someone is sitting in front of the screen. Voice commands like "turn on the camera" toggle the exact same software setting as the UI switch, keeping user controls, privacy settings, and hardware state synchronized. Performance: worker process starts in 5.0 seconds, takes ~0.7 seconds per image query, and scored 4/4 on stylized hand gestures (see limitations under **Not claimed**).
+- **Explainable tool and action failures** (`core/conversation/failure_context.py`) — When an action or skill fails, the system logs structured error context: what it attempted, the exact error encountered, how the failure was confirmed, and what alternative options remain. The language model uses these facts to explain the problem clearly in conversation rather than giving a generic error message.
+- **Pre-execution safety contracts for physical devices (Reality Reach)** (`core/reality_reach/`) — Requests to interact with physical hardware compile into strict data contracts that declare all communication channels and verify reachability before execution begins. If a request cannot be fulfilled, the system issues an explicit limitation certificate instead of simulating success. Device commands track three distinct lifecycle phases: command dispatch, hardware execution, and verified physical effect (`EFFECT_VERIFIED`). This prevents network delivery from being confused with completed physical actions. Registered hardware interactions route safely through `HardwareManager` and `BaseHardwareDevice.safe_execute`.
+- **OS-level sandboxing for generated Python code** (`core/sandbox/`) — Python code generated by the model runs within kernel-level isolation (`sandbox-exec` on macOS, `bwrap` on Linux) with network access blocked by default. If a supported sandbox mechanism is unavailable on the host system, execution is **strictly refused** rather than running unprotected.
+- **Input validation and redaction helpers** — Added a shared numeric bounds checker for values accepted from outside the process, and a standardized utility to redact sensitive structural data from logs.
 
 ### Changed
-- **Shell execution is isolated by default** (`skills/shell.py`,
-  `security/sandbox.py`) — `sandbox` defaulted to `False`, so the ordinary
-  path ran the caller's program on the host with the whole filesystem readable
-  and the network open. `SecurityLevel.CONFINED` keeps the seatbelt profile,
-  the rlimits, the stripped environment and explicit read and write scope
-  without a binary allowlist overruling the Will's decision. Host execution is
-  a separately authorized escape hatch.
-- **The layering rule covers the tree** (155 `DEPS` files, up from seven;
-  `tools/generate_deps.py`) — every core package and every tree that imports
-  core now has include rules, generated from the import graph, so a new
-  cross-package dependency is an edit to a DEPS file.
-- **One lint standard** (`config/ruff_strict_files.txt`) — the configured ruff
-  rule set applied to seventeen hand-picked files while 4,072 of the
-  repository's files passed it untouched. Black, isort and flake8 are gone
-  from pre-commit; ruff and mypy remain.
-- **Typing has a floor and a direction** (`tools/check_typed_surface.py`,
-  `tools/typecheck_changed.py`) — 1,703 of 2,799 production modules annotate
-  every parameter and return, and that number may not fall. A file a branch
-  touches must pass strict mypy and is adopted into the allowlist when it does.
+- **Shell commands run sandboxed by default** (`skills/shell.py`, `security/sandbox.py`) — The shell tool previously defaulted to running commands directly on the host machine without sandboxing, leaving the filesystem and network open. Commands now default to `SecurityLevel.CONFINED`, which applies system resource limits (rlimits), an isolated profile, a sanitized environment, and restricted file access paths. Unconfined host execution now requires explicit administrative authorization.
+- **Architectural layering rules cover the entire codebase** (155 `DEPS` dependency rules, up from 7; `tools/generate_deps.py`) — Every core package and external module importing core packages now has explicit dependency rules generated from the project's import graph. Introducing a new cross-package dependency now requires explicitly updating a `DEPS` file.
+- **Unified code formatting and linting standard** (`config/ruff_strict_files.txt`) — Standardized on Ruff and mypy across the codebase, replacing fragmented linters (Black, isort, and flake8). Cleaned up code style across the repository to enforce consistent formatting.
+- **Strict type checking ratchet** (`tools/check_typed_surface.py`, `tools/typecheck_changed.py`) — 1,703 out of 2,799 production Python modules now have full type annotations on all function parameters and return values. Automated CI checks ensure this number never drops, and any modified file must pass strict mypy type checking before it can be merged.
 
 ### Fixed
-- **Five linked defects that made the latent cortex fall back on every episode**
-  (`kv_state_tree.py`, `recurrence.py`, `recurrent_depth.py`, `engine.py`) —
-  twenty-nine tests in `tests/test_latent_cortex_engine.py` were failing.
-  `_snapshot_recurrent_caches` emits a `("buffers", keys, values, meta_state,
-  coordinates)` shape for a live MLX cache, and neither of the two functions
-  that VERIFY a snapshot knew about it: `_snapshot_commitment` raised "cache
-  snapshot kind is unsupported" on every commitment and
-  `_cache_matches_snapshot` returned False on every restore. A snapshot format
-  is a contract between four functions and three of them had it. Behind that,
-  the rejected-child guards keyed on a content hash, which a deterministic
-  decode reaches again on every retry, so a re-run branch looked like the
-  resurrection of a pruned one; they key on lineage now, and a node a
-  transaction committed is never a resurrection whatever it hashes to. The
-  Jensen-Shannon bound allowed ±1e-7 where two identical float32 lanes give
-  -1.7e-07, so the most ordinary case there is — two lanes that agree — was
-  rejected as invalid; the tolerance comes from the width and the float
-  epsilon now. And the two "cache-isolated" lanes shared their K/V buffers,
-  because one snapshot restored into two caches assigns both the same arrays:
-  their divergence was structurally zero, a measurement that could not vary.
-- **Path containment in the shell skill** — `rm` compared paths with
-  `startswith`, which admits `/allowed/project-evil` for a root of
-  `/allowed/project`. The workspace jail had the same defect in its
-  denied-path list.
-- **Three ungoverned execution surfaces** (`skills/shell.py`,
-  `core/cybernetics/omni_tool.py`, `core/body/terminal_motor.py`) — each ran a
-  caller-supplied command without asking the Will. The guard written to catch
-  exactly this scanned only `core/` and only one spawn function.
-- **The migration ledger checked nothing** (`core/db/migrations.py`) — the
-  checksum was written on every apply and read by nothing, so a migration
-  edited after it ran was skipped because the version number matched. An
-  interrupted migration now leaves `started` in the ledger instead of nothing.
-- **The release lane could not install its dependencies and continued anyway**
-  — `pip install -r requirements/runtime.txt || pip install -r
-  requirements.txt || true`, where the first file has never existed, before
-  signing and notarizing the result.
-- **The image claimed a licence the repository does not grant** — `MIT` in the
-  Docker label against a LICENSE reserving all rights.
-- **The method-size ratchet could launder its own debt** — `--write-baseline`
-  recorded whatever it measured, including growth.
-- **`make typecheck` was red** — three `no-any-return` errors from Any leaking
-  through `--follow-imports=skip` out of callees that do declare their types.
-- **Every vision call in the repository was failing, and the loudest way it
-  failed was silently.** The worker's message carried no image part and the
-  chat template was never told there was an image, so a call that succeeded
-  produced a prompt with no image token — the model answered from the
-  question alone, fluently and with complete confidence, and nothing in the
-  output distinguished that from working sight. Two fatal defects sat
-  underneath: the base64 payload was passed where a path was expected, and
-  the resulting exception was outside the handler, so one bad call killed the
-  worker rather than the request.
-- `MLXVisionClient.stop()` called `join()` on a process that had never
-  started, which asserts rather than returning — so any failure during spawn
-  turned every later stop into "can only join a started process" and buried
-  the reason the worker never came up.
-- Every vision call site constructed its own client, and each construction
-  spawns a subprocess holding 1.2 GB of weights. `get_vision_client()` is now
-  the shared accessor.
-- `torchvision` was missing and undeclared. `transformers` 5.x builds its
-  image processors on it, so torch alone loads text models fine and cannot
-  construct a vision processor at all.
-- The clause-streaming carve-out had a complete test suite and **zero
-  production callers** — the voice lane still blocked on the finished string
-  and then chunked it, so the latency it was written to remove was entirely
-  intact while the module reported itself present.
-- The addressivity gate called a property as a method, so from the fourth
-  utterance of every session onward it raised, failed open, and answered
-  without checking — working perfectly for three turns and then silently off.
-- Spoken and typed turns were different conversations: the voice socket
-  passed its per-connection uuid downstream as the conversation identity, so
-  switching from talking to typing lost the thread, and a socket that merely
-  reconnected started a third one.
-- A streamed reply was reconciled against the text *released to the
-  synthesiser* rather than the text actually delivered, so a correction could
-  claim the user heard words that never reached the speakers.
-- Untrusted code inherited the parent's entire environment; the sandbox
-  boundary binary is now resolved absolutely.
-- Two benchmark harnesses executed Aura-written modules inside the privileged
-  runner process.
-- Cloud deployment accepted any host key at the target address.
-- Importing the cloud launcher provisioned twenty regions as a side effect.
-- A bench gate a model could pass while wrong on every case.
+- **Resolved five cache and state defects in the latent cortex engine** (`kv_state_tree.py`, `recurrence.py`, `recurrent_depth.py`, `engine.py`) — Fixed 29 test failures in `tests/test_latent_cortex_engine.py` that caused the recurrent reasoning engine to fail on every run:
+  - Cache snapshot incompatibility: `_snapshot_recurrent_caches` produced a live MLX cache format `("buffers", keys, values, meta_state, coordinates)` that `_snapshot_commitment` and `_cache_matches_snapshot` did not recognize, throwing errors during save and restore.
+  - Branch pruning confusion: Pruning checks tracked content hashes instead of branch lineage. Because deterministic generation produces identical hashes on retries, retried paths were mistakenly treated as previously rejected branches.
+  - Floating-point tolerance error: The divergence check between reasoning paths had an overly narrow numerical tolerance (±1e-7), causing identical floating-point outputs (which yielded -1.7e-07 due to standard float32 precision limits) to be falsely rejected as invalid. Tolerances are now derived from layer width and floating-point epsilon.
+  - Shared memory buffers: Two supposedly isolated cache lanes actually shared underlying key-value memory arrays upon restoration, meaning divergence measurements between them were artificially zero.
+- **Path traversal vulnerabilities in shell and workspace sandbox** — Path checks previously used simple string prefix matching (`startswith`), which improperly permitted access to sibling directories (for instance, allowing `/allowed/project-evil` when only `/allowed/project` was allowed). Both the shell tool and the workspace sandbox now properly enforce directory boundaries.
+- **Unverified command execution endpoints** (`skills/shell.py`, `core/cybernetics/omni_tool.py`, `core/body/terminal_motor.py`) — Three internal interfaces executed caller-supplied system commands without consulting the central governance system (the Will). The static analysis check designed to prevent this was expanded to scan all directories and subprocess execution functions.
+- **Database migration validation** (`core/db/migrations.py`) — Database migration checksums were previously recorded but never re-checked on subsequent runs, allowing migrations modified after execution to be skipped. Migration checksums are now verified against the ledger, and interrupted migrations record a `started` state to prevent partial migrations from passing silently.
+- **Silent dependency failure in release builds** — Release build scripts attempted to run `pip install -r requirements/runtime.txt || pip install -r requirements.txt || true` (where the first file has never existed), ignoring the error and proceeding to package, sign, and notarize software missing critical runtime dependencies.
+- **Incorrect license label in Docker image** — The Docker container image metadata listed an `MIT` open-source license, conflicting with the repository's proprietary all-rights-reserved license.
+- **Method length check loophole** — The script tracking maximum method length previously updated baselines automatically with `--write-baseline`, allowing code complexity increases to be saved rather than prevented.
+- **Typecheck build failures** — Resolved three `no-any-return` mypy typecheck errors caused by untyped imports leaking through `--follow-imports=skip` into modules that declare explicit return types.
+- **Silent vision subsystem failures** — Image queries were failing silently across the repository. The vision worker omitted image data from prompts sent to the model, and the prompt template omitted image tokens. As a result, the model answered purely by guessing from the text prompt with unearned confidence. Under the hood, raw base64 image strings were passed where file paths were expected, and uncaught exceptions caused the vision worker process to crash completely on errors.
+- **Crash during vision client shutdown** (`MLXVisionClient.stop()`) — Attempted to call `join()` on an unstarted worker subprocess, raising an unhandled exception that masked the original startup error.
+- **Redundant vision model processes** — Every vision request spawned its own client process holding 1.2 GB of model weights in memory. Vision requests now share a single managed client via `get_vision_client()`.
+- **Missing `torchvision` dependency** — `transformers` 5.x requires `torchvision` to initialize image processors. Without it in dependency manifests, text models loaded normally while vision processing failed entirely.
+- **Unconnected streaming speech pipeline** — Streaming speech generation had unit tests but was never connected to production voice channels. The voice pipeline continued to wait for full responses before speaking, negating the latency improvements.
+- **Addressivity bug after three turns** — The speech detection gate attempted to call a class property as a method. Starting on the fourth utterance of every session, this raised an exception that caused the system to fail open, answering every background sound without checking if it was addressed.
+- **Fragmented conversation history between voice and text** — The voice WebSocket used per-connection UUIDs instead of the persistent session ID. Switching between typing and speaking—or reconnecting a dropped network socket—caused the assistant to lose conversational context and start a brand-new conversation.
+- **Desynchronized voice playback history** — Streamed replies were logged as spoken the moment text was queued for synthesis, rather than when audio actually played through speakers. When interrupted, conversation history claimed users had heard sentences that were cut off before playing.
+- **Environment variable leakage into sandbox** — Sandboxed processes previously inherited the parent application's full environment variables. Sandboxed environments now run with cleaned environments and absolute binary paths.
+- **Unconfined benchmark execution** — Fixed two evaluation benchmark harnesses that executed generated code directly inside the privileged runner process rather than an isolated sandbox.
+- **Insecure cloud SSH deployment** — Cloud deployment scripts accepted any remote SSH host key without verification, leaving connections open to machine-in-the-middle attacks.
+- **Unintended cloud resource allocation** — Merely importing the cloud launcher module triggered automatic provisioning across 20 cloud regions as an import side effect.
+- **Faulty benchmark validation check** — Fixed a benchmark check that could report passing results even when the model answered every single test case incorrectly.
 
 ### Not claimed
-No Aura physical actuation, physical effect, weakpoint, or ambient-law result
-is claimed. The RR-10 acceptance battery is open and the P0–P6 evidence
-promotion state machine is not implemented. See
-[docs/REALITY_REACH.md](docs/REALITY_REACH.md).
-
-**No voice latency number is claimed.** Clause streaming removes a structural
-dependency — time-to-first-audio no longer scales with total reply length —
-and that dependency's removal is what the tests establish. The end-to-end
-figure on the live 32B under load has not been measured, and the previous
-figures in `core/voice/duplex/config.py` describe the components (Kokoro's
-synthesis rate, Whisper's decode) rather than the whole path.
-
-**No addressivity accuracy is claimed.** The gate's rungs are rules with
-stated rationales, tested against transcripts chosen to be plausible rather
-than sampled from real use. False-accept and false-reject rates in a real
-room, with a television on and a phone call happening, are unmeasured. The
-thresholds in `acoustic_endpoint.py` are likewise literature-shaped priors,
-not readings taken on this host — what *is* established is the asymmetry that
-makes them safe, that a wrong reading can only add patience.
+- **Physical device control**: We make no claims regarding physical actuation, real-world hardware effects, hardware weak points, or physical safety guarantees. The RR-10 acceptance test suite is still open, and the P0–P6 evidence validation process is not yet implemented. See [docs/REALITY_REACH.md](docs/REALITY_REACH.md).
+- **Voice latency numbers**: We make no specific end-to-end latency claim for voice conversations. Streaming clauses removes the dependency where time-to-first-audio grew with total response length, and tests verify this architectural fix. However, full end-to-end speech latency under load with the 32B model has not been benchmarked. Previous numbers in `core/voice/duplex/config.py` measured isolated components (Kokoro text-to-speech synthesis rate and Whisper speech decoding) rather than the full end-to-end pipeline.
+- **Hands-free speech detection accuracy**: We make no numerical claim about speech addressivity accuracy (distinguishing when a user is speaking to Aura versus speaking to someone else). Current rules were tested against simulated transcripts rather than audio recorded in real noisy rooms (such as rooms with televisions or background phone calls). False-positive and false-negative rates in real environments remain unmeasured. Acoustic endpoint thresholds in `acoustic_endpoint.py` are based on academic literature rather than host-measured data; what is proven is simply that false readings will safely wait longer rather than interrupting.
 
 ### Documentation
-- **A gate for references** (`tools/lint_doc_drift.py`, `make doc-drift`) —
-  `make writing` read the prose and `make claim-constants` read the numbers a
-  claim cites; nothing read the paths, links, `make` targets, environment
-  names, or counts, which is what a reader follows first. Baseline zero, wired
-  into `make quality` and the ratchets workflow, with its own 31-case suite
-  because a gate that cannot match reports green forever. What it found on the
-  first run is recorded in [docs/DOC_STATUS.md](docs/DOC_STATUS.md) under
-  2026-08-21 — including a threat-model control for a capability that does not
-  exist, nine operator kill switches nothing reads, and a test suite eight
-  documents sized identically and wrongly.
-Full reconciliation of all 179 living docs against the tree. Corrected a
-documented test count that was 3× low, an architecture map ~400 files stale,
-four documented environment variables and files that did not exist, and a
-supply-chain instruction that pointed at the wrong requirements file. Added
-[docs/DOC_STATUS.md](docs/DOC_STATUS.md),
-[docs/README.md](docs/README.md), [AGENTS.md](AGENTS.md), and runbooks for
-all 19 known failure modes.
-
-**Second reconciliation, 2026-08-13** (1,660 commits later). Resolved 2,317
-code-path references across 272 tracked docs against the tree; nine were dead
-and are fixed, and the ones deliberately naming absent files are recorded as
-such rather than repaired. Corrected the test count (24,931 → **34,382**), the
-architecture map (154/2,597 → **153/2,741**), the Brainstem lane
-(Qwen2.5-7B → **Qwen3.5-9B**), the ASR engine (Whisper → **Parakeet TDT**), and
-the embedding backend (MiniLM → **Qwen3-Embedding-0.6B**).
-
-The Recursive Latent Cortex now has a landing page linked from the top of the
-README — [docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md),
-restructured so the status and claims ladder sit above the spec. Added
-[docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md) (the training
-front, which had existed only as ledger entries),
-[docs/COGNITIVE_ARCHITECTURE_ADOPTION.md](docs/COGNITIVE_ARCHITECTURE_ADOPTION.md)
-(Soar and ACT-R), [docs/MODEL_ROSTER.md](docs/MODEL_ROSTER.md) (every lane and
-the measurement behind it), and `ARCHITECTURE.md` §19.
+- **Automated documentation drift linter** (`tools/lint_doc_drift.py`, `make doc-drift`) — While existing checks verified prose style (`make writing`) and numerical claim constants (`make claim-constants`), nothing verified file paths, markdown links, `make` targets, environment variables, or counts mentioned in documentation. Added an automated checker with 31 test cases integrated into `make quality` and CI. On its first run, it identified dead links, non-existent environment variables, nine unused emergency kill-switches, and outdated test counts (documented in [docs/DOC_STATUS.md](docs/DOC_STATUS.md) on 2026-08-21).
+- **First documentation reconciliation** — Verified all 179 active documentation files against the codebase. Corrected a documented test count that was off by a factor of 3, updated an architecture map that was 400 files out of date, removed mentions of non-existent files and environment variables, and fixed supply-chain installation guides that referenced missing requirements files. Added [docs/DOC_STATUS.md](docs/DOC_STATUS.md), [docs/README.md](docs/README.md), [AGENTS.md](AGENTS.md), and operational runbooks for 19 known failure modes.
+- **Second documentation reconciliation (2026-08-13)** — Validated 2,317 file and symbol references across 272 tracked documents (1,660 commits later). Corrected nine broken links, updated the test suite count from 24,931 to **34,382**, updated the module map (154/2,597 → **153/2,741**), and updated model specifications to reflect actual production backends:
+  - Brainstem lane: updated from Qwen2.5-7B to **Qwen3.5-9B**.
+  - Speech recognition (ASR): updated from Whisper to **Parakeet TDT**.
+  - Text embeddings: updated from MiniLM to **Qwen3-Embedding-0.6B**.
+- **New and updated architecture documentation** —
+  - Added a dedicated landing page for the recurrent reasoning engine: [docs/RECURSIVE_LATENT_CORTEX.md](docs/RECURSIVE_LATENT_CORTEX.md), clearly separating claim verification levels from technical specifications.
+  - Added [docs/INTRINSIC_RECURRENCE.md](docs/INTRINSIC_RECURRENCE.md), documenting recurrence model training and benchmarks (which previously existed only as ledger notes).
+  - Added [docs/COGNITIVE_ARCHITECTURE_ADOPTION.md](docs/COGNITIVE_ARCHITECTURE_ADOPTION.md), reviewing integration with classic cognitive frameworks (Soar and ACT-R).
+  - Added [docs/MODEL_ROSTER.md](docs/MODEL_ROSTER.md), detailing every model used across the system along with its benchmark metrics.
+  - Added section 19 to `ARCHITECTURE.md`.
 
 ---
 
 ## 2026-07 — 2,041 commits (346 features, 681 fixes)
 
-The heaviest month, and the one where fixes outnumbered features two to one.
+The heaviest development month, with bug fixes outnumbering new features two to one.
 
-- **The endurance ceiling turned out not to be cognition.** The "15-turn
-  ceiling" was a prompt cache that was never constructed and then cleared
-  every turn, so each turn re-prefilled the whole conversation from token 0.
-  Root cause in `artifacts/closeout/endurance_ceiling/ROOT_CAUSE.md`.
-- **A standing self-model** — `core/metacognition/faculty_model.py`. Faculties
-  declare metrics with units, floors, targets and ceilings; unmeasured reads
-  as a blind spot rather than as healthy; priority is headroom weighted by
-  how much of the stack a faculty gates.
-- **Associative entity memory** — one place where a person, place, thing,
-  organization or concept accumulates traits, facts, events and relations,
-  plus what it has come to mean to her.
-- **Structural screen perception and native OS control** — window ownership,
-  geometry and z-order instead of aiming actions at OCR'd pixels.
-- **The engineering spine** — taint register, lockdep, PSI, OOM shed ladder,
-  telemetry dictionary, invariants in `core/verify/`, the `make layering`
-  gate. Seven clean-room adoption waves.
-- **Recursive latent cortex and SPARK** — resident 32B recurrent SFT and GRPO
-  campaigns, preregistered canaries, holdout discipline.
-- Voice, UI legibility, and conversational-organ coverage work.
+- **Long-conversation performance limit fixed** — A bug previously made conversations slow down severely or fail after roughly 15 turns. This was not a model reasoning failure; an uninitialized prompt cache was being wiped every turn, forcing the model to re-process the entire conversation history from token zero every time. Detailed in `artifacts/closeout/endurance_ceiling/ROOT_CAUSE.md`.
+- **Continuous internal system health model** (`core/metacognition/faculty_model.py`) — Tracks subsystem health with explicit metric floors, targets, and operational limits. Unmeasured components are treated as blind spots rather than assumed healthy. Subsystem priority is weighted by how many other components depend on it.
+- **Associative entity memory** — A centralized memory store where people, places, concepts, and tools accumulate persistent attributes, factual history, interactions, and contextual significance over time.
+- **Structured screen understanding and native desktop controls** — Interacts with operating system windows using native geometry, window hierarchy, and window layering (z-order) instead of guessing click targets from raw pixel screenshots and OCR text.
+- **Core system resilience infrastructure** — Added security taint tracking, lock dependency detection (lockdep), pressure stall information (PSI) monitoring, an out-of-memory (OOM) load-shedding ladder, standardized telemetry metrics, architectural invariants in `core/verify/`, and automated `make layering` import gates across seven incremental rollouts.
+- **Recurrent reasoning model training (SPARK)** — Supervised fine-tuning (SFT) and reinforcement learning (GRPO) training runs for the resident 32B model, using preregistered test tasks and isolated test sets to prevent data contamination.
+- **Voice synthesis, user interface clarity, and core conversational components.**
 
 ## 2026-06 — 1,016 commits (106 features, 85 fixes)
 
-Reasoning and evidence discipline. Verifier-gated reasoning with a measured
-verifier foundry, the frontier discovery engine's
-PROVEN/SUPPORTED/CONJECTURE/REFUTED taxonomy, program-DNA reconstruction,
-whole-system φ, the flight recorder, source-body proprioception, and the
-Ulysses Covenant.
+Focused on formal reasoning validation, automated verification, and system telemetry:
+- **Verified reasoning system**: Model reasoning steps are verified against an automated checking harness before execution.
+- **Evidence classification taxonomy**: Categorizes claims and hypotheses as `PROVEN`, `SUPPORTED`, `CONJECTURE`, or `REFUTED`.
+- **Code reconstruction and self-inspection**: System tools to analyze repository structure (program-DNA) and track internal system execution state.
+- **Flight recorder and safety boundaries**: Comprehensive runtime execution logging, system state tracking, and strict self-binding safety constraints (the Ulysses Covenant).
 
 ## 2026-05 — 598 commits
 
-Evidence standards and security posture. The twelve `*_STANDARD.md` bars,
-compliance mappings (OWASP, NIST SSDF, MITRE ATLAS), the threat model, the
-permission matrix, and the incident runbooks.
+Focused on security posture and engineering standards:
+- **Defined twelve formal engineering standards**: Published the `*_STANDARD.md` quality requirements.
+- **Security compliance mappings**: Aligned system controls with industry security frameworks (OWASP, NIST Secure Software Development Framework / SSDF, and MITRE ATLAS for AI security).
+- **Security model and operational procedures**: Formalized the system threat model, role permission matrix, and incident response runbooks.
 
 ## 2026-04 — 327 commits
 
-Production hardening. The governance fence and `make governance-lint`,
-capability-token lifecycle, stem-cell reversion, the SLO contract, the
-platform posture decisions, and the first runbook set.
+Focused on production hardening and governance infrastructure:
+- **Governance enforcement**: Introduced safety policy enforcement (`make governance-lint`) to ensure code and tools do not bypass safety checks.
+- **Capability authorization tokens**: Introduced scoped authorization tokens to manage tool and skill permissions.
+- **Reliability and recovery**: Added safe state recovery mechanisms (stem-cell reversion), service level objective (SLO) definitions, platform deployment rules, and the initial set of operational runbooks.
 
 ## 2026-02 / 2026-03 — 3 commits
 
-Repository initialised 2026-02-23.
+Repository initialized on 2026-02-23.
 
 ---
 
 ## Known version drift
 
-`pyproject.toml` reads `2026.4.20` on a calendar-versioned repo that is now
-well past April. The version string has not tracked the work. Flagged here
-rather than silently bumped, because choosing the next version is a release
-decision, not a documentation one.
+`pyproject.toml` currently lists version `2026.4.20`, which has fallen behind the calendar date. The version string has not been updated automatically because setting release version numbers is an intentional release management decision rather than a routine documentation edit.

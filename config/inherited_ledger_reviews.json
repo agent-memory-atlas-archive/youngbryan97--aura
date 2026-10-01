@@ -287,6 +287,41 @@
       "source_id": "docs/RECURSIVE_ENDOGENOUS_EXPANSION_TODO.md:99",
       "source_sha256": "264dfcb375fe305d159b7f8b74210aa2f1b28f08d40fca7f5beb36b679a59349",
       "status": "evidence_needed"
+    },
+    {
+      "mechanism": "authority_and_security",
+      "reason": "Reopened 27 September: sandbox profiles exist, but nothing shows a child process is contained or that every host action passes through them. Open until an adversarial child-process suite is denied by the OS with the app's own checks bypassed.",
+      "source_id": "docs/gap_atlas/TODO.md:2058",
+      "source_sha256": "8d946a2ef452dd7763a96668eb3ef8c3eb7b8bf96df6bbcc8d7cdb5d5501d6c8",
+      "status": "open"
+    },
+    {
+      "mechanism": "authority_and_security",
+      "reason": "Reopened 27 September: egress is monitored, not proxied. Open until a local policy proxy with an allowlist makes the network decision below Python.",
+      "source_id": "docs/gap_atlas/TODO.md:2063",
+      "source_sha256": "cf2d1a08244b8bbcd1bad4f3e7c6456429ea9816822dbee1f5021de635a9426f",
+      "status": "open"
+    },
+    {
+      "mechanism": "authority_and_security",
+      "reason": "Reopened 27 September after the unused credential broker was removed. Open until a child process is shown to reach only the credentials it was scoped to.",
+      "source_id": "docs/gap_atlas/TODO.md:2068",
+      "source_sha256": "25e2b8889b94d54111a3dacf78fdc2c1068146316a5026e183acee297e145965",
+      "status": "open"
+    },
+    {
+      "mechanism": "authority_and_security",
+      "reason": "Reopened 27 September: permission prompts fall only when the OS enforces, and A2.8 is open. Open with it.",
+      "source_id": "docs/gap_atlas/TODO.md:2073",
+      "source_sha256": "5fc659f571718230093972a380e858fc89fdef8a371eaa61099a13be623039de",
+      "status": "open"
+    },
+    {
+      "mechanism": "authority_and_security",
+      "reason": "Reopened 27 September with the containment cards it depends on. Open until each layer is shown to hold with the one above it bypassed.",
+      "source_id": "docs/gap_atlas/TODO.md:2084",
+      "source_sha256": "57ce5e1225562c46ad7f13daea6865737d4db83f4c3f6df4130054813de75b2f",
+      "status": "open"
     }
   ],
   "retired_decisions": [

@@ -62,12 +62,13 @@ def test_the_fork_carries_each_engines_history() -> None:
 
 
 def test_the_declared_host_declares_the_chaos_and_gives_it_back() -> None:
-    runtime = SimpleNamespace(state=SimpleNamespace(soma=SimpleNamespace(hardware={"cpu": 0.3})),
+    runtime = SimpleNamespace(state=SimpleNamespace(soma=SimpleNamespace(hardware={"cpu_usage": 30.0})),
                               declared_host=None, seed=23)
     install_declared_host(runtime)
     try:
         assert chaos._DECLARED_SIGNALS is not None
         assert chaos._DECLARED_SEED is not None
+        # A percent, read on the machine's own scale.
         assert 0.3 in chaos._DECLARED_SIGNALS()
     finally:
         release_declared_host(runtime)

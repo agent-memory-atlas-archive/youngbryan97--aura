@@ -12,6 +12,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from core.conversation.word_markers import names_any
 from core.governance_context import local_internal_governed_scope
 from core.runtime.atomic_writer import interprocess_file_lock
 from core.runtime.file_write_gateway import get_file_write_gateway
@@ -324,16 +325,19 @@ class OntologyInventionEngine:
         for observation in obs:
             features = sorted(observation.features())[:80]
             for a, b in itertools.combinations(features, 2):
-                joined = a + b
+                # Spaced, and underscores as breaks: a feature is an identifier
+                # (`has:player.health_points`), and run together two of them made
+                # words neither one had.
+                joined = f"{a} {b}".replace("_", " ")
                 relation = (
                     "near"
                     if "adjacent" in joined
                     else "contains"
                     if "inventory" in joined or "contains" in joined
                     else "threatens"
-                    if any(w in joined for w in ("hostile", "threat", "danger"))
+                    if names_any(joined, ("hostile", "threat", "danger"))
                     else "affects_resource"
-                    if any(w in joined for w in ("resource", "health", "energy"))
+                    if names_any(joined, ("resource", "health", "energy"))
                     else None
                 )
                 if relation:
@@ -352,7 +356,7 @@ class OntologyInventionEngine:
         words: Counter[str] = Counter()
         for observation in obs:
             for feature in observation.features():
-                if any(w in feature for w in ("available", "button", "link", "door", "tool", "prompt", "modal")):
+                if names_any(feature.replace("_", " "), ("available", "button", "link", "door", "tool", "prompt", "modal")):
                     words[feature] += 1
         affordances = []
         for feature, count in words.most_common(16):

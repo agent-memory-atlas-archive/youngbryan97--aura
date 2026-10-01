@@ -2,8 +2,18 @@
 =============================
 Grounded Sensor Registry.
 
-Manages all physical sensors mapping environmental and system variables
-to live telemetry signals. Keeps rolling historical buffers of sensor readings.
+Every sensor says where its readings come from. OBSERVED readings are taken
+from the host and the runtime she runs in: CPU, the process's memory, the
+event loop, her own tasks and her own faults. SIMULATED readings come from the
+shipping network in core/world/world_model.py, a deterministic simulation she
+can practise remedies on. Until 30 September the two were one dictionary, the
+closed loop weighted it at 0.85 of her free energy as "physical" telemetry,
+and the only sensors that ever moved were the simulated ports, so her
+prediction error about the world was a simulation compared with itself. The
+runtime sensors were declared and never written, and read 0.
+
+A sensor nothing has written is unread, not zero: `read_observed` returns
+only readings that were taken.
 """
 
 from __future__ import annotations
@@ -29,6 +39,10 @@ class PhysicalSensor:
     history_limit: int = 100
     history: deque[float] = field(default_factory=lambda: deque(maxlen=100))
     last_updated: float = field(default_factory=lambda: time.time())
+    #: "observed" (measured on this host) or "simulated" (the shipping model).
+    source: str = "observed"
+    #: When the first real reading arrived; None while the sensor is unread.
+    read_at: float | None = None
 
     def record(self, value: float) -> bool:
         """Records a new sensor reading into the rolling buffer."""
@@ -43,6 +57,7 @@ class PhysicalSensor:
         self.current_value = reading
         self.history.append(self.current_value)
         self.last_updated = time.time()
+        self.read_at = self.last_updated
         return True
 
 
@@ -55,28 +70,17 @@ class SensorRegistry:
 
     def _initialize_default_sensors(self) -> None:
         """Registers canonical physical sensors matching our World Model entities."""
-        self.register(PhysicalSensor("port_east_load", "East Port Cargo Queue Load", "containers"), log=False)
-        self.register(PhysicalSensor("port_west_load", "West Port Cargo Queue Load", "containers"), log=False)
-        self.register(
-            PhysicalSensor("port_east_latency", "East Port Bottleneck Waiting Delay", "hours"),
-            log=False,
+        simulated = (
+            ("port_east_load", "East Port Cargo Queue Load", "containers"),
+            ("port_west_load", "West Port Cargo Queue Load", "containers"),
+            ("port_east_latency", "East Port Bottleneck Waiting Delay", "hours"),
+            ("port_west_latency", "West Port Bottleneck Waiting Delay", "hours"),
+            ("vessel_alpha_speed", "Vessel Alpha Current Flow Velocity", "knots"),
+            ("warehouse_load", "Central Warehouse Inventory Level", "units"),
+            ("warehouse_latency", "Central Warehouse Delivery Wait Time", "hours"),
         )
-        self.register(
-            PhysicalSensor("port_west_latency", "West Port Bottleneck Waiting Delay", "hours"),
-            log=False,
-        )
-        self.register(
-            PhysicalSensor("vessel_alpha_speed", "Vessel Alpha Current Flow Velocity", "knots"),
-            log=False,
-        )
-        self.register(
-            PhysicalSensor("warehouse_load", "Central Warehouse Inventory Level", "units"),
-            log=False,
-        )
-        self.register(
-            PhysicalSensor("warehouse_latency", "Central Warehouse Delivery Wait Time", "hours"),
-            log=False,
-        )
+        for sensor_id, description, unit in simulated:
+            self.register(PhysicalSensor(sensor_id, description, unit, source="simulated"), log=False)
         self.register(
             PhysicalSensor("system_cpu_usage", "System Core CPU Load Percentage", "percent"),
             log=False,
@@ -138,6 +142,54 @@ class SensorRegistry:
         """Returns the current state vector of all live sensor values."""
         return {sid: s.current_value for sid, s in self.sensors.items()}
 
+    def read_observed(self) -> dict[str, float]:
+        """Readings taken on this host, leaving out the simulation and the unread."""
+        return {
+            sid: s.current_value
+            for sid, s in self.sensors.items()
+            if s.source == "observed" and s.read_at is not None
+        }
+
+    def provenance(self) -> dict[str, str]:
+        """Where each sensor's readings come from: "observed", "simulated" or "unread"."""
+        return {
+            sid: (s.source if s.read_at is not None else "unread")
+            for sid, s in self.sensors.items()
+        }
+
+    def sync_observed(self) -> None:
+        """Take a reading from every runtime source that exists right now.
+
+        A source that is absent (no orchestrator yet, no task tracker in a
+        test) leaves its sensor unread rather than writing a zero.
+        """
+        from core.runtime import resource_psutil as psutil
+        from core.runtime.errors import get_degradation_tracker
+        from core.runtime.service_registry import get_runtime_service
+
+        self.record_reading("system_cpu_usage", psutil.cpu_percent())
+        try:
+            rss = float(psutil.Process().memory_info().rss)
+            total = float(psutil.virtual_memory().total)
+            if total > 0.0:
+                self.record_reading("runtime_memory_pressure", rss / total)
+        except (AttributeError, OSError, RuntimeError, TypeError, ValueError, psutil.Error) as exc:
+            logger.debug("process memory unreadable; its sensor stays unread: %s", exc)
+        monitor = getattr(get_runtime_service("orchestrator"), "_event_loop_monitor", None)
+        sample = monitor.last_lag_sample() if hasattr(monitor, "last_lag_sample") else None
+        if sample is not None:
+            lag, _age = sample
+            self.record_reading("runtime_event_loop_lag", lag)
+        tracker = get_runtime_service("task_tracker")
+        if hasattr(tracker, "active_count"):
+            self.record_reading("runtime_task_queue_depth", tracker.active_count())
+        # The sensor's unit is per minute, so the window is the last minute.
+        last_minute = get_degradation_tracker().recent_counts_by_subsystem(60.0)
+        self.record_reading(
+            "runtime_degradation_rate",
+            sum(sum(counts.values()) for counts in last_minute.values()),
+        )
+
     def get_reliability_vector(self) -> dict[str, float]:
         """Returns reliability scale for all registered sensors."""
         return {sid: s.reliability for sid, s in self.sensors.items()}
@@ -174,10 +226,8 @@ class SensorRegistry:
                 self.record_reading("warehouse_load", wh.get("load", 0.0))
                 self.record_reading("warehouse_latency", wh.get("latency", 0.0))
 
-            # Sync host CPU telemetry through psutil.
-            from core.runtime import resource_psutil as psutil
-
-            self.record_reading("system_cpu_usage", psutil.cpu_percent())
+            # The simulation above, and then what is real.
+            self.sync_observed()
 
         except (ImportError, AttributeError, RuntimeError, TypeError, ValueError) as exc:
             logger.debug("Failed to sync sensors from world model: %s", exc)
