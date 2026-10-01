@@ -790,6 +790,7 @@ def install_runtime_validation() -> dict[str, Any]:
         "rlc_governed_web_acquisition",
         "rlc_verified_amplifier_composition",
         "kernel_confined_symbolic_cognition",
+        "sandbox_async_execution",
         "rlc_closed_loop_compute",
         "work_grounded_claims",
         # What she can do to the language she makes rules out of. Declared
@@ -1047,6 +1048,22 @@ def _install_runtime_audit_tests(suite) -> None:
                 subject="symbolic cognition kernel boundary",
             ),
             owner="core/brain/symbolic_sandbox.py",
+        )
+    )
+    suite.add_test(
+        ValidationTest(
+            name="sandbox_awaitables_are_completed",
+            description="async function results are computed, and dropped coroutine work fails execution",
+            required_capability="sandbox_async_execution",
+            observation=Observation(
+                name="awaited_result_and_dropped_work",
+                value=True,
+                source="tests/test_untrusted_python_sandbox.py",
+            ),
+            predict=lambda _m: _sandbox_async_execution_probe(),
+            score=lambda p, o: boolean_score(bool(p), expected=bool(o.value), subject="sandbox async execution"),
+            owner="core/sandbox/untrusted_python.py",
+            expensive=True,
         )
     )
     suite.add_test(
@@ -2330,6 +2347,23 @@ def _install_search_and_delivery_claims(suite) -> None:
             evidence_note=(
                 "The macOS test host executed pure computation under Seatbelt; Linux "
                 "requires bubblewrap and unsupported hosts fail closed."
+            ),
+        )
+    )
+    suite.add_claim(
+        Claim(
+            statement=(
+                "The confined Python runner awaits function results and reports observed "
+                "unawaited-coroutine warnings as execution failures."
+            ),
+            test="sandbox_awaitables_are_completed",
+            owner="core/sandbox/untrusted_python.py",
+            asserted_in="docs/AURA_EXECUTION_TRACKER.md",
+            evidence=Evidence.MEASURED_SYNTHETIC,
+            evidence_note=(
+                "Real Seatbelt tests cover awaited values, asynchronous exceptions, dropped "
+                "work, finalizer failures, and the existing amplifier repair path. This is "
+                "execution evidence, not a general code-correctness or live-chat claim."
             ),
         )
     )
@@ -3698,6 +3732,27 @@ def _symbolic_cognition_boundary_available() -> bool:
     from core.sandbox.untrusted_python import available_boundary
 
     return available_boundary() in {"seatbelt", "bubblewrap"}
+
+
+def _sandbox_async_execution_probe() -> bool:
+    from core.sandbox.untrusted_python import available_boundary, call_untrusted_function, run_untrusted_script
+
+    if not available_boundary():
+        raise NothingMeasured("no kernel sandbox is available for the async execution probe")
+    completed = call_untrusted_function(
+        "async def answer():\n    return 42\n", "answer", [()],
+        timeout_s=2.0, source="validation.async_execution",
+    )
+    dropped = run_untrusted_script(
+        "async def answer():\n    return 42\nanswer()\n",
+        timeout_s=2.0, source="validation.async_execution",
+    )
+    if completed.status not in {"ok", "error"} or dropped.status not in {"ok", "error"}:
+        raise NothingMeasured("the async execution probe did not finish under its kernel boundary")
+    return bool(
+        completed.ok and completed.results == [42]
+        and dropped.status == "error" and "never awaited" in dropped.error
+    )
 
 
 def _she_composes_an_action_she_was_not_given() -> bool:

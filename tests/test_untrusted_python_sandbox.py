@@ -44,6 +44,164 @@ def test_benign_code_runs_and_returns_values():
 
 
 @_needs_boundary
+@pytest.mark.parametrize("invocation", ["work()", "jobs = [work()]", "jobs = [work()]\njobs.append(jobs)"])
+def test_unawaited_work_cannot_report_success(invocation):
+    outcome = run_untrusted_script(
+        "async def work():\n    print('WORK_RAN')\n" + invocation,
+        source="test",
+    )
+    assert outcome.status == "error", outcome.to_dict()
+    assert outcome.returncode == 0
+    assert "WORK_RAN" not in outcome.stdout
+    assert "never awaited" in outcome.error
+    assert "work" in outcome.stderr
+
+
+@_needs_boundary
+def test_warning_source_does_not_hide_other_unawaited_work():
+    outcome = run_untrusted_script(
+        "async def first():\n    pass\n"
+        "async def second():\n    pass\n"
+        "first()\n"
+        "jobs = [second()]\n",
+        source="test",
+    )
+    assert not outcome.ok, outcome.to_dict()
+    assert "first" in outcome.error
+    assert "second" in outcome.error
+
+
+@_needs_boundary
+def test_async_function_calls_are_awaited_in_order():
+    outcome = call_untrusted_function(
+        "import asyncio\n"
+        "seen = []\n"
+        "async def predict(x):\n"
+        "    await asyncio.sleep(0)\n"
+        "    seen.append(x)\n"
+        "    return sum(seen)\n",
+        "predict",
+        [(3,), (4,)],
+        source="test",
+    )
+    assert outcome.ok, outcome.to_dict()
+    assert outcome.results == [3, 7]
+
+
+@_needs_boundary
+def test_async_function_exception_reaches_the_caller():
+    outcome = call_untrusted_function(
+        "async def fail():\n    raise ValueError('async work failed')\n",
+        "fail", [()], source="test",
+    )
+    assert not outcome.ok, outcome.to_dict()
+    assert "async work failed" in outcome.error
+
+
+@_needs_boundary
+def test_sync_factory_returning_an_awaitable_runs_to_completion():
+    outcome = call_untrusted_function(
+        "async def compute(x):\n    return x + 1\n"
+        "def predict(x):\n    return compute(x)\n",
+        "predict", [(8,)], source="test",
+    )
+    assert outcome.ok, outcome.to_dict()
+    assert outcome.results == [9]
+
+
+@_needs_boundary
+def test_sync_function_keeps_ownership_of_its_event_loop():
+    outcome = call_untrusted_function(
+        "import asyncio\n"
+        "async def compute(x):\n    return x + 1\n"
+        "def predict(x):\n    return asyncio.run(compute(x))\n",
+        "predict", [(8,)], source="test",
+    )
+    assert outcome.ok, outcome.to_dict()
+    assert outcome.results == [9]
+
+
+@_needs_boundary
+def test_nested_coroutine_result_cannot_be_a_successful_repr():
+    outcome = call_untrusted_function(
+        "async def compute():\n    return 9\n"
+        "def predict():\n    return [compute()]\n",
+        "predict", [()], source="test",
+    )
+    assert not outcome.ok, outcome.to_dict()
+    assert "never awaited" in outcome.error
+
+
+@_needs_boundary
+def test_explicitly_closed_coroutine_is_not_unawaited_work():
+    outcome = run_untrusted_script(
+        "async def work():\n    print('UNEXPECTED')\n"
+        "job = work()\njob.close()\nprint('closed')\n",
+        source="test",
+    )
+    assert outcome.ok, outcome.to_dict()
+    assert outcome.stdout.strip() == "closed"
+
+
+@_needs_boundary
+def test_an_ordinary_warning_is_not_an_execution_failure():
+    outcome = run_untrusted_script(
+        "import warnings\n"
+        "warnings.warn('estimate is approximate', RuntimeWarning)\n"
+        "print('coroutine work was never awaited')\n",
+        source="test",
+    )
+    assert outcome.ok, outcome.to_dict()
+    assert "estimate is approximate" in outcome.stderr
+    assert "never awaited" in outcome.stdout
+
+
+@_needs_boundary
+def test_unraisable_exception_is_part_of_the_execution_verdict():
+    outcome = run_untrusted_script(
+        "class Resource:\n"
+        "    def __del__(self):\n"
+        "        raise RuntimeError('cleanup failed')\n"
+        "resource = Resource()\n",
+        source="test",
+    )
+    assert not outcome.ok, outcome.to_dict()
+    assert "cleanup failed" in outcome.error
+
+
+@_needs_boundary
+def test_coroutine_warning_promoted_to_exception_still_fails():
+    outcome = run_untrusted_script(
+        "import warnings\n"
+        "warnings.simplefilter('error', RuntimeWarning)\n"
+        "async def work():\n    pass\n"
+        "work()\n",
+        source="test",
+    )
+    assert not outcome.ok, outcome.to_dict()
+    assert "never awaited" in outcome.error
+
+
+@_needs_boundary
+def test_registered_async_execution_claim_is_measured_off_the_boot_path():
+    from core.organism.model_validation import Outcome, RuntimeModel, get_suite, install_runtime_validation
+
+    install_runtime_validation()
+    check = get_suite()._tests["sandbox_awaitables_are_completed"]
+    model = RuntimeModel().declare("sandbox_async_execution")
+    assert check.run(model, include_expensive=False).score.outcome is Outcome.NOT_MEASURED
+    assert check.run(model).score.outcome is Outcome.PASS
+
+
+def test_async_execution_probe_without_boundary_is_unmeasured(monkeypatch):
+    from core.organism.model_validation import NothingMeasured, _sandbox_async_execution_probe
+
+    monkeypatch.setattr("core.sandbox.untrusted_python.available_boundary", lambda: "")
+    with pytest.raises(NothingMeasured):
+        _sandbox_async_execution_probe()
+
+
+@_needs_boundary
 def test_network_egress_is_denied():
     outcome = run_untrusted_script(
         "import socket\n"

@@ -284,7 +284,8 @@ def _bubblewrap_argv(*, scratch: Path, read_paths: Sequence[str]) -> list[str]:
 #: cover (CPU, address space, file size, subprocess count), then either
 #: executes the script or imports it and calls one function.
 _HARNESS = r'''
-import json, sys, io, contextlib, traceback, runpy
+import json, sys, io, contextlib, traceback, runpy, gc, inspect, asyncio
+import warnings as warning_api
 
 try:
     import resource
@@ -321,36 +322,79 @@ mode = request.get("mode", "script")
 out = io.StringIO()
 err = io.StringIO()
 payload = {"status": "ok", "results": [], "warnings": warnings}
+execution_errors = []
 
-try:
-    with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-        if mode == "script":
-            runpy.run_path(module_path, run_name="__main__")
-        else:
-            namespace = runpy.run_path(module_path, run_name="aura_untrusted_candidate")
-            target = namespace.get(request["function"])
-            if not callable(target):
-                raise NameError("%s is not defined or not callable" % request["function"])
-            for call in request.get("calls", []):
-                value = target(*call.get("args", []), **call.get("kwargs", {}))
-                payload["results"].append(value)
-except BaseException as exc:  # noqa: BLE001 - the whole point is to report anything
+def _unraisable(event):
+    # Keep text, not the exception/object, which can resurrect the candidate.
+    execution_errors.append("unraisable exception: %r" % event.exc_value)
+    err.write("".join(traceback.format_exception(
+        event.exc_type, event.exc_value, event.exc_traceback
+    )))
+
+async def _await_result(value):
+    return await value
+
+def _drain_warnings(observed):
+    for warning in observed:
+        err.write(warning_api.formatwarning(
+            warning.message, warning.category, warning.filename, warning.lineno
+        ))
+        if issubclass(warning.category, RuntimeWarning) and inspect.iscoroutine(warning.source):
+            execution_errors.append(str(warning.message))
+        warning.source = None
+    observed.clear()
+
+def _run_candidate():
+    if mode == "script":
+        runpy.run_path(module_path, run_name="__main__")
+        return
+    namespace = runpy.run_path(module_path, run_name="aura_untrusted_candidate")
+    target = namespace.get(request["function"])
+    if not callable(target):
+        raise NameError("%s is not defined or not callable" % request["function"])
+    with contextlib.ExitStack() as stack:
+        runner = None
+        for call in request.get("calls", []):
+            value = target(*call.get("args", []), **call.get("kwargs", {}))
+            if inspect.isawaitable(value):
+                if runner is None:
+                    runner = stack.enter_context(asyncio.Runner())
+                value = runner.run(_await_result(value))
+            payload["results"].append(value)
+
+with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+    with warning_api.catch_warnings(record=True) as observed:
+        warning_api.simplefilter("always", RuntimeWarning)
+        previous_unraisable = sys.unraisablehook
+        sys.unraisablehook = _unraisable
+        try:
+            try:
+                _run_candidate()
+            except BaseException as exc:  # noqa: BLE001 - report candidate failures
+                execution_errors.append(repr(exc))
+                err.write(traceback.format_exc())
+
+            try:
+                json.dumps(payload["results"])
+            except (TypeError, ValueError):
+                payload["results"] = [repr(r) for r in payload["results"]]
+                payload["unserialisable_results"] = True
+
+            # Warning sources can retain candidate globals. Release them before
+            # collecting the cycles whose failures also belong to this run.
+            _drain_warnings(observed)
+            gc.collect()
+            _drain_warnings(observed)
+        finally:
+            sys.unraisablehook = previous_unraisable
+
+if execution_errors:
     payload["status"] = "error"
-    payload["error"] = repr(exc)
-    payload["traceback"] = traceback.format_exc()
+    payload["error"] = "\n".join(execution_errors)
 
 payload["stdout"] = out.getvalue()
 payload["stderr"] = err.getvalue()
-
-try:
-    encoded = json.dumps(payload)
-except (TypeError, ValueError):
-    # A function may legitimately return something unserialisable. Say so
-    # rather than losing the whole run to an encoder error.
-    payload["results"] = [repr(r) for r in payload["results"]]
-    payload["unserialisable_results"] = True
-    encoded = json.dumps(payload)
-
+encoded = json.dumps(payload)
 sys.__stdout__.write("\x00AURA_SANDBOX\x00" + encoded)
 '''
 
@@ -400,6 +444,7 @@ def call_untrusted_function(
     ``{"args": [...], "kwargs": {...}}`` mappings. Every call runs in one
     child, in order, so a candidate that is stateful behaves the way it
     would in-process — minus the ability to touch this machine.
+    Awaitable return values run to completion on one child-owned event loop.
 
     Arguments and return values cross a JSON boundary. That is a real
     constraint and a deliberate one: anything richer would hand the

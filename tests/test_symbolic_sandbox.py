@@ -56,6 +56,28 @@ async def test_self_correction_loop_fixes_code():
 
 
 @pytest.mark.asyncio
+async def test_self_correction_executes_previously_unawaited_work():
+    sbx = SymbolicSandbox(timeout=15.0)
+    body = "async def compute():\n    print(sum(range(10)))\n"
+    broken = body + "jobs = [compute()]\n"
+    repaired = "import asyncio\n" + body + "asyncio.run(compute())\n"
+    attempts = []
+
+    async def repair(code: str, diagnostic: str) -> str:
+        assert code == broken.strip()
+        assert "never awaited" in diagnostic
+        attempts.append(diagnostic)
+        return repaired
+
+    res = await sbx.run_with_self_correction(broken, repair, max_rounds=2)
+    assert len(attempts) == 1
+    assert res.ok, res.to_dict()
+    assert res.stdout.strip() == "45"
+    assert res.final_code == repaired.strip()
+    assert res.rounds == 2
+
+
+@pytest.mark.asyncio
 async def test_self_correction_gives_up_after_rounds():
     sbx = SymbolicSandbox(timeout=15.0)
 
