@@ -2,272 +2,208 @@
 
 ## Purpose
 
-Nineteen core failure modes this runtime addresses, what each one looks like, and what to do
-about it. Every one has a dedicated runbook (among 41 incident runbooks maintained in `docs/runbooks/`).
+This document explains the nineteen core failure modes in the Aura runtime: what causes each issue, what it looks like, and how to fix it. Every failure mode has a dedicated troubleshooting runbook (part of 41 incident runbooks maintained in `docs/runbooks/`).
 
-Read the split before you read the list. **F01–F14 are failure classes we
-plan for.** F15–F19 are different: they actually happened, on the live
-desktop, under sustained conversation, with forensics still on disk. Those
-five are the real daily-runtime edges. If you only have time for part of
-this document, read those.
+Understanding the distinction between these failures is important:
+- **F01–F14 are planned failure classes.** These are operational edge cases anticipated and planned for during system design.
+- **F15–F19 are real issues observed in production.** They occurred on a live desktop machine during sustained conversations, with full diagnostic records saved on disk. These five represent real-world operational challenges rather than theoretical scenarios. If you only have time to read part of this guide, start with these five.
 
-One of them, F16, is **not fully fixed** and says so. MLX cannot soft-cancel
-a running generation, so freeing a busy worker means killing it and
-unloading 18 GB. The kill is the recovery. Mitigations make that survivable;
-they don't make it go away.
+Note that **F16 is not yet fully fixed**, as documented below. Apple's MLX framework cannot gracefully pause or cancel an AI model while it is generating text. As a result, the only way to free a busy worker process is to terminate it completely and unload its 18 GB model from memory. Terminating the process is the recovery mechanism. While existing safeguards keep the system running, they do not eliminate the root issue.
 
-Every operator should read this before running Aura in any production-like
-setting.
+Every operator should read this guide before running Aura in any production environment.
 
 ## Critical Failure Modes
 
 ### F01: Model fails to load
 
-**Cause**: Insufficient RAM, corrupted weights, missing model files
-**Likelihood**: Low (first boot) / Very Low (steady state)
-**Impact**: No inference capability
-**Detection**: Boot probe failure; health check reports `brainstem: not_initialized`
-**Recovery**: `make doctor` → validates model files → re-download if needed
+**Cause**: Insufficient RAM, corrupted model weight files, or missing model files
+**Likelihood**: Low (on first boot) / Very Low (during normal operation)
+**Impact**: Aura cannot run language models (no inference capability)
+**Detection**: Boot checks fail; health check reports `brainstem: not_initialized`
+**Recovery**: Run `make doctor` to validate model files and re-download any missing or corrupted files
 **Runbook**: `docs/runbooks/model-fails-to-load.md`
 
 ### F02: Worker process crash during inference
 
-**Cause**: GPU memory pressure, MLX runtime error, corrupted prompt
+**Cause**: High GPU memory pressure, an MLX runtime error, or an invalid prompt
 **Likelihood**: Low
-**Impact**: Current request fails; auto-recovery spawns a new worker
-**Detection**: Worker health probe; `record_degradation("mlx_worker", ...)`
-**Recovery**: Automatic — InferenceGate respawns a worker. Caveat (see F16):
-respawn requires ~24GB headroom, and immediately after a kill the OS reclaim
-of the ~18GB model lags process exit, so respawn is briefly refused; the gate
-now waits for reclaim (`AURA_MLX_SPAWN_RECLAIM_WAIT_S`) before refusing.
+**Impact**: The current request fails; an automatic recovery system spawns a replacement worker
+**Detection**: Worker health check; `record_degradation("mlx_worker", ...)`
+**Recovery**: Automatic — `InferenceGate` restarts a worker process. *Caveat (see F16):* restarting requires about 24 GB of free memory headroom. Because macOS takes a few seconds to reclaim the ~18 GB model from memory after a process terminates, an immediate restart might fail. The gate now pauses for memory to be reclaimed (`AURA_MLX_SPAWN_RECLAIM_WAIT_S`) before attempting to spawn.
 **Runbook**: `docs/runbooks/worker-crash.md`
 
 ### F03: Memory database corruption
 
-**Cause**: Dirty shutdown, disk full, concurrent write race
+**Cause**: Unclean shutdown, full disk, or simultaneous conflicting writes
 **Likelihood**: Very Low
-**Impact**: Memory retrieval fails; boot may degrade
-**Detection**: SQLite integrity check on boot; state hash mismatch
-**Recovery**: `make restore` from last backup; WAL replay
+**Impact**: Memory lookup fails; system startup may be degraded
+**Detection**: SQLite integrity check fails on boot; state hash mismatch
+**Recovery**: Run `make restore` from the latest backup; replay SQLite Write-Ahead Logs (WAL)
 **Runbook**: `docs/runbooks/memory-corruption.md`
 
 ### F04: Shutdown hangs
 
-**Cause**: Blocked async task, hung worker, deadlocked service
+**Cause**: A blocked asynchronous task, a hung worker, or deadlocked services
 **Likelihood**: Low
-**Impact**: Process requires SIGKILL
-**Detection**: Shutdown timeout (12s budget); watchdog
-**Recovery**: SIGKILL + clean boot; bounded shutdown prevents forever-hang
+**Impact**: The process refuses to exit cleanly and requires a forced kill (SIGKILL)
+**Detection**: Shutdown timer exceeds its 12-second budget; watchdog alert
+**Recovery**: The watchdog issues a SIGKILL followed by a clean reboot; a hard 12-second shutdown timeout prevents infinite hangs
 **Runbook**: `docs/runbooks/shutdown-hang.md`
 
 ## High Severity Failure Modes
 
 ### F05: External interlocutor transmits more than the objective needs
 
-**Cause**: A governed web-interlocutor session composes a message carrying
-context beyond the objective it was opened for
-**Likelihood**: Very Low (host allowlist, per-run turn budget, body inspection)
-**Impact**: Content reaches an external AI surface through the user's browser
-**Detection**: Governed network receipts; `core/security/egress_privacy.py`
-inspection records
-**Recovery**: Quarantine the destination host; audit the transmitted payloads
-from local receipts; repair the composer
+**Cause**: A managed web-browsing session includes more conversation context in an outgoing message than was required for its specific task
+**Likelihood**: Very Low (protected by allowed-domain lists, per-run turn limits, and outbound message inspection)
+**Impact**: Private context reaches an external AI service through the user's browser
+**Detection**: Logged network receipts; inspection logs in `core/security/egress_privacy.py`
+**Recovery**: Quarantine the destination website; audit transmitted payloads in local receipts; update the message composer
 **Runbook**: `docs/runbooks/external-egress.md`
 
-There is no cloud inference fallback to leak through. Every lane the router
-can reach is local, and `allow_cloud_fallback` is coerced to `False` in the
-request contract — see `docs/runbooks/local-inference-boundary.md`.
+There is no cloud inference fallback that could leak data. Every model lane Aura connects to runs locally on the host machine, and `allow_cloud_fallback` is hardcoded to `False` in the request contract — see `docs/runbooks/local-inference-boundary.md`.
 
 ### F06: Prompt injection succeeds
 
-**Cause**: Novel injection technique bypasses sanitizer + integrity check
-**Likelihood**: Low (multi-layer defense)
-**Impact**: Aura performs unintended action
-**Detection**: Will receipt audit; anomalous action patterns
-**Recovery**: Revert affected memory writes; review Will receipt chain
+**Cause**: A novel prompt injection technique bypasses input sanitization and safety filters
+**Likelihood**: Low (defended by multiple inspection layers)
+**Impact**: Aura executes an unintended or unauthorized action
+**Detection**: Audit of signed Will decision receipts; detection of abnormal action patterns
+**Recovery**: Roll back affected memory writes; review the Will decision receipt chain
 **Runbook**: `docs/runbooks/prompt-injection.md`
 
 ### F07: Resource exhaustion (RAM/GPU)
 
-**Cause**: Large context, multiple concurrent requests, memory leak
-**Likelihood**: Medium (under load)
-**Impact**: Degraded performance; potential OOM kill
-**Detection**: Metabolic monitor; resource governor alerts
-**Recovery**: Automatic tier demotion; request throttling; restart if needed
+**Cause**: Very large prompt context, many simultaneous requests, or a memory leak
+**Likelihood**: Medium (under heavy system load)
+**Impact**: Sluggish performance or process termination by the operating system (Out of Memory / OOM kill)
+**Detection**: System resource monitors; alerts from resource governors
+**Recovery**: Automatic tier demotion (switching to smaller, lighter models); request throttling; restarting services if needed
 **Runbook**: `docs/runbooks/resource-exhaustion.md`
 
 ### F08: Background task orphaning
 
-**Cause**: Task creator dies without cleaning up background work
+**Cause**: A parent task terminates without cleaning up its background worker processes
 **Likelihood**: Low
-**Impact**: Wasted resources; potential stale state
-**Detection**: Task tracker orphan detection; hypervisor reaping
-**Recovery**: Hypervisor kills orphaned tasks; cleanup on next boot
+**Impact**: Wasted CPU and memory resources; stale background state
+**Detection**: Task tracker flags orphaned jobs; system supervisor sweeps for inactive tasks
+**Recovery**: Supervisor terminates orphaned tasks; cleanup routine runs on next boot
 **Runbook**: `docs/runbooks/orphaned-tasks.md`
 
 ## Medium Severity Failure Modes
 
 ### F09: Stale memory retrieval
 
-**Cause**: Vector DB index drift; outdated embeddings
-**Likelihood**: Medium (over time)
-**Impact**: Irrelevant context in responses
-**Detection**: Memory retrieval quality metrics; user feedback
-**Recovery**: Re-index memory; consolidation cycle
+**Cause**: Search index drift in the vector database; outdated embeddings (vector representations of text)
+**Likelihood**: Medium (accumulates over time)
+**Impact**: Irrelevant context included in responses
+**Detection**: Memory retrieval relevance scores drop; user feedback
+**Recovery**: Re-index the memory database; run a memory consolidation cycle
 **Runbook**: `docs/runbooks/stale-memory-retrieval.md`
 
 ### F10: Identity drift
 
-**Cause**: Sustained adversarial prompting; corrupted CanonicalSelf state
+**Cause**: Repeated adversarial user prompts; corrupted `CanonicalSelf` personality state
 **Likelihood**: Very Low
-**Impact**: Aura's personality/identity becomes inconsistent
-**Detection**: Identity coherence check; CanonicalSelf hash
-**Recovery**: Reset CanonicalSelf from canonical snapshot
+**Impact**: Aura's personality or behavioral boundaries become inconsistent
+**Detection**: Identity consistency check fails; `CanonicalSelf` checksum/hash mismatch
+**Recovery**: Reset `CanonicalSelf` from a clean canonical snapshot
 **Runbook**: `docs/runbooks/identity-drift.md`
 
 ### F11: Tool execution timeout
 
-**Cause**: Slow external service; large file operation; network timeout
+**Cause**: Slow external web service, large file read/write, or network delay
 **Likelihood**: Medium
-**Impact**: Individual tool call fails
-**Detection**: Timeout enforcement; degradation recording
-**Recovery**: Automatic — tool reports failure; Aura retries or explains
+**Impact**: An individual tool call fails
+**Detection**: Timeout limit reached; degradation event logged
+**Recovery**: Automatic — the tool reports an error, and Aura either retries or explains the issue to the user
 **Runbook**: `docs/runbooks/tool-timeout-storm.md`
 
 ### F12: Lock contention/deadlock
 
-**Cause**: Multiple subsystems contending for same resource
+**Cause**: Multiple subsystems compete for the same resource simultaneously
 **Likelihood**: Low
-**Impact**: Request stalls until watchdog releases
-**Detection**: Lock watchdog; stall detection
-**Recovery**: Automatic — watchdog releases stale locks after threshold
+**Impact**: A request stalls until the lock watchdog intervenes
+**Detection**: Lock watchdog alert; stall detection timer
+**Recovery**: Automatic — the watchdog releases abandoned locks once a timeout threshold is reached
+**Runbook**: `docs/runbooks/lock-contention-deadlock.md`
 
 ## Low Severity Failure Modes
-**Runbook**: `docs/runbooks/lock-contention-deadlock.md`
 
 ### F13: Log rotation failure
 
-**Cause**: Disk full; permission error
+**Cause**: Hard drive is full; file permission error
 **Likelihood**: Very Low
-**Impact**: Logs stop writing; no data loss
-**Detection**: Log write error; disk space monitor
-**Recovery**: Free disk space; restart log rotation
+**Impact**: New logs stop writing to disk; no existing data is lost
+**Detection**: Log write error; low disk space alert
+**Recovery**: Free up disk space; restart the log rotation service
 **Runbook**: `docs/runbooks/log-rotation-failure.md`
 
 ### F14: Telemetry emission failure
 
-**Cause**: Metrics endpoint unavailable
-**Likelihood**: Low (local deployment)
-**Impact**: Missing observability data
-**Detection**: Telemetry health check
-**Recovery**: Restart telemetry; data gap in dashboard
+**Cause**: Metrics service endpoint is unreachable
+**Likelihood**: Low (in local deployments)
+**Impact**: Monitoring dashboards miss observability data
+**Detection**: Telemetry health check alert
+**Recovery**: Restart the telemetry service; historical gap remains on dashboards
+**Runbook**: `docs/runbooks/telemetry-emission-failure.md`
 
 ## Observed Failure Modes (2026-07, live-runtime)
 
-These were seen and root-fixed on the live desktop instance under sustained
-conversation. They are documented because they are the *real* daily-runtime
-edges, not hypotheticals.
-**Runbook**: `docs/runbooks/telemetry-emission-failure.md`
+These five issues were identified and resolved on a live desktop machine during extended conversations. They are documented here because they represent real, everyday operational challenges rather than hypothetical problems.
 
 ### F15: mind_tick false-death → "Connecting to runtime"
 
-**Cause**: The cognitive-rhythm loop marks progress at the top of each
-iteration; a single iteration that blocked on a saturated model (e.g. a
-background initiative running the full Cortex with no bound) stopped re-marking
-progress, so `is_alive()` declared `mind_tick` dead.
-**Likelihood**: Medium under sustained back-to-back turns (before fix).
-**Impact**: Whole runtime flips DEGRADED even though conversation works; the
-desktop GUI reverts to the "Connecting to runtime" reconnect surface.
-**Detection**: Health pulse `contract/important: mind_tick (is_alive returned False)`.
-**Recovery**: Fixed — the background kernel tick is bounded and yields under
-foreground load; dead contract loops are revived from health-pulse threads via
-the owning event loop; the GUI keeps the live UI in a `degraded_ready` state
-whenever conversation is ready. Self-recovers; a restart clears it immediately.
+**Cause**: The cognitive rhythm loop signals progress at the start of each iteration. If an iteration stalled waiting for a busy model (such as a background task running the full Cortex model without time limits), it stopped sending progress updates. As a result, `is_alive()` incorrectly assumed `mind_tick` was dead.
+**Likelihood**: Medium during rapid back-to-back conversation turns (before the fix).
+**Impact**: The entire runtime switched to a DEGRADED status even though chat still worked, causing the desktop interface to revert to the "Connecting to runtime" reconnect screen.
+**Detection**: Health check alert: `contract/important: mind_tick (is_alive returned False)`.
+**Recovery**: Fixed — the background task loop is now strictly bounded and yields time when the user is chatting; stalled background loops are revived by health-check threads through their owning event loop; and the desktop GUI stays in a `degraded_ready` state whenever conversation is available. The system self-recovers, and a restart clears the state immediately.
 **Runbook**: `docs/runbooks/mind-tick-false-death.md`
 
 ### F16: MLX worker-kill cold-lane cascade (the honest daily-stability edge)
 
-**Cause**: MLX cannot soft-cancel a running generation, so freeing a busy
-worker means force-killing it (unloading the ~18GB model). A foreground deep
-generation that exceeds its budget therefore kills the worker; on a
-memory-constrained host the reload races the next turn's timeout, which kills
-the reloading worker and restarts the load — a cold-lane cascade.
-**Likelihood**: Medium on a host with <~25GB free (e.g. other apps running).
-**Impact**: A cluster of turns returns 503 / fail-closed until the model
-finishes loading; RSS cycles (21GB→~1GB→reload). Self-recovers; RSS stays
-bounded (this is NOT the OOM growth of F07).
-**Detection**: `Cortex generation exceeded inference-gate timeout … aborting`
-followed by repeated `Loading model:`; worker RSS drops to ~0.
-**Recovery**: Partially mitigated — background timeouts no longer kill the
-shared worker, respawn waits for memory reclaim, and mid-load workers are not
-torn down. **Open architectural work**: a soft-cancel path into the MLX worker
-or a persistent model server; more host RAM headroom removes the cascade
-entirely.
+**Cause**: Apple's MLX library cannot safely interrupt an in-progress model generation. To stop a stuck worker, the runtime must force-kill it, which purges the ~18 GB model from RAM. If a deep foreground prompt exceeds its allowed time budget, the worker is killed. On a machine with limited free memory, reloading the 18 GB model takes time. If the next user turn arrives and times out while the model is still loading, that reloading worker is also killed—triggering a repeating cascade where the model never finishes loading.
+**Likelihood**: Medium on machines with less than ~25 GB of free RAM (for example, when other large applications are open).
+**Impact**: Several user turns in a row return a 503 error until the model finally finishes loading into memory. Process memory (RSS) repeatedly cycles (21 GB → ~1 GB → reload). The system eventually recovers on its own without unbounded memory growth (unlike the true memory leak described in F07).
+**Detection**: Log messages like `Cortex generation exceeded inference-gate timeout … aborting` followed by repeated `Loading model:` lines, while worker memory drops to near 0.
+**Recovery**: Partially mitigated — background timeouts no longer terminate the shared worker, worker restarts now wait for the operating system to reclaim RAM, and workers actively loading models are protected from being killed mid-load. **Open architectural work**: adding a soft-cancel mechanism to MLX or using a persistent model server; adding more physical RAM headroom eliminates this cascade completely.
 **Runbook**: `docs/runbooks/mlx-worker-cold-lane-cascade.md`
 
 ### F17: Failure-lockdown escalation from expected backpressure
 
-**Cause**: A bounded background generation (memory consolidation, dialectical
-crucible) timing out while the foreground lane holds the model was recorded as
-a degradation on a *fail-closed* subsystem, which escalated a plain
-`TimeoutError` to a CRITICAL SERVICE FAILURE and drove
-`unified_failure_lockdown` toward 1.00.
-**Likelihood**: Was high under load; low after fix.
-**Impact**: At lockdown 1.00, memory writes, tool execution, and
-self-modification are all blocked; existential-threat spikes.
-**Detection**: `unified_failure_lockdown_1.00` in the log; `Executive REJECTED`
-lines for memory/tool actions.
-**Recovery**: Fixed — `core/runtime/backpressure.py` records expected
-backpressure on a non-fail-closed channel with the policy disabled; foreground
-yields precede background generation.
+**Cause**: When a bounded background task (such as memory consolidation or reflection) timed out because the main user conversation was using the model, the system treated that normal timeout as a critical failure on a security-sensitive component. This escalated a standard `TimeoutError` into a CRITICAL SERVICE FAILURE, driving `unified_failure_lockdown` toward 1.00.
+**Likelihood**: High under heavy load before the fix; Low now.
+**Impact**: At a lockdown level of 1.00, Aura blocks memory saving, tool use, and self-updates, triggering false alarms about system integrity.
+**Detection**: `unified_failure_lockdown_1.00` in logs, accompanied by `Executive REJECTED` messages for memory and tool actions.
+**Recovery**: Fixed — `core/runtime/backpressure.py` now logs expected resource contention on a standard, non-critical channel without triggering lockdown rules. User-facing requests also yield processing time before background tasks run.
 **Runbook**: `docs/runbooks/failure-lockdown-from-backpressure.md`
 
 ### F18: Launch-provenance `ready:false` on source drift
 
-**Cause**: A signed `Aura.app` pins the exact commit + workspace hash it was
-built for; running code that has drifted forward (active development) fails the
-provenance check.
-**Likelihood**: Every launch of an actively developed checkout.
-**Impact**: `ready:false` with a `launch_provenance` blocker. She stays fully
-conversational (the `degraded_ready` path); it is a correct tamper-detection
-signal, not a functional break.
-**Detection**: `boot_phase: launch_provenance_failed`; issues
-`commit_sha_mismatch` / `workspace_state_sha256_mismatch`.
-**Recovery**: Expected in dev. To clear: rebuild/re-sign the app to re-pin, or
-launch via `launch_aura.sh` (which does not require provenance).
+**Cause**: A signed release build of `Aura.app` is cryptographically tied to a specific Git commit and workspace checksum. Running the app on modified or actively developed code fails this integrity check.
+**Likelihood**: Happens on every launch from an active development checkout.
+**Impact**: System status reports `ready:false` due to a `launch_provenance` blocker. The app remains fully conversational (via `degraded_ready`). This is an intended security feature indicating code modifications, not a broken system.
+**Detection**: Logs show `boot_phase: launch_provenance_failed` with `commit_sha_mismatch` or `workspace_state_sha256_mismatch`.
+**Recovery**: Expected during development. To resolve: rebuild and re-sign the application package to update the pinned checksums, or launch via `launch_aura.sh` (which skips strict provenance verification).
 **Runbook**: `docs/runbooks/launch-provenance-not-ready.md`
 
 ### F19: Quadratic conversation cost from a never-reused prompt cache
 
-**Cause**: The conversation path could not reuse KV, twice over.
-`_prompt_cache_entry_budget_for_model` gave the Cortex a budget of **0** under
-`desktop_resource_guard_enabled()`, so the prompt-cache LRU was never
-constructed on the live desktop; and every live user turn carries
-`clean_user_surface_contract=True`, which was in the bypass list — so the
-cache was not merely skipped but *cleared* each turn. Every turn re-prefilled
-the entire conversation from token 0: per-turn cost linear in history, total
-conversation cost quadratic.
-**Likelihood**: Was every long conversation; fixed.
-**Impact**: Latency staircase (11s → 25s → 105s → …) pinning at the turn
-ceiling from roughly turn 8–15, with the run dying by turn 20 of 200. Deaths
-were **0** — the model never crashed, the turns simply outgrew the timeout.
-This was the real "15-turn endurance ceiling", which had been attributed to
-cognition.
-**Detection**: Monotonically climbing per-turn latency with zero deaths, and
-a prompt-cache hit count of zero.
-**Amplifiers, both recorded in forensics**: `JobWatchdog` kills on 90s
-without a token, but prefill emits no tokens — so once re-prefill alone
-crossed 90s the watchdog killed a *healthy* worker mid-prefill, and respawn
-plus a 20 GB reload cost roughly two minutes. During those reloads,
-`_declared_mlx_worker_footprint_gb → _path_size_gb` ran a synchronous
-`rglob`+`stat` walk of the model directory **on the event loop** while 20 GB
-of safetensors reads saturated the disk (`data/error_logs/stalls/`).
+**Cause**: The conversation engine was accidentally prevented from reusing cached prompt calculations (Key-Value cache), in two separate ways:
+1. `_prompt_cache_entry_budget_for_model` set the Cortex cache size to **0** whenever `desktop_resource_guard_enabled()` was active, meaning the cache was never created on the desktop.
+2. Every normal user message included `clean_user_surface_contract=True`, which was listed as a cache-bypass flag—clearing the cache on every turn.
+Because the cache was wiped, every turn had to reprocess the entire conversation history from scratch (token 0). Processing time grew with conversation length, making the total conversation cost explode quadratically.
+**Likelihood**: Occurred on every long conversation before the fix; now resolved.
+**Impact**: Response times climbed steadily (11s → 25s → 105s, etc.) until hitting the turn timeout between turns 8 and 15, causing conversations to fail by turn 20. The model never crashed—turns simply timed out. This was the real cause of the historical "15-turn endurance limit," which had previously been blamed on reasoning degradation.
+**Detection**: Steadily increasing per-turn response latency with zero crashes, and a prompt-cache hit count of zero.
+**Compounding factors (both recorded in diagnostic forensics)**:
+- `JobWatchdog` killed any process that went 90 seconds without emitting a token. Because reprocessing history emits no output tokens until complete, once history reprocessing exceeded 90 seconds, the watchdog killed an entirely healthy worker mid-calculation. Restarting the worker and reloading 20 GB of model files added another two-minute delay.
+- During reloads, `_declared_mlx_worker_footprint_gb → _path_size_gb` scanned the entire model directory on the main event thread, blocking the event loop right while 20 GB of files were saturating the hard drive (`data/error_logs/stalls/`).
 **Evidence**: `artifacts/closeout/endurance_ceiling/ROOT_CAUSE.md`.
+**Runbook**: `docs/runbooks/prompt-cache-never-reused.md`
 
-**The general lesson, which recurs**: the dominant defect class in this
-codebase is *a good answer discarded by a gate, then reported as an
-infrastructure failure*. When a subsystem looks slow or dead, check first
-whether something upstream is throwing away correct work.
+**The recurring lesson**: A frequent issue in this codebase is *a safety gate discarding a valid answer, which is then misdiagnosed as an infrastructure failure*. When a subsystem seems slow or unresponsive, always check first whether an upstream check is throwing away good work.
 
 ## Recovery Drill Schedule
 
@@ -278,4 +214,3 @@ whether something upstream is throwing away correct work.
 | Model re-download | Quarterly | Delete model → verify re-acquisition |
 | State corruption recovery | Quarterly | Corrupt test DB → verify recovery |
 | Full disaster recovery | Annually | Fresh machine → full install → restore |
-**Runbook**: `docs/runbooks/prompt-cache-never-reused.md`

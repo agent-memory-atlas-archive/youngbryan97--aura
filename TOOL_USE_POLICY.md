@@ -4,31 +4,23 @@
 
 ## Scope
 
-Every tool and skill execution in the runtime.
+This policy applies to every tool and skill executed within Aura.
 
-The premise is one sentence: a tool call is a consequential action. Not a
-function call that happens to touch the outside world — a consequential
-action, which means it has to be authorized, sandboxed, audited, and
-recoverable before it runs, not explained afterward.
+The core rule is simple: running a tool is an action with real-world consequences. It is never treated as just an ordinary function call. Because tools interact with files, systems, and networks, every tool run must be authorized, isolated in a sandbox, logged in an audit trail, and recoverable before it runs — not justified after the fact.
 
-That framing is doing real work. It's why there is no "safe" tool category
-that skips the gate, and why a skill Aura writes herself goes through the
-same path a user-requested one does.
+This rule applies universally. There is no special "safe" category of tools that skips security checks. Even skills that Aura writes automatically during self-repair must go through the exact same checks as skills requested by a human user.
 
 ## Principles
 
-1. **No tool executes without Will authorization**: Every tool call passes
-   through the Unified Will and receives a WillReceipt.
-2. **All tool output is untrusted**: Results from tools are treated as external
-   untrusted input and sanitized before influencing Aura's behavior.
-3. **Least privilege**: Each skill requests only the permissions it needs.
-4. **Fail closed**: If authorization is unavailable, tool execution is refused.
-5. **Auditable**: Every tool invocation, its authorization, input, output, and
-   outcome are logged.
+1. **No tool runs without Will authorization:** Every tool call must pass through Aura's decision engine (the Unified Will) and generate a signed audit record (`WillReceipt`).
+2. **All tool output is untrusted:** Data returned by any tool is treated as external, untrusted input. It is sanitized and checked before it can influence Aura's decisions.
+3. **Least privilege:** Skills only receive the minimum permissions needed to do their specific job.
+4. **Fail closed (default to deny):** If the authorization system is unavailable or cannot make a decision, the tool is blocked from running.
+5. **Full auditability:** Aura logs every tool call, including its authorization, inputs, outputs, and final results.
 
 ## Skill Contract
 
-Every skill/tool must declare:
+Every skill and tool must declare a manifest defining its permissions and requirements:
 
 ```yaml
 name: skill_name
@@ -88,10 +80,7 @@ tests: "tests/test_skill_name.py"
 
 ## Operator Controls
 
-Tool access is configured by writing a prohibition, not by listing what is
-allowed. A standing directive lives in
-`data/governance/standing_directives.json`, and the authority gateway reads it
-from disk on every consequential action:
+Tool permissions are managed by writing block rules (prohibitions) rather than allowlists. These rules, called standing directives, are stored in `data/governance/standing_directives.json`. Aura's authority gateway reads this file directly from disk before executing any action:
 
 ```python
 from core.governance.standing_directives import (
@@ -102,30 +91,22 @@ add_directive(kind=KIND_TOOL, value="shell", reason="operator policy", scope=SCO
 add_directive(kind=KIND_PATH, value="~/Documents", reason="off limits", scope=SCOPE_WRITE)
 ```
 
-`SCOPE_WRITE` refuses only the mutating use; `SCOPE_ANY` refuses reads too.
-`remove_directive(directive_id)` withdraws one.
+- `SCOPE_WRITE` blocks write or modify operations while still allowing read access.
+- `SCOPE_ANY` blocks both read and write access completely.
+- `remove_directive(directive_id)` deletes a directive to restore access.
 
-The store has no allowlist and no grant call, and that asymmetry is the design
-rather than an omission. A directive that could permit an action would give one
-successful prompt injection a permanent, audited-looking way through the gate.
-A prohibition can only tighten it, so a hostile write costs availability and
-nothing else.
+The directive system only supports blocking actions, not granting them. This deliberate design prevents security vulnerabilities: if directives could grant permissions, an attacker using prompt injection could manipulate the AI into giving itself permanent privileges. Because the system only recognizes bans, any tampered file can only restrict functionality, never expand it.
 
-If the file is present but unreadable, the system refuses everything that is
-not read-only and records a degradation. It knows prohibitions were written and
-cannot tell what they said.
+If the directives file exists but cannot be read (for example, due to a disk error or corruption), Aura blocks all actions except read-only operations and logs a degraded status. It knows restrictions exist, so it errs on the side of caution.
 
-Feature-level switches are separate: `AURA_FLAG_<NAME>` overrides any flag in
-`_DEFAULT_FLAGS` (`core/governance/feature_flags.py`) — `workspace_jail_enabled`
-is the path-traversal guard for file skills, `will_strict_enforcement` decides
-whether the Will is binding or advisory.
+Broader system settings are controlled through feature flags: setting `AURA_FLAG_<NAME>` overrides any flag defined in `_DEFAULT_FLAGS` (`core/governance/feature_flags.py`). For example, `workspace_jail_enabled` prevents file tools from escaping the designated workspace folder, and `will_strict_enforcement` controls whether the Will's security decisions are mandatory or advisory.
 
 ## Production Mode Rules
 
-In production mode (`AURA_MODE=production`):
-- Unsigned or unmanifested skills do not load
-- Self-modification tools are disabled
-- Shell execution requires operator-level permissions
-- Network tools require explicit configuration
-- All tool output is sanitized before processing
-- Tool execution timeout is strictly enforced
+When running in production mode (`AURA_MODE=production`):
+- Skills without a valid manifest or signature will not load.
+- Self-modification tools are completely disabled.
+- Running shell commands requires operator approval.
+- Network access requires explicit manual configuration.
+- All tool outputs are sanitized before Aura processes them.
+- Tool timeouts are strictly enforced to prevent hanging processes.

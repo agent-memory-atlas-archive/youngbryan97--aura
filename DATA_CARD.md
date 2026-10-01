@@ -1,11 +1,8 @@
 # Aura Data Card
 
-Everything Aura stores, where it lives, and whether you can get it back out.
+This document details every piece of data Aura stores, where that data is kept on your computer, and how you can export or delete it.
 
-Aura runs locally, so "your data" means files on your own disk rather than
-rows in someone else's database. That removes a whole category of privacy
-question and creates a smaller one: it is on your machine, so backups,
-disk encryption, and who else uses that machine are now the threat model.
+Because Aura runs entirely on your local machine, your data is stored in files on your own hard drive rather than on remote cloud servers. This eliminates external tracking and third-party data sharing. However, it means your data security depends on your local computer security: enabling full-disk encryption, maintaining backups, and managing who has access to your machine.
 
 ## Memory Systems
 
@@ -39,7 +36,7 @@ User Input → Sanitizer → Working Memory → Model Context
                                               ↓
                                     Integrity Check → User
                                               ↓
-                              Will Decision → Memory Write
+                               Will Decision → Memory Write
                                               ↓
                                     State Snapshot → Backup
 ```
@@ -48,21 +45,21 @@ User Input → Sanitizer → Working Memory → Model Context
 
 | Control | Mechanism |
 |---------|-----------|
-| No remote inference | Every router lane is local; `allow_cloud_fallback` is pinned to `False` in `core/brain/request_contract.py` |
-| Outbound body inspection | `core/security/egress_privacy.py` reads what leaves before it leaves |
+| No remote inference | All AI model processing runs locally; `allow_cloud_fallback` is pinned to `False` in `core/brain/request_contract.py` |
+| Outbound body inspection | `core/security/egress_privacy.py` inspects any outgoing network request before it leaves your machine |
 | Memory export | `make memory-export` |
-| Memory delete | `make memory-purge` (all) / app memory panel `POST /api/memory/delete` (one) |
+| Memory delete | `make memory-purge` (delete all memories) / app memory panel `POST /api/memory/delete` (delete specific memories) |
 | Log purge | `make log-purge` |
-| Full data export | `make data-export` (GDPR-style) |
-| Full data delete | `make data-purge` |
+| Full data export | `make data-export` (complete export of all your stored data) |
+| Full data delete | `make data-purge` (deletes all application data) |
 
 ## No External Data Collection
 
-Aura in default configuration:
-- Sends no data to external services
-- Has no telemetry phone-home
-- Has no analytics collection
-- Has no crash reporting to external services
-- All data stays on the user's machine
+In its default configuration, Aura:
+- Sends no data to external services or cloud providers.
+- Has no telemetry, tracking, or "phone-home" behavior.
+- Does not collect product analytics or user telemetry.
+- Does not send crash reports to external servers.
+- Stores all files, logs, and databases locally on your computer.
 
-Cloud fallback, if enabled, sends only the classified-safe portions of prompts.
+If cloud fallback is explicitly enabled by the operator, Aura sends only prompt sections that have been scanned and classified as safe.

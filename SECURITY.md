@@ -1,59 +1,50 @@
 # Security
 
-Aura runs with the reach of the person using it. It executes commands, drives
-the computer, holds persistent personal context, listens on a local port,
-modifies its own source, and starts actions nobody asked for in that moment.
-Every one of those is a capability somebody would want to borrow.
+Aura has the same permissions and access as the user running it. It can run system commands, control your computer, store your personal data across sessions, listen for local network connections, edit its own code, and trigger automated background tasks. Because Aura has these powerful capabilities, securing them is critical to prevent misuse.
 
 ## Reporting a vulnerability
 
-Open a private advisory:
+Please report security issues privately through GitHub advisories:
 <https://github.com/youngbryan97/aura/security/advisories/new>
 
-Do not open a public issue for a vulnerability. Include what you ran, what
-happened, and what you expected; a proof of concept is worth more than a
-description, and a failing test in the shape of `tests/security/` is worth
-more than either.
+Do not open a public issue for a security vulnerability. Please include:
+- The steps or commands you ran
+- What actually happened
+- What you expected to happen
 
-Expect a first reply within seven days. There is one maintainer and no
-bounty programme.
+A working proof-of-concept is much more helpful than a text description, and a failing automated test written to match `tests/security/` is even better.
+
+You should receive an initial response within seven days. Note that Aura has a single maintainer and does not offer a bug bounty program.
 
 ## Scope
 
-In scope, and the parts worth attacking first:
+The following areas are in scope for security reports, and are the most critical components to test:
 
-- the local HTTP and WebSocket API, its authentication, and its browser trust
-  boundary — see [docs/LOCAL_API_TRUST_BOUNDARY.md](docs/LOCAL_API_TRUST_BOUNDARY.md);
-- the execution surfaces: the shell skill, the terminal skill, MCP servers,
-  host automation, the terminal motor;
-- the sandbox — `security/sandbox.py` and its seatbelt profile;
-- path containment: the workspace jail, the file write gateway, the skills
-  that take a path from a caller;
-- the governance chain: `core/security/execution_authority.py`, the capability
-  tokens, and the standing directives;
-- persistent state: the memory stores, the identity record, the migration
-  ledger;
-- anything that turns text from outside into an action inside.
+- The local HTTP and WebSocket API, its authentication methods, and how it protects against malicious web pages — see [docs/LOCAL_API_TRUST_BOUNDARY.md](docs/LOCAL_API_TRUST_BOUNDARY.md).
+- The execution surfaces: the shell skill, the terminal skill, MCP (Model Context Protocol) servers, host automation, and the terminal motor.
+- The sandbox — `security/sandbox.py` and its macOS seatbelt security profile.
+- File and path containment: the workspace jail (which restricts file access to specific folders), the file-writing gateway, and any skills that take a file path from a caller.
+- The governance chain: `core/security/execution_authority.py`, capability tokens, and standing operator directives.
+- Saved data and state: the memory stores, the identity record, and the migration ledger.
+- External input processing: anything that accepts text from outside (such as web pages or prompts) and turns it into an internal action.
 
-Out of scope: the model's outputs considered as text, denial of service
-against your own machine, and findings that require an attacker who already
-has your login session.
+**Out of scope:**
+- The language model's raw text outputs (unless they trigger unexpected execution).
+- Denial-of-service attacks against your own local machine.
+- Security findings that require an attacker who already has full access to your logged-in user account.
 
 ## What the threat model says
 
-[docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) lists the assets, the trust
-boundaries, and each class of attack with the control that answers it and the
-test that runs it. Every control named there is attacked from the attacker's
-side in `tests/security/`, so a control that stops working fails a test rather
-than continuing to be documented. `tools/check_threat_model.py` fails when the
-document names a test that does not exist.
+The [docs/THREAT_MODEL.md](docs/THREAT_MODEL.md) file details the system assets, trust boundaries, known attack types, protective security controls, and the automated tests that verify each control.
 
-The same document is explicit about what has not been done: no independent
-security engineer has attacked this system. That is a gap in the practice, not
-a gap in the writing, and no amount of self-review closes it.
+Every security control listed in that document is actively tested using automated attack simulations in `tests/security/`. If a security control stops working, the corresponding test fails immediately instead of letting the documentation fall out of date. The script `tools/check_threat_model.py` checks this and fails if the threat model names a test file that does not exist.
+
+The threat model is also explicit about its limitations: Aura has not yet undergone a security review or penetration test by an independent security engineer. While automated self-testing is extensive, it cannot replace an external review.
 
 ## Handling of your data
 
-Everything stays on the machine Aura runs on. There is no telemetry endpoint
-and no account. `docs/DATA_RETENTION_DELETION_POLICY.md` says what is written
-where and how to remove it; `make data-purge` and `make memory-purge` do it.
+All your data stays completely local on the machine running Aura. There is no user account to create, and no telemetry or usage data is sent back to external servers.
+
+[docs/DATA_RETENTION_DELETION_POLICY.md](docs/DATA_RETENTION_DELETION_POLICY.md) explains what data is saved and how to remove it. You can completely delete your data at any time:
+- `make memory-purge` — deletes all stored conversation memories.
+- `make data-purge` — deletes all stored data and logs.
