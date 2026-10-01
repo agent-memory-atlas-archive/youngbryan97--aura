@@ -2656,6 +2656,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 ## 3. Unified learning, knowledge, and agency
 
 - [ ] L01 Verify persona fusion/continuity and regenerate incompatible steering.
+  2026-09-30. The integrity audit reported "CAA steering at 30.0%
+  (bootstrap)" for the resident cortex, Aura-Qwen3.8-27B-persona-crsm. Its
+  migration contract qualifies a signed steering generation of 80 vectors,
+  five dimensions at sixteen layers, which the steering engine materializes
+  from custody and hooks at the layers it carries. The report read only
+  training/vectors, where all fifteen vectors it expected are bound to an
+  earlier model, and expected layers from a depth band the engine uses only
+  when nothing has been measured. It now verifies the signed generation
+  (authority, metadata, generation claim, each vector's bytes) and counts
+  it: 80 of 80 bound, production (4e39be6da). The vectors in training/vectors
+  are the incompatible set this item names; nothing loads them for this
+  cortex. Whether the attached tissue helps is G10's question, and G10's
+  public comparison is still negative.
 - [ ] L02 Close experience-to-dataset-to-training-to-evaluation-to-publication
   loops; reconcile marker formats, quality metadata, and active model identity.
 - [ ] L03 Use independent correctness/preference evidence, not fluency proxies,
@@ -2679,6 +2692,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   recovery, and rollback on unseen tasks rather than installation counts.
 - [ ] L08 Audit affect, self-state, phi, and consciousness-related claims with
   causal controls; configured priors are not measured subjective experience.
+  2026-09-30, the closed loop. 0.85 of her free energy was "physical"
+  prediction error over a sensor dictionary in which the only readings that
+  moved came from the simulated shipping network, normalized by port
+  capacities, while fourteen declared runtime sensors were never written.
+  Every sensor now names its plant and an unread one is not a zero; the host
+  is read each sync, and physical free energy is computed over observed
+  readings only, each surprise in that sensor's own spread. An immune rule
+  may only act on the plant it measures, and the feed tells a move on the
+  simulation as practice (db975628f).
   2026-09-29, night: the second surface. The phenomenal-now engine writes a
   first-person claim and an interior narrative into
   `cognition.phenomenal_state` every tick, and with nothing read they were
@@ -2710,6 +2732,15 @@ Inherited ledgers (every unresolved child item is included, not just headings):
 
 - [ ] U01 Natural conversation: direct answers, conversational repair, memory,
   preferences, evidence-grounded self-description, and no canned dead ends.
+  2026-09-30, memory. A question about what was said was answered without
+  her cortex by a word scorer whose length bonus let almost any sentence
+  clear its bar, so it quoted whichever memory scored top: on twelve
+  question-and-memory pairs among each other's memories, the right one once.
+  Ranked by meaning through the runtime's sentence encoder it is the right
+  one eleven times; a memory is quoted directly only when it is also the
+  closest in meaning and shares a distinctive word with the question, and
+  otherwise her cortex answers from the same memories ordered by meaning.
+  Two paragraphs written in advance for one question are gone (2684235a5).
   PARTIAL 2026-09-07. Twenty probes run live across conversation, tools,
   reasoning, self-knowledge and three skeptic angles. Quality is good and the
   voice is consistent: she is honest that "Aura" was assigned rather than
