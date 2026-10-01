@@ -452,7 +452,7 @@ class OscillatoryBinding:
         This is the circular mean resultant length — a standard measure of
         phase concentration.  1.0 = all in phase, 0.0 = uniformly distributed.
         """
-        now = time.monotonic()
+        now = time.time()
         stale_cutoff = now - 2.0
 
         # Prune stale reports to prevent unbounded dict growth
@@ -514,7 +514,7 @@ class OscillatoryBinding:
 
     def _emit_binding_moment(self):
         """Record a BindingMoment for history and downstream consumers."""
-        now = time.monotonic()
+        now = time.time()
         stale_cutoff = now - 2.0
         contributing = [
             src for src, ts in self._phase_timestamps.items()
@@ -579,7 +579,12 @@ class OscillatoryBinding:
                 extra={"evicted_source": oldest_source},
             )
         self._phase_reports[source] = normalized_phase
-        self._phase_timestamps[source] = time.monotonic()
+        # On the clock a subject run rewinds, like every other age she keeps.
+        # Stamped on the monotonic clock, a restored report aged by however long
+        # the machine took between restore and arm: past two seconds psi fell to
+        # its neutral 0.5 and the field's binding input moved with it, so an arm
+        # run later in a run read differently from the same arm run earlier.
+        self._phase_timestamps[source] = time.time()
 
     def compute_subsystem_phase(self, activation_level: float, source: str) -> float:
         """Helper: derive a phase from a subsystem's activation level.

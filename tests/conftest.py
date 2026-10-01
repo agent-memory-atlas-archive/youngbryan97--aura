@@ -1134,6 +1134,37 @@ def _a_singleton_built_in_a_test_ends_with_it(request):
             namespace[key] = None
 
 
+def _training_lane() -> object | None:
+    """The process's learned world model's trainer thread, if one is running."""
+    module = sys.modules.get("core.world_model.learned_world_model")
+    model = getattr(module, "_instance", None) if module is not None else None
+    return getattr(model, "_trainer_thread", None) if model is not None else None
+
+
+@pytest.fixture(autouse=True)
+def _a_training_lane_a_test_started_ends_with_it():
+    """The world model's trainer, started inside a test, stops when the test does.
+
+    The first lookup of the learned facet starts a daemon thread that takes a
+    gradient step every two seconds and notes it as exertion. The model keeps
+    the thread, so the slot fixture above leaves the model in place, and the
+    thread went on training and noting `train_steps` through every test after
+    it: an empty effort ledger read `{'train_steps': 1.0}` in a later test, and
+    the fatigue that ledger feeds tipped an action choice from `read_room` to
+    `make_room`, both only in company and only under load. The subject harness
+    stops the same thread between arms for the same reason.
+    """
+    running = _training_lane()
+    yield
+    if running is not None or _training_lane() is None:
+        return
+    module = sys.modules.get("core.world_model.learned_world_model")
+    model = getattr(module, "_instance", None)
+    halt = getattr(model, "stop_training", None)
+    if callable(halt):
+        halt()
+
+
 def _holds_a_resource(value: object, resources: tuple[type, ...], depth: int = 2) -> bool:
     """Whether a slot's object is, or keeps inside it, a thread, a handle or a hook.
 

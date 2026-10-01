@@ -43,6 +43,32 @@ def declare_the_entropy(runtime: Any) -> None:
     _declare_the_chaos(runtime)
 
 
+#: The host readings a condition prepares and a run holds still (see
+#: `freeze_host` in driver_host.py): three percents and a temperature in
+#: degrees Celsius.
+HOST_READINGS: tuple[str, ...] = ("cpu_usage", "ram_usage", "temperature", "vram_usage")
+
+
+def _on_the_machines_scale(hardware: dict[str, Any]) -> list[float]:
+    """The held host, in the units the engine's own machine readings use.
+
+    The machine's readings each reach the engine as a fraction: a percent over
+    a hundred, a temperature over a hundred degrees and capped at one. The
+    declared host went in raw, alongside every flag and running count the body
+    keeps beside it. The noise's amplitude is one half plus the variance of
+    what it reads, so in a probe on 1 October the declared somatic vector had a
+    norm of 762 where the machine's had 0.53. Every run since the chaos was
+    declared on 29 September drove C with that much more noise than the live
+    runtime gives her; the seed 23 campaign, the only one started since, died
+    in the reboot of 30 September before it finished.
+    """
+    return [
+        min(1.0, max(0.0, float(hardware[key]) / 100.0))
+        for key in HOST_READINGS
+        if isinstance(hardware.get(key), (int, float)) and not isinstance(hardware.get(key), bool)
+    ]
+
+
 def _declare_the_chaos(runtime: Any) -> None:
     try:
         from core.consciousness.controlled_chaos import declare_the_machine
@@ -56,8 +82,7 @@ def _declare_the_chaos(runtime: Any) -> None:
         now = time.time()
         local = time.localtime(now)
         hardware = dict(getattr(getattr(runtime.state, "soma", None), "hardware", {}) or {})
-        declared = [float(hardware[k]) for k in sorted(hardware) if isinstance(hardware[k], (int, float))]
-        return [local.tm_hour / 24.0, local.tm_min / 60.0, (now % 60.0) / 60.0, *declared]
+        return [local.tm_hour / 24.0, local.tm_min / 60.0, (now % 60.0) / 60.0, *_on_the_machines_scale(hardware)]
 
     seed = hashlib.sha256(f"subject-core-chaos-{int(getattr(runtime, 'seed', 0))}".encode()).digest()
     declare_the_machine(signals, seed)

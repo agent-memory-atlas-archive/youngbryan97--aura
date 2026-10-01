@@ -115,24 +115,27 @@ def test_status_is_authenticated_and_tamper_evident(tmp_path: Path, monkeypatch)
     key_path.write_bytes(b"k" * 32)
     os.chmod(key_path, 0o600)
     config = {"config_sha256": "d" * 64, "heartbeat_key_path": str(key_path)}
-    monkeypatch.setattr(os, "getpid", lambda: 42)
-    status = handoff._signed_status(config, phase="waiting")
-    handoff.verify_status(config, status)
-    changed = copy.deepcopy(status)
-    changed["phase"] = "complete"
-    with pytest.raises(handoff.HandoffError, match="status_invalid"):
-        handoff.verify_status(config, changed)
-    body = {key: value for key, value in status.items() if key != "hmac_sha256"}
-    assert (
-        status["hmac_sha256"]
-        == __import__("hmac")
-        .new(
-            b"k" * 32,
-            handoff._canonical(body),
-            hashlib.sha256,
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(os, "getpid", lambda: 42)
+        status = handoff._signed_status(config, phase="waiting")
+        handoff.verify_status(config, status)
+        changed = copy.deepcopy(status)
+        changed["phase"] = "complete"
+        with pytest.raises(handoff.HandoffError, match="status_invalid"):
+            handoff.verify_status(config, changed)
+        body = {key: value for key, value in status.items() if key != "hmac_sha256"}
+        assert (
+            status["hmac_sha256"]
+            == __import__("hmac")
+            .new(
+                b"k" * 32,
+                handoff._canonical(body),
+                hashlib.sha256,
+            )
+            .hexdigest()
         )
-        .hexdigest()
-    )
 
 
 def test_lineage_requires_launchd_and_exact_caffeinate_child(tmp_path: Path, monkeypatch) -> None:
@@ -152,19 +155,22 @@ def test_lineage_requires_launchd_and_exact_caffeinate_child(tmp_path: Path, mon
         "/source/tools/run_rlc_wow_pilot_handoff.py run "
         f"--config {config_path} --launchd-supervised"
     )
-    monkeypatch.setattr(os, "getpid", lambda: 41)
-    monkeypatch.setattr(handoff, "_process_record", lambda _pid: (1, command))
-    monkeypatch.setattr(handoff, "_process_table", lambda: [(42, 41, "caffeinate", child)])
-    monkeypatch.setattr(
-        handoff.campaign_controller,
-        "load_config",
-        lambda _path: {"python": "/venv/python"},
-    )
-    assert handoff._verify_launchd_lineage(config, config_path) == {
-        "launchd_pid": 1,
-        "handoff_pid": 41,
-        "caffeinate_pid": 42,
-    }
+    # The pid is faked only around the check. conftest's teardown builds a
+    # psutil.Process for os.getpid() and met the fake there.
+    with monkeypatch.context() as scoped:
+        scoped.setattr(os, "getpid", lambda: 41)
+        scoped.setattr(handoff, "_process_record", lambda _pid: (1, command))
+        scoped.setattr(handoff, "_process_table", lambda: [(42, 41, "caffeinate", child)])
+        scoped.setattr(
+            handoff.campaign_controller,
+            "load_config",
+            lambda _path: {"python": "/venv/python"},
+        )
+        assert handoff._verify_launchd_lineage(config, config_path) == {
+            "launchd_pid": 1,
+            "handoff_pid": 41,
+            "caffeinate_pid": 42,
+        }
 
 
 def test_completed_handoff_never_claims_wow(tmp_path: Path) -> None:

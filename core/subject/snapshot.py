@@ -14,14 +14,6 @@ other modules already ask it for.
 """
 from __future__ import annotations
 
-from .snapshot_services import (  # noqa: F401  (re-exported: they were defined here)
-    _is_published_value,
-    _layer_state,
-    _republish,
-    _restore_layers,
-    _restore_services,
-    _service_state,
-)
 import contextlib
 import copy
 import enum
@@ -49,6 +41,15 @@ from core.subject.copies import (  # moved when this module crossed the size cei
     _is_process_furniture,
     _state_is_its_dict,
     _unchanged_or,
+)
+
+from .snapshot_services import (  # noqa: F401  (re-exported: they were defined here)
+    _is_published_value,
+    _layer_state,
+    _republish,
+    _restore_layers,
+    _restore_services,
+    _service_state,
 )
 
 if TYPE_CHECKING:  # a driver type used in annotations only, and this is imported by it
@@ -900,6 +901,23 @@ def _store_state() -> dict[str, Any] | None:
     return {"root": str(root), "places": places, "entries": entries, "directories": directories}
 
 
+#: What the process holds in memory about the stores: each a module and the
+#: function that reads its view again from the disk. A view is a reading of
+#: the files, so the fork rewinds it by having it read the rewound files. The
+#: gateway record index was the first. It refreshed on a 15-second timer, so it
+#: kept records an arm wrote and the restore deleted, and missed one written
+#: before the snapshot until the timer came round; a conversation arm run after
+#: a memory arm recalled differently by 0.0952 on 30 September.
+STORE_VIEWS: tuple[tuple[str, str], ...] = (
+    ("core.memory.gateway_record_index", "resync_gateway_record_index"),
+)
+
+
+def _reread_store_views() -> None:
+    for module_name, reader in STORE_VIEWS:
+        getattr(importlib.import_module(module_name), reader)()
+
+
 def _restore_stores(saved: dict[str, Any] | None) -> None:
     """Put the run's state files back to what they held when the fork was taken."""
     if not saved:
@@ -986,6 +1004,7 @@ def _restore_stores(saved: dict[str, Any] | None) -> None:
         # Raised, not skipped. The first version caught these and carried on,
         # and an arm whose store was not put back contaminates every arm after.
         raise RuntimeError(f"the fork could not restore {len(failures)} state file(s): {failures[:6]}")
+    _reread_store_views()
 
 
 def _loop_lock(loop: Any) -> Any:

@@ -61,11 +61,19 @@ def test_it_hands_back_nothing_it_has_not_already_loaded() -> None:
     assert "not part of the library" in json.dumps(out)
 
 
-def test_without_a_library_nothing_changes() -> None:
-    """A sandbox given no library keeps refusing imports outright."""
+def test_without_a_library_only_computation_imports() -> None:
+    """A sandbox given no library imports what only computes, and nothing else.
 
-    out = _run("import json\nprint('x')\n", library_root="")
-    assert out["status"] != "ok"
+    Since 29 August the standard modules that only compute (json, math, re
+    and the rest of core/sandbox/runner.py's list) import with or without a
+    library: a ledger script was refused json on a live turn. What reaches a
+    file, a socket, a process or the interpreter stays refused.
+    """
+
+    assert _run("import json\nprint('x')\n", library_root="")["status"] == "ok"
+    for door in ("os", "sys", "subprocess", "socket", "importlib"):
+        out = _run(f"import {door}\nprint('x')\n", library_root="")
+        assert out["status"] != "ok", door
 
 
 def test_runaway_code_still_stops() -> None:

@@ -18,6 +18,10 @@ This index makes the hot path pure in-memory scoring:
   strictly bounded scan (``COLD_SCAN_MAX_FILES`` newest files within
   ``COLD_SCAN_BUDGET_S``) and returns best-effort results while the background
   build warms the rest
+- the gateway tells the index about each record it writes or moves
+  (``note_gateway_change``), and a caller that rewrote the store behind the
+  index has it read the disk again, whole, before going on
+  (``resync_gateway_record_index``)
 """
 from __future__ import annotations
 
@@ -99,6 +103,12 @@ class GatewayRecordIndex:
         self._last_write_hint_scan = 0.0
         self._refresh_running = threading.Lock()  # held only by the refresher
         self._swap_lock = threading.Lock()
+        # Records the gateway reported since a refresh began, each with the
+        # order it arrived in. A refresh lists the directory before it swaps,
+        # so without these a record written in between was lost from the view
+        # until the next pass, and one removed in between came back.
+        self._sequence = 0
+        self._notes: dict[str, tuple[int, GatewayRecordEntry | None]] = {}
 
     # ── refresh machinery ───────────────────────────────────────────────
 
@@ -114,7 +124,7 @@ class GatewayRecordIndex:
         files: list[tuple[float, Path]] = []
         try:
             for child in self.root.iterdir():
-                if not child.is_dir():
+                if not self._is_family(child):
                     continue
                 for record in child.glob("*.json"):
                     mtime = self._stat_mtime(record)
@@ -135,8 +145,26 @@ class GatewayRecordIndex:
     PARSE_YIELD_EVERY = 25
     PARSE_YIELD_S = 0.002
 
-    def _do_refresh(self) -> None:
+    @staticmethod
+    def _is_family(child: Path) -> bool:
+        """A directory of records. ``_quarantine`` and its kind are not.
+
+        The gateway's own lookup has always skipped them; the index listed
+        them, so a quarantined record stayed recallable.
+        """
+        return child.is_dir() and not child.name.startswith("_")
+
+    def _is_record(self, path: Path) -> bool:
+        return (
+            path.suffix == ".json"
+            and path.parent.parent == self.root
+            and not path.parent.name.startswith("_")
+        )
+
+    def _do_refresh(self, *, whole: bool = False) -> None:
         try:
+            with self._swap_lock:
+                started_at = self._sequence
             files = self._list_record_files()[: self.MAX_ENTRIES]
             previous = self._entries
             fresh: dict[str, GatewayRecordEntry] = {}
@@ -147,15 +175,25 @@ class GatewayRecordIndex:
                 if cached is not None and cached.mtime == mtime:
                     fresh[key] = cached
                     continue
-                if parsed >= self.MAX_PARSE_PER_PASS:
+                if not whole and parsed >= self.MAX_PARSE_PER_PASS:
                     continue  # keep cached view for the rest; next pass resumes
                 entry = _parse_record(path, mtime)
                 parsed += 1
                 if entry is not None:
                     fresh[key] = entry
-                if parsed % self.PARSE_YIELD_EVERY == 0:
+                if not whole and parsed % self.PARSE_YIELD_EVERY == 0:
                     time.sleep(self.PARSE_YIELD_S)  # hand the GIL to the loop
             with self._swap_lock:
+                for key, (order, noted) in self._notes.items():
+                    if order <= started_at:
+                        continue
+                    if noted is None:
+                        fresh.pop(key, None)
+                    else:
+                        fresh[key] = noted
+                self._notes = {
+                    key: note for key, note in self._notes.items() if note[0] > started_at
+                }
                 self._entries = fresh
                 self._built = True
                 self._last_refresh = time.monotonic()
@@ -164,6 +202,43 @@ class GatewayRecordIndex:
             logger.warning("Gateway record index refresh failed: %s", exc)
         finally:
             self._refresh_running.release()
+
+    def resync(self) -> None:
+        """Read the whole store again on this thread, and return when done.
+
+        For a caller that rewrote the store behind the index, which is what
+        the subject harness's fork does between arms. Waits for a background
+        pass already running, since that pass listed the old disk.
+        """
+        self._refresh_running.acquire()
+        self._do_refresh(whole=True)
+
+    def note_change(self, path: Path) -> None:
+        """Bring one record in line with the disk now.
+
+        The gateway calls this after it writes or moves a record. Before, a
+        fresh record reached the view only when a directory's mtime tripped
+        the write hint and a background pass ran, so whether the next turn
+        could recall it depended on how much time had passed.
+        """
+        path = Path(path)
+        if not self._is_record(path):
+            return
+        mtime = self._stat_mtime(path)
+        entry = _parse_record(path, mtime) if mtime > 0.0 else None
+        key = str(path)
+        with self._swap_lock:
+            self._sequence += 1
+            self._notes[key] = (self._sequence, entry)
+            entries = dict(self._entries)
+            if entry is None:
+                entries.pop(key, None)
+            else:
+                entries[key] = entry
+                if len(entries) > self.MAX_ENTRIES:
+                    oldest = min(entries.values(), key=lambda item: item.mtime)
+                    entries.pop(oldest.path, None)
+            self._entries = entries
 
     def _kick_refresh(self) -> None:
         """Start a background refresh if one is not already running."""
@@ -198,7 +273,7 @@ class GatewayRecordIndex:
         try:
             wall_last_refresh = time.time() - (time.monotonic() - self._last_refresh)
             for child in self.root.iterdir():
-                if child.is_dir() and self._stat_mtime(child) >= wall_last_refresh - 1.0:
+                if self._is_family(child) and self._stat_mtime(child) >= wall_last_refresh - 1.0:
                     return True
         except OSError as exc:
             logger.debug("Gateway record write-hint stat skipped: %s", exc)
@@ -274,3 +349,21 @@ def get_gateway_record_index(root: Path) -> GatewayRecordIndex:
         if _INDEX is None or _INDEX.root != Path(root):
             _INDEX = GatewayRecordIndex(Path(root))
         return _INDEX
+
+
+def note_gateway_change(root: Path, path: Path) -> None:
+    """Tell the index for ``root`` that ``path`` was written or moved.
+
+    Does nothing when no index has been built for that root: the first search
+    builds one from the disk, which already holds the change.
+    """
+    index = _INDEX
+    if index is not None and index.root == Path(root):
+        index.note_change(Path(path))
+
+
+def resync_gateway_record_index() -> None:
+    """Rebuild the process's index from the disk, if it has one."""
+    index = _INDEX
+    if index is not None:
+        index.resync()

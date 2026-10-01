@@ -3375,6 +3375,19 @@ Inherited ledgers (every unresolved child item is included, not just headings):
   superseded items in batches, then complete all remaining review coverage.
 - [ ] Q08 Run focused, smoke, chunked full-suite, lint, compile, layering,
   governance, production, enterprise, documentation, and release gates.
+  2026-10-01. Main at 8ac994342: module size, lint, the strict lint
+  surface, markers and the claim discipline test are green again, each red
+  on main from work that landed after 30 September. The async sandbox claim
+  added 55 lines to `model_validation` (4,333 lines), so its six tool and
+  sandbox predicates moved to `model_validation_contracts`: 125,041 of
+  125,120. The week's docs added words that old substring markers sit inside
+  ("factually", "backdoor", "reprocessing"); seven sites match by word now,
+  346 findings to 328. The two decode canaries were re-sealed in 2bf356926.
+  Still red: the convergence-surface ratchet, 776.25 against the 720.88
+  recorded on 5 September, with most of the growth in
+  `response_reliability` (+8.3), `llm_health_router` (+7.8),
+  `global_workspace` (+4.4) and `runtime.errors` (+3.9); and the reqproof
+  receipts, which wait for the code to stop moving.
   2026-09-30, afternoon. The other session's full run at 308d623df failed
   files that, rerun alone on main, failed the same way: none was an order
   effect, so they belong here. Seventeen are fixed in one commit, each at its
@@ -3617,6 +3630,37 @@ Inherited ledgers (every unresolved child item is included, not just headings):
     refuses before writing.
 
 - [ ] Q09 Resolve order-dependent tests; no isolated pass erases a batch fail.
+  2026-10-01: the late chunks of the run at 308d623df, sixteen failures and
+  two teardown errors, and the arm-order test, which failed on main at
+  0.0952 with the machine to itself. That test was three leaks, each found by
+  naming the first column and frame that moved. The memory gateway's record
+  index is a copy of the disk refreshed on a 15-second timer, so an arm
+  recalled records the restore had deleted and missed one written before the
+  snapshot; the gateway now tells the index what it wrote, the fork re-reads
+  it after a restore, and quarantined records leave it. The binding stamped
+  phase reports on the monotonic clock, so a restored report aged by the real
+  time since the snapshot and synchrony fell to 0.5 in later arms; five
+  seconds of waiting between restore and arm reproduced it in all eight
+  conditions and now moves nothing. And the host a run declares to the chaos
+  engine went in as raw percents, degrees and running counts, so the somatic
+  noise on C had a norm of 762 where the machine gives 0.53. That one is in
+  the instrument: it landed on 29 September in 26bfee6e0, and the seed 23
+  campaign, the only one started since, died in the reboot before it
+  finished. It also made a frozen substrate move after any harness test,
+  which was the tier4 lesion failure.
+  The orchestrator factory booted a whole orchestrator on any lookup, so a
+  harness turn built one and its state repository replaced the run's (the
+  self-model failure); it returns the booted one or None now, and the Soul
+  and personality accept a process with none. The world model's trainer,
+  started in one test, trained and noted effort through every test after it,
+  which tipped an action choice in company; the conftest stops a trainer a
+  test started. Nine test files were behind code that moved on purpose and
+  held the other sixteen. The convergence-surface failure is Q08's. Across
+  the 74 files that import or read a changed module, 1,753 of 1,755 passed,
+  and both of the two are fixed above. Open: beside a second pytest process,
+  `test_no_module_global_grows_from_one_arm_to_the_next` saw
+  `asking_clauses` change in an arm because that module was first imported
+  after the snapshot. It passes without the second process.
   2026-09-30, morning: the `autonomous_rsi` sandbox test that failed in
   loaded chunks and passed alone. Both work-bound runners in the subprocess
   gateway treated a child that had exited as stranded if its exit landed

@@ -151,6 +151,10 @@ class Lane:
     def is_alive(self):
         return self.alive
 
+    def consume_deliberate_no_text_reason(self):
+        # Nothing was declined here: an empty answer is the worker's.
+        return ""
+
     async def _generate_inner(self, *_a, **_k):
         return self.answers
 

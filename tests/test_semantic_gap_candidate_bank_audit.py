@@ -63,10 +63,13 @@ def test_decode_receives_observation_but_not_source_target(monkeypatch):
     row = _audit_row(item, model, plan)
     assert row["source"] == "source"
     assert row["diagnosis"]["failure_stage"] == "incomplete_search"
+    # The bank's own time bound joined the call; this plan names none.
     assert seen == [{"source_token_ids": (1, 2), "hidden_states": "hidden",
                      "public_inputs": (2, 3), "source_text_sha256": "source",
                      "model_basis_sha256": "basis", "max_charts": 8,
-                     "max_graphs_per_chart": 4, "solve_time_limit_s": 2.}]
+                     "max_graphs_per_chart": 4, "solve_time_limit_s": 2.,
+                     "bank_time_limit_s": None}]
+    assert "secret" not in repr(seen), "the target reached the decoder"
 
 
 def test_partial_audit_cannot_be_reported_as_a_complete_population():

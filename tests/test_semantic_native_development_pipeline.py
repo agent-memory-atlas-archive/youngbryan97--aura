@@ -35,7 +35,19 @@ def executor(pipeline, *, failed_window=None, defect=None):
         command = item["command"]
         if item["name"].endswith("-plan"):
             output = Path(command[command.index("--directory") + 1])
+            # The bounds the plan stage freezes from its own command, which a
+            # continuation is checked against (cdcd3c830, 29 September).
+            bounds = {}
+            if "--max-seconds" in command:
+                bounds["max_seconds"] = float(command[command.index("--max-seconds") + 1])
+            if "--search-nodes" in command:
+                bounds["search_nodes"] = int(command[command.index("--search-nodes") + 1])
+            if "--prefix-strategy" in command:
+                bounds["prefix_strategy"] = command[command.index("--prefix-strategy") + 1]
+            if "--decision-score-execution" in command:
+                bounds["decision_score_execution"] = command[command.index("--decision-score-execution") + 1]
             save(output / "plan.json", {"training_plan_sha256": "train", "checkpoint_receipt_sha256": "weights",
+                **bounds,
                 "weight_mode": command[command.index("--weight-mode") + 1],
                 "implementation": {"tools/evaluate_semantic_native_grammar.py": hashlib.sha256(
                     (ROOT / "tools/evaluate_semantic_native_grammar.py").read_bytes()).hexdigest()}}, "plan_sha256")
