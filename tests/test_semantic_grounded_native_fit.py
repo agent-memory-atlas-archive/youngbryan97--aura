@@ -78,6 +78,14 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
     examples = tuple(grounded_supervision_from_source_example(item) for item in items)
     options = dict(spec=spec, rank=2, layers=2, max_tokens=64, cache_bytes=8192, relation_width=8,
         fit_options={"steps": 4, "save_every": 2, "learning_rate": .01, "max_seconds": 30., "role_margin": .25})
+    if interrupted == "prepared":
+        from core.learning.semantic_program_compositional_transducer import (
+            fit_compositional_semantic_program_transducer,
+        )
+        from tests.test_semantic_program_shared_transducer import _examples, _grounding
+        parent = fit_compositional_semantic_program_transducer(_examples(), input_grounding=_grounding())
+        parent_bytes = json.dumps(parent.to_dict()).encode()
+        options["source_basis"] = {"parent_sha256": hashlib.sha256(parent_bytes).hexdigest()}
     if interrupted == "mixed":
         options["adapter_options"] = {"layer_kinds": ["lora", "product"], "layer_ranks": [2, 3]}
     if interrupted == "prepared":
@@ -155,6 +163,31 @@ def test_joint_cli_engine_shards_actual_prefixes_and_drops_model_before_lane_rel
     checked = verify(tmp_path / "fit")
     assert checked["native_acquisition_sha256"] and checked["artifacts_verified"]
     assert not checked["model_weights_loaded"] and not checked["held_sources_scored"]
+    if interrupted == "prepared":
+        from tools.semantic_grounded_native_decode import GroundedNativeChartDecoder
+        mx.random.seed(111)
+        native = Model(ModelArgs.from_dict(config))
+        with pytest.raises(ValueError, match="custody"):
+            GroundedNativeChartDecoder.from_fit(native, directory=tmp_path / "fit",
+                parent_bytes=parent_bytes + b" ", spec=spec)
+        if not checked["learned_checkpoint_selected"]:
+            with pytest.raises(ValueError, match="custody"):
+                GroundedNativeChartDecoder.from_fit(native, directory=tmp_path / "fit",
+                    parent_bytes=parent_bytes, spec=spec)
+        decoder = GroundedNativeChartDecoder.from_fit(native, directory=tmp_path / "fit",
+            parent_bytes=parent_bytes, spec=spec, allow_initial_checkpoint=True)
+        item = items[0]
+        result = decoder.decode(source_token_ids=item.ir.source_token_ids, hidden_states=item.hidden_states,
+            public_inputs=item.public_inputs, source_text_sha256=item.ir.source_text_sha256,
+            model_basis_sha256=parent.model_basis_sha256, search_time_limit_s=30.)
+        assert decoder.last_receipt["examined_charts"] > 0
+        if result.ir is not None:
+            assert decoder.last_receipt["selected_chart"]["all_options_retained"]
+        else:
+            assert decoder.last_receipt["selected_chart"] is None and decoder.last_receipt["refusal"]
+        assert decoder.last_receipt["native_state_shape"] == [len(item.ir.source_token_ids), 2, 16]
+        assert not decoder.last_receipt["target_available_to_decoder"]
+        assert not decoder.last_receipt["serving_authority"]
     with pytest.raises(ValueError, match="already complete"):
         fit_native_grounded_sources(examples[:1], examples[1:], items, tmp_path / "fit", resume=True, **options)
     assert len(loads) == (3 if interrupted == "update" else 1)

@@ -51,7 +51,7 @@ def native_capture_template(item, evidence, depths):
 def fit_native_grounded_sources(training, calibration, source_items, directory, *, spec, rank=32, layers=8,
                                max_tokens=512, cache_bytes=512 * 1024 ** 2, seed=20260930,
                                relation_width=128, rounds=2, fit_options=None, resume=False,
-                               prepare_only=False, adapter_options=None):
+                               prepare_only=False, adapter_options=None, source_basis=None):
     """Load one authorized model; recompute actual suffix states in gradients.
 
     Prefixes are immutable complete source-only sequences, sharded on disk.
@@ -86,6 +86,7 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
     training, calibration, source_items = tuple(training), tuple(calibration), tuple(source_items)
     validate_grounded_fit_inputs(training, calibration, **fit_options)
     adapter_options = dict(adapter_options or {})
+    source_basis = dict(source_basis or {})
     max_seconds = fit_options.get("max_seconds", 1800.)
     if (any(type(value) is not int or value < 1 for value in (rank, layers, max_tokens, cache_bytes))
             or not math.isfinite(max_seconds) or not 0 < max_seconds <= 14400
@@ -93,6 +94,11 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
             or type(prepare_only) is not bool or prepare_only and resume
             or not set(adapter_options) <= {"kind", "layer_ranks", "layer_kinds", "experts", "scaling", "alpha"}):
         raise ValueError("native grounded fit needs bounded source geometry")
+    if (not set(source_basis) <= {"parent_sha256", "source_report_sha256", "folds_sha256", "bank_plan_sha256"}
+            or any(not isinstance(value, str) or len(value) != 64
+                   or any(character not in "0123456789abcdef" for character in value)
+                   for value in source_basis.values())):
+        raise ValueError("native grounded source basis needs exact artifact digests")
     examples = {item.evidence.source_id: item for item in (*training, *calibration)}
     items = {item.ir.source_text_sha256: item for item in source_items}
     if (not training or not calibration or len(examples) != len(training) + len(calibration)
@@ -132,6 +138,7 @@ def fit_native_grounded_sources(training, calibration, source_items, directory, 
         "calibration_ids": sorted(item.evidence.source_id for item in calibration),
         "max_tokens": max_tokens, "prefix_cache_bytes": cache_bytes,
         "relation_width": relation_width, "rounds": rounds,
+        "source_basis": source_basis,
         "source_supervision_sha256": hashlib.sha256(json.dumps(sources, sort_keys=True,
             separators=(",", ":"), allow_nan=False).encode()).hexdigest(),
         "fit_options": {**fit_options, "equivariance_pairs": [asdict(pair) for pair in fit_options.get("equivariance_pairs", ())]}}

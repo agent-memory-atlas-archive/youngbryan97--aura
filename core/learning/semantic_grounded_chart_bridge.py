@@ -90,6 +90,7 @@ class GroundedBindingChartSolver:
         self.depth_states = mx.array(depth_states)
         self.minimum_margin, self.max_seconds = minimum_margin, max_seconds
         self.last_resolution = None
+        self.resolutions = []
 
     def __call__(self, chart, *, operation_nodes, input_spans, inputs, source_id, time_limit_s=None):
         if source_id != self.source_id or len(operation_nodes) != len(chart.options) or len(inputs) != chart.n_inputs:
@@ -181,4 +182,12 @@ class GroundedBindingChartSolver:
                                 "source_id": source_id, "all_options_retained": True,
                                 "role_bindings": resolution.bindings, "edge_evidence": edge_receipts,
                                 "margin_is_probability": False}
+        if resolution.assignment is not None:
+            arguments = resolution.assignment[1]
+            self.last_resolution["graph_signature"] = tuple(sorted(
+                (node.operation, node.span.start, node.span.end,
+                 tuple((anchors[register].start, anchors[register].end) for register in values))
+                for node, values in zip(operation_nodes, arguments, strict=True)))
+            self.last_resolution["argument_graph_score"] = resolution.assignment[0]
+        self.resolutions.append(self.last_resolution)
         return resolution.assignment if resolution.status == "bound" else None

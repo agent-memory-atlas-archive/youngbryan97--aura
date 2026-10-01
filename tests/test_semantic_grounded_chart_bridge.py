@@ -146,6 +146,11 @@ def test_ordinary_decode_reaches_grounded_bridge_without_teacher_argument_target
     assert baseline.ir is not None and decoded.ir is not None, (decoded.refusal, bridge.last_resolution)
     assert decoded.ir.to_program() == item.ir.to_program()
     assert baseline.ir.to_program() != item.ir.to_program()
+    from tools.semantic_grounded_native_decode import selected_chart_receipt
+    receipt = selected_chart_receipt(bridge.resolutions, decoded)
+    assert receipt["argument_graph_score"] == decoded.pointer_scores["argument_graph_total"]
+    with pytest.raises(ValueError, match="corresponding"):
+        selected_chart_receipt([], decoded)
     with pytest.raises(ValueError, match="complete global"):
         parent.decode(**arguments, binding_chart_solver=invoke)
     with pytest.raises(ValueError, match="joint operation"):

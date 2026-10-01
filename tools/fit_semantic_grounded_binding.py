@@ -47,12 +47,16 @@ def main():
     parser.add_argument("--native-layer-kinds", help="comma-separated suffix function classes")
     parser.add_argument("--native-layer-ranks", help="comma-separated suffix ranks")
     parser.add_argument("--native-experts", type=int, default=1)
+    parser.add_argument("--calibration-per-stratum", type=int,
+                        help="source-identity quota per eligible construction/depth calibration stratum")
     args = parser.parse_args()
     if args.prepare_only and (not args.native or args.resume):
         parser.error("prepare-only requires a fresh native source fit")
     if not args.native and (args.native_kind != "lora" or args.native_layer_kinds
             or args.native_layer_ranks or args.native_experts != 1):
         parser.error("native adapter topology requires --native")
+    if args.calibration_per_stratum is not None and args.calibration_per_stratum < 1:
+        parser.error("calibration quota must be positive")
     from tools.refit_semantic_argument_proposals import (
         configure_refit_environment,
         load_source_examples,
@@ -89,9 +93,17 @@ def main():
         grounded_supervision_from_source_example,
     )
     from core.learning.semantic_grounded_binding_engine import fit_grounded_binding
-    from core.learning.semantic_native_fit_sampling import bounded_native_fit_schedule
+    from core.learning.semantic_native_fit_sampling import (
+        bounded_native_fit_schedule,
+        native_depth_calibration_subset,
+    )
     from core.learning.semantic_relational_pointer import RelationalBindingPointer
     channels = tuple(args.channel)
+    eligible_calibration_count = len(calibration_items)
+    if args.calibration_per_stratum is not None:
+        selected = set(native_depth_calibration_subset(calibration_items,
+            tuple(item.ir.source_text_sha256 for item in calibration_items), per_stratum=args.calibration_per_stratum))
+        calibration_items = tuple(item for item in calibration_items if item.ir.source_text_sha256 in selected)
     training = tuple(grounded_supervision_from_source_example(item, channels=channels, graph_limit=args.graph_limit,
                      equivalence_supervision=args.equivalence_supervision)
                      for item in fit)
@@ -116,6 +128,9 @@ def main():
             spec=spec, rank=args.native_rank, layers=args.native_layers, max_tokens=args.native_max_tokens,
             cache_bytes=args.native_cache_mib * 1024 ** 2, seed=args.seed,
             relation_width=args.relation_width, rounds=args.rounds, fit_options=fit_options, resume=args.resume,
+            source_basis={"parent_sha256": hashlib.sha256(raw["parent"]).hexdigest(),
+                "source_report_sha256": hashlib.sha256(raw["source"]).hexdigest(),
+                "folds_sha256": hashlib.sha256(raw["folds"]).hexdigest(), "bank_plan_sha256": outer["plan_sha256"]},
             prepare_only=args.prepare_only, adapter_options={"kind": args.native_kind, "experts": args.native_experts,
                 **({"layer_kinds": args.native_layer_kinds.split(",")} if args.native_layer_kinds else {}),
                 **({"layer_ranks": [int(value) for value in args.native_layer_ranks.split(",")]} if args.native_layer_ranks else {})})
@@ -133,6 +148,8 @@ def main():
         "bank_candidate_receipt_sha256": bank_report["candidate_receipt_sha256"],
         "channels": channels, "seed": args.seed, "model_weights_loaded": args.native,
         "equivalence_supervision": args.equivalence_supervision, "source_equivariance_pairs": len(pairs),
+        "eligible_calibration_count": eligible_calibration_count,
+        "calibration_per_stratum": args.calibration_per_stratum,
         "sampling_receipt": sampling_receipt,
         "held_sources_scored": False, "fit_receipt_sha256": report["receipt_sha256"]}
     from core.governance_context import local_internal_governed_scope

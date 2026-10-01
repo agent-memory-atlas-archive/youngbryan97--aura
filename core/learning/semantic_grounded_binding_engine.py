@@ -60,6 +60,7 @@ IMPLEMENTATION_PATHS = (
     "tools/semantic_native_adapters.py",
     "tools/semantic_native_adapter_layers.py",
     "tools/semantic_grounded_native_fit.py",
+    "tools/semantic_grounded_native_decode.py",
     "tools/semantic_native_execution.py",
     "tools/probe_semantic_native_prefix_branches.py",
 )
