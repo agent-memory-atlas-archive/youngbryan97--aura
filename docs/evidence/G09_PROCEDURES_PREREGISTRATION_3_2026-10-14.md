@@ -125,3 +125,8 @@ attempt 3 cost less without weakening what it tests:
   tokens against about 480 for a DeepMind one. Math and transfer keep 300.
 
 Rounds, lines, decoding and the claims are unchanged.
+
+Also part of the 10:50 amendment: the 18 kinds no longer induced join the
+book as signatures only, as attempt 2's 16 do, computed from their
+development halves, so a BBEH Mini request is not answered by a procedure
+for a different kind that resembles it.
