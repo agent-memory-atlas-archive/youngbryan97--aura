@@ -1131,6 +1131,9 @@ class ResponseGenerationPhase(_RunsTheGenerationSteps, _RunsTheRequiredSearch, B
                 "voice": ("evidence_for_a_restated_request" if planted.get("form") == "restated"
                           else "her_reply_states_it" if stated else "computed_answer_served"),
             }
+            logger.info("🧠 ResponseGeneration: kept answer for %s, %s (known answers agreed: %s).",
+                        planted.get("family"), state.response_modifiers["reasoning_amplifier_v2_active_phase"]["voice"],
+                        planted.get("agreed_known"))
             if stated:
                 return draft
             return attributed_text(str(planted["answer"]), dict(planted.get("generation_metadata") or {}))
