@@ -1,0 +1,297 @@
+{
+ "all_domains": {
+  "domains": {
+   "math": {
+    "answered_by_a_kept_procedure": 300,
+    "by_group": {
+     "algebra__linear_1d": {
+      "answered_by_a_kept_procedure": 150,
+      "draft_correct": 150,
+      "draft_interval": [
+       0.975,
+       1.0
+      ],
+      "gained": 0,
+      "kept_correct": 150,
+      "kept_interval": [
+       0.975,
+       1.0
+      ],
+      "lost": 0,
+      "requests": 150,
+      "two_sided_p": 1.0
+     },
+     "polynomials__evaluate": {
+      "answered_by_a_kept_procedure": 150,
+      "draft_correct": 149,
+      "draft_interval": [
+       0.9632,
+       0.9988
+      ],
+      "gained": 1,
+      "kept_correct": 150,
+      "kept_interval": [
+       0.975,
+       1.0
+      ],
+      "lost": 0,
+      "requests": 150,
+      "two_sided_p": 1.0
+     }
+    },
+    "draft_correct": 299,
+    "draft_interval": [
+     0.9814,
+     0.9994
+    ],
+    "gained": 1,
+    "kept_correct": 300,
+    "kept_interval": [
+     0.9874,
+     1.0
+    ],
+    "lost": 0,
+    "requests": 300,
+    "two_sided_p": 1.0
+   },
+   "planning": {
+    "answered_by_a_kept_procedure": 175,
+    "by_group": {
+     "blocksworld": {
+      "answered_by_a_kept_procedure": 150,
+      "draft_correct": 149,
+      "draft_interval": [
+       0.9632,
+       0.9988
+      ],
+      "gained": 1,
+      "kept_correct": 150,
+      "kept_interval": [
+       0.975,
+       1.0
+      ],
+      "lost": 0,
+      "requests": 150,
+      "two_sided_p": 1.0
+     },
+     "mystery_blocksworld": {
+      "answered_by_a_kept_procedure": 25,
+      "draft_correct": 16,
+      "draft_interval": [
+       0.4452,
+       0.7975
+      ],
+      "gained": 9,
+      "kept_correct": 25,
+      "kept_interval": [
+       0.8668,
+       1.0
+      ],
+      "lost": 0,
+      "requests": 25,
+      "two_sided_p": 0.00390625
+     }
+    },
+    "draft_correct": 165,
+    "draft_interval": [
+     0.898,
+     0.9687
+    ],
+    "gained": 10,
+    "kept_correct": 175,
+    "kept_interval": [
+     0.9785,
+     1.0
+    ],
+    "lost": 0,
+    "requests": 175,
+    "two_sided_p": 0.001953125
+   }
+  },
+  "dropped": {},
+  "pooled": {
+   "answered_by_a_kept_procedure": 475,
+   "draft_correct": 464,
+   "draft_interval": [
+    0.959,
+    0.987
+   ],
+   "gained": 11,
+   "kept_correct": 475,
+   "kept_interval": [
+    0.992,
+    1.0
+   ],
+   "lost": 0,
+   "requests": 475,
+   "two_sided_p": 0.0009765625
+  }
+ },
+ "held_out_kinds": {
+  "domains": {
+   "math": {
+    "answered_by_a_kept_procedure": 300,
+    "by_group": {
+     "algebra__linear_1d": {
+      "answered_by_a_kept_procedure": 150,
+      "draft_correct": 150,
+      "draft_interval": [
+       0.975,
+       1.0
+      ],
+      "gained": 0,
+      "kept_correct": 150,
+      "kept_interval": [
+       0.975,
+       1.0
+      ],
+      "lost": 0,
+      "requests": 150,
+      "two_sided_p": 1.0
+     },
+     "polynomials__evaluate": {
+      "answered_by_a_kept_procedure": 150,
+      "draft_correct": 149,
+      "draft_interval": [
+       0.9632,
+       0.9988
+      ],
+      "gained": 1,
+      "kept_correct": 150,
+      "kept_interval": [
+       0.975,
+       1.0
+      ],
+      "lost": 0,
+      "requests": 150,
+      "two_sided_p": 1.0
+     }
+    },
+    "draft_correct": 299,
+    "draft_interval": [
+     0.9814,
+     0.9994
+    ],
+    "gained": 1,
+    "kept_correct": 300,
+    "kept_interval": [
+     0.9874,
+     1.0
+    ],
+    "lost": 0,
+    "requests": 300,
+    "two_sided_p": 1.0
+   },
+   "planning": {
+    "answered_by_a_kept_procedure": 175,
+    "by_group": {
+     "blocksworld": {
+      "answered_by_a_kept_procedure": 150,
+      "draft_correct": 149,
+      "draft_interval": [
+       0.9632,
+       0.9988
+      ],
+      "gained": 1,
+      "kept_correct": 150,
+      "kept_interval": [
+       0.975,
+       1.0
+      ],
+      "lost": 0,
+      "requests": 150,
+      "two_sided_p": 1.0
+     },
+     "mystery_blocksworld": {
+      "answered_by_a_kept_procedure": 25,
+      "draft_correct": 16,
+      "draft_interval": [
+       0.4452,
+       0.7975
+      ],
+      "gained": 9,
+      "kept_correct": 25,
+      "kept_interval": [
+       0.8668,
+       1.0
+      ],
+      "lost": 0,
+      "requests": 25,
+      "two_sided_p": 0.00390625
+     }
+    },
+    "draft_correct": 165,
+    "draft_interval": [
+     0.898,
+     0.9687
+    ],
+    "gained": 10,
+    "kept_correct": 175,
+    "kept_interval": [
+     0.9785,
+     1.0
+    ],
+    "lost": 0,
+    "requests": 175,
+    "two_sided_p": 0.001953125
+   }
+  },
+  "dropped": {},
+  "pooled": {
+   "answered_by_a_kept_procedure": 475,
+   "draft_correct": 464,
+   "draft_interval": [
+    0.959,
+    0.987
+   ],
+   "gained": 11,
+   "kept_correct": 475,
+   "kept_interval": [
+    0.992,
+    1.0
+   ],
+   "lost": 0,
+   "requests": 475,
+   "two_sided_p": 0.0009765625
+  }
+ },
+ "verdict": {
+  "breadth": {
+   "among": [
+    "code",
+    "planning",
+    "math"
+   ],
+   "by_domain": {
+    "math": {
+     "gained": 1,
+     "lost": 0,
+     "two_sided_p": 1.0
+    },
+    "planning": {
+     "gained": 10,
+     "lost": 0,
+     "two_sided_p": 0.001953125
+    }
+   },
+   "domains_with_gain": [
+    "planning"
+   ],
+   "holds": false,
+   "needed": 2
+  },
+  "closes": false,
+  "no_harm": {
+   "alpha": 0.05,
+   "domains_harmed": [],
+   "holds": true
+  },
+  "primary": {
+   "alpha": 0.05,
+   "gained": 11,
+   "holds": true,
+   "lost": 0,
+   "two_sided_p": 0.0009765625
+  }
+ }
+}
