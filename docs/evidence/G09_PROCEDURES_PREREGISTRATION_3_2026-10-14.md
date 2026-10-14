@@ -108,3 +108,20 @@ BBH alone. Mystery Blocksworld's drafts have not been decoded.
 * Breadth: at least two of math, transfer and planning, counting held-out
   kinds only, gain more than they lose at two-sided alpha 0.0167. Primary
   and no harm are unchanged.
+
+## Amendment, 14 October 2026, 10:50, before the prefill run has started
+
+Attempt 2 did not close G09 (verdict above its own plan: primary 11 to 0,
+planning 10 to 0, math 1 to 0, breadth not met). Two changes to make
+attempt 3 cost less without weakening what it tests:
+
+* The prefill run that serves as attempt 3's induction induces only attempt
+  3's held-out kinds: the 52 DeepMind modules, the 27 BBH tasks and the three
+  PlanBench domains. The 17 BBEH tasks and calendar, which no attempt 3 claim
+  rests on, are induced for her book after G12.
+* Planning gets 100 requests instead of 300. Attempt 2's Mystery Blocksworld
+  drafts were wrong on 9 of 25, so 100 requests leave far more expected gains
+  than the seven a domain needs, and a planning draft costs about 9,800
+  tokens against about 480 for a DeepMind one. Math and transfer keep 300.
+
+Rounds, lines, decoding and the claims are unchanged.
